@@ -39,8 +39,17 @@ export interface NodeResponse {
 	attachment?: NodeAttachment | null;
 	/** Upstream `metadata.priority.defaultToBottom`: nodes dropped or moved into this one land at the bottom. */
 	defaultToBottom?: boolean;
+	/** Upstream `metadata.table` of a table item: header-row flag, column widths by header cell id, cell color. */
+	table?: TableMetadata | null;
 	/** The node's 📆 Calendar role (root or date node), or null for any other node. */
 	calendar?: CalendarInfo | null;
+}
+
+/** The `metadata.table` fields the app reads and writes. */
+export interface TableMetadata {
+	headers?: boolean;
+	sizes?: Record<string, number>;
+	bg?: string;
 }
 
 /** A 📆 Calendar node's role and settings, from its upstream `metadata.calendar`. */

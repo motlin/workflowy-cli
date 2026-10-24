@@ -334,11 +334,11 @@ function toUnix(date: Date | null | undefined): number | null {
 }
 
 /** Top-level item metadata keys the app reads; `mirror` stays with the mirror import. */
-const KEPT_METADATA_KEYS = ["numbered_start", "calendar", "layoutMode"] as const;
+const KEPT_METADATA_KEYS = ["numbered_start", "calendar", "layoutMode", "table"] as const;
 
 /**
  * The subset of an item's internal metadata the cache keeps:
- * `numbered_start`, `calendar`, `layoutMode` and `priority.defaultToBottom`.
+ * `numbered_start`, `calendar`, `layoutMode`, `table` and `priority.defaultToBottom`.
  * Undefined when none of them is present.
  */
 export function keptInternalMetadata(

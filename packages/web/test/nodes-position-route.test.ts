@@ -55,6 +55,7 @@ function dto(id: string, parentId: string | null, priority: number, hasChildren 
 		attachment: null,
 		defaultToBottom: false,
 		calendar: null,
+		table: null,
 	};
 }
 

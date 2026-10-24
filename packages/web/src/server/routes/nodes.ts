@@ -9,6 +9,7 @@ import type {
 	OutlineViewList,
 	OutlineViewResponse,
 	SaveEffects,
+	TableMetadata,
 	UpdateNodeResponse,
 } from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient, effectiveCompletedAt} from "@workflowy/shared/cache";
@@ -121,6 +122,7 @@ function nodeToRestDto(
 		attachment: derived.attachment ?? null,
 		defaultToBottom: derived.metadata?.defaultToBottom ?? false,
 		calendar: derived.calendar ?? null,
+		table: derived.metadata?.table ?? null,
 	};
 }
 
@@ -161,10 +163,24 @@ function loadAttachments(ctx: ServerContext, nodeIds: string[]): Map<string, Nod
 	return map;
 }
 
+/** `json_extract` returns an object as JSON text; anything but a JSON object is no table metadata. */
+function parseTableMetadata(raw: unknown): TableMetadata | null {
+	if (typeof raw !== "string") {
+		return null;
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
 /** The node DTO fields read from the cached internal metadata. */
 interface InternalMetadataFields {
 	numberedStart: number | null;
 	defaultToBottom: boolean;
+	table: TableMetadata | null;
 }
 
 /**
@@ -182,6 +198,7 @@ function loadInternalMetadataFields(ctx: ServerContext, nodeIds: string[]): Map<
 			nodeId: nodeInternalMetadata.nodeId,
 			numberedStart: sql<unknown>`json_extract(${nodeInternalMetadata.metadataJson}, '$.numbered_start')`,
 			defaultToBottom: sql<unknown>`json_extract(${nodeInternalMetadata.metadataJson}, '$.priority.defaultToBottom')`,
+			table: sql<unknown>`json_extract(${nodeInternalMetadata.metadataJson}, '$.table')`,
 		})
 		.from(nodeInternalMetadata)
 		.where(inArray(nodeInternalMetadata.nodeId, nodeIds))
@@ -191,6 +208,7 @@ function loadInternalMetadataFields(ctx: ServerContext, nodeIds: string[]): Map<
 			numberedStart: typeof row.numberedStart === "number" ? row.numberedStart : null,
 			// SQLite's json_extract returns a JSON true as 1.
 			defaultToBottom: row.defaultToBottom === 1,
+			table: parseTableMetadata(row.table),
 		});
 	}
 	return map;
@@ -762,6 +780,7 @@ nodesRouter.post("/", async (c) => {
 		attachment: null,
 		defaultToBottom: false,
 		calendar: null,
+		table: null,
 	};
 
 	return c.json({node: nodeResponse}, 201);
@@ -805,6 +824,30 @@ function layoutModeValue(layoutMode: string): string | undefined {
 	return layoutMode === "bullets" ? undefined : layoutMode;
 }
 
+/** A `tableSet` body as metadata changes, or undefined when it is malformed or writes outside `table`. */
+function parseTableSet(raw: unknown): {path: string[]; value: unknown}[] | undefined {
+	if (!Array.isArray(raw)) {
+		return undefined;
+	}
+	const changes: {path: string[]; value: unknown}[] = [];
+	for (const entry of raw as unknown[]) {
+		if (typeof entry !== "object" || entry === null) {
+			return undefined;
+		}
+		const {path, value} = entry as {path?: unknown; value?: unknown};
+		if (
+			!Array.isArray(path) ||
+			path.length === 0 ||
+			path[0] !== "table" ||
+			!path.every((part) => typeof part === "string")
+		) {
+			return undefined;
+		}
+		changes.push({path: path, value});
+	}
+	return changes;
+}
+
 // PATCH (or POST) /api/v1/nodes/home - Set Home's layoutMode through the root metadata
 nodesRouter.on(["PATCH", "POST"], `/${HOME_TARGET}`, async (c) => {
 	const ctx = c.get("ctx");
@@ -836,16 +879,27 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
-	const {name, note, layoutMode, numberedStart} = await c.req.json<{
+	const {name, note, layoutMode, numberedStart, tableSet} = await c.req.json<{
 		name?: string;
 		note?: string;
 		layoutMode?: string;
 		numberedStart?: unknown;
+		tableSet?: unknown;
 	}>();
 
 	// Validate that at least one field is provided
-	if (name === undefined && note === undefined && layoutMode === undefined && numberedStart === undefined) {
-		return c.json({error: "At least one of name, note, layoutMode, or numberedStart is required"}, 400);
+	if (
+		name === undefined &&
+		note === undefined &&
+		layoutMode === undefined &&
+		numberedStart === undefined &&
+		tableSet === undefined
+	) {
+		return c.json({error: "At least one of name, note, layoutMode, numberedStart, or tableSet is required"}, 400);
+	}
+	const tableChanges = tableSet === undefined ? [] : parseTableSet(tableSet);
+	if (tableChanges === undefined) {
+		return c.json({error: 'tableSet must be a list of {path, value} whose path starts with "table"'}, 400);
 	}
 	if (numberedStart !== undefined && numberedStart !== null && !Number.isInteger(numberedStart)) {
 		return c.json({error: "numberedStart must be an integer or null"}, 400);
@@ -865,6 +919,7 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 		const changes = [
 			...(layoutMode === undefined ? [] : [{path: ["layoutMode"], value: layoutModeValue(layoutMode)}]),
 			...(numberedStart === undefined ? [] : [{path: ["numbered_start"], value: numberedStart ?? undefined}]),
+			...tableChanges,
 		];
 		let effects: SaveEffects = {backlinkTargets: [], dates: false};
 		if (name !== undefined || note !== undefined) {
@@ -891,7 +946,7 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 		}
 		return c.json({node, effects} satisfies UpdateNodeResponse);
 	}
-	if (numberedStart !== undefined) {
+	if (numberedStart !== undefined || tableChanges.length > 0) {
 		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
 	}
 
@@ -921,6 +976,7 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 		attachment: null,
 		defaultToBottom: false,
 		calendar: null,
+		table: null,
 	};
 
 	return c.json({node: nodeResponse, effects} satisfies UpdateNodeResponse);
@@ -1005,6 +1061,7 @@ nodesRouter.post("/:id/complete", async (c) => {
 		attachment: null,
 		defaultToBottom: false,
 		calendar: null,
+		table: null,
 	};
 
 	return c.json({node: nodeResponse});
@@ -1360,6 +1417,7 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 		attachment: null,
 		defaultToBottom: false,
 		calendar: null,
+		table: null,
 	};
 
 	return c.json({node: nodeResponse});

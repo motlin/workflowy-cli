@@ -79,6 +79,7 @@ describe("POST /api/v1/nodes", () => {
 				attachment: null,
 				defaultToBottom: false,
 				calendar: null,
+				table: null,
 			},
 		});
 	});

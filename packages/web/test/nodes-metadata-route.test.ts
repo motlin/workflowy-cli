@@ -44,7 +44,13 @@ function apiNode(id: string, layoutMode?: string): WorkflowyNode {
 	};
 }
 
-function dto(id: string, layoutMode: string | null, numberedStart: number | null, defaultToBottom = false) {
+function dto(
+	id: string,
+	layoutMode: string | null,
+	numberedStart: number | null,
+	defaultToBottom = false,
+	table: unknown = null,
+) {
 	return {
 		id,
 		parent_id: null,
@@ -64,6 +70,7 @@ function dto(id: string, layoutMode: string | null, numberedStart: number | null
 		attachment: null,
 		defaultToBottom,
 		calendar: null,
+		table,
 	};
 }
 
@@ -429,5 +436,46 @@ describe("node DTO defaultToBottom", () => {
 			status: 200,
 			body: {node: dto("n1", null, null)},
 		});
+	});
+});
+
+describe("PATCH /api/v1/nodes/:id tableSet", () => {
+	it("forwards table paths to the adapter and returns them on the node", async () => {
+		const {adapter, request} = setup(true);
+
+		const res = await request("PATCH", "/nodes/n1", {tableSet: [{path: ["table", "sizes", "c1"], value: 200}]});
+
+		expect({status: res.status, calls: adapter.setNodeMetaValues.mock.calls}).toStrictEqual({
+			status: 200,
+			calls: [["n1", [{path: ["table", "sizes", "c1"], value: 200}]]],
+		});
+	});
+
+	it("rejects paths outside table", async () => {
+		const {adapter, request} = setup(true);
+
+		const res = await request("PATCH", "/nodes/n1", {tableSet: [{path: ["layoutMode"], value: "x"}]});
+
+		expect({status: res.status, calls: adapter.setNodeMetaValues.mock.calls}).toStrictEqual({
+			status: 400,
+			calls: [],
+		});
+	});
+
+	it("answers 503 without the internal API", async () => {
+		const {request} = setup(false);
+
+		await expect(
+			request("PATCH", "/nodes/n1", {tableSet: [{path: ["table", "headers"], value: true}]}),
+		).resolves.toStrictEqual({status: 503, body: {error: NOT_CONFIGURED}});
+	});
+
+	it("GET returns the cached table metadata", async () => {
+		const {request, writeMetadata} = setup(true);
+		writeMetadata("n1", {table: {sizes: {c1: 200}}});
+
+		const res = await request("GET", "/nodes/n1");
+
+		expect(res.body).toStrictEqual({node: dto("n1", null, null, false, {sizes: {c1: 200}})});
 	});
 });

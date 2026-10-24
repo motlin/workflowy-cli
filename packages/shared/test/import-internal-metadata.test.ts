@@ -4,7 +4,7 @@ import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
-import {importInternalMetadata} from "../src/cache/importer.js";
+import {importInternalMetadata, keptInternalMetadata} from "../src/cache/importer.js";
 import * as schema from "../src/db/schema.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/index.js";
 import {createFakeInternalApi, json} from "./helpers/fake-internal-api.js";
@@ -133,5 +133,13 @@ describe("WorkflowyInternalClient.getTreeData", () => {
 		const items = await client.getTreeData();
 
 		expect(items).toStrictEqual([{id: "a", metadata: {numbered_start: 5}}, {id: "b"}]);
+	});
+});
+
+describe("keptInternalMetadata table", () => {
+	it("keeps the table key and drops unknown keys", () => {
+		expect(
+			keptInternalMetadata({layoutMode: "table", table: {headers: true, sizes: {c1: 200}}, foo: 1}),
+		).toStrictEqual({layoutMode: "table", table: {headers: true, sizes: {c1: 200}}});
 	});
 });
