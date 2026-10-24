@@ -454,74 +454,6 @@
 
 /* Reset and base styles */
 
-/* Border part of upstream media/css/reset.css (loaded before tailwind upstream). Without it a
-   border-solid utility draws the UA "medium" width on every unsized side. The reset's margin,
-   padding, font-size and list-style parts are not ported: local dialogs still rely on UA defaults. */
-html,
-body,
-div,
-span,
-applet,
-object,
-iframe,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-p,
-blockquote,
-pre,
-a,
-abbr,
-acronym,
-address,
-big,
-cite,
-code,
-del,
-dfn,
-em,
-font,
-img,
-ins,
-kbd,
-q,
-s,
-samp,
-small,
-strike,
-strong,
-sub,
-sup,
-tt,
-var,
-b,
-u,
-i,
-center,
-dl,
-dt,
-dd,
-ol,
-ul,
-li,
-fieldset,
-form,
-label,
-legend,
-table,
-caption,
-tbody,
-tfoot,
-thead,
-tr,
-th,
-td {
-	border: 0;
-}
-
 *,
 *::before,
 *::after {
@@ -535,7 +467,6 @@ body {
 		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif,
 		var(--emoji-font, "Apple Color Emoji"), "Segoe UI Emoji", "Segoe UI Symbol";
 	font-size: 16px;
-	line-height: 1.5;
 	color: var(--color-text);
 	background-color: var(--color-bg);
 	-webkit-font-smoothing: auto;
@@ -727,16 +658,6 @@ body {
 	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
 }
 
-/*
- * Upstream reset.css (margin, padding, font-size) for the Calendar Layout view's h1 and p, which the local reset
- * (border only) leaves at browser defaults. Zero specificity, so the view's mb-xs / mb-m utilities still apply.
- */
-:where([data-calendar-layout]) :where(h1, p) {
-	margin: 0;
-	padding: 0;
-	font-size: 100%;
-}
-
 /* FontAwesome duotone layers (fad icons such as the Calendar Layout checkbox's square-check). */
 .svg-inline--fa .fa-primary {
 	fill: var(--fa-primary-color, currentColor);
@@ -784,7 +705,6 @@ body {
 .tippy-box {
 	position: relative;
 	color: var(--wf-text-primary);
-	line-height: 1;
 	white-space: nowrap;
 	transition-property: opacity;
 }
@@ -833,11 +753,6 @@ body {
 	.header {
 		display: none !important;
 	}
-}
-
-/* Upstream's overflow flyout crumbs compute line-height 1 (12.64px); local body line-height is 1.5. */
-.breadcrumb-overflow-menu .breadcrumb-item {
-	line-height: 1;
 }
 
 /* ================================
@@ -1573,11 +1488,6 @@ body.moving .expand {
 	cursor: pointer;
 }
 
-.bullet:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
-}
-
 /* Completed nodes - bullet keeps normal color per production Workflowy */
 
 /* Upstream's add-child button icon; the button itself is a plain .iconButton.ms */
@@ -2168,6 +2078,7 @@ html {
 }
 
 .link-insert-status {
+	margin: 1em 0;
 	padding: 8px 16px;
 	color: var(--color-text-muted);
 	font-size: 13px;
@@ -2175,6 +2086,7 @@ html {
 }
 
 .link-insert-hint {
+	margin: 1em 0;
 	padding: 16px;
 	color: var(--color-text-muted);
 	font-size: 13px;
@@ -2183,6 +2095,7 @@ html {
 }
 
 .link-insert-section-title {
+	margin: 1em 0;
 	padding: 8px 16px 4px;
 	font-size: 11px;
 	font-weight: 600;
@@ -2315,6 +2228,7 @@ html {
    ================================ */
 
 .related-nodes-panel {
+	line-height: 1.5;
 	position: fixed;
 	top: 48px;
 	right: 0;
@@ -2380,6 +2294,7 @@ html {
 .related-nodes-panel-hint,
 .related-nodes-panel-status,
 .related-nodes-panel-empty {
+	margin: 1em 0;
 	padding: 16px;
 	text-align: center;
 	color: var(--color-text-muted);
@@ -2387,6 +2302,7 @@ html {
 }
 
 .related-nodes-panel-error {
+	margin: 1em 0;
 	padding: 16px;
 	text-align: center;
 	color: var(--color-error);
@@ -2768,6 +2684,7 @@ body.moving * {
    ================================ */
 
 .error-boundary {
+	line-height: 1.5;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -3629,6 +3546,7 @@ body.moving .itemMenu {
 }
 
 .changes-page {
+	line-height: 1.5;
 	max-width: 900px;
 	margin: 0 auto;
 	padding: 24px;
@@ -3938,9 +3856,8 @@ body.moving .itemMenu {
    they fall back to default bullet rendering (no override here) to avoid
    guessing markup. paragraph also renders as default text. */
 
-/* Upstream's reset gives chrome line-height:1; local body keeps 1.5 for outline rows. */
+/* Upstream's reset gives chrome line-height:1, inherited from body. */
 .wf-left-bar {
-	line-height: 1;
 	font-size: 16px;
 }
 

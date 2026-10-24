@@ -431,8 +431,8 @@ describe("left bar styles", () => {
 		"",
 	);
 
-	it("compensates the body line-height on .wf-left-bar", () => {
-		expect(/\.wf-left-bar\s*\{\s*line-height:\s*1;\s*font-size:\s*16px;\s*\}/u.test(styles)).toBe(true);
+	it("inherits line-height 1 from the reset on .wf-left-bar", () => {
+		expect(/\.wf-left-bar\s*\{\s*font-size:\s*16px;\s*\}/u.test(styles)).toBe(true);
 	});
 
 	it("hides the left bar when printing", () => {

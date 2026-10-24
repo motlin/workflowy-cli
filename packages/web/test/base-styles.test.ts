@@ -16,19 +16,6 @@ const SYSTEM_FONT_STACK =
 const CHROME_LINKS = ".wf-header a, .leftBar a, .wf-menu a, .wf-helper a";
 const CHROME_LINKS_HOVER = ".wf-header a:hover, .leftBar a:hover, .wf-menu a:hover, .wf-helper a:hover";
 
-// Element list from upstream media/css/reset.css (Eric Meyer reset), which upstream loads before tailwind.
-const RESET_ELEMENTS = [
-	"html, body, div, span, applet, object, iframe,",
-	"h1, h2, h3, h4, h5, h6, p, blockquote, pre,",
-	"a, abbr, acronym, address, big, cite, code,",
-	"del, dfn, em, font, img, ins, kbd, q, s, samp,",
-	"small, strike, strong, sub, sup, tt, var,",
-	"b, u, i, center,",
-	"dl, dt, dd, ol, ul, li,",
-	"fieldset, form, label, legend,",
-	"table, caption, tbody, tfoot, thead, tr, th, td",
-].join(" ");
-
 function stripComments(css: string): string {
 	return css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
 }
@@ -39,8 +26,8 @@ describe("upstream base styles", () => {
 		expect(cssBlock(styles, ":root")["--wf-font-family"]).toBe(SYSTEM_FONT_STACK);
 	});
 
-	it("keeps the local body line-height", () => {
-		expect(cssBlock(styles, "body")["line-height"]).toBe("1.5");
+	it("leaves body line-height to the reset (1)", () => {
+		expect(cssBlock(styles, "body")["line-height"]).toBeUndefined();
 	});
 
 	it("defines the font-custom variable scope verbatim", () => {
@@ -145,10 +132,6 @@ describe("upstream base styles", () => {
 		});
 	});
 
-	it("ports the border part of upstream reset.css so border-solid utilities draw only their sized sides", () => {
-		expect(cssBlock(styles, RESET_ELEMENTS)).toStrictEqual({border: "0"});
-	});
-
 	it("ports upstream .content word-break so long URLs wrap", () => {
 		expect(cssBlock(styles, ".content")).toStrictEqual({
 			"word-break": "break-word",
@@ -212,14 +195,6 @@ describe("upstream button variants and duotone icons", () => {
 			primaryHover: {"background-color": "color-mix(in srgb, var(--wf-background-tint) 85%, black)"},
 			secondary: {background: "transparent", color: "var(--gray-3)"},
 			secondaryHover: {"background-color": "color-mix(in srgb, var(--wf-background-quaternary) 85%, black)"},
-		});
-	});
-
-	it("applies upstream reset.css to the Calendar Layout view's heading and paragraphs at zero specificity", () => {
-		expect(cssBlock(styles, ":where([data-calendar-layout]) :where(h1, p)")).toStrictEqual({
-			margin: "0",
-			padding: "0",
-			"font-size": "100%",
 		});
 	});
 

@@ -42,6 +42,7 @@ import {useOutlineStore} from "./stores/outline.js";
 import {outlineViewClassName} from "./search-classes.js";
 import {installSaveTracking} from "./hooks/use-saving.js";
 import {queryClientDefaults} from "./query-retry.js";
+import "./reset.css";
 import "./wf-tailwind.css";
 import "./styles.css";
 

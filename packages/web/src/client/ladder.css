@@ -511,6 +511,7 @@
 }
 
 .ladder-tree-panel {
+	line-height: 1.5;
 	width: min(760px, calc(100vw - 32px));
 	max-height: 85dvh;
 	padding: 0;
@@ -552,7 +553,16 @@
 	user-select: text;
 }
 .ladder-tree-body ul {
+	margin: 1em 0;
 	padding-left: 22px;
+	list-style: disc;
+}
+.ladder-tree-body li > ul {
+	margin: 0;
+	list-style: circle;
+}
+:where(.ladder-tree-body) p {
+	margin: 1em 0;
 }
 .ladder-tree-body li {
 	margin: 9px 0;
@@ -571,6 +581,7 @@
 	color: var(--muted);
 }
 .ladder-tree-empty {
+	margin: 1em 0;
 	color: var(--muted);
 }
 

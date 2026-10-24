@@ -118,7 +118,6 @@ describe("tooltip CSS", () => {
 		expect(cssBlock(styles, ".tippy-box")).toStrictEqual({
 			position: "relative",
 			color: "var(--wf-text-primary)",
-			"line-height": "1",
 			"white-space": "nowrap",
 			"transition-property": "opacity",
 		});

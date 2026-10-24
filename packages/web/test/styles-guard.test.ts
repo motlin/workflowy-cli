@@ -33,10 +33,9 @@ describe("breadcrumb styles guard", () => {
 		).toStrictEqual([]);
 	});
 
-	it("keeps only the header color rule, the overflow-menu line-height and the backlink crumb anchor reset", () => {
+	it("keeps only the header color rule and the backlink crumb anchor reset", () => {
 		expect(declarationsFor(/\.breadcrumbs?\b|\.breadcrumb-item\b/u)).toStrictEqual([
 			"color: var(--wf-text-primary) !important;",
-			"line-height: 1;",
 			"text-decoration: none;\n\tcolor: inherit;\n\tcursor: pointer;",
 		]);
 	});
