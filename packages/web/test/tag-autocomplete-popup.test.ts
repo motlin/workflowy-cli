@@ -9,6 +9,7 @@ vi.mock(import("react-dom"), async (importOriginal) => ({
 	createPortal: (node: ReactNode): ReactPortal => node as ReactPortal,
 }));
 vi.stubGlobal("document", {body: {}});
+vi.stubGlobal("devicePixelRatio", 2);
 
 const {TagAutocompletePopup, tagPopupInput, tagPopupKey} =
 	await import("../src/client/components/tag-autocomplete-popup.js");
@@ -71,12 +72,14 @@ describe("tagPopupKey", () => {
 		]);
 	});
 
-	it("swallows Enter with no active row without accepting", () => {
-		expect(tagPopupKey({...SHOWN, active: -1}, {key: "Enter"}, 2)).toStrictEqual({
-			state: {attached: true, visible: true, active: -1},
-			accept: null,
-			preventDefault: true,
-		});
+	it("hides the popup on Enter and Tab with no active row, and the next input re-shows it", () => {
+		const idle = {...SHOWN, active: -1};
+		const hidden = {state: {attached: true, visible: false, active: -1}, accept: null, preventDefault: true};
+		expect([tagPopupKey(idle, {key: "Enter"}, 2), tagPopupKey(idle, {key: "Tab"}, 2)]).toStrictEqual([
+			hidden,
+			hidden,
+		]);
+		expect(tagPopupInput(hidden.state)).toStrictEqual({attached: true, visible: true, active: -1});
 	});
 
 	it("moves the active row with the arrows, clamping at the last row", () => {

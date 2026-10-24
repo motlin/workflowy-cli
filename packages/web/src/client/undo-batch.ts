@@ -29,6 +29,8 @@ export interface UndoAdapter {
 	completeNode(nodeId: string): Promise<unknown>;
 	uncompleteNode(nodeId: string): Promise<unknown>;
 	updateLayout(nodeId: string, layout: {layoutMode: string; numberedStart: number | null}): Promise<unknown>;
+	setTagColor(tag: string, color: string): Promise<unknown>;
+	removeTagColor(tag: string): Promise<unknown>;
 }
 
 /** One undo step being collected: an entry per recorded op or held mutation, in issue order. */
@@ -281,6 +283,8 @@ async function applyOp(op: UndoOp, adapter: UndoAdapter): Promise<unknown> {
 				layoutMode: op.after.layoutMode ?? "bullets",
 				numberedStart: op.after.numberedStart,
 			});
+		case "tagColor":
+			return op.after === null ? adapter.removeTagColor(op.tag) : adapter.setTagColor(op.tag, op.after);
 		case "uncomplete":
 		default:
 			return adapter.uncompleteNode(op.nodeId);

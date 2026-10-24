@@ -10,6 +10,7 @@ import {
 	syncParentFlags,
 } from "./node-cache.js";
 import {pendingMoves} from "./pending-moves.js";
+import {tagColorKeys} from "./tag-color-keys.js";
 import type {UndoOp} from "./undo-history.js";
 import {HOME_TARGET} from "@workflowy/shared/types";
 
@@ -81,6 +82,13 @@ export function removeDeletedRow(queryClient: QueryClient, nodeId: string): void
 
 function previewOp(queryClient: QueryClient, op: UndoOp): void {
 	switch (op.kind) {
+		case "tagColor": {
+			queryClient.setQueryData<Record<string, string>>(tagColorKeys.all, (colors) => {
+				const {[op.tag.toLowerCase()]: _dropped, ...rest} = colors ?? {};
+				return op.after === null ? rest : {...rest, [op.tag.toLowerCase()]: op.after};
+			});
+			return;
+		}
 		case "edit":
 			patchCachedNode(queryClient, op.nodeId, (node) => ({...node, [op.field]: op.after}));
 			// A mirror's row shows its original's text.
@@ -156,6 +164,9 @@ export function textReplayPending(nodeId: string): boolean {
 
 /** The parents whose children lists `op` changes, read before its preview moves the row. */
 function touchedParents(queryClient: QueryClient, op: UndoOp): (string | null)[] {
+	if (op.kind === "tagColor") {
+		return [];
+	}
 	const current = readNode(queryClient, op.nodeId)?.parent_id;
 	const parents = current === undefined ? [] : [current];
 	switch (op.kind) {

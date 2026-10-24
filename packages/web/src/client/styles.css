@@ -1612,13 +1612,13 @@ body.moving .expand {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	box-sizing: border-box;
+	box-sizing: content-box;
 	width: 13px;
 	height: 13px;
 	border: 1px solid var(--wf-border-primary);
 	border-radius: 50%;
 	background-color: var(--wf-background-primary);
-	color: var(--wf-blue-500);
+	color: inherit;
 	font-size: 8px;
 }
 

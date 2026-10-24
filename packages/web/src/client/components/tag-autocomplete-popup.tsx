@@ -4,6 +4,7 @@ import {FlyoutAlign} from "./flyout/flyout-style.js";
 import {MenuScroller} from "./flyout/menu.js";
 import {MenuItem} from "./flyout/menu-item.js";
 import {menuKeyboard} from "./flyout/menu-keyboard.js";
+import {popperTransform} from "./flyout/place-popper.js";
 
 /** `attached`: a tag query is being tracked; `visible`: not dismissed by Escape; `active`: the highlighted row, -1 for none. */
 export interface TagPopupState {
@@ -29,7 +30,7 @@ interface TagPopupKeyEvent {
 
 /**
  * Upstream tag autocomplete's keys while its popup shows: arrows walk the rows (the shared DomKit
- * menu step), Tab/Enter accept the active row and are always swallowed (no indent, no new row),
+ * menu step), Tab/Enter accept the active row (or hide the popup with none) and are always swallowed (no indent, no new row),
  * and Escape only hides; a hidden or detached popup leaves every key to the editor.
  */
 // oxlint-disable-next-line react/only-export-components -- pure key rules, tested beside the popup
@@ -42,7 +43,10 @@ export function tagPopupKey(state: TagPopupState, event: TagPopupKeyEvent, count
 		return {state: {...state, visible: false}, accept: null, preventDefault: true};
 	}
 	if (event.key === "Enter" || event.key === "Tab") {
-		return {state, accept: state.active >= 0 && state.active < count ? state.active : null, preventDefault: true};
+		if (state.active >= 0 && state.active < count) {
+			return {state, accept: state.active, preventDefault: true};
+		}
+		return {state: {...state, visible: false}, accept: null, preventDefault: true};
 	}
 	const step = menuKeyboard(
 		{index: state.active, hidden: false, keyboardMode: true},
@@ -78,7 +82,11 @@ export function TagAutocompletePopup({tags, active, left, top, onAccept}: TagAut
 	return createPortal(
 		<div
 			className="z-[100]"
-			style={{position: "fixed", inset: "0px auto auto 0px", transform: `translate3d(${left}px, ${top}px, 0px)`}}
+			style={{
+				position: "fixed",
+				inset: "0px auto auto 0px",
+				transform: popperTransform(left, top, globalThis.devicePixelRatio || 1),
+			}}
 			data-popper-reference-hidden="false"
 			data-popper-escaped="false"
 			data-popper-placement="bottom-start"

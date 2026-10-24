@@ -8,23 +8,24 @@ const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", im
 const COLORS = ["red", "orange", "yellow", "green", "teal", "sky", "blue", "purple", "pink", "gray"];
 
 describe("buildTagColorCss", () => {
-	it("emits upstream's rule set once per color group, selectors joined with commas", () => {
-		const groupRules = (selectors: (suffix: string, prefix?: string) => string, color: string) =>
-			[
-				`${selectors("")} {\n    background-color: var(--wf-background-${color})!important;\n    color: var(--wf-text-primary)!important;\n}`,
-				`${selectors(" span")} {\n    background: none;\n}`,
-				`${selectors(":hover")} {\n    background-color: inherit;\n    text-decoration: underline;\n}`,
-				`${selectors(".contentTag .contentTagText")} {\n    text-decoration: none;\n}`,
-				`${selectors("", ".notes ")} {\n}`,
-				`${selectors("", ".done ")} {\n    opacity: 0.5;\n}`,
-			].join("\n");
-		const green = (suffix: string, prefix = "") =>
-			`${prefix}.contentTag[data-val="#tazebra"]${suffix},${prefix}.contentTag[data-val="#taapple"]${suffix}`;
-		const red = (suffix: string, prefix = "") => `${prefix}.contentTag[data-val="#x"]${suffix}`;
-
-		expect(buildTagColorCss({"#tazebra": "green", "#taapple": "green", "#x": "red"})).toBe(
-			`${groupRules(green, "green")}\n${groupRules(red, "red")}\n`,
-		);
+	it("emits one block per color in index order, then five shared blocks over all tags", () => {
+		const css = buildTagColorCss({"#b": "green", "#a": "red", "#c": "green"});
+		const blocks = css.split("}\n").filter((block) => block !== "");
+		const first = (block: string) => block.slice(0, block.indexOf(" {"));
+		const sel = (suffix: string, prefix = "") =>
+			["#b", "#a", "#c"].map((tag) => `${prefix}.contentTag[data-val="${tag}"]${suffix}`).join(",");
+		expect(blocks).toHaveLength(7);
+		expect(blocks.map((block) => first(block))).toStrictEqual([
+			'.contentTag[data-val="#a"]',
+			'.contentTag[data-val="#b"],.contentTag[data-val="#c"]',
+			sel(" span"),
+			sel(":hover"),
+			sel(".contentTag .contentTagText"),
+			sel("", ".notes "),
+			sel("", ".done "),
+		]);
+		expect(blocks[0]).toContain("background-color: var(--wf-background-red)!important");
+		expect(blocks[1]).toContain("background-color: var(--wf-background-green)!important");
 	});
 
 	it("never emits the invented --wf-tag-bg- family", () => {

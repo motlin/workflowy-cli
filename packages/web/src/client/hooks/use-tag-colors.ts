@@ -1,6 +1,10 @@
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
 import {readJson} from "../read-json.js";
 import {normalizeTagColors} from "../tag-color-styles.js";
+import {captureOutlineView, recordOp, runInUndoBatch} from "../undo-batch.js";
+import {tagColorOp} from "../undo-history.js";
+import {tagColorKeys} from "../tag-color-keys.js";
 
 /**
  * Per-tag color assignments, as a map of the lowercased tag text (incl. leading
@@ -9,10 +13,6 @@ import {normalizeTagColors} from "../tag-color-styles.js";
  * Keys are lowercased on read, so look tags up with `tag.toLowerCase()`.
  */
 export type TagColors = Record<string, string>;
-
-const tagColorKeys = {
-	all: ["tag-colors"] as const,
-};
 
 async function fetchTagColors(): Promise<TagColors> {
 	const response = await fetch("/api/v1/tags");
@@ -23,7 +23,7 @@ async function fetchTagColors(): Promise<TagColors> {
 	return normalizeTagColors(data.colors);
 }
 
-async function setTagColor(name: string, color: string): Promise<void> {
+export async function setTagColor(name: string, color: string): Promise<void> {
 	const response = await fetch(`/api/v1/tags/${encodeURIComponent(name)}`, {
 		method: "PUT",
 		headers: {"Content-Type": "application/json"},
@@ -34,7 +34,7 @@ async function setTagColor(name: string, color: string): Promise<void> {
 	}
 }
 
-async function removeTagColor(name: string): Promise<void> {
+export async function removeTagColor(name: string): Promise<void> {
 	const response = await fetch(`/api/v1/tags/${encodeURIComponent(name)}`, {
 		method: "DELETE",
 	});
@@ -55,10 +55,28 @@ export function useTagColors(): TagColors {
 	return data ?? {};
 }
 
+/** Runs `change` as one undo step recording the color it moved `tag` from and to. */
+async function undoableTagColor(
+	queryClient: QueryClient,
+	tag: string,
+	after: string | null,
+	change: () => Promise<unknown>,
+): Promise<void> {
+	const before = queryClient.getQueryData<TagColors>(tagColorKeys.all)?.[tag.toLowerCase()];
+	await runInUndoBatch(captureOutlineView, async () => {
+		await change();
+		const op = tagColorOp(tag, before, after);
+		if (op !== null) {
+			recordOp(op);
+		}
+	});
+}
+
 export function useSetTagColor() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: async ({name, color}: {name: string; color: string}) => setTagColor(name, color),
+		mutationFn: async ({name, color}: {name: string; color: string}) =>
+			undoableTagColor(queryClient, name, color, async () => setTagColor(name, color)),
 		async onSettled() {
 			await queryClient.invalidateQueries({queryKey: tagColorKeys.all});
 		},
@@ -68,7 +86,7 @@ export function useSetTagColor() {
 export function useRemoveTagColor() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: async (name: string) => removeTagColor(name),
+		mutationFn: async (name: string) => undoableTagColor(queryClient, name, null, async () => removeTagColor(name)),
 		async onSettled() {
 			await queryClient.invalidateQueries({queryKey: tagColorKeys.all});
 		},

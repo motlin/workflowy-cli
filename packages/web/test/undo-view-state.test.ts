@@ -11,6 +11,10 @@ const editing = (nodeId: string, start: number, end = start): ViewState["editing
 	end,
 });
 
+function idOf(op: {kind: string} | undefined): string | undefined {
+	return op !== undefined && "nodeId" in op && typeof op.nodeId === "string" ? op.nodeId : undefined;
+}
+
 describe("planRestore", () => {
 	it("stays on the page when the zoom matches and focuses the saved caret", () => {
 		expect(
@@ -210,14 +214,14 @@ describe("queueUndo", () => {
 			return popped === undefined ? undefined : {...batch, ops: popped};
 		};
 		runner.preview = (previewed) => {
-			events.push(`preview ${previewed[0]?.nodeId}`);
+			events.push(`preview ${idOf(previewed[0])}`);
 		};
 		runner.apply = async (applied) => {
-			events.push(`apply ${applied[0]?.nodeId}`);
+			events.push(`apply ${idOf(applied[0])}`);
 			await new Promise<void>((resolve) => {
 				releases.push(resolve);
 			});
-			events.push(`applied ${applied[0]?.nodeId}`);
+			events.push(`applied ${idOf(applied[0])}`);
 		};
 		runner.reconcile = async () => {
 			events.push("reconcile");

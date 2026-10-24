@@ -4,6 +4,7 @@ import {
 	attach,
 	autocompleteSearch,
 	currentQuery,
+	narrowResults,
 	shouldShow,
 	spliceAcceptedTag,
 } from "../src/client/tag-autocomplete.js";
@@ -114,5 +115,14 @@ describe("autocompleteSearch", () => {
 			"root=z&prefix=%23me&limit=8&fallback=1&item=n1&name=Plan+%23me",
 			"root=&prefix=%23&limit=8&fallback=1&item=n2&note=x+%23",
 		]);
+	});
+});
+
+describe("narrowResults", () => {
+	it("keeps results that still start with the query, ignoring case", () => {
+		expect([
+			narrowResults([{tag: "#taZebra"}, {tag: "#taApple"}], "#taZ"),
+			narrowResults([{tag: "#taZebra"}], "#TAZ"),
+		]).toStrictEqual([[{tag: "#taZebra"}], [{tag: "#taZebra"}]]);
 	});
 });

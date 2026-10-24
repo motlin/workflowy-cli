@@ -1,5 +1,6 @@
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {memo, useEffect, useState} from "react";
+import {createPortal} from "react-dom";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
 import {MenusHost} from "./components/menus-host.js";
@@ -220,7 +221,7 @@ function NodeRedirect() {
 
 /** Upstream's generated tag color sheet: colors `.contentTag` spans by their lowercased `data-val`. */
 function TagColorStyles() {
-	return <style id="tags-None">{buildTagColorCss(useTagColors())}</style>;
+	return createPortal(<style id="tags-None">{buildTagColorCss(useTagColors())}</style>, document.head);
 }
 
 /** Keeps show/hide completed in step with the account's `show_completed` setting. */

@@ -42,6 +42,12 @@ describe("queueUndo with the outline store", () => {
 			async updateLayout() {
 				return Promise.resolve();
 			},
+			async setTagColor() {
+				return Promise.resolve();
+			},
+			async removeTagColor() {
+				return Promise.resolve();
+			},
 		};
 		undoHistory.clear();
 		useOutlineStore.getState().clearItemSelection();

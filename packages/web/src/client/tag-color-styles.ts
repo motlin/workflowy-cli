@@ -17,32 +17,36 @@ function rule(selectors: string, declarations: readonly string[]): string {
 	return `${selectors} {\n${declarations.map((declaration) => `    ${declaration};\n`).join("")}}`;
 }
 
-function colorGroupCss(color: string, tags: readonly string[]): string {
-	const selectors = (suffix: string, prefix = "") =>
-		tags.map((tag) => `${prefix}.contentTag[data-val="${escapeCssString(tag)}"]${suffix}`).join(",");
-	return [
-		rule(selectors(""), [
-			`background-color: var(--wf-background-${color})!important`,
-			"color: var(--wf-text-primary)!important",
-		]),
-		rule(selectors(" span"), ["background: none"]),
-		rule(selectors(":hover"), ["background-color: inherit", "text-decoration: underline"]),
-		rule(selectors(".contentTag .contentTagText"), ["text-decoration: none"]),
-		rule(selectors("", ".notes "), []),
-		rule(selectors("", ".done "), ["opacity: 0.5"]),
-	].join("\n");
+function tagSelectors(list: readonly string[], suffix: string, prefix = ""): string {
+	return list.map((tag) => `${prefix}.contentTag[data-val="${escapeCssString(tag)}"]${suffix}`).join(",");
 }
+
+/** Upstream's color order in the sheet. */
+const COLOR_ORDER = ["red", "orange", "yellow", "green", "blue", "purple", "gray", "teal", "sky", "pink"];
 
 /** The stylesheet text for a lowercased tag -> color name map; empty without colors. */
 export function buildTagColorCss(colors: Readonly<Record<string, string>>): string {
-	const groups = new Map<string, string[]>();
-	for (const [tag, color] of Object.entries(colors)) {
-		const group = groups.get(color);
-		if (group) {
-			group.push(tag);
-		} else {
-			groups.set(color, [tag]);
-		}
+	const tags = Object.keys(colors);
+	if (tags.length === 0) {
+		return "";
 	}
-	return [...groups].map(([color, tags]) => `${colorGroupCss(color, tags)}\n`).join("");
+	const perColor = COLOR_ORDER.flatMap((color) => {
+		const members = tags.filter((tag) => colors[tag] === color);
+		return members.length === 0
+			? []
+			: [
+					rule(tagSelectors(members, ""), [
+						`background-color: var(--wf-background-${color})!important`,
+						"color: var(--wf-text-primary)!important",
+					]),
+				];
+	});
+	const shared = [
+		rule(tagSelectors(tags, " span"), ["background: none"]),
+		rule(tagSelectors(tags, ":hover"), ["background-color: inherit", "text-decoration: underline"]),
+		rule(tagSelectors(tags, ".contentTag .contentTagText"), ["text-decoration: none"]),
+		rule(tagSelectors(tags, "", ".notes "), []),
+		rule(tagSelectors(tags, "", ".done "), ["opacity: 0.5"]),
+	];
+	return [...perColor, ...shared].map((block) => `${block}\n`).join("");
 }

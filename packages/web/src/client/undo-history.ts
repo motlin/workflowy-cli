@@ -26,7 +26,9 @@ export type UndoOp =
 	| {kind: "undelete"; nodeId: string; parentId: string | null; index: number}
 	| {kind: "move"; nodeId: string; from: Slot; to: Slot}
 	| {kind: "complete" | "uncomplete"; nodeId: string}
-	| {kind: "layout"; nodeId: string; before: LayoutState; after: LayoutState};
+	| {kind: "layout"; nodeId: string; before: LayoutState; after: LayoutState}
+	/** A tag color change: a null color is no color assigned. */
+	| {kind: "tagColor"; tag: string; before: string | null; after: string | null};
 
 /** Where the user was looking and typing; restored on undo/redo but never itself an op. */
 export interface ViewState {
@@ -42,11 +44,19 @@ export interface UndoBatch {
 	after: ViewState;
 }
 
+/** The undo step for changing `tag`'s color from what the cache holds now; null when nothing changes. */
+export function tagColorOp(tag: string, before: string | undefined, after: string | null): UndoOp | null {
+	const previous = before ?? null;
+	return previous === after ? null : {kind: "tagColor", tag, before: previous, after};
+}
+
 export function invertOp(op: UndoOp): UndoOp {
 	switch (op.kind) {
 		case "edit":
 			return {...op, before: op.after, after: op.before};
 		case "layout":
+			return {...op, before: op.after, after: op.before};
+		case "tagColor":
 			return {...op, before: op.after, after: op.before};
 		case "create":
 		case "undelete":

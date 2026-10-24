@@ -93,6 +93,8 @@ function runnerFor(world: World): UndoRunner {
 		completeNode: async () => Promise.resolve(),
 		uncompleteNode: async () => Promise.resolve(),
 		updateLayout: async () => Promise.resolve(),
+		setTagColor: async () => Promise.resolve(),
+		removeTagColor: async () => Promise.resolve(),
 	};
 	return {
 		flush() {},

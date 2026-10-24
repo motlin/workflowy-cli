@@ -18,7 +18,8 @@ vi.mock("../src/client/hooks/use-nodes.js", async () => {
 		useUpdateNode: () => updateNode,
 	};
 });
-vi.mock("../src/client/hooks/use-commit-search.js", () => ({usePaneTagSearch: () => () => {}}));
+const toggleTagSearch = vi.fn<(tag: string) => void>();
+vi.mock("../src/client/hooks/use-commit-search.js", () => ({usePaneTagSearch: () => toggleTagSearch}));
 vi.mock("../src/client/hooks/use-tag-colors.js", () => ({
 	useRemoveTagColor: () => ({mutate: () => {}}),
 	useSetTagColor: () => ({mutate: () => {}}),
@@ -43,6 +44,7 @@ afterEach(() => {
 	});
 	document.body.innerHTML = "";
 	mutate.mockClear();
+	toggleTagSearch.mockClear();
 });
 
 describe("EditableText tag explode", () => {
@@ -82,6 +84,40 @@ describe("EditableText tag explode", () => {
 		expect({text: editor?.textContent, mutations: mutate.mock.calls.map(([args]) => args)}).toStrictEqual({
 			text: "Alice later",
 			mutations: [{nodeId: "alice", name: "Alice later"}],
+		});
+	});
+
+	it("toggles the tag in the search when a tag inside the editing row is clicked, without placing a caret", () => {
+		const container = document.createElement("div");
+		document.body.append(container);
+		root = createRoot(container);
+		act(() => {
+			root?.render(
+				createElement(
+					QueryClientProvider,
+					{client: new QueryClient()},
+					createElement(editableText, {
+						nodeId: "alice",
+						initialValue: "Alice #todo later",
+						parentId: null,
+						priority: 0,
+						isEditing: true,
+					}),
+				),
+			);
+		});
+		const tag = container.querySelector<HTMLElement>(".innerContentContainer.editing .contentTag");
+		if (tag === null) {
+			throw new Error("tag did not render");
+		}
+		const down = new MouseEvent("mousedown", {bubbles: true, cancelable: true});
+		act(() => {
+			tag.dispatchEvent(down);
+			tag.dispatchEvent(new MouseEvent("click", {bubbles: true, cancelable: true}));
+		});
+		expect({prevented: down.defaultPrevented, searched: toggleTagSearch.mock.calls}).toStrictEqual({
+			prevented: true,
+			searched: [["#todo"]],
 		});
 	});
 });

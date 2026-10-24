@@ -56,6 +56,8 @@ function fakeAdapter(overrides: Partial<UndoAdapter> = {}): {adapter: UndoAdapte
 		completeNode: record("completeNode"),
 		uncompleteNode: record("uncompleteNode"),
 		updateLayout: record("updateLayout"),
+		setTagColor: record("setTagColor"),
+		removeTagColor: record("removeTagColor"),
 		...overrides,
 	};
 	return {adapter, calls};
@@ -338,6 +340,24 @@ describe("applyOps", () => {
 			["updateLayout", "alice", {layoutMode: "bullets", numberedStart: null}],
 			["updateLayout", "alice", {layoutMode: "h2", numberedStart: null}],
 		]);
+	});
+
+	it("undoes a tag color set over none by removing the color, and redo sets it again", async () => {
+		const {adapter, calls} = fakeAdapter();
+		const undo = await recordAndUndo({kind: "tagColor", tag: "#x", before: null, after: "green"});
+		await applyOps(undo.ops, adapter);
+		const redo = undoHistory.popRedo();
+		await applyOps(redo?.ops ?? [], adapter);
+		expect(calls).toStrictEqual([
+			["removeTagColor", "#x"],
+			["setTagColor", "#x", "green"],
+		]);
+	});
+
+	it("undoes a tag color change by restoring the previous color", async () => {
+		const {adapter, calls} = fakeAdapter();
+		await applyOps((await recordAndUndo({kind: "tagColor", tag: "#x", before: "red", after: null})).ops, adapter);
+		expect(calls).toStrictEqual([["setTagColor", "#x", "red"]]);
 	});
 
 	it("redoes a create by restoring the same id at its slot", async () => {

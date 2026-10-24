@@ -48,6 +48,7 @@ import {serializeWrite} from "../write-order.js";
 import type {BlockMove, UndoableMutation} from "../tree-ops.js";
 import {toRequestStatusError} from "../request-error.js";
 import {trackReplay} from "./use-saving.js";
+import {removeTagColor, setTagColor} from "./use-tag-colors.js";
 import {holdUndoSlot, recordOp} from "../undo-batch.js";
 import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
 import type {UndoOp} from "../undo-history.js";
@@ -281,6 +282,8 @@ export const undoAdapter: UndoAdapter = {
 	moveNode: async (...args) => trackReplay(moveNode(...args)),
 	completeNode: async (...args) => trackReplay(completeNode(...args)),
 	uncompleteNode: async (...args) => trackReplay(uncompleteNode(...args)),
+	setTagColor: async (tag, color) => trackReplay(setTagColor(tag, color)),
+	removeTagColor: async (tag) => trackReplay(removeTagColor(tag)),
 	updateLayout: async (nodeId, layout) =>
 		trackReplay(
 			(async () => {
@@ -485,7 +488,8 @@ const createUndos = new HeldUndos<NodeResponse, CreateNodeRequest>();
 
 function planCreate(request: CreateNodeRequest, queryClient: QueryClient): UndoPlan<NodeResponse> {
 	const parentId = request.parent_id ?? null;
-	const [op] = toUndoOps({kind: "create", nodeId: "", parentId, index: exactIndex(request)}, queryClient);
+	const [first] = toUndoOps({kind: "create", nodeId: "", parentId, index: exactIndex(request)}, queryClient);
+	const op = first?.kind === "tagColor" ? undefined : first;
 	// The public-API fallback may answer another id than the client one.
 	const finish = (created: NodeResponse): UndoOp[] => (op === undefined ? [] : [{...op, nodeId: created.id}]);
 	return op === undefined || request.id === undefined

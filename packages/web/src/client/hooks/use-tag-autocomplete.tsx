@@ -4,7 +4,7 @@ import {useQuery} from "@tanstack/react-query";
 import {caretTextOffset} from "../caret-dom.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {applyAccept, attach, autocompleteSearch, currentQuery, shouldShow} from "../tag-autocomplete.js";
+import {applyAccept, attach, autocompleteSearch, currentQuery, narrowResults, shouldShow} from "../tag-autocomplete.js";
 import type {AutocompleteResult} from "../tag-autocomplete.js";
 import {TagAutocompletePopup, tagPopupInput, tagPopupKey} from "../components/tag-autocomplete-popup.js";
 import type {TagPopupState} from "../components/tag-autocomplete-popup.js";
@@ -101,6 +101,7 @@ export function useTagAutocomplete({editorRef, nodeId, field, readPlain, onAccep
 		queryFn: async () => fetchAutocomplete(search),
 		enabled: query !== null,
 		staleTime: 5000,
+		placeholderData: (previous) => narrowResults(previous ?? [], query ?? ""),
 	});
 	const tags = useMemo(
 		() => (query !== null && shouldShow(results, query) ? results.map((result) => result.tag) : []),

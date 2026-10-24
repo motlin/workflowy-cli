@@ -25,6 +25,7 @@ import {useInlineFormat} from "../hooks/use-inline-format.js";
 import {toolbarFormatAttr, useSelectionToolbar} from "../hooks/use-selection-toolbar.js";
 import {SelectionToolbar} from "./selection-toolbar.js";
 import type {SelectionToolbarAction} from "./selection-toolbar.js";
+import {useTagPointer} from "../hooks/use-tag-pointer.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
@@ -258,8 +259,23 @@ export function EditableNote({
 		},
 	});
 	const {open: openPillPicker} = pillPicker;
+	const tagPointer = useTagPointer({
+		getHtml: () =>
+			contentRef.current === null ? "" : planNoteSave(noteSaver.saved, contentRef.current.innerHTML).note,
+		save: (note, caret) => {
+			const element = contentRef.current;
+			if (element !== null) {
+				element.innerHTML = noteContentHtml(note, dateSettings, undefined, account);
+				placeCaretAtTextOffset(element, caret);
+				noteSaver.saveNow(note);
+			}
+		},
+	});
 	const handleClick = useCallback(
 		(event: React.MouseEvent<HTMLDivElement>) => {
+			if (tagPointer.onClick(event)) {
+				return;
+			}
 			const clicked = clickedPill(event, event.currentTarget);
 			if (clicked === null) {
 				return;
@@ -270,7 +286,7 @@ export function EditableNote({
 			datePickerOpen.current = true;
 			openPillPicker(clicked.pill, clicked.index);
 		},
-		[openPillPicker],
+		[openPillPicker, tagPointer],
 	);
 
 	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
@@ -545,17 +561,22 @@ export function EditableNote({
 				onFocus={handleFocus}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
-				onMouseDown={() => {
+				onMouseDown={(event) => {
 					// Before the browser places the caret, so the click lands in the plain DOM it will edit.
+					tagPointer.onMouseDown(event);
 					clearSearchHighlights();
 					detachTagAutocomplete();
 				}}
+				onMouseLeave={tagPointer.onMouseLeave}
+				// oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- the tag-color trigger is a pointer-only affordance
+				onMouseOver={tagPointer.onMouseOver}
 				ref={contentRef}
 				suppressContentEditableWarning
 			/>
 			{datePicker.popup}
 			{pillPicker.popup}
 			{tagAutocomplete.popup}
+			{tagPointer.popups}
 			{slashMenu.menu}
 			{toolbarView && (
 				<SelectionToolbar

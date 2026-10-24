@@ -50,6 +50,12 @@ export function currentQuery(plain: string, start: number, caret: number): strin
 	return QUERY_PATTERN.test(query) ? query : null;
 }
 
+/** Results that still match a longer query, so the list holds steady while the next query loads. */
+export function narrowResults(results: readonly AutocompleteResult[], query: string): AutocompleteResult[] {
+	const lowered = query.toLowerCase();
+	return results.filter((result) => result.tag.toLowerCase().startsWith(lowered));
+}
+
 export function shouldShow(results: readonly AutocompleteResult[], query: string): boolean {
 	if (results.length === 0) {
 		return false;

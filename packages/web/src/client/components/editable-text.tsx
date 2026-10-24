@@ -1,5 +1,4 @@
 import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
-import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
 import {
 	activePaneView,
@@ -47,9 +46,7 @@ import {useCreateNode, useDeleteNode, useMoveNode, useUpdateNode} from "../hooks
 import {useLatest} from "../hooks/use-latest.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
-import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
-import {closeOnEscape} from "../menu-escape.js";
 import {TagColorPicker} from "./tag-color-picker.js";
 import {FaIcon} from "./fa-icons.js";
 import {prefetchPickerMonths} from "../hooks/use-calendar-event-days.js";
@@ -61,11 +58,9 @@ import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateAutocomplete} from "./date-autocomplete.js";
 import {routeTypedInput} from "../inline-input-router.js";
-import {pop, unpop} from "../popups.js";
 import {plainText, splitHtml} from "../rich-text.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
 import {
-	otherPopupOpen,
 	toolbarFormatAttr,
 	toolbarLayoutCommand,
 	toolbarRefreshKey,
@@ -75,7 +70,7 @@ import {planLayoutHotkey} from "../layout-hotkeys.js";
 import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
 import {SelectionToolbar} from "./selection-toolbar.js";
 import type {SelectionToolbarAction} from "./selection-toolbar.js";
-import {usePaneTagSearch} from "../hooks/use-commit-search.js";
+import {useTagPointer} from "../hooks/use-tag-pointer.js";
 import {usePaneSearchQuery} from "../hooks/use-tree-search.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
@@ -84,7 +79,6 @@ import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picke
 import {highlightSearchMatches} from "../highlight-html.js";
 import {useAccount} from "../hooks/use-account.js";
 import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
-import {isTagDeleteClick, removeTagFromHtml, renderedTagStarts, tagCaretUnits, teaserPosition} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
@@ -141,42 +135,6 @@ const CARET_ARROWS: Readonly<Partial<Record<EditorKeyAction, "Up" | "Down" | "Le
  *   Up/Left leaving the start of the first child's name enter it at its end
  * - Escape commits the text and opens search; dismissing search resumes editing here
  */
-
-function teaserStyle(tag: {top: number; right: number; bottom: number}): React.CSSProperties {
-	const {left, top} = teaserPosition({top: tag.top, right: tag.right, height: tag.bottom - tag.top});
-	return {top: `${top}px`, left: `${left}px`};
-}
-
-/** Upstream marks a hovered tag `contentTagDeleteHover` while the delete modifier is held. */
-function markTagDeleteHover(tagEl: Element, event: {metaKey: boolean; altKey: boolean}): void {
-	tagEl.classList.toggle("contentTagDeleteHover", isTagDeleteClick(event, isMacPlatform()));
-}
-
-/** Pressing or releasing the modifier over a hovered tag updates its class. */
-function onTagDeleteKey(event: KeyboardEvent): void {
-	for (const tagEl of document.querySelectorAll(".contentTag:hover")) {
-		markTagDeleteHover(tagEl, event);
-	}
-}
-
-let tagDeleteKeysInstalled = false;
-
-/** Installs the one document listener for `onTagDeleteKey` on the first tag hover. */
-function installTagDeleteKeys(): void {
-	if (tagDeleteKeysInstalled) {
-		return;
-	}
-	tagDeleteKeysInstalled = true;
-	document.addEventListener("keydown", onTagDeleteKey);
-	document.addEventListener("keyup", onTagDeleteKey);
-}
-
-/** Upstream: mousedown on a tag never places a caret or moves focus. */
-function preventTagMouseDown(event: React.MouseEvent<HTMLSpanElement>): void {
-	if (event.target instanceof Element && event.target.closest(".explosive")) {
-		event.preventDefault();
-	}
-}
 
 function EditingText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
 	const contentRef = useRef<HTMLSpanElement>(null);
@@ -412,8 +370,22 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		},
 	});
 	const {open: openPillPicker} = pillPicker;
+	const tagPointer = useTagPointer({
+		getHtml: () => (contentRef.current ? serializeEditorHtml(contentRef.current.innerHTML) : ""),
+		save: (html, caret) => {
+			const content = contentRef.current;
+			if (content) {
+				content.innerHTML = renderEditorHtml(html, dateSettings, account);
+				placeCaretAtTextOffset(content, caret);
+				nameSaver.saveNow(html);
+			}
+		},
+	});
 	const handleEditingClick = useCallback(
 		(event: React.MouseEvent<HTMLSpanElement>) => {
+			if (tagPointer.onClick(event)) {
+				return;
+			}
 			const clicked = clickedPill(event, event.currentTarget);
 			if (clicked === null) {
 				return;
@@ -424,7 +396,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			holdEditing(pillCaret.current);
 			openPillPicker(clicked.pill, clicked.index);
 		},
-		[holdEditing, openPillPicker],
+		[holdEditing, openPillPicker, tagPointer],
 	);
 
 	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
@@ -1123,7 +1095,13 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				onClick={handleEditingClick}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
-				onMouseDown={detachTagAutocomplete}
+				onMouseDown={(event) => {
+					tagPointer.onMouseDown(event);
+					detachTagAutocomplete();
+				}}
+				onMouseLeave={tagPointer.onMouseLeave}
+				// oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- the tag-color trigger is a pointer-only affordance
+				onMouseOver={tagPointer.onMouseOver}
 				ref={contentRef}
 				suppressContentEditableWarning
 			/>
@@ -1131,6 +1109,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			{pillPicker.popup}
 			{dateAutocomplete.flyout}
 			{tagAutocomplete.popup}
+			{tagPointer.popups}
 			{slashMenu.menu}
 			{toolbarView && (
 				<SelectionToolbar
@@ -1146,36 +1125,6 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	);
 }
 
-interface RestingTagColorPickerProps {
-	tag: string;
-	top: number;
-	left: number;
-	onClose: () => void;
-}
-
-/** The tag color picker with its color mutations, mounted only while open so a resting row holds none of them. */
-function RestingTagColorPicker({tag, top, left, onClose}: RestingTagColorPickerProps) {
-	const tagColors = useTagColors();
-	const setTagColorMutation = useSetTagColor();
-	const removeTagColorMutation = useRemoveTagColor();
-	return (
-		<TagColorPicker
-			currentColor={tagColors[tag.toLowerCase()]}
-			left={left}
-			onClose={onClose}
-			onRemove={() => {
-				removeTagColorMutation.mutate(tag);
-				onClose();
-			}}
-			onSelect={(color: TagColorName) => {
-				setTagColorMutation.mutate({name: tag, color});
-				onClose();
-			}}
-			top={top}
-		/>
-	);
-}
-
 /**
  * A row's name while it is not being edited: its rendered HTML, a click that starts editing where it lands, tag
  * clicks and hovers, and date pill clicks. It holds none of the editor's hooks, effects or store subscriptions, so
@@ -1187,22 +1136,10 @@ const RestingText = memo(function RestingText({
 }: Pick<EditableTextProps, "nodeId" | "initialValue">) {
 	const queryClient = useQueryClient();
 	const {startEditing, resumeEditing} = outlineActions();
-	const toggleTagSearch = usePaneTagSearch();
 	const searchQuery = usePaneSearchQuery();
 	const updateNodeMutation = useUpdateNode();
 	const dateSettings = useDateSettings();
 	const account = useAccount();
-	// Tag color affordances: a caret appears on tag hover; clicking it opens the picker.
-	const [tagHover, setTagHover] = useState<{
-		tag: string;
-		top: number;
-		right: number;
-		bottom: number;
-		left: number;
-	} | null>(null);
-	const [colorPicker, setColorPicker] = useState<{tag: string; top: number; left: number} | null>(null);
-	const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
 	// A plain click on a pill edits or removes just that pill, saving the stored name.
 	const pillPicker = usePillDatePicker({
 		dateSettings,
@@ -1218,30 +1155,15 @@ const RestingText = memo(function RestingText({
 	});
 	const {open: openPillPicker} = pillPicker;
 
-	/**
-	 * Upstream tag explode: drop the clicked tag and its following spaces from the stored
-	 * name in one undo step, then edit this node with the caret at the tag's start.
-	 */
-	const explodeTag = useCallback(
-		(container: HTMLElement, tagEl: Element) => {
-			const ordinal = [...container.querySelectorAll(".contentTag")].indexOf(tagEl);
-			const start = renderedTagStarts(renderLinks(initialValue))[ordinal];
-			if (start === undefined) {
-				return;
-			}
-			const name = removeTagFromHtml(initialValue, start, tagEl.textContent);
-			if (name === initialValue) {
-				return;
-			}
-			void runInUndoBatch(captureOutlineView, () => {
-				updateNodeMutation.mutate({nodeId, name});
-				// The editor captures its HTML when editing starts: show the new name before that.
-				patchCachedNode(queryClient, nodeId, (node) => ({...node, name}));
-				resumeEditing(nodeId, tagCaretUnits(name, start), {html: name});
-			});
+	const tagPointer = useTagPointer({
+		getHtml: () => initialValue,
+		save: (name, caret) => {
+			updateNodeMutation.mutate({nodeId, name});
+			// The editor captures its HTML when editing starts: show the new name before that.
+			patchCachedNode(queryClient, nodeId, (node) => ({...node, name}));
+			resumeEditing(nodeId, caret, {html: name});
 		},
-		[initialValue, nodeId, queryClient, resumeEditing, updateNodeMutation],
-	);
+	});
 
 	/**
 	 * Handle text clicks:
@@ -1253,27 +1175,7 @@ const RestingText = memo(function RestingText({
 	 */
 	const handleTextClick = useCallback(
 		(event: React.MouseEvent<HTMLSpanElement>) => {
-			const target = event.target;
-
-			// Plain click on a .contentTag span (or its inner text) toggles it in the search query
-			const tagEl = target instanceof Element ? target.closest(".contentTag") : null;
-			if (tagEl && isTagDeleteClick(event, isMacPlatform())) {
-				event.preventDefault();
-				event.stopPropagation();
-				explodeTag(event.currentTarget, tagEl);
-				return;
-			}
-			if (tagEl) {
-				const tagText = tagEl.textContent;
-				if (tagText) {
-					event.preventDefault();
-					event.stopPropagation();
-					if (document.activeElement instanceof HTMLElement) {
-						document.activeElement.blur();
-					}
-					tagEl.classList.add("tapped");
-					toggleTagSearch(tagText);
-				}
+			if (tagPointer.onClick(event)) {
 				return;
 			}
 
@@ -1290,118 +1192,8 @@ const RestingText = memo(function RestingText({
 			event.stopPropagation();
 			startEditing(nodeId, {x: event.clientX, y: event.clientY});
 		},
-		[nodeId, startEditing, toggleTagSearch, openPillPicker, explodeTag],
+		[nodeId, startEditing, openPillPicker, tagPointer],
 	);
-
-	// Show the color teaser when hovering a tag; upstream's 150ms hide delay lets the
-	// pointer travel from the tag to the teaser without it disappearing.
-	const cancelHide = useCallback(() => {
-		if (hideTimer.current !== null) {
-			clearTimeout(hideTimer.current);
-			hideTimer.current = null;
-		}
-	}, []);
-
-	const scheduleHide = useCallback(() => {
-		cancelHide();
-		hideTimer.current = globalThis.setTimeout(() => {
-			unpop("TAG_COLOR_TEASER_POPUP");
-			setTagHover(null);
-		}, 150);
-	}, [cancelHide]);
-
-	// Upstream: leaving the tag (even onto plain text in the same row) requests the close,
-	// and the teaser never opens over another popup (openGently).
-	const handleTagHover = useCallback(
-		(event: React.MouseEvent<HTMLSpanElement>) => {
-			const tagEl = event.target instanceof Element ? event.target.closest(".contentTag") : null;
-			if (!tagEl) {
-				if (tagHover) {
-					scheduleHide();
-				}
-				return;
-			}
-			if (colorPicker || otherPopupOpen("TAG_COLOR_TEASER_POPUP", isModalOpen)) {
-				return;
-			}
-			cancelHide();
-			installTagDeleteKeys();
-			markTagDeleteHover(tagEl, event);
-			const rect = tagEl.getBoundingClientRect();
-			pop("TAG_COLOR_TEASER_POPUP", tagEl);
-			setTagHover({
-				tag: tagEl.textContent,
-				top: rect.top,
-				right: rect.right,
-				bottom: rect.bottom,
-				left: rect.left,
-			});
-		},
-		[colorPicker, tagHover, cancelHide, scheduleHide],
-	);
-
-	// Upstream: a caret move or an editor blur closes the teaser at once.
-	const teaserShown = tagHover !== null;
-	useEffect(() => {
-		if (!teaserShown) {
-			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
-			return undefined;
-		}
-		const close = () => {
-			cancelHide();
-			unpop("TAG_COLOR_TEASER_POPUP");
-			setTagHover(null);
-		};
-		document.addEventListener("selectionchange", close);
-		document.addEventListener("focusout", close);
-		return () => {
-			document.removeEventListener("selectionchange", close);
-			document.removeEventListener("focusout", close);
-		};
-	}, [teaserShown, cancelHide]);
-
-	const openPicker = useCallback(
-		(event: React.MouseEvent<HTMLDivElement>) => {
-			// Upstream opens on mousedown; preventDefault keeps focus where it was.
-			event.preventDefault();
-			if (!tagHover) {
-				return;
-			}
-			cancelHide();
-			pop("TAG_COLORS_POPUP");
-			setColorPicker({tag: tagHover.tag, top: tagHover.bottom, left: tagHover.left});
-			setTagHover(null);
-		},
-		[tagHover, cancelHide],
-	);
-
-	const closeColorPicker = useCallback(() => {
-		unpop("TAG_COLORS_POPUP");
-		setColorPicker(null);
-	}, []);
-
-	// Close the open picker on a click/escape outside of it.
-	useEffect(() => {
-		if (!colorPicker) {
-			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
-			return undefined;
-		}
-		const onPointerDown = (event: PointerEvent) => {
-			if (!(event.target instanceof Element && event.target.closest(".tag-color-picker"))) {
-				setColorPicker(null);
-			}
-		};
-		const onKey = closeOnEscape(() => {
-			setColorPicker(null);
-		});
-		document.addEventListener("pointerdown", onPointerDown);
-		document.addEventListener("keydown", onKey);
-		return () => {
-			unpop("TAG_COLORS_POPUP");
-			document.removeEventListener("pointerdown", onPointerDown);
-			document.removeEventListener("keydown", onKey);
-		};
-	}, [colorPicker]);
 
 	return (
 		<>
@@ -1416,38 +1208,13 @@ const RestingText = memo(function RestingText({
 					),
 				}}
 				onClick={handleTextClick}
-				onMouseDown={preventTagMouseDown}
-				onMouseLeave={scheduleHide}
+				onMouseDown={tagPointer.onMouseDown}
+				onMouseLeave={tagPointer.onMouseLeave}
 				// oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- the tag-color trigger is a pointer-only affordance; the span is not focusable
-				onMouseOver={handleTagHover}
+				onMouseOver={tagPointer.onMouseOver}
 				role="presentation"
 			/>
-			{tagHover &&
-				!colorPicker &&
-				createPortal(
-					// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- upstream's teaser is a pointer-only div
-					<div
-						aria-label="Set tag color"
-						className="tag-color-teaser"
-						onMouseDown={openPicker}
-						onMouseEnter={cancelHide}
-						onMouseLeave={scheduleHide}
-						style={teaserStyle(tagHover)}
-					>
-						<div className="tag-color-teaser-glyph">
-							<FaIcon icon="fal:chevron-down" />
-						</div>
-					</div>,
-					document.body,
-				)}
-			{colorPicker && (
-				<RestingTagColorPicker
-					left={colorPicker.left}
-					onClose={closeColorPicker}
-					tag={colorPicker.tag}
-					top={colorPicker.top}
-				/>
-			)}
+			{tagPointer.popups}
 			{pillPicker.popup}
 		</>
 	);
