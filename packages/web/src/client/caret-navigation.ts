@@ -68,6 +68,28 @@ export function adjacentVisibleNode(
 	return visibleIds[direction === "up" ? index - 1 : index + 1] ?? null;
 }
 
+export type VerticalCross = {kind: "move"; nodeId: string; caretOffset: 0} | {kind: "swallow"} | {kind: "native"};
+
+/**
+ * What Up/Down does at a row's edge line, matching workflowy.com: continue in the
+ * neighbor at offset 0; swallow Up at the first row; leave Down native on the last
+ * row (the browser moves the caret to the end) or when `currentId` is not visible.
+ */
+export function planVerticalCross(
+	visibleIds: readonly string[],
+	currentId: string,
+	direction: VerticalDirection,
+): VerticalCross {
+	if (!visibleIds.includes(currentId)) {
+		return {kind: "native"};
+	}
+	const nodeId = adjacentVisibleNode(visibleIds, currentId, direction);
+	if (nodeId !== null) {
+		return {kind: "move", nodeId, caretOffset: 0};
+	}
+	return direction === "up" ? {kind: "swallow"} : {kind: "native"};
+}
+
 export type HorizontalDirection = "left" | "right";
 
 /**

@@ -14,18 +14,17 @@ import type {MergeRow} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
 import type {NodeResponse} from "../../node-types.js";
 import {
-	adjacentVisibleNode,
 	backspaceDeleteTarget,
 	horizontalTarget,
 	isCaretOnBoundaryLine,
 	navigableIds,
 	planNoteBoundary,
+	planVerticalCross,
 } from "../caret-navigation.js";
 import type {HorizontalDirection, VerticalDirection} from "../caret-navigation.js";
 import {
 	caretTextOffset,
 	placeCaretAtTextOffset,
-	rowContent,
 	placeSelectionAtTextOffsets,
 	selectionTextOffsets,
 	textUnitLength,
@@ -94,26 +93,6 @@ function caretRect(direction: VerticalDirection): DOMRect | null {
 	range.collapse(direction === "up");
 	const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
 	return rect.height > 0 ? rect : null;
-}
-
-/**
- * Where to place the caret when entering `targetId` from a vertical move: the
- * target's last line going up or first line going down, at the horizontal
- * position closest to `caretX`. Null when the target is not rendered or empty.
- */
-function verticalEntryPoint(
-	targetId: string,
-	direction: VerticalDirection,
-	caretX: number | null,
-): {x: number; y: number} | null {
-	const target = rowContent(targetId);
-	const lines = target ? [...target.getClientRects()] : [];
-	const line = direction === "up" ? lines.at(-1) : lines[0];
-	if (!line || line.width === 0) {
-		return null;
-	}
-	const x = Math.min(Math.max(caretX ?? line.left, line.left), line.right - 1);
-	return {x, y: line.top + line.height / 2};
 }
 
 /** Stands in for a date pill, one caret unit, in the plain text the tag autocomplete reads. */
@@ -191,7 +170,6 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	const queryClient = useQueryClient();
 	const {
 		stopEditing,
-		startEditing,
 		resumeEditing,
 		focusNote,
 		releaseEditing,
@@ -607,16 +585,14 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				zoomedNodeId,
 				collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 			);
-			const targetId = adjacentVisibleNode(visibleIds, nodeId, direction);
-			if (targetId === null) {
-				return true;
+			const plan = planVerticalCross(visibleIds, nodeId, direction);
+			if (plan.kind === "move") {
+				saveChanges();
+				resumeEditing(plan.nodeId, plan.caretOffset);
 			}
-			const entryPoint = verticalEntryPoint(targetId, direction, caret?.left ?? null);
-			saveChanges();
-			startEditing(targetId, entryPoint ?? undefined);
-			return true;
+			return plan.kind !== "native";
 		},
-		[nodeId, queryClient, saveChanges, startEditing],
+		[nodeId, queryClient, resumeEditing, saveChanges],
 	);
 
 	/**

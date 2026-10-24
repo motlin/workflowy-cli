@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {
 	adjacentVisibleNode,
+	planVerticalCross,
 	backspaceDeleteTarget,
 	editingAfterRemoval,
 	firstLastNavigable,
@@ -340,5 +341,24 @@ describe("planHideCompletedFocus", () => {
 			planHideCompletedFocus(["a", "b"], new Set(["a"]), "a"),
 			planHideCompletedFocus(["a"], new Set(), null),
 		]).toStrictEqual([{nodeId: "a", caretOffset: 0}, null, null]);
+	});
+});
+
+describe("planVerticalCross", () => {
+	const ids = ["T", "A", "B", "C"];
+
+	it("moves to the neighbor at offset 0 in both directions", () => {
+		expect([planVerticalCross(ids, "A", "up"), planVerticalCross(ids, "B", "down")]).toStrictEqual([
+			{kind: "move", nodeId: "T", caretOffset: 0},
+			{kind: "move", nodeId: "C", caretOffset: 0},
+		]);
+	});
+
+	it("swallows Up at the first row and leaves Down native on the last row or an unknown row", () => {
+		expect([
+			planVerticalCross(ids, "T", "up"),
+			planVerticalCross(ids, "C", "down"),
+			planVerticalCross(ids, "X", "down"),
+		]).toStrictEqual([{kind: "swallow"}, {kind: "native"}, {kind: "native"}]);
 	});
 });
