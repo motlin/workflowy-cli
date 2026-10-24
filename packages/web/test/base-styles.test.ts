@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {cssBlock} from "./helpers/css-block.js";
+import {cssBlock, cssPreludes, hasSelector} from "./helpers/css-block.js";
 
 function readSource(relative: string): string {
 	return readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
@@ -226,5 +226,38 @@ describe("upstream button variants and duotone icons", () => {
 			primary: {fill: "var(--fa-primary-color, currentColor)", opacity: "var(--fa-primary-opacity, 1)"},
 			secondary: {fill: "var(--fa-secondary-color, currentColor)", opacity: "var(--fa-secondary-opacity, 0.4)"},
 		});
+	});
+
+	it("styles inline code with upstream's global code rule", () => {
+		expect(cssBlock(styles, "code")).toStrictEqual({
+			padding: "0 var(--wf-space-s)",
+			background: "var(--wf-background-secondary)",
+			border: "var(--wf-border-width-s) solid var(--wf-border-primary)",
+			"border-radius": "var(--wf-radius-s)",
+			"font-family": "var(--font-code-font-family, var(--wf-font-family-mono))",
+			"line-height": "var(--wf-line-height-s)",
+			"font-size": "var(--font-code-block-font-size, 95%) !important",
+			"box-sizing": "content-box",
+		});
+		expect(cssBlock(styles, ".font-andale code")).toStrictEqual({padding: "0", "font-size": "100%"});
+		expect(hasSelector(styles, /^\s*\.innerContentContainer code\s*$/u)).toBe(false);
+		expect(cssBlock(styles, ".innerContentContainer pre code")).toMatchObject({
+			padding: "0",
+			"background-color": "transparent",
+			border: "0",
+		});
+	});
+
+	it("keeps other code rules from setting absolute code sizes", () => {
+		const allowed = new Set([
+			"code",
+			".addedToSelection code",
+			".font-andale code",
+			".innerContentContainer pre code",
+		]);
+		const offenders = cssPreludes(stripComments(styles))
+			.map((prelude) => prelude.replace(/^[\s}]*/u, "").trim())
+			.filter((prelude) => prelude.endsWith("code") && !allowed.has(prelude));
+		expect(offenders).toStrictEqual([]);
 	});
 });

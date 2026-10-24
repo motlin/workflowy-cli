@@ -1821,12 +1821,20 @@ body.moving .expand {
 }
 
 /* Inline code formatting */
-.innerContentContainer code {
-	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-	font-size: 0.9em;
-	background-color: var(--color-bg-code);
-	padding: 0.1em 0.3em;
-	border-radius: 3px;
+code {
+	padding: 0 var(--wf-space-s);
+	background: var(--wf-background-secondary);
+	border: var(--wf-border-width-s) solid var(--wf-border-primary);
+	border-radius: var(--wf-radius-s);
+	font-family: var(--font-code-font-family, var(--wf-font-family-mono));
+	line-height: var(--wf-line-height-s);
+	font-size: var(--font-code-block-font-size, 95%) !important;
+	box-sizing: content-box;
+}
+
+.font-andale code {
+	padding: 0;
+	font-size: 100%;
 }
 
 /* Code block formatting (pre > code) */
@@ -1842,6 +1850,7 @@ body.moving .expand {
 	display: block;
 	padding: 0;
 	background-color: transparent;
+	border: 0;
 	white-space: pre-wrap;
 	word-wrap: break-word;
 }
