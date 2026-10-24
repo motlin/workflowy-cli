@@ -1,6 +1,7 @@
 import {routeTypedInput} from "../inline-input-router.js";
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
+import {readNode} from "../node-cache.js";
 import {usePaneSearchQuery} from "../hooks/use-tree-search.js";
 import {activePaneView, isModalOpen, outlineActions, registerEditFlush, useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
@@ -556,9 +557,10 @@ export function EditableNote({
 			{slashMenu.menu}
 			{toolbarView && (
 				<SelectionToolbar
+					colorActive={toolbarView.colorActive}
 					activeAttrs={toolbarView.activeAttrs}
 					inNote
-					layoutMode={null}
+					layoutMode={readNode(queryClient, nodeId)?.data.layoutMode}
 					onAction={handleToolbarAction}
 					rect={toolbarView.rect}
 				/>

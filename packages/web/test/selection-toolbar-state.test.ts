@@ -4,6 +4,7 @@ import {
 	toolbarFormatAttr,
 	toolbarLayoutCommand,
 	toolbarState,
+	toolbarRefreshKey,
 } from "../src/client/hooks/use-selection-toolbar.js";
 import type {ToolbarEvent, ToolbarState} from "../src/client/hooks/use-selection-toolbar.js";
 
@@ -123,5 +124,16 @@ describe("toolbar actions", () => {
 			["latest-color", null, null],
 			["show-palette", null, null],
 		]);
+	});
+});
+
+describe("toolbarRefreshKey", () => {
+	it("is stable per normalized layout and differs between layouts", () => {
+		expect([
+			toolbarRefreshKey("h1") === toolbarRefreshKey("h1"),
+			toolbarRefreshKey("h1") === toolbarRefreshKey(null),
+			toolbarRefreshKey("paragraph") === toolbarRefreshKey("p"),
+			toolbarRefreshKey(undefined) === toolbarRefreshKey(null),
+		]).toStrictEqual([true, false, true, true]);
 	});
 });

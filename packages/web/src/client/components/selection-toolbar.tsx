@@ -4,6 +4,7 @@ import type {InlineAttr} from "../rich-text.js";
 import type {FaIconKey} from "./fa-icons.js";
 import {FaIcon} from "./fa-icons.js";
 import {Flyout} from "./flyout/flyout.js";
+import {normalizeLayoutMode} from "../layout-types.js";
 import {IconButton} from "./icon-button.js";
 
 export type SelectionToolbarAction =
@@ -53,6 +54,24 @@ export const selectionToolbarButtons: readonly SelectionToolbarButton[] = [
 
 const TYPE_BUTTON_COUNT = 4;
 
+/** Layout modes whose rows show no toolbar (upstream's `item.ui.context-menu.code-block` and `gui-divider` middlewares). */
+const SUPPRESSING_LAYOUTS: ReadonlySet<string> = new Set(["code-block", "divider"]);
+
+/** The buttons upstream shows for a selection in this row: none in code-block/divider rows, no type buttons in a note. */
+export function selectionToolbarButtonsFor({
+	inNote,
+	layoutMode,
+}: {
+	inNote: boolean;
+	layoutMode: string | null | undefined;
+}): readonly SelectionToolbarButton[] {
+	const normalized = normalizeLayoutMode(layoutMode);
+	if (normalized !== null && SUPPRESSING_LAYOUTS.has(normalized)) {
+		return [];
+	}
+	return inNote ? selectionToolbarButtons.slice(TYPE_BUTTON_COUNT) : selectionToolbarButtons;
+}
+
 /** Upstream places the menu center 55px right of the selection center and 52px above its top, unclamped. */
 const X_SHIFT = 55;
 const Y_SHIFT = -52;
@@ -75,12 +94,17 @@ export interface SelectionToolbarProps {
 	layoutMode: string | null | undefined;
 	/** The last text color class used, shown on the font button. */
 	lastColorClass?: string;
+	/** A text color or highlight touches the selection: the font button is active. */
+	colorActive?: boolean;
 	onAction: (action: SelectionToolbarAction) => void;
 }
 
 function isActive(button: SelectionToolbarButton, props: SelectionToolbarProps): boolean {
 	if (button.layoutMode !== undefined) {
-		return props.layoutMode === button.layoutMode;
+		return normalizeLayoutMode(props.layoutMode) === button.layoutMode;
+	}
+	if (button.key === "latest-color") {
+		return props.colorActive === true;
 	}
 	return button.attr !== undefined && props.activeAttrs.has(button.attr);
 }
@@ -95,7 +119,10 @@ function iconClassName(button: SelectionToolbarButton, lastColorClass: string | 
 /** Upstream's floating text-formatting toolbar shown above a non-collapsed selection. */
 export function SelectionToolbar(props: SelectionToolbarProps) {
 	const {rect, inNote, lastColorClass, onAction} = props;
-	const buttons = inNote ? selectionToolbarButtons.slice(TYPE_BUTTON_COUNT) : selectionToolbarButtons;
+	const buttons = selectionToolbarButtonsFor({inNote, layoutMode: props.layoutMode});
+	if (buttons.length === 0) {
+		return null;
+	}
 	const position = [rect.x + rect.width / 2 + X_SHIFT, rect.y + Y_SHIFT] as const;
 	return createPortal(
 		<div style={HOST_STYLE}>

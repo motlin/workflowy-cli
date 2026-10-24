@@ -324,6 +324,21 @@ export function touchesAttr(html: string, start: number, end: number, attr: Inli
 	);
 }
 
+const COLORED_SPAN = /class="[^"]*(?:\bcolored\b|\bc-|\bbc-)|style="(?:[^"]*[\s;])?(?:background-)?color\s*:/u;
+
+/** True when a colored (text color or highlight) span overlaps `start..end`. */
+export function touchesColor(html: string, start: number, end: number): boolean {
+	return parseInline(html).spans.some(
+		(span) =>
+			span.name === "span" &&
+			COLORED_SPAN.test(span.raw) &&
+			((start <= span.start && span.start < end) ||
+				(start < span.end && span.end <= end) ||
+				(span.start <= start && start < span.end) ||
+				(span.start < end && end <= span.end)),
+	);
+}
+
 /** Removes `attr` from `start..end` when the whole range has it, otherwise sets it on the whole range. */
 export function toggleAttr(html: string, start: number, end: number, attr: InlineAttr): string {
 	const remove = hasAttr(html, start, end, attr);

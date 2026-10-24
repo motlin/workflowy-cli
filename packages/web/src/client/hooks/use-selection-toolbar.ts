@@ -4,7 +4,8 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import type {RefObject} from "react";
 import {selectionTextOffsets} from "../caret-dom.js";
 import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
-import {touchesAttr} from "../rich-text.js";
+import {normalizeLayoutMode} from "../layout-types.js";
+import {touchesAttr, touchesColor} from "../rich-text.js";
 import type {InlineAttr} from "../rich-text.js";
 import type {SelectionToolbarAction} from "../components/selection-toolbar.js";
 
@@ -104,6 +105,13 @@ export interface SelectionToolbarView {
 	/** The selection's bounding rect in page coordinates. */
 	rect: {x: number; y: number; width: number};
 	activeAttrs: ReadonlySet<InlineAttr>;
+	/** A text color or highlight touches the selection. */
+	colorActive: boolean;
+}
+
+/** Changes whenever the row's normalized layout changes, so the toolbar re-measures after the row re-renders. */
+export function toolbarRefreshKey(layoutMode: string | null | undefined): string {
+	return normalizeLayoutMode(layoutMode) ?? "bullets";
 }
 
 let primaryDown = false;
@@ -161,6 +169,7 @@ function measure(editor: HTMLElement, html: string): SelectionToolbarView | null
 	return {
 		rect: {x: box.left + globalThis.scrollX, y: box.top + globalThis.scrollY, width: box.width},
 		activeAttrs: new Set(INLINE_ATTRS.filter((attr) => touchesAttr(html, start, end, attr))),
+		colorActive: touchesColor(html, start, end),
 	};
 }
 

@@ -13,6 +13,7 @@ import {
 	splitHtml,
 	toggleAttr,
 	touchesAttr,
+	touchesColor,
 	trimmedPlainLength,
 } from "../src/client/rich-text.js";
 
@@ -269,5 +270,24 @@ describe("planItemsCodeToggle", () => {
 			{id: "n", field: "name", html: "<code>note row</code>"},
 			{id: "n", field: "note", html: "<code>note n code</code>"},
 		]);
+	});
+});
+
+describe("touchesColor", () => {
+	it("is true only when a colored span overlaps the range", () => {
+		const html = 'a <span class="colored bc-yellow">bc</span> d';
+		expect([touchesColor(html, 2, 3), touchesColor(html, 0, 1), touchesColor(html, 5, 6)]).toStrictEqual([
+			true,
+			false,
+			false,
+		]);
+	});
+
+	it("recognizes c-* classes and inline color styles", () => {
+		expect([
+			touchesColor('<span class="c-red">x</span>', 0, 1),
+			touchesColor('<span style="background-color: red">x</span>', 0, 1),
+			touchesColor('<span class="other">x</span>', 0, 1),
+		]).toStrictEqual([true, true, false]);
 	});
 });

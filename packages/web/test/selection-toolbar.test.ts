@@ -10,13 +10,15 @@ vi.mock(import("react-dom"), async (importOriginal) => ({
 }));
 vi.stubGlobal("document", {body: {}});
 
-const {SelectionToolbar, selectionToolbarButtons} = await import("../src/client/components/selection-toolbar.js");
+const {SelectionToolbar, selectionToolbarButtons, selectionToolbarButtonsFor} =
+	await import("../src/client/components/selection-toolbar.js");
 
 interface RenderOptions {
 	inNote?: boolean;
 	activeAttrs?: ReadonlySet<InlineAttr>;
 	layoutMode?: string | null;
 	lastColorClass?: string;
+	colorActive?: boolean;
 	rect?: {x: number; y: number; width: number};
 }
 
@@ -25,10 +27,19 @@ function render({
 	activeAttrs = new Set(),
 	layoutMode = null,
 	lastColorClass,
+	colorActive = false,
 	rect = {x: 0, y: 0, width: 0},
 }: RenderOptions = {}): string {
 	return renderToStaticMarkup(
-		createElement(SelectionToolbar, {inNote, activeAttrs, layoutMode, lastColorClass, rect, onAction: () => {}}),
+		createElement(SelectionToolbar, {
+			inNote,
+			activeAttrs,
+			layoutMode,
+			lastColorClass,
+			colorActive,
+			rect,
+			onAction: () => {},
+		}),
 	);
 }
 
@@ -152,5 +163,33 @@ describe("SelectionToolbar", () => {
 			["latest-color", `Text color${gap}⇧⌘H`],
 			["show-palette", undefined],
 		]);
+	});
+
+	it("renders nothing in a code-block row", () => {
+		expect(render({layoutMode: "code-block"})).toBe("");
+	});
+
+	it("marks the paragraph button active for the legacy stored paragraph mode", () => {
+		expect(items(render({layoutMode: "paragraph"})).map((item) => item.item)).toStrictEqual(
+			ALL_ICONS.map((_, index) => (index === 3 ? ACTIVE : INACTIVE)),
+		);
+	});
+
+	it("marks only the font button active when a color touches the selection", () => {
+		expect(items(render({colorActive: true})).map((item) => item.item)).toStrictEqual(
+			ALL_ICONS.map((_, index) => (index === 10 ? ACTIVE : INACTIVE)),
+		);
+	});
+});
+
+describe("selectionToolbarButtonsFor", () => {
+	it("returns no buttons for a code-block row, all twelve otherwise, and eight in a note", () => {
+		expect(selectionToolbarButtonsFor({inNote: false, layoutMode: "code-block"})).toStrictEqual([]);
+		expect(selectionToolbarButtonsFor({inNote: false, layoutMode: "h1"}).map((b) => b.key)).toStrictEqual(
+			selectionToolbarButtons.map((b) => b.key),
+		);
+		expect(selectionToolbarButtonsFor({inNote: true, layoutMode: null}).map((b) => b.key)).toStrictEqual(
+			selectionToolbarButtons.slice(4).map((b) => b.key),
+		);
 	});
 });

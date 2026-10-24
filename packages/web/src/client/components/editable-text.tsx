@@ -67,6 +67,7 @@ import {
 	otherPopupOpen,
 	toolbarFormatAttr,
 	toolbarLayoutCommand,
+	toolbarRefreshKey,
 	useSelectionToolbar,
 } from "../hooks/use-selection-toolbar.js";
 import {planLayoutHotkey} from "../layout-hotkeys.js";
@@ -474,6 +475,17 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		modalOpen: isModalOpen,
 	});
 
+	// An h1-p toggle re-renders the row at a new text size: re-measure the bar once that has landed.
+	const rowLayoutMode = readNode(queryClient, nodeId)?.data.layoutMode;
+	const refreshKey = toolbarRefreshKey(rowLayoutMode);
+	const seenRefreshKey = useRef(refreshKey);
+	useLayoutEffect(() => {
+		if (seenRefreshKey.current !== refreshKey) {
+			seenRefreshKey.current = refreshKey;
+			refreshToolbar();
+		}
+	}, [refreshKey, refreshToolbar]);
+
 	/** A toolbar type button: commit the text, then toggle this row's layout in one undo step, keeping the selection. */
 	const toggleLayoutFromToolbar = useCallback(
 		(command: LayoutHotkeyCommand) => {
@@ -501,9 +513,8 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 					deleteNodeMutation.mutate(deleteId);
 				}
 			});
-			refreshToolbar();
 		},
-		[dateSettings, account, deleteNodeMutation, nameSaver, nodeId, queryClient, refreshToolbar, updateNodeMutation],
+		[dateSettings, account, deleteNodeMutation, nameSaver, nodeId, queryClient, updateNodeMutation],
 	);
 
 	const handleToolbarAction = useCallback(
@@ -1122,8 +1133,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			{toolbarView && (
 				<SelectionToolbar
 					activeAttrs={toolbarView.activeAttrs}
+					colorActive={toolbarView.colorActive}
 					inNote={false}
-					layoutMode={readNode(queryClient, nodeId)?.data.layoutMode}
+					layoutMode={rowLayoutMode}
 					onAction={handleToolbarAction}
 					rect={toolbarView.rect}
 				/>

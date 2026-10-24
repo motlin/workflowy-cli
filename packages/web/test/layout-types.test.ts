@@ -1,5 +1,11 @@
 import {describe, expect, it} from "vite-plus/test";
-import {availableItemTypes, currentTypeIcon, ITEM_TYPES, planLayoutToggle} from "../src/client/layout-types.js";
+import {
+	availableItemTypes,
+	currentTypeIcon,
+	ITEM_TYPES,
+	normalizeLayoutMode,
+	planLayoutToggle,
+} from "../src/client/layout-types.js";
 import type {ItemTypeContext, LayoutToggleItem} from "../src/client/layout-types.js";
 
 const NORMAL: ItemTypeContext = {isRoot: false, isMainDocumentRoot: false, readOnly: false, isTableCell: false};
@@ -313,5 +319,16 @@ describe("planLayoutToggle", () => {
 
 	it("plans nothing for an empty selection", () => {
 		expect(planLayoutToggle("toggle_divider", [])).toStrictEqual({updates: [], deletes: [], clearSelection: false});
+	});
+});
+
+describe("normalizeLayoutMode", () => {
+	it("maps legacy aliases and passes null through", () => {
+		expect([
+			normalizeLayoutMode("paragraph"),
+			normalizeLayoutMode("quote"),
+			normalizeLayoutMode("h1"),
+			normalizeLayoutMode(null),
+		]).toStrictEqual(["p", "quote-block", "h1", null]);
 	});
 });

@@ -82,9 +82,14 @@ const LEGACY_LAYOUT_ALIASES: Record<string, string> = {
 	quote: "quote-block",
 };
 
+/** The stored layout mode with legacy aliases resolved, or null for none. */
+export function normalizeLayoutMode(layoutMode: string | null | undefined): string | null {
+	return layoutMode ? (LEGACY_LAYOUT_ALIASES[layoutMode] ?? layoutMode) : null;
+}
+
 /** Icon for the item's current type; anything unrecognized shows the bullets icon. */
 export function currentTypeIcon(layoutMode: string | null | undefined): string {
-	const key = layoutMode ? (LEGACY_LAYOUT_ALIASES[layoutMode] ?? layoutMode) : null;
+	const key = normalizeLayoutMode(layoutMode);
 	return ITEM_TYPES.find((type) => type.layoutModeKey === key)?.icon ?? "list-ul";
 }
 
