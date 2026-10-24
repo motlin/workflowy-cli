@@ -274,7 +274,12 @@ export async function runStripDrop({
 			? `Moved to ${STRIP_MONTHS[date.getMonth()]} ${date.getFullYear()}`
 			: moveToastText("moved", dayName(date));
 	if (items.includes(page.id)) {
-		showToast({text: moveToastText("cant", dayName(date)), timeout: MOVE_TOAST_TIMEOUT, actions: []});
+		showToast({
+			text: moveToastText("cant", dayName(date)),
+			timeout: MOVE_TOAST_TIMEOUT,
+			actions: [],
+			type: "failure",
+		});
 		return false;
 	}
 	clearSelection();

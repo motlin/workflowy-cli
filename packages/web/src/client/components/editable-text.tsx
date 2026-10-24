@@ -994,6 +994,10 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
+			// A capture-phase listener (the app message's action shortcut) already claimed this key.
+			if (event.nativeEvent.defaultPrevented) {
+				return;
+			}
 			if (handleSlashKey(event)) {
 				return;
 			}

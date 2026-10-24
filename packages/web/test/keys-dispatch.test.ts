@@ -4,6 +4,7 @@ import {
 	deferToFocusedControl,
 	hotkeyTable,
 	keymapCombo,
+	listenForAppMessageKeys,
 	processAppMessageCombo,
 	processCombo,
 	processSelectionKey,
@@ -286,6 +287,45 @@ describe("processSelectionKey", () => {
 		}).toStrictEqual({
 			results: ["unclaimed", "unclaimed", "unclaimed", "unclaimed", "unclaimed"],
 			calls: [],
+		});
+	});
+});
+
+describe("listenForAppMessageKeys", () => {
+	it("listens in the capture phase and claims a matching combo with preventDefault only", () => {
+		const view = vi.fn<() => void>();
+		let registered: {type: string; handler: (event: never) => void; capture: unknown} | undefined;
+		const removed: string[] = [];
+		const target = {
+			addEventListener: (type: string, handler: (event: never) => void, capture: unknown) => {
+				registered = {type, handler, capture};
+			},
+			removeEventListener: (type: string) => {
+				removed.push(type);
+			},
+		};
+		const stop = listenForAppMessageKeys(
+			target,
+			() => [{label: "View", shortcut: "shift+return", run: view}],
+			() => "shift+return",
+		);
+		const event = {preventDefault: vi.fn<() => void>(), stopPropagation: vi.fn<() => void>(), isComposing: false};
+		registered?.handler(event as never);
+		stop();
+		expect({
+			type: registered?.type,
+			capture: registered?.capture,
+			view: view.mock.calls,
+			prevented: event.preventDefault.mock.calls,
+			stopped: event.stopPropagation.mock.calls,
+			removed,
+		}).toStrictEqual({
+			type: "keydown",
+			capture: true,
+			view: [[]],
+			prevented: [[]],
+			stopped: [],
+			removed: ["keydown"],
 		});
 	});
 });

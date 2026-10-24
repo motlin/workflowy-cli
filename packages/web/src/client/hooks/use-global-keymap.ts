@@ -5,7 +5,7 @@ import {isMacPlatform} from "../editable-text-keys.js";
 import {
 	deferToFocusedControl,
 	keymapCombo,
-	processAppMessageCombo,
+	listenForAppMessageKeys,
 	processCombo,
 	processSelectionKey,
 } from "../keys/dispatch.js";
@@ -59,11 +59,6 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 			if (event.isComposing) {
 				return;
 			}
-			const {appMessage} = useOutlineStore.getState();
-			if (appMessage && processAppMessageCombo(comboFromEvent(event), appMessage.actions) === "claimed") {
-				event.preventDefault();
-				return;
-			}
 			const selectionResult = processSelectionKey(
 				event,
 				isMac,
@@ -96,8 +91,14 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 			}
 		};
 		globalThis.addEventListener("keydown", onKeyDown);
+		const stopAppMessageKeys = listenForAppMessageKeys(
+			globalThis,
+			() => useOutlineStore.getState().appMessage?.actions,
+			comboFromEvent,
+		);
 		return () => {
 			globalThis.removeEventListener("keydown", onKeyDown);
+			stopAppMessageKeys();
 		};
 	}, [queryClient, deleteNode, navigate]);
 }

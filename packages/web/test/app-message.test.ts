@@ -8,6 +8,9 @@ function stripPaths(markup: string): string {
 
 const CHECK_ICON =
 	'<div class="h-full flex items-center"><svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="circle-check" class="svg-inline--fa fa-circle-check fa-lg text-success" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d=""></path></svg></div>';
+function icon(name: string, color: string): string {
+	return `<div class="h-full flex items-center"><svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="${name}" class="svg-inline--fa fa-${name} fa-lg ${color}" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d=""></path></svg></div>`;
+}
 const CLOSE =
 	'<div class="h-full flex items-center"><span class="p-s cursor-pointer text-tertiary"><svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="xmark" class="svg-inline--fa fa-xmark fa-1x " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><path fill="currentColor" d=""></path></svg></span></div>';
 const OPEN =
@@ -43,6 +46,31 @@ describe("AppMessage markup", () => {
 		const AppMessage = await loadAppMessage();
 		expect(stripPaths(renderToStaticMarkup(createElement(AppMessage, {text: "Link copied."})))).toBe(
 			`${OPEN}${CHECK_ICON}<div class="flex-1 min-w-0 py-m truncate first-letter:capitalize text-secondary font-light">Link copied.</div>${CLOSE}</div></div>`,
+		);
+	});
+
+	it("renders a failure toast with the red circle-exclamation icon", async () => {
+		const AppMessage = await loadAppMessage();
+		const markup = stripPaths(
+			renderToStaticMarkup(createElement(AppMessage, {text: "Can't move to 'X'", type: "failure"})),
+		);
+		expect(markup).toBe(
+			`${OPEN}${icon("circle-exclamation", "text-danger")}<div class="flex-1 min-w-0 py-m truncate first-letter:capitalize text-secondary font-light">Can&#x27;t move to &#x27;X&#x27;</div>${CLOSE}</div></div>`,
+		);
+	});
+
+	it("renders a warning toast with the amber triangle-exclamation icon", async () => {
+		const AppMessage = await loadAppMessage();
+		const markup = stripPaths(renderToStaticMarkup(createElement(AppMessage, {text: "Careful", type: "warning"})));
+		expect(markup).toBe(
+			`${OPEN}${icon("triangle-exclamation", "text-warning")}<div class="flex-1 min-w-0 py-m truncate first-letter:capitalize text-secondary font-light">Careful</div>${CLOSE}</div></div>`,
+		);
+	});
+
+	it("raises the toast above an open dialog with zIndex 1100", async () => {
+		const AppMessage = await loadAppMessage();
+		expect(stripPaths(renderToStaticMarkup(createElement(AppMessage, {text: "x", zIndex: 1100})))).toBe(
+			`${OPEN.replace("z-index:500", "z-index:1100")}${CHECK_ICON}<div class="flex-1 min-w-0 py-m truncate first-letter:capitalize text-secondary font-light">x</div>${CLOSE}</div></div>`,
 		);
 	});
 
@@ -82,9 +110,9 @@ describe("showAppMessage", () => {
 	it("shows the message and clears it after the timeout", async () => {
 		const store = await loadStore();
 		store.getState().showAppMessage("x", {timeout: 1000});
-		expect(store.getState().appMessage).toStrictEqual({text: "x", actions: []});
+		expect(store.getState().appMessage).toStrictEqual({text: "x", type: "success", actions: []});
 		vi.advanceTimersByTime(999);
-		expect(store.getState().appMessage).toStrictEqual({text: "x", actions: []});
+		expect(store.getState().appMessage).toStrictEqual({text: "x", type: "success", actions: []});
 		vi.advanceTimersByTime(1);
 		expect(store.getState().appMessage).toBeNull();
 	});
@@ -96,18 +124,35 @@ describe("showAppMessage", () => {
 		vi.advanceTimersByTime(500);
 		store.getState().showAppMessage("Sorted A-Z", {timeout: 5000, actions: [undo]});
 		vi.advanceTimersByTime(4999);
-		expect(store.getState().appMessage).toStrictEqual({text: "Sorted A-Z", actions: [undo]});
+		expect(store.getState().appMessage).toStrictEqual({text: "Sorted A-Z", type: "success", actions: [undo]});
 		vi.advanceTimersByTime(1);
 		expect(store.getState().appMessage).toBeNull();
 	});
 
-	it("stays until hidden when no timeout is given", async () => {
+	it("hides after 300000ms by default", async () => {
 		const store = await loadStore();
-		store.getState().showAppMessage("sticky");
-		vi.advanceTimersByTime(60_000);
-		expect(store.getState().appMessage).toStrictEqual({text: "sticky", actions: []});
+		store.getState().showAppMessage("default");
+		vi.advanceTimersByTime(299_999);
+		expect(store.getState().appMessage).toStrictEqual({text: "default", type: "success", actions: []});
+		vi.advanceTimersByTime(1);
+		expect(store.getState().appMessage).toBeNull();
+	});
+
+	it("never auto-hides with timeout 0, but hides when asked", async () => {
+		const store = await loadStore();
+		store.getState().showAppMessage("sticky", {timeout: 0});
+		vi.advanceTimersByTime(600_000);
+		expect(store.getState().appMessage).toStrictEqual({text: "sticky", type: "success", actions: []});
 		store.getState().hideAppMessage();
 		expect(store.getState().appMessage).toBeNull();
+	});
+
+	it("records the message type, defaulting to success", async () => {
+		const store = await loadStore();
+		store.getState().showAppMessage("x", {type: "warning", timeout: 1000});
+		expect(store.getState().appMessage?.type).toBe("warning");
+		store.getState().showAppMessage("y", {timeout: 1000});
+		expect(store.getState().appMessage?.type).toBe("success");
 	});
 });
 
@@ -129,7 +174,7 @@ describe("hide on navigation", () => {
 		store.getState().dispatchNav({type: "navigate", loc: {id: "a", query: null}});
 		store.getState().showAppMessage("Link copied.");
 		store.getState().dispatchNav({type: "popstate", loc: {id: "a", query: null}});
-		expect(store.getState().appMessage).toStrictEqual({text: "Link copied.", actions: []});
+		expect(store.getState().appMessage).toStrictEqual({text: "Link copied.", type: "success", actions: []});
 	});
 });
 
@@ -159,7 +204,7 @@ describe("dismissOn", () => {
 		const store = await loadStoreWithWindow();
 		store.getState().showAppMessage("Mirror(s) copied.", {dismissOn: ["copy"]});
 		target.dispatchEvent(new Event("paste"));
-		expect(store.getState().appMessage).toStrictEqual({text: "Mirror(s) copied.", actions: []});
+		expect(store.getState().appMessage).toStrictEqual({text: "Mirror(s) copied.", type: "success", actions: []});
 	});
 
 	it("drops the previous message's dismissOn listeners when replaced", async () => {
@@ -167,6 +212,20 @@ describe("dismissOn", () => {
 		store.getState().showAppMessage("Mirror(s) copied.", {dismissOn: ["copy"]});
 		store.getState().showAppMessage("Link copied.");
 		target.dispatchEvent(new Event("copy"));
-		expect(store.getState().appMessage).toStrictEqual({text: "Link copied.", actions: []});
+		expect(store.getState().appMessage).toStrictEqual({text: "Link copied.", type: "success", actions: []});
+	});
+});
+
+describe("appMessageZIndex", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("is 500 normally and 1100 (modal 600 + message 500) while a dialog is open", async () => {
+		const store = await loadStore();
+		const {appMessageZIndex} = await import("../src/client/components/app-message.js");
+		const closed = appMessageZIndex();
+		store.setState({exportDialogOpen: true});
+		expect({closed, open: appMessageZIndex()}).toStrictEqual({closed: 500, open: 1100});
 	});
 });

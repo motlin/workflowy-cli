@@ -1,25 +1,47 @@
-import {useOutlineStore} from "../stores/outline.js";
-import type {AppMessageAction} from "../stores/outline.js";
+import {isModalOpen, useOutlineStore} from "../stores/outline.js";
+import type {AppMessageAction, AppMessageType} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
 
 const NO_ACTIONS: readonly AppMessageAction[] = [];
 
+const TYPE_STYLES = {
+	success: {icon: "fas:circle-check", color: "text-success"},
+	warning: {icon: "fas:triangle-exclamation", color: "text-warning"},
+	failure: {icon: "fas:circle-exclamation", color: "text-danger"},
+} as const;
+
+const MESSAGE_LEVEL = 500;
+const MODAL_LEVEL = 600;
+
+/** Upstream `level.of("message")`, plus `level.of("modal")` while a dialog is open so the toast paints over its backdrop. */
+export function appMessageZIndex(): number {
+	return isModalOpen() ? MODAL_LEVEL + MESSAGE_LEVEL : MESSAGE_LEVEL;
+}
+
 interface AppMessageProps {
 	text: string;
+	type?: AppMessageType;
+	zIndex?: number;
 	actions?: readonly AppMessageAction[];
 	onClose?: () => void;
 }
 
 /** Upstream's WF.AppMessages success toast, pinned above the bottom edge of the viewport. */
-export function AppMessage({text, actions = NO_ACTIONS, onClose}: AppMessageProps) {
+export function AppMessage({
+	text,
+	type = "success",
+	zIndex = MESSAGE_LEVEL,
+	actions = NO_ACTIONS,
+	onClose,
+}: AppMessageProps) {
 	return (
 		<div
 			className="flex justify-center fixed left-0 right-0 leading-xs"
-			style={{zIndex: 500, bottom: "calc(72px + var(--safe-area-inset-bottom))"}}
+			style={{zIndex, bottom: "calc(72px + var(--safe-area-inset-bottom))"}}
 		>
 			<div className="flex flex-row max-w-[90vw] gap-ml px-m shadow-sm bg-primary border border-solid border-primary rounded-s">
 				<div className="h-full flex items-center">
-					<FaIcon icon="fas:circle-check" size="lg" className="text-success" />
+					<FaIcon icon={TYPE_STYLES[type].icon} size="lg" className={TYPE_STYLES[type].color} />
 				</div>
 				<div className="flex-1 min-w-0 py-m truncate first-letter:capitalize text-secondary font-light">
 					{text}
@@ -61,8 +83,18 @@ export function AppMessage({text, actions = NO_ACTIONS, onClose}: AppMessageProp
 export function AppMessages() {
 	const appMessage = useOutlineStore((state) => state.appMessage);
 	const hideAppMessage = useOutlineStore((state) => state.hideAppMessage);
+	// Subscribes so the z-index follows dialogs opening and closing.
+	const zIndex = useOutlineStore(() => appMessageZIndex());
 	if (!appMessage) {
 		return null;
 	}
-	return <AppMessage text={appMessage.text} actions={appMessage.actions} onClose={hideAppMessage} />;
+	return (
+		<AppMessage
+			text={appMessage.text}
+			type={appMessage.type}
+			zIndex={zIndex}
+			actions={appMessage.actions}
+			onClose={hideAppMessage}
+		/>
+	);
 }

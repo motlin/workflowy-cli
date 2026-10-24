@@ -97,6 +97,35 @@ export function processAppMessageCombo(combo: string, actions: readonly AppMessa
 	return "claimed";
 }
 
+interface KeydownTarget {
+	addEventListener: (type: "keydown", handler: (event: KeyboardEvent) => void, capture: boolean) => void;
+	removeEventListener: (type: "keydown", handler: (event: KeyboardEvent) => void, capture: boolean) => void;
+}
+
+/**
+ * Upstream registers the toast's shortcut listener in the capture phase, so it runs before any element handler. A
+ * matching combo is claimed with `preventDefault()` only; propagation continues. Returns the remover.
+ */
+export function listenForAppMessageKeys(
+	target: KeydownTarget,
+	getActions: () => readonly AppMessageAction[] | undefined,
+	comboOf: (event: KeyboardEvent) => string,
+): () => void {
+	const handler = (event: KeyboardEvent): void => {
+		const actions = getActions();
+		if (event.isComposing || actions === undefined) {
+			return;
+		}
+		if (processAppMessageCombo(comboOf(event), actions) === "claimed") {
+			event.preventDefault();
+		}
+	};
+	target.addEventListener("keydown", handler, true);
+	return () => {
+		target.removeEventListener("keydown", handler, true);
+	};
+}
+
 export interface SelectionKeyEvent {
 	key: string;
 	metaKey: boolean;

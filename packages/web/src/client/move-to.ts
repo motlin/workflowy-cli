@@ -1,4 +1,4 @@
-import type {AppMessageAction} from "./stores/outline.js";
+import type {AppMessageAction, AppMessageType} from "./stores/outline.js";
 import {defaultIndexIn} from "./tree-ops.js";
 import type {BlockMove} from "./tree-ops.js";
 
@@ -12,6 +12,7 @@ export interface MoveToToast {
 	text: string;
 	timeout: number;
 	actions: AppMessageAction[];
+	type?: AppMessageType;
 }
 
 const MOVE_TOAST_TIMEOUT = 5000;
@@ -75,7 +76,12 @@ export function runMoveTo({
 	leaveItem?: () => void;
 }): boolean {
 	if (!items.every((item) => canMoveUnder(parentOf, item, target.id))) {
-		showToast({text: moveToastText("cant", target.name), timeout: MOVE_TOAST_TIMEOUT, actions: []});
+		showToast({
+			text: moveToastText("cant", target.name),
+			timeout: MOVE_TOAST_TIMEOUT,
+			actions: [],
+			type: "failure",
+		});
 		return false;
 	}
 	leaveItem?.();

@@ -576,7 +576,7 @@ describe("strip drag-and-drop", () => {
 				moved: false,
 				moves: [],
 				cleared: 0,
-				toasts: [{text: "Can't move to '2026-10-5 day'", timeout: 5000, actions: []}],
+				toasts: [{text: "Can't move to '2026-10-5 day'", timeout: 5000, actions: [], type: "failure"}],
 			},
 		]);
 	});

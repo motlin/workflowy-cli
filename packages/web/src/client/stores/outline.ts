@@ -206,14 +206,22 @@ export interface AppMessageAction {
 	run: () => void;
 }
 
+export type AppMessageType = "success" | "warning" | "failure";
+
+/** Upstream `transient host` default: a message without a timeout hides after 5 minutes. */
+const APP_MESSAGE_DEFAULT_TIMEOUT = 5 * 60 * 1000;
+
 interface AppMessageState {
 	text: string;
+	type: AppMessageType;
 	actions: readonly AppMessageAction[];
 }
 
 interface ShowAppMessageOptions {
-	/** Milliseconds before the message hides itself; omitted keeps it until hidden. */
+	/** Milliseconds before the message hides itself; omitted is 5 minutes, 0 or less never auto-hides. */
 	timeout?: number;
+	/** Icon and colour; defaults to "success". */
+	type?: AppMessageType;
 	actions?: readonly AppMessageAction[];
 	/** Window event names (e.g. "copy", "paste") that hide the message, as upstream's `dismissOn`. */
 	dismissOn?: readonly string[];
@@ -1645,19 +1653,19 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({errorNotifications: []});
 	},
 
-	showAppMessage(text, {timeout, actions = [], dismissOn = []} = {}) {
+	showAppMessage(text, {timeout = APP_MESSAGE_DEFAULT_TIMEOUT, type = "success", actions = [], dismissOn = []} = {}) {
 		clearTimeout(appMessageTimer);
 		removeAppMessageDismissListeners();
 		removeAppMessageDismissListeners = listenForDismiss(dismissOn, () => {
 			get().hideAppMessage();
 		});
 		appMessageTimer =
-			timeout === undefined
-				? undefined
-				: setTimeout(() => {
+			timeout > 0
+				? setTimeout(() => {
 						get().hideAppMessage();
-					}, timeout);
-		set({appMessage: {text, actions}});
+					}, timeout)
+				: undefined;
+		set({appMessage: {text, type, actions}});
 	},
 
 	hideAppMessage() {

@@ -146,7 +146,7 @@ describe("runMoveTo", () => {
 		expect({moved: result.moved, moves: result.moves, toasts: result.toasts}).toStrictEqual({
 			moved: false,
 			moves: [],
-			toasts: [{text: "Can't move to 'Uncle'", timeout: 5000, actions: []}],
+			toasts: [{text: "Can't move to 'Uncle'", timeout: 5000, actions: [], type: "failure"}],
 		});
 	});
 
@@ -155,7 +155,7 @@ describe("runMoveTo", () => {
 		expect({moved: result.moved, moves: result.moves, toasts: result.toasts}).toStrictEqual({
 			moved: false,
 			moves: [],
-			toasts: [{text: "Can't move to 'Uncle'", timeout: 5000, actions: []}],
+			toasts: [{text: "Can't move to 'Uncle'", timeout: 5000, actions: [], type: "failure"}],
 		});
 	});
 });

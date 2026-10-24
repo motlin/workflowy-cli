@@ -79,8 +79,8 @@ export function useMoveTo(): (itemIds: readonly string[]) => Promise<void> {
 			moveNodes: (moves) => {
 				void runInUndoBatch(captureOutlineView, async () => sendBlockMoves(moves, moveNodes));
 			},
-			showToast: ({text, timeout, actions}) => {
-				useOutlineStore.getState().showAppMessage(text, {timeout, actions});
+			showToast: ({text, timeout, actions, type}) => {
+				useOutlineStore.getState().showAppMessage(text, {timeout, actions, type});
 			},
 			view: (targetId) => {
 				goToNode(navigate, targetId);

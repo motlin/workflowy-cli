@@ -81,7 +81,7 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 	const openSettings = useOutlineStore((state) => state.openSettings);
 	const queryClient = useQueryClient();
 	const reportError = (error: unknown) => {
-		showAppMessage(error instanceof Error ? error.message : String(error));
+		showAppMessage(error instanceof Error ? error.message : String(error), {type: "failure"});
 	};
 	const calendarSettings = useCalendarSettings(reportError);
 	const shownYear = date.getFullYear();
@@ -300,8 +300,8 @@ function useStripDrop(scroller: HTMLDivElement | null, level: StripLevel): void 
 						async () => queryClient.invalidateQueries({queryKey: ["calendar-dots"]}),
 					);
 				},
-				showToast: ({text, timeout, actions}) => {
-					useOutlineStore.getState().showAppMessage(text, {timeout, actions});
+				showToast: ({text, timeout, actions, type}) => {
+					useOutlineStore.getState().showAppMessage(text, {timeout, actions, type});
 				},
 				view: (id) => {
 					goToNode(navigate, id);
