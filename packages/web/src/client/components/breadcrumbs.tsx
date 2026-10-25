@@ -3,6 +3,7 @@ import type {MouseEvent} from "react";
 import {createBreadcrumbLayout, crumbInputsFromKey, crumbInputsKey, measureCrumbLabel} from "../breadcrumb-layout.js";
 import type {BreadcrumbLayoutOptions, LayoutCrumb} from "../breadcrumb-layout.js";
 import type {NodeResponse} from "../../node-types.js";
+import type {MirrorInstance} from "../../mirror-path.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import type {MentionAccount} from "../mention-pills.js";
 import {useCrumbZoomOut} from "../crumb-zoom.js";
@@ -321,6 +322,8 @@ function useZoomedIds(trailIds: string[], currentId: string): string[] {
 
 interface BreadcrumbsProps {
 	nodeId: string | null;
+	/** The mirror instance the zoomed row was met in: its crumbs run through the mirror. */
+	instance?: MirrorInstance | null;
 	/**
 	 * A side pane's zoom: crumbs zoom the pane instead of navigating the main outline, and ignore the main outline's
 	 * search, which the pane does not show.
@@ -336,12 +339,20 @@ interface BreadcrumbsProps {
 }
 
 /** Upstream's header breadcrumbs: flat crumbs from Home to the zoomed node, truncated and middle-collapsed to fit. */
-export function Breadcrumbs({nodeId, onNavigate, scrollToTop, sizes, maxWidth, threeDotPosition}: BreadcrumbsProps) {
+export function Breadcrumbs({
+	nodeId,
+	instance = null,
+	onNavigate,
+	scrollToTop,
+	sizes,
+	maxWidth,
+	threeDotPosition,
+}: BreadcrumbsProps) {
 	const {navigateToNode: navigateMain, cancelSearch} = useNodeNavigation();
 	const crumbZoomOut = useCrumbZoomOut();
 	const mainSearchActive = useOutlineStore((state) => state.searchQuery !== "");
 	const searchActive = onNavigate === undefined && mainSearchActive;
-	const {data: ancestors, isLoading} = useAncestors(nodeId);
+	const {data: ancestors, isLoading} = useAncestors(nodeId, instance);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
 	const windowWidth = useWindowWidth();

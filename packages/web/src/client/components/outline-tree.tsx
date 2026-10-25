@@ -1,7 +1,7 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode, Ref} from "react";
 import type {BacklinkItem, FoundDateItem, FoundDatesResponse, NodeResponse} from "../../node-types.js";
-import {useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {useContext, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
 import {
@@ -18,7 +18,7 @@ import {isEntry} from "../item-selection.js";
 import {currentSelectionView, HOME_ROOT} from "../hooks/use-selection-keymap.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
 import {rendersInstanceRow, rowLimit} from "../render-window.js";
-import {instanceKey} from "../../mirror-path.js";
+import {childInstance, instanceKey} from "../../mirror-path.js";
 import {MirrorInstanceContext} from "../mirror-instance-context.js";
 import {usePaneSearchQuery, usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
 import {RowLimitsContext, useRowLimits} from "../hooks/use-row-limits.js";
@@ -704,6 +704,14 @@ export function OutlineTree({parentId: requestedId, shell = "pane"}: OutlineTree
 		}
 	}, [parentId, queryClient, scrollsWindow, shownLoading]);
 	const showsAddChild = shouldRenderAddChildButton(usePaneSearchQuery());
+	// The main outline zoomed into a row met inside a mirror renders its children as that instance's rows.
+	const zoomedInstance = useOutlineStore((state) =>
+		paneId === MAIN_PANE_ID && state.zoomedNodeId === parentId ? state.zoomedInstance : null,
+	);
+	const rootInstance = useMemo(
+		() => (zoomedInstance === null || parentId === null ? null : childInstance({id: parentId}, zoomedInstance)),
+		[parentId, zoomedInstance],
+	);
 
 	const createNode = useCreateNode();
 	// A click on blank outline space (below or beside the rows) clears any item selection and edits the end of the
@@ -769,10 +777,12 @@ export function OutlineTree({parentId: requestedId, shell = "pane"}: OutlineTree
 		<SearchFilterContext.Provider value={search}>
 			<RowLimitsContext.Provider value={rowLimits}>
 				<ZoomRootRow nodeId={parentId}>
-					<RootOutlineChildren
-						addChild={showsAddChild ? <AddChildButton parentId={parentId} /> : undefined}
-						parentId={parentId}
-					/>
+					<MirrorInstanceContext.Provider value={rootInstance}>
+						<RootOutlineChildren
+							addChild={showsAddChild ? <AddChildButton parentId={parentId} /> : undefined}
+							parentId={parentId}
+						/>
+					</MirrorInstanceContext.Provider>
 				</ZoomRootRow>
 			</RowLimitsContext.Provider>
 		</SearchFilterContext.Provider>

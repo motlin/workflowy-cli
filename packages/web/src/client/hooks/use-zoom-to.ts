@@ -1,3 +1,4 @@
+import type {MirrorInstance} from "../../mirror-path.js";
 import {useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {useCallback} from "react";
@@ -26,11 +27,16 @@ import {scrollPaneToTop} from "../components/pane-context.js";
  * While an open pane is active it zooms that pane instead of navigating, scrolling the pane's own scroller, without
  * the zoom animation (which finds rows document-wide).
  */
-export function useZoomTo(): (targetId: string | null, focus: ZoomFocus) => Promise<void> {
+export function useZoomTo(): (
+	targetId: string | null,
+	focus: ZoomFocus,
+	instance?: MirrorInstance | null,
+) => Promise<void> {
 	const navigate = useStableNavigate();
 	const queryClient = useQueryClient();
 	return useCallback(
-		async (targetId: string | null, focus: ZoomFocus) => zoomTo(queryClient, navigate, targetId, focus),
+		async (targetId: string | null, focus: ZoomFocus, instance: MirrorInstance | null = null) =>
+			zoomTo(queryClient, navigate, targetId, focus, instance),
 		[queryClient, navigate],
 	);
 }
@@ -40,6 +46,7 @@ async function zoomTo(
 	navigate: NavigateFunction,
 	targetId: string | null,
 	focus: ZoomFocus,
+	instance: MirrorInstance | null,
 ): Promise<void> {
 	const state = useOutlineStore.getState();
 	const {editingId, showCompleted, animatingCompletionIds, resumeEditing, stopEditing, zoomPane} = state;
@@ -111,7 +118,7 @@ async function zoomTo(
 				if (id !== null) {
 					seedResolvedId(queryClient, id);
 				}
-				goToNode(navigate, id);
+				goToNode(navigate, id, null, false, focus === "first_child" && id === targetId ? instance : null);
 			},
 			scrollToTop: (scrolledPaneId) => {
 				scrollPaneToTop(scrolledPaneId ?? MAIN_PANE_ID);

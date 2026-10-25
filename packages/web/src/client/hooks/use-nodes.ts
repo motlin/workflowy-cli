@@ -1,3 +1,4 @@
+import type {MirrorInstance} from "../../mirror-path.js";
 import {
 	MutationObserver,
 	mutationOptions,
@@ -27,6 +28,8 @@ import {
 	nodeKeys,
 	patchCachedNode,
 	cachedCopyParentIds,
+	cachedInstanceAncestors,
+	instanceAncestorsKey,
 	patchMirrors,
 	readChildren,
 	readNode,
@@ -364,13 +367,20 @@ export function useHome() {
  * Fetches all ancestors of a node from root to the node itself.
  * Returns empty array if nodeId is null (at root level).
  */
-export function useAncestors(nodeId: string | null) {
+export function useAncestors(nodeId: string | null, instance: MirrorInstance | null = null) {
 	const queryClient = useQueryClient();
+	// A row met inside a mirror has the mirror's chain: it is cached and fetched under its virtual location id.
+	const key = nodeId === null || instance === null ? nodeId : instanceAncestorsKey(nodeId, instance);
 	return useQuery({
-		queryKey: nodeKeys.ancestors(nodeId ?? ""),
-		queryFn: nodeId === null || nodeId === "" ? skipToken : async () => fetchAncestors(nodeId),
+		queryKey: nodeKeys.ancestors(key ?? ""),
+		queryFn: key === null || key === "" ? skipToken : async () => fetchAncestors(key),
 		// Built from cached chains and rows, so the breadcrumbs render with the swap.
-		initialData: () => (nodeId === null || nodeId === "" ? undefined : cachedAncestors(queryClient, nodeId)),
+		initialData: () =>
+			nodeId === null || nodeId === ""
+				? undefined
+				: instance === null
+					? cachedAncestors(queryClient, nodeId)
+					: cachedInstanceAncestors(queryClient, nodeId, instance),
 	});
 }
 

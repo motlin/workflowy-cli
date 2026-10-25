@@ -12,6 +12,7 @@ import {
 	rememberMainPaneMove,
 	stepMainPaneHistory,
 } from "../nav-stack.js";
+import type {MirrorInstance} from "../../mirror-path.js";
 import type {Loc, MainPaneHistory, NavAction, NavState} from "../nav-stack.js";
 import {captureViewState} from "../view-state-capture.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
@@ -326,6 +327,8 @@ export interface LocationPickerState extends LocationPickerOptions {
 
 interface OutlineState {
 	zoomedNodeId: string | null;
+	/** The mirror instance the main outline's zoomed row was met in; null for a plain zoom. */
+	zoomedInstance: MirrorInstance | null;
 	expandedIds: Set<string>;
 	editingId: string | null;
 	/** Upstream's multi-item selection; non-empty only while no editor has the caret. */
@@ -458,7 +461,7 @@ interface OutlineActions {
 	 */
 	stepMainPaneHistory: (direction: "back" | "forward") => Loc | null;
 	setUrlSearchQuery: (query: string | null) => void;
-	zoom: (id: string | null) => void;
+	zoom: (id: string | null, instance?: MirrorInstance | null) => void;
 	/** Keeps a row created during the committed search visible though it does not match; no-op with no search. */
 	markCreatedForSearch: (id: string) => void;
 	toggleExpand: (id: string) => void;
@@ -916,6 +919,7 @@ function setWorkspace(
 
 export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	zoomedNodeId: null,
+	zoomedInstance: null,
 	expandedIds: new Set<string>(),
 	editingId: null,
 	itemSelection: emptySelection(),
@@ -1043,11 +1047,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({searchCreatedIds: new Set(searchCreatedIds).add(id)});
 	},
 
-	zoom: (id) => {
-		if (id === get().zoomedNodeId) {
+	zoom: (id, instance = null) => {
+		const current = get().zoomedInstance;
+		const sameInstance = current?.rootId === instance?.rootId && current?.path === instance?.path;
+		if (id === get().zoomedNodeId && sameInstance) {
 			return;
 		}
-		set({zoomedNodeId: id, searchCreatedIds: new Set(), searchExpansion: new Map()});
+		set({zoomedNodeId: id, zoomedInstance: instance, searchCreatedIds: new Set(), searchExpansion: new Map()});
 	},
 
 	toggleExpand: (id) => {

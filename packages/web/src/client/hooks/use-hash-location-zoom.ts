@@ -1,3 +1,4 @@
+import {parseVirtualShortId} from "@workflowy/shared/workflowy";
 import {skipToken, useQuery, useQueryClient} from "@tanstack/react-query";
 import {useLayoutEffect, useRef} from "react";
 import {useLocation, useNavigate} from "react-router-dom";
@@ -31,7 +32,8 @@ export async function fetchResolvedId(locationId: string): Promise<string | null
 /**
  * Zooms the outline to the node named by the `#/<id>?q=` hash and, like upstream, pushes the canonical URL when it
  * differs (`#/<full uuid>` becomes `#/<12hex>`; an unknown id becomes `/` and drops `?q=`). A `panes=v2.` param
- * survives canonicalization.
+ * survives canonicalization. A virtual `#/v_<child12>_<mirror12>[_<path>]` names a row inside a mirror: the zoom keeps
+ * that instance and the URL stays as pasted.
  *
  * An id any cached node carries resolves without a request, and the zoom lands before paint: browser Back/Forward
  * and plain link clicks zoom from the `popstate` event itself, in the same render as the router's location update,
@@ -53,6 +55,16 @@ export function useHashLocationZoom(): void {
 		initialData: () => (id === null ? undefined : cachedResolvedId(queryClient, id)),
 		staleTime: RESOLVED_ID_STALE_TIME,
 	});
+	const virtual = id === null ? null : parseVirtualShortId(id);
+	const mirror = useQuery({
+		queryKey: nodeKeys.resolvedId(virtual?.mirrorShortId ?? ""),
+		queryFn: virtual === null ? skipToken : async () => fetchResolvedId(virtual.mirrorShortId),
+		initialData: () => (virtual === null ? undefined : cachedResolvedId(queryClient, virtual.mirrorShortId)),
+		staleTime: RESOLVED_ID_STALE_TIME,
+	});
+	const mirrorPending = virtual !== null && mirror.isFetching;
+	const mirrorRootId = typeof mirror.data === "string" ? mirror.data : null;
+	const virtualPath = virtual?.path;
 	const unknown = resolved.data === null && !resolved.isFetching;
 	const target = resolveZoomTarget(id, () => (resolved.isFetching ? null : (resolved.data ?? null)));
 	const currentUrl = location.pathname + location.hash;
@@ -96,21 +108,23 @@ export function useHashLocationZoom(): void {
 			void navigate("/", {state: {wfCanonical: true}});
 			return;
 		}
-		if (target === null) {
+		if (target === null || mirrorPending) {
 			return;
 		}
 		const fullId = target === "home" ? null : target;
+		const instance =
+			virtualPath === undefined || mirrorRootId === null ? null : {rootId: mirrorRootId, path: virtualPath};
 		// The page load's zoom shows its own loading state; every later one holds the shown view until its view loads.
 		if (zoomedOnce.current) {
 			zoomWhenViewReady(fullId, () => {
-				zoom(fullId);
+				zoom(fullId, instance);
 			});
 		} else {
 			zoomedOnce.current = true;
-			zoom(fullId);
+			zoom(fullId, instance);
 		}
 		const canonical = locationUrl({
-			id: fullId,
+			id: instance === null ? fullId : id,
 			query,
 			fragments: panes === undefined ? {} : {[PANES_FRAGMENT]: panes},
 		});
@@ -119,7 +133,7 @@ export function useHashLocationZoom(): void {
 		if (canonical !== currentUrl && canonical !== globalThis.location.pathname + globalThis.location.hash) {
 			void navigate(canonical);
 		}
-	}, [currentUrl, navigate, panes, query, target, unknown, zoom]);
+	}, [currentUrl, id, mirrorPending, mirrorRootId, navigate, panes, query, target, unknown, virtualPath, zoom]);
 
 	useLayoutEffect(() => {
 		setUrlSearchQuery(query);

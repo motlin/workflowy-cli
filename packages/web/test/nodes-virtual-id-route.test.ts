@@ -40,3 +40,49 @@ describe("GET /api/v1/nodes/:id with a virtual location id", () => {
 		});
 	});
 });
+
+describe("GET /api/v1/nodes/:id/ancestors with a virtual location id", () => {
+	it("lists the mirror's ancestors and the mirror, then the rows below its original down to the row", async () => {
+		const sqlite = new DatabaseConstructor(":memory:");
+		const db = drizzle(sqlite, {schema});
+		migrate(db, {migrationsFolder});
+		const cacheService = new CacheService(db);
+		const ORIGINAL = "aaaa1111-0000-4000-8000-a0a0a0a0a0a0";
+		const MIDDLE = "5d5d5d5d-aaaa-4bbb-8ccc-0123456789ab";
+		const PARENT = "99990000-1111-4222-8333-444455556666";
+		const node = (id: string, parentId: string | null) => ({
+			id,
+			name: id,
+			note: null,
+			parent_id: parentId,
+			priority: 0,
+			createdAt: 1,
+			modifiedAt: 2,
+		});
+		cacheService.insertNode(node(PARENT, null), null);
+		cacheService.insertNode(node(ORIGINAL, null), null);
+		cacheService.insertNode(node(MIDDLE, ORIGINAL), ORIGINAL);
+		cacheService.insertNode(node(CHILD, MIDDLE), MIDDLE);
+		cacheService.insertNode(node(MIRROR, PARENT), PARENT);
+		cacheService.insertMirror(ORIGINAL, MIRROR);
+		const ctx = {db, cacheService} as unknown as ServerContext;
+		const app = new Hono<AppEnv>();
+		app.use("*", async (c, next) => {
+			c.set("ctx", ctx);
+			await next();
+		});
+		app.route("/api/v1/nodes", nodesRouter);
+		const ids = async (id: string) => {
+			const res = await app.fetch(new Request(`http://x/api/v1/nodes/${id}/ancestors`));
+			return ((await res.json()) as {ancestors: {id: string}[]}).ancestors.map((ancestor) => ancestor.id);
+		};
+
+		expect({
+			instance: await ids(`v_c910f3eac9b3_${MIRROR.slice(-12)}_0e9f5d5d`),
+			plain: await ids(CHILD),
+		}).toStrictEqual({
+			instance: [PARENT, MIRROR, MIDDLE, CHILD],
+			plain: [ORIGINAL, MIDDLE, CHILD],
+		});
+	});
+});

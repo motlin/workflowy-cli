@@ -1,5 +1,7 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {BacklinkCrumb, BacklinksResponse, FoundDatesResponse, NodeResponse, SaveEffects} from "../node-types.js";
+import {parseVirtualShortId, virtualShortId} from "@workflowy/shared/workflowy";
+import type {MirrorInstance} from "../mirror-path.js";
 import {shortId} from "./location.js";
 import {sortByPriority} from "./tree-position.js";
 
@@ -56,8 +58,10 @@ export function cachedResolvedId(queryClient: QueryClient, locationId: string): 
 	if (typeof seeded === "string") {
 		return seeded;
 	}
+	// A row inside a mirror (`v_<child12>_<mirror12>[_<path>]`) names the original child it shows.
+	const wanted = parseVirtualShortId(locationId)?.nodeShortId ?? locationId;
 	for (const node of cachedNodes(queryClient)) {
-		if (node.id === locationId || shortId(node.id) === locationId) {
+		if (node.id === wanted || shortId(node.id) === wanted) {
 			return node.id;
 		}
 	}
@@ -75,7 +79,11 @@ function asAncestor(node: NodeResponse): NodeResponse {
  * and title of a zoom target the outline has shown render with the swap instead of after a request.
  */
 export function cachedAncestors(queryClient: QueryClient, nodeId: string): NodeResponse[] | undefined {
-	for (const [, chain] of queryClient.getQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "ancestors"]})) {
+	for (const [key, chain] of queryClient.getQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "ancestors"]})) {
+		// A chain cached for a row inside a mirror runs through the mirror, not the row's own parents.
+		if (typeof key[2] === "string" && parseVirtualShortId(key[2]) !== null) {
+			continue;
+		}
 		const index = chain?.findIndex((node) => node.id === nodeId) ?? -1;
 		if (chain !== undefined && index !== -1) {
 			return chain.slice(0, index + 1);
@@ -87,6 +95,31 @@ export function cachedAncestors(queryClient: QueryClient, nodeId: string): NodeR
 	}
 	const parentChain = node.parent_id === null ? [] : cachedAncestors(queryClient, node.parent_id);
 	return parentChain === undefined ? undefined : [...parentChain, asAncestor(node)];
+}
+
+/** The key an instance's ancestors are cached under: its virtual location id, which the ancestors route also accepts. */
+export function instanceAncestorsKey(nodeId: string, instance: MirrorInstance): string {
+	return virtualShortId({childId: nodeId, mirrorRootId: instance.rootId, path: instance.path});
+}
+
+/**
+ * The breadcrumb chain of a row met inside a mirror: the mirror's ancestors and the mirror, then the rows below its
+ * original down to `nodeId`. Undefined when the mirror, its original or the row's chain is not cached. A row outside the
+ * mirror's original has no such chain, so its plain chain stands.
+ */
+export function cachedInstanceAncestors(
+	queryClient: QueryClient,
+	nodeId: string,
+	instance: MirrorInstance,
+): NodeResponse[] | undefined {
+	const mirror = readNode(queryClient, instance.rootId);
+	const mirrorChain = cachedAncestors(queryClient, instance.rootId);
+	const rowChain = cachedAncestors(queryClient, nodeId);
+	if (mirror?.originalNodeId == null || mirrorChain === undefined || rowChain === undefined) {
+		return undefined;
+	}
+	const originalIndex = rowChain.findIndex((node) => node.id === mirror.originalNodeId);
+	return originalIndex === -1 ? rowChain : [...mirrorChain, ...rowChain.slice(originalIndex + 1)];
 }
 
 /** Read a parent's cached children, or undefined if not cached. */

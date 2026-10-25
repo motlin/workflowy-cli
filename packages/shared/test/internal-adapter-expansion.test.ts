@@ -138,6 +138,29 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		});
 	});
 
+	it("reads a mirror instance's v_ key back as the virtual ids it expands, directed by the key's path", async () => {
+		const {api, adapter, sqlite} = tracked();
+		const cache = new CacheService(drizzle(sqlite, {schema}));
+		const ORIGINAL = "0a0a0a0a-0000-4000-8000-000000000010";
+		const CHILD = "c0c0c0c0-0000-4000-8000-000000000011";
+		const GRANDCHILD = "d1d1d1d1-0000-4000-8000-000000000012";
+		const MIRROR = "bbbb0000-0000-4000-8000-000000000013";
+		cache.insertNode(cachedNode(ORIGINAL), null);
+		cache.insertNode({...cachedNode(CHILD), parent_id: ORIGINAL}, ORIGINAL);
+		cache.insertNode({...cachedNode(GRANDCHILD), parent_id: CHILD}, CHILD);
+		cache.insertNode(cachedNode(MIRROR), null);
+		cache.insertMirror(ORIGINAL, MIRROR);
+		api.respond("/get_tree_data/", () =>
+			treeData(["v_c0c0bbbbbbbb", "v_d1d1bbbbbbbbc0c0", "v_d1d1bbbbbbbb", "5e6f7a8b"]),
+		);
+
+		await expect(adapter.getExpandedIds()).resolves.toStrictEqual([
+			BRAVO,
+			`virtual_${CHILD}_${MIRROR}_bbbb`,
+			`virtual_${GRANDCHILD}_${MIRROR}_bbbbc0c0`,
+		]);
+	});
+
 	it("keeps the cached keys across adapters over the same database", async () => {
 		const {api, adapter, newAdapter} = tracked();
 		api.respond("/get_tree_data/", () => treeData(["5e6f7a8b"]));

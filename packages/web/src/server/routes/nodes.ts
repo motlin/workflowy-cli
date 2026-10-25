@@ -1214,7 +1214,8 @@ nodesRouter.get("/:id/subtree-ids", (c) => {
 // GET /api/v1/nodes/:id/ancestors - Get all ancestors from root to node
 nodesRouter.get("/:id/ancestors", (c) => {
 	const ctx = c.get("ctx");
-	const id = resolveNodeId(ctx, c.req.param("id"));
+	const rawId = c.req.param("id");
+	const id = resolveNodeId(ctx, rawId);
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -1222,16 +1223,32 @@ nodesRouter.get("/:id/ancestors", (c) => {
 	const reader = new NodeReader(ctx.db);
 
 	// Build ancestor chain by following parent_id pointers
-	const chain: NonNullable<ReturnType<NodeReader["getById"]>>[] = [];
-	let currentId: string | null = id;
-
-	while (currentId !== null) {
-		const node = reader.getById(currentId);
-		if (!node) {
-			break;
+	type Chain = NonNullable<ReturnType<NodeReader["getById"]>>[];
+	const chainTo = (nodeId: string): Chain => {
+		const links: Chain = [];
+		let currentId: string | null = nodeId;
+		while (currentId !== null) {
+			const node = reader.getById(currentId);
+			if (!node) {
+				break;
+			}
+			links.unshift(node);
+			currentId = node.parentId;
 		}
-		chain.unshift(node);
-		currentId = node.parentId;
+		return links;
+	};
+	let chain = chainTo(id);
+
+	// A row inside a mirror (`v_<child12>_<mirror12>[_<path>]`): the mirror's ancestors and the mirror, then the rows
+	// below its original down to the row.
+	const virtual = parseVirtualShortId(rawId);
+	const mirrorId = virtual === null ? null : ctx.cacheService.resolveShortIdToUuid(virtual.mirrorShortId);
+	const originalId = mirrorId === null ? null : ctx.cacheService.getMirrorOriginal(mirrorId);
+	if (mirrorId !== null && originalId !== null) {
+		const originalIndex = chain.findIndex((node) => node.id === originalId);
+		if (originalIndex !== -1) {
+			chain = [...chainTo(mirrorId), ...chain.slice(originalIndex + 1)];
+		}
 	}
 
 	// A day page reads the calendar root's settings (Friendly day names) from its ancestors.

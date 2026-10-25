@@ -220,7 +220,7 @@ function NodeName({
 	// Inside a side pane a bullet zooms that pane; the main outline zooms by navigating.
 	const zoomIn = () => {
 		if (pane === null) {
-			void mainZoomTo(node.id, "first_child");
+			void mainZoomTo(node.id, "first_child", rowInstance);
 		} else {
 			pane.zoom(node.id);
 		}

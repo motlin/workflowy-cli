@@ -73,6 +73,7 @@ interface TopBarProps {
 export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const {
 		zoomedNodeId,
+		zoomedInstance,
 		toggleLeftBar,
 		leftBarOffset,
 		leftBarMode,
@@ -83,6 +84,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	} = useOutlineStore(
 		useShallow((state) => ({
 			zoomedNodeId: state.zoomedNodeId,
+			zoomedInstance: state.zoomedInstance,
 			toggleLeftBar: state.toggleLeftBar,
 			leftBarOffset: state.leftBarOffset(),
 			leftBarMode: state.leftBarMode,
@@ -172,7 +174,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 				)}
 			</div>
 
-			<Breadcrumbs nodeId={zoomedNodeId} />
+			<Breadcrumbs nodeId={zoomedNodeId} instance={zoomedInstance} />
 
 			<div className="ml-auto flex self-stretch items-center gap-xs flex-shrink-0">
 				<SearchBox />

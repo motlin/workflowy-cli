@@ -1,3 +1,6 @@
+import {parseVirtualShortId, virtualShortId} from "@workflowy/shared/workflowy";
+import type {MirrorInstance} from "../mirror-path.js";
+
 /** Upstream item URLs use the last 12 characters of the uuid. */
 const SHORT_ID_LENGTH = 12;
 
@@ -9,23 +12,29 @@ export interface Location {
 
 export interface LocationInput {
 	id: string | null;
+	/** Where the row sits inside a mirror: the location is its virtual `v_…` id. */
+	instance?: MirrorInstance | null;
 	query?: string | null;
 	fragments?: Record<string, string>;
 }
 
+/** The last 12 characters of a uuid; a virtual `v_…` location id is already short and stays whole. */
 export function shortId(id: string): string {
-	return id.slice(-SHORT_ID_LENGTH);
+	return parseVirtualShortId(id) === null ? id.slice(-SHORT_ID_LENGTH) : id;
 }
 
 /** Home is `/`; an item is `/#/<shortId>`; params follow `?` as `q=<query>` then fragments joined by `&`. */
-export function locationUrl({id, query, fragments = {}}: LocationInput): string {
+export function locationUrl({id, instance = null, query, fragments = {}}: LocationInput): string {
 	const params = [
 		...(query ? [`q=${encodeURIComponent(query)}`] : []),
 		...Object.entries(fragments).map(([key, value]) =>
 			value === "" ? encodeURIComponent(key) : `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
 		),
 	];
-	const path = id === null ? "" : `/${shortId(id)}`;
+	const path =
+		id === null
+			? ""
+			: `/${instance === null ? shortId(id) : virtualShortId({childId: id, mirrorRootId: instance.rootId, path: instance.path})}`;
 	if (params.length === 0) {
 		return path === "" ? "/" : `/#${path}`;
 	}

@@ -1,4 +1,4 @@
-import {isShortId, virtualShortId} from "@workflowy/shared/workflowy";
+import {isShortId, parseVirtualShortId, virtualShortId} from "@workflowy/shared/workflowy";
 import type {MirrorInstance} from "../mirror-path.js";
 import {useQueryClient} from "@tanstack/react-query";
 import {useEffect, useRef} from "react";
@@ -63,7 +63,7 @@ export function resolveZoomTarget(param: string | null, lookup: (id: string) => 
 	if (param === null) {
 		return "home";
 	}
-	return isShortId(param) ? lookup(param) : param;
+	return isShortId(param) || parseVirtualShortId(param) !== null ? lookup(param) : param;
 }
 
 export type ZoomFocus = "first_child" | "last_selected";
@@ -175,19 +175,27 @@ export function goToNode(
 	query: string | null = null,
 	/** A pane open/close/move promoted this location: it pushes like a navigation, as upstream's workspace edits do. */
 	structural = false,
+	/** The mirror instance the row was met in: the location is its virtual `v_…` id and the zoom keeps the instance. */
+	instance: MirrorInstance | null = null,
 ): void {
 	const {dispatchNav, zoom, panes, mainPaneUrlId} = useOutlineStore.getState();
 	dropViewRestore();
 	// Upstream replaces the entry while panes are open and leaves the app stacks alone.
 	const replace = panes.length > 0 && !structural;
-	dispatchNav({type: replace ? "replace" : "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query}});
+	const url = locationUrl({id: nodeId, instance, query, fragments: workspaceFragments(panes, mainPaneUrlId)});
+	const locId =
+		nodeId === null
+			? null
+			: instance === null
+				? shortId(nodeId)
+				: virtualShortId({childId: nodeId, mirrorRootId: instance.rootId, path: instance.path});
+	dispatchNav({type: replace ? "replace" : "navigate", loc: {id: locId, query}});
 	zoomWhenViewReady(nodeId, () => {
 		if (nodeId !== useOutlineStore.getState().zoomedNodeId) {
 			holdEditingAcrossSwap();
 		}
-		zoom(nodeId);
+		zoom(nodeId, instance);
 	});
-	const url = locationUrl({id: nodeId, query, fragments: workspaceFragments(panes, mainPaneUrlId)});
 	void (replace ? navigate(url, {replace: true}) : navigate(url));
 }
 
@@ -237,10 +245,15 @@ function zoomToCachedId(locationId: string | null, resolve: (locationId: string)
 	if (target === undefined) {
 		return;
 	}
+	// A virtual location also names the mirror root the row was met in; a root the cache lacks zooms the plain row.
+	const virtual = locationId === null ? null : parseVirtualShortId(locationId);
+	const rootId = virtual === null ? undefined : resolve(virtual.mirrorShortId);
+	const instance = virtual === null || rootId === undefined ? null : {rootId, path: virtual.path};
 	zoomWhenViewReady(target, () => {
-		if (target !== useOutlineStore.getState().zoomedNodeId) {
+		const state = useOutlineStore.getState();
+		if (target !== state.zoomedNodeId || instance?.rootId !== state.zoomedInstance?.rootId) {
 			holdEditingAcrossSwap();
-			useOutlineStore.getState().zoom(target);
+			state.zoom(target, instance);
 		}
 	});
 }
@@ -358,8 +371,8 @@ export function useNodeNavigation() {
 	const navigate = useStableNavigate();
 
 	return {
-		navigateToNode: (nodeId: string | null) => {
-			goToNode(navigate, nodeId);
+		navigateToNode: (nodeId: string | null, instance: MirrorInstance | null = null) => {
+			goToNode(navigate, nodeId, null, false, instance);
 		},
 		navigateToRoot: () => {
 			goToNode(navigate, null);

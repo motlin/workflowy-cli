@@ -5,12 +5,12 @@ import type {CreateMirrorResult} from "../api/workflowy-client.js";
 import type {InternalSession, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {keptInternalMetadata} from "../cache/importer.js";
-import {accountState, nodeContent, nodeInternalMetadata} from "../db/schema.js";
+import {accountState, mirrors as mirrorsTable, nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {HOME_TARGET} from "../types/targets.js";
 import {hasInternalLink, internalLinkShortIds} from "../workflowy/internal-links.js";
 import {uuidToShortId} from "../workflowy/constants.js";
-import {upstreamExpansionKey} from "../workflowy/virtual-id.js";
+import {upstreamExpansionKey, virtualId} from "../workflowy/virtual-id.js";
 import {
 	CALENDAR_LEVELS,
 	DEFAULT_CALENDAR_LEVELS,
@@ -111,6 +111,7 @@ function internalParent(parent: PublicParent): string {
 
 /** Upstream's expansion key for a node: the first 8 chars of its id, or `v_<child4><mirror4><path>` for a mirror instance. */
 const expansionKey = upstreamExpansionKey;
+const KEY_CHUNK = 4;
 
 function clampIndex(index: number, length: number): number {
 	return Math.min(Math.max(Math.trunc(index), 0), length);
@@ -1443,7 +1444,7 @@ export class WorkflowyInternalAdapter {
 	 */
 	async getExpandedIds({fresh = false}: {fresh?: boolean} = {}): Promise<string[]> {
 		const keys = await this.expandedKeys(fresh);
-		return this.db
+		const plain = this.db
 			.select({id: nodeContent.id})
 			.from(nodeContent)
 			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
@@ -1451,6 +1452,68 @@ export class WorkflowyInternalAdapter {
 			.all()
 			.map(({id}) => id)
 			.filter((id) => keys.has(expansionKey(id)));
+		const instances = [...keys].filter((key) => key.startsWith("v_")).flatMap((key) => this.instanceIds(key));
+		return [...plain, ...instances];
+	}
+
+	/**
+	 * The virtual ids a `v_<child4><mirror4><path>` key expands. The key holds only id prefixes, so it is read back by
+	 * walking: from each mirror root whose id starts with the mirror chunk, down the original's rows (children of a
+	 * mirror are its original's), following only the rows whose chunk is the key path's next one. A row met when the
+	 * walk's path equals the key's path and whose id starts with the child chunk is an expanded instance.
+	 */
+	private instanceIds(key: string): string[] {
+		const child = key.slice(2, 2 + KEY_CHUNK);
+		const mirror = key.slice(2 + KEY_CHUNK, 2 + 2 * KEY_CHUNK);
+		const path = key.slice(2 + 2 * KEY_CHUNK);
+		if (child.length < KEY_CHUNK || mirror.length < KEY_CHUNK || !path.startsWith(mirror)) {
+			return [];
+		}
+		const roots = this.db
+			.select({id: mirrorsTable.mirrorId, originalId: mirrorsTable.originalId})
+			.from(mirrorsTable)
+			.where(and(like(mirrorsTable.mirrorId, `${mirror}%`), eq(mirrorsTable.systemTo, FAR_FUTURE_DATE)))
+			.all();
+		const found: string[] = [];
+		const walk = (rootId: string, rowId: string, walked: string): void => {
+			const childIds = this.shownChildIds(rowId);
+			if (walked === path) {
+				found.push(
+					...childIds
+						.filter((id) => id.startsWith(child))
+						.map((id) => virtualId({childId: id, mirrorRootId: rootId, path})),
+				);
+				return;
+			}
+			const chunk = path.slice(walked.length, walked.length + KEY_CHUNK);
+			for (const id of childIds) {
+				if (id.startsWith(chunk)) {
+					walk(rootId, id, walked + chunk);
+				}
+			}
+		};
+		for (const root of roots) {
+			walk(root.id, root.id, mirror);
+		}
+		return found;
+	}
+
+	/** The ids of a row's current children, taken from its original when it is a mirror. */
+	private shownChildIds(rowId: string): string[] {
+		const original = this.db
+			.select({originalId: mirrorsTable.originalId})
+			.from(mirrorsTable)
+			.where(and(eq(mirrorsTable.mirrorId, rowId), eq(mirrorsTable.systemTo, FAR_FUTURE_DATE)))
+			.get();
+		return this.db
+			.select({id: nodeContent.id})
+			.from(nodeContent)
+			.where(
+				and(eq(nodeContent.parentId, original?.originalId ?? rowId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)),
+			)
+			.orderBy(nodeContent.id)
+			.all()
+			.map(({id}) => id);
 	}
 
 	/**
