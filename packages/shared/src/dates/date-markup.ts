@@ -297,3 +297,8 @@ export function formatTimeLabel(attrs: Partial<TimeAttrs>, options: PillLabelOpt
 		})
 		.join(" - ");
 }
+
+/** Formats `date` with a dayjs pattern such as the account's date or time format. */
+export function formatDatePattern(date: Date, pattern: string): string {
+	return dayjs(date).format(pattern);
+}

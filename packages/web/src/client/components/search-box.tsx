@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useRef, useState} from "react";
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, KeyboardEvent} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
@@ -7,10 +7,14 @@ import {useBreakpoint} from "../hooks/use-breakpoint.js";
 import {focusOutline} from "../hooks/use-search-escape.js";
 import {readJson} from "../read-json.js";
 import {borderStyle, createSearchBoxController} from "../search-box-model.js";
-import {insertHelperValue} from "../search/helper-insert.js";
-import {HELPER_NAV_KEYS, NO_HELPER_SELECTION, helperKeyReducer} from "../search/helper-keys.js";
-import type {HelperSelection} from "../search/helper-keys.js";
+import {operatorAutocomplete, tagAutocompleteRows} from "../search/autocomplete-values.js";
+import type {AutocompleteRow} from "../search/autocomplete-values.js";
+import {insertHelperValue, replaceSearchWord, wordAt} from "../search/helper-insert.js";
+import {useDateSettings} from "../hooks/use-preferences.js";
+import {NO_HELPER_SELECTION, chipNeighbor, helperKey} from "../search/helper-keys.js";
+import type {ChipGeometry, HelperSelection} from "../search/helper-keys.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {SearchAutocomplete} from "./search-autocomplete.js";
 import {SearchHelpers, helperSections} from "./search-helpers.js";
 import type {HelperTagLists} from "./search-helpers.js";
 
@@ -31,7 +35,6 @@ export const CLEAR_PATH =
 	"M14 7C14 10.866 10.8662 14 7 14C3.13379 14 0 10.866 0 7C0 3.134 3.13379 0 7 0C10.8662 0 14 3.134 14 7ZM5.03027 3.96967C4.7373 3.67679 4.2627 3.67679 3.96973 3.96967C3.67676 4.26257 3.67676 4.73743 3.96973 5.03033L5.93945 7L3.96973 8.96967C3.67676 9.26257 3.67676 9.73743 3.96973 10.0303C4.2627 10.3232 4.7373 10.3232 5.03027 10.0303L7 8.06067L8.96973 10.0303C9.2627 10.3232 9.7373 10.3232 10.0303 10.0303C10.3232 9.73743 10.3232 9.26257 10.0303 8.96967L8.06055 7L10.0303 5.03033C10.3232 4.73743 10.3232 4.26257 10.0303 3.96967C9.7373 3.67679 9.2627 3.67679 8.96973 3.96967L7 5.93933L5.03027 3.96967Z";
 
 const NO_HELPER_TAGS: HelperTagLists = {hashTags: [], atTags: []};
-const HELPER_SELECT_KEYS: ReadonlySet<string> = new Set(["Enter", "Tab", " "]);
 
 async function fetchHelperTags(rootId: string | null): Promise<HelperTagLists> {
 	const response = await fetch(`/api/search/helpers?rootId=${encodeURIComponent(rootId ?? "")}`);
@@ -41,11 +44,46 @@ async function fetchHelperTags(rootId: string | null): Promise<HelperTagLists> {
 	return readJson<HelperTagLists>(response);
 }
 
-/** The visual row of each value chip in the open helper panel, grouped by their rendered top edge. */
-function chipRows(flyout: HTMLElement | null): number[] {
-	const tops = [...(flyout?.querySelectorAll<HTMLElement>("a.menuItem") ?? [])].map((chip) => chip.offsetTop);
-	const distinct = [...new Set(tops)];
-	return tops.map((top) => distinct.indexOf(top));
+const CARET_WORD_DEBOUNCE_MS = 50;
+const AUTOCOMPLETE_TAG_LIMIT = 8;
+const NO_AUTOCOMPLETE_TAGS: readonly string[] = [];
+
+async function fetchAutocompleteTags(rootId: string | null, word: string): Promise<string[]> {
+	const params = new URLSearchParams({
+		root: rootId ?? "",
+		prefix: word,
+		limit: String(AUTOCOMPLETE_TAG_LIMIT),
+		fallback: rootId === null ? "0" : "1",
+	});
+	const response = await fetch(`/api/v1/tags/autocomplete?${params}`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch search autocomplete tags: ${response.statusText}`);
+	}
+	return (await readJson<{tags: {tag: string}[]}>(response)).tags.map(({tag}) => tag);
+}
+
+function rectOf(element: Element) {
+	const {left, top, width, height} = element.getBoundingClientRect();
+	return {left, top, width, height};
+}
+
+/** The open helper panel's chips as geometry for upstream's `elementFromPoint` Up/Down navigation. */
+function chipLayout(flyout: HTMLElement | null) {
+	const items = [...(flyout?.querySelectorAll<HTMLElement>("a.menuItem") ?? [])];
+	const wrappers = items.map((item) => item.parentElement);
+	const geometry: ChipGeometry[] = items.map((item, index) => ({
+		wrapper: rectOf(wrappers[index] ?? item),
+		item: rectOf(item),
+		offsetTop: item.offsetTop,
+	}));
+	const container = wrappers[0]?.parentElement?.parentElement;
+	const containerBottom =
+		container === null || container === undefined ? 0 : container.getBoundingClientRect().bottom;
+	const hit = (x: number, y: number): number => {
+		const found = document.elementFromPoint(x, y);
+		return found === null ? -1 : wrappers.findIndex((wrapper) => wrapper?.contains(found) === true);
+	};
+	return {geometry, containerBottom, hit};
 }
 
 /**
@@ -80,11 +118,41 @@ export const SearchBox = memo(function SearchBox() {
 	});
 	const [helper, setHelper] = useState<HelperSelection>(NO_HELPER_SELECTION);
 	const [canHover, setCanHover] = useState(false);
+	const [keyboardMode, setKeyboardMode] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const flyoutRef = useRef<HTMLDivElement>(null);
-	const autocompletePopulated = false;
+	const committedQuery = useOutlineStore((state) => state.searchQuery);
+	const dateSettings = useDateSettings();
+	const [caret, setCaret] = useState({word: "", now: new Date(0)});
+	const caretWord = caret.word;
+	const setCaretWord = useCallback((word: string) => {
+		setCaret({word, now: new Date()});
+	}, []);
+	const caretTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const tagWord = caretWord.startsWith("#") || caretWord.startsWith("@");
+	const {data: autocompleteTags = NO_AUTOCOMPLETE_TAGS} = useQuery({
+		queryKey: ["search-autocomplete-tags", zoomedNodeId, caretWord],
+		queryFn: async () => fetchAutocompleteTags(zoomedNodeId, caretWord),
+		enabled: focused && tagWord,
+	});
+	const autocompleteRows = useMemo(
+		() =>
+			focused
+				? tagWord
+					? tagAutocompleteRows(caretWord, autocompleteTags)
+					: operatorAutocomplete(caretWord, {...dateSettings, now: caret.now})
+				: [],
+		[focused, tagWord, caretWord, autocompleteTags, dateSettings, caret.now],
+	);
+	const autocompletePopulated = autocompleteRows.length > 0;
 	const helperVisible = focused && !autocompletePopulated;
 	const sections = helperSections(helperTags);
+	const [previousPopulated, setPreviousPopulated] = useState(autocompletePopulated);
+	if (previousPopulated !== autocompletePopulated) {
+		// Upstream resets the tab whenever the helper flyout hides or shows.
+		setPreviousPopulated(autocompletePopulated);
+		setHelper(NO_HELPER_SELECTION);
+	}
 	const jumpTabSelected = helperVisible && sections[helper.tab]?.hint === true;
 
 	useEffect(() => {
@@ -126,12 +194,12 @@ export const SearchBox = memo(function SearchBox() {
 			return () => {};
 		}
 		const onKeyDown = (event: globalThis.KeyboardEvent) => {
-			if (event.key !== "Enter" && event.key !== "ArrowDown") {
+			if (event.code !== "Enter" && event.code !== "ArrowDown") {
 				return;
 			}
 			event.stopImmediatePropagation();
 			event.preventDefault();
-			if (event.key === "Enter") {
+			if (event.code === "Enter") {
 				useOutlineStore.getState().openJumpMenu();
 			}
 		};
@@ -140,6 +208,50 @@ export const SearchBox = memo(function SearchBox() {
 			window.removeEventListener("keydown", onKeyDown, true);
 		};
 	}, [jumpTabSelected]);
+
+	/** Upstream's debounced caret word (`WF.Caret.word`): the word around the caret, re-read when the timer fires. */
+	const scheduleCaretWord = useCallback(() => {
+		if (caretTimer.current !== null) {
+			clearTimeout(caretTimer.current);
+		}
+		caretTimer.current = setTimeout(() => {
+			caretTimer.current = null;
+			const input = inputRef.current;
+			setCaretWord(input === null ? "" : wordAt(input.value, input.selectionStart ?? 0).text);
+		}, CARET_WORD_DEBOUNCE_MS);
+	}, [setCaretWord]);
+	useEffect(
+		() => () => {
+			if (caretTimer.current !== null) {
+				clearTimeout(caretTimer.current);
+			}
+		},
+		[],
+	);
+
+	const selectAutocomplete = useCallback(
+		(row: AutocompleteRow) => {
+			const input = inputRef.current;
+			if (input === null) {
+				return;
+			}
+			const {insert} = row;
+			const result = replaceSearchWord(
+				input.value,
+				input.selectionStart ?? input.value.length,
+				insert === undefined ? row.value : `${row.value}${insert.suffix}`,
+				insert === undefined ? {} : {trailingSpace: insert.trailingSpace, caretOffset: insert.caretOffset},
+			);
+			// Write the DOM value first so React's controlled update leaves the caret where it is placed here.
+			input.value = result.query;
+			input.setSelectionRange(result.caret, result.caret);
+			setCaretWord(wordAt(result.query, result.caret).text);
+			setSearchInput(result.query);
+			controller.dispose();
+			useOutlineStore.getState().commitSearch(result.query, navigate);
+		},
+		[controller, navigate, setSearchInput, setCaretWord],
+	);
 
 	const insertHelper = (value: string) => {
 		const input = inputRef.current;
@@ -173,30 +285,44 @@ export const SearchBox = memo(function SearchBox() {
 			: {}),
 	};
 
+	/** Runs upstream's tab-row and chip-row key handlers; true when the key is fully handled here. */
 	const handleHelperKey = (event: KeyboardEvent<HTMLInputElement>): boolean => {
-		if (!helperVisible) {
-			return false;
-		}
 		const values = sections[helper.tab]?.values ?? [];
-		const chip = values[helper.chip];
-		if (chip !== undefined && HELPER_SELECT_KEYS.has(event.key)) {
+		const geometry = chipLayout(flyoutRef.current);
+		const result = helperKey(
+			helper,
+			{code: event.code, ctrl: event.ctrlKey && !event.metaKey && !event.altKey},
+			{
+				tabCount: sections.length,
+				hasChips: (tab) => (sections[tab]?.values.length ?? 0) > 0,
+				chipCount: values.length,
+				neighbor: (chip, dir) =>
+					chipNeighbor(geometry.geometry, geometry.containerBottom, chip, dir, geometry.hit),
+				hidden: !helperVisible,
+			},
+		);
+		if (result.preventDefault) {
 			event.preventDefault();
+		}
+		if (result.sel !== helper) {
+			setHelper(result.sel);
+			setKeyboardMode(true);
+		}
+		const chip = result.select === null ? undefined : values[result.select];
+		if (chip !== undefined) {
 			insertHelper(chip.value);
 			return true;
 		}
-		const ctrlKey = event.ctrlKey && !event.metaKey && !event.altKey;
-		const key =
-			ctrlKey && event.key === "p" ? "ArrowLeft" : ctrlKey && event.key === "n" ? "ArrowRight" : event.key;
-		if (!HELPER_NAV_KEYS.has(key) || (helper.tab === -1 && key !== "ArrowDown")) {
-			return false;
-		}
-		event.preventDefault();
-		setHelper(helperKeyReducer(helper, key, {tabCount: sections.length, chipRows: chipRows(flyoutRef.current)}));
-		return true;
+		return result.stopPropagation;
 	};
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		scheduleCaretWord();
 		if (handleHelperKey(event)) {
+			return;
+		}
+		// The autocomplete menu's own window listener selects on Enter; committing the typed query first would double up.
+		if (autocompletePopulated && event.key === "Enter") {
 			return;
 		}
 		const result = controller.key(event.key, searchInput);
@@ -220,17 +346,32 @@ export const SearchBox = memo(function SearchBox() {
 					selection={helper}
 					onHoverTab={(tab) => {
 						setCanHover(true);
-						setHelper({tab, chip: -1});
+						setKeyboardMode(false);
+						setHelper((current) => ({tab, chip: -1, rowMode: current.rowMode}));
 					}}
 					onHoverChip={(chip) => {
 						setCanHover(true);
-						setHelper((current) => ({tab: current.tab, chip}));
+						setKeyboardMode(false);
+						setHelper((current) => ({...current, chip}));
+					}}
+					keyboardMode={keyboardMode}
+					onClickTab={(tab) => {
+						if (sections[tab]?.hint === true) {
+							useOutlineStore.getState().openJumpMenu();
+						}
 					}}
 					canHover={canHover}
 					onInsert={insertHelper}
 					jumpKey={isMacPlatform() ? "meta+k" : "ctrl+k"}
 					flyoutRef={flyoutRef}
 				/>
+				{autocompletePopulated && (
+					<SearchAutocomplete
+						rows={autocompleteRows}
+						committed={committedQuery !== ""}
+						onSelect={selectAutocomplete}
+					/>
+				)}
 				<input
 					autoComplete="off"
 					autoCorrect="off"
@@ -244,17 +385,25 @@ export const SearchBox = memo(function SearchBox() {
 					data-handbook="search.search"
 					id="srch-input"
 					onBlur={() => {
+						if (caretTimer.current !== null) {
+							clearTimeout(caretTimer.current);
+							caretTimer.current = null;
+						}
+						setCaretWord("");
 						setHelper(NO_HELPER_SELECTION);
 						setSearchFocused(false);
 					}}
 					onChange={(event) => {
 						setSearchInput(event.target.value);
 						controller.change(event.target.value);
+						scheduleCaretWord();
 					}}
+					onSelect={scheduleCaretWord}
 					onFocus={() => {
 						setArmed(true);
 						setHelper(NO_HELPER_SELECTION);
 						setCanHover(false);
+						scheduleCaretWord();
 						void queryClient.invalidateQueries({queryKey: ["search-helpers"]});
 						setSearchFocused(true);
 					}}

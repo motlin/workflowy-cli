@@ -5,8 +5,6 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {SearchHelpers} from "../src/client/components/search-helpers.js";
 import type {SearchHelpersProps} from "../src/client/components/search-helpers.js";
-import {helperKeyReducer} from "../src/client/search/helper-keys.js";
-import type {HelperLayout, HelperSelection} from "../src/client/search/helper-keys.js";
 import {cssBlock} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
@@ -186,61 +184,6 @@ describe("SearchHelpers", () => {
 			populated: render({autocompletePopulated: true}).startsWith('<div class="hidden">'),
 			blurred: render({focused: false}).startsWith('<div class="hidden">'),
 		}).toStrictEqual({populated: true, blurred: true});
-	});
-});
-
-describe("helperKeyReducer", () => {
-	const layout: HelperLayout = {tabCount: 7, chipRows: [0, 0, 0, 1, 1, 1, 2]};
-
-	function run(start: HelperSelection, keys: string[]): HelperSelection[] {
-		const states: HelperSelection[] = [];
-		let state = start;
-		for (const key of keys) {
-			state = helperKeyReducer(state, key, layout);
-			states.push(state);
-		}
-		return states;
-	}
-
-	it("walks from nothing into the tabs, the chips and back out", () => {
-		expect(
-			run({tab: -1, chip: -1}, ["ArrowDown", "ArrowRight", "ArrowDown", "ArrowRight", "ArrowUp", "ArrowUp"]),
-		).toStrictEqual([
-			{tab: 0, chip: -1},
-			{tab: 1, chip: -1},
-			{tab: 1, chip: 0},
-			{tab: 1, chip: 1},
-			{tab: 1, chip: -1},
-			{tab: -1, chip: -1},
-		]);
-	});
-
-	it("clamps the tab at both ends", () => {
-		expect({
-			left: helperKeyReducer({tab: 0, chip: -1}, "ArrowLeft", layout),
-			right: helperKeyReducer({tab: 6, chip: -1}, "ArrowRight", layout),
-		}).toStrictEqual({left: {tab: 0, chip: -1}, right: {tab: 6, chip: -1}});
-	});
-
-	it("moves between visual chip rows keeping the column, clamped to the row", () => {
-		expect(run({tab: 3, chip: 1}, ["ArrowDown", "ArrowDown", "ArrowDown", "ArrowUp", "ArrowLeft"])).toStrictEqual([
-			{tab: 3, chip: 4},
-			{tab: 3, chip: 6},
-			{tab: 3, chip: 6},
-			{tab: 3, chip: 3},
-			{tab: 3, chip: 2},
-		]);
-	});
-
-	it("does not enter a panel without chips", () => {
-		expect(helperKeyReducer({tab: 0, chip: -1}, "ArrowDown", {tabCount: 7, chipRows: []})).toStrictEqual({
-			tab: 0,
-			chip: -1,
-		});
-	});
-
-	it("ignores other keys", () => {
-		expect(helperKeyReducer({tab: 2, chip: -1}, "a", layout)).toStrictEqual({tab: 2, chip: -1});
 	});
 });
 

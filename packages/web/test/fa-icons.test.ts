@@ -127,6 +127,8 @@ describe("FA_ICONS", () => {
 			"fal:underline",
 			"fal:strikethrough",
 			"fal:code",
+			"fal:paint-brush",
+			"fal:highlighter",
 			"fal:font",
 		]);
 	});

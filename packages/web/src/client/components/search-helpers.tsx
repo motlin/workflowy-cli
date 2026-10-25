@@ -107,12 +107,16 @@ export interface SearchHelpersProps {
 	focused: boolean;
 	autocompletePopulated: boolean;
 	tags: HelperTagLists;
-	selection: HelperSelection;
+	selection: Pick<HelperSelection, "tab" | "chip">;
 	onHoverTab: (tab: number) => void;
 	/** Upstream selects a chip when the mouse enters it. */
 	onHoverChip?: (chip: number) => void;
 	/** The mouse has been used over the menu, which switches the chips to their hover classes. */
 	canHover?: boolean;
+	/** The selection came from the keyboard, so the chip scrolls into view. */
+	keyboardMode?: boolean;
+	/** A tab was clicked (the globe tab opens the jump menu). */
+	onClickTab?: (tab: number) => void;
 	onInsert: (value: string) => void;
 	/** The jump-menu shortcut named in the hint (`ctrl+k` off mac). */
 	jumpKey?: string;
@@ -132,15 +136,23 @@ function Chips({
 	values,
 	chip,
 	canHover,
+	keyboardMode,
 	onHoverChip,
 	onInsert,
 }: {
 	values: readonly HelperValue[];
 	chip: number;
 	canHover: boolean;
+	keyboardMode: boolean;
 	onHoverChip: (chip: number) => void;
 	onInsert: (value: string) => void;
 }) {
+	const activeChip = useRef<HTMLAnchorElement>(null);
+	useEffect(() => {
+		if (keyboardMode && chip >= 0) {
+			activeChip.current?.scrollIntoView({behavior: "smooth", block: "nearest"});
+		}
+	}, [keyboardMode, chip]);
 	return (
 		<div className="shrink-0 h-auto flex overflow-hidden [&:not(:last-child)]:mb-ml">
 			<div className="relative min-w-0 flex flex-row flex-wrap items-center">
@@ -148,6 +160,7 @@ function Chips({
 					<div className="min-w-0 py-xs px-px" key={value}>
 						{/* oxlint-disable-next-line jsx-a11y/anchor-is-valid, jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's chips are href-less anchors driven from the search input's keys */}
 						<a
+							ref={index === chip ? activeChip : undefined}
 							className={chipClass(index === chip, canHover)}
 							style={{height: 20}}
 							onMouseEnter={() => {
@@ -184,6 +197,8 @@ export function SearchHelpers({
 	onHoverTab,
 	onHoverChip = NOOP_HOVER_CHIP,
 	canHover = false,
+	keyboardMode = false,
+	onClickTab,
 	onInsert,
 	jumpKey = "meta+k",
 	flyoutRef,
@@ -225,6 +240,7 @@ export function SearchHelpers({
 				values={selected.values}
 				chip={selection.chip}
 				canHover={canHover}
+				keyboardMode={keyboardMode}
 				onHoverChip={onHoverChip}
 				onInsert={onInsert}
 			/>
@@ -253,7 +269,7 @@ export function SearchHelpers({
 			>
 				<div className={selected === undefined ? TAB_ROW_CLASS : TAB_ROW_SELECTED_CLASS}>
 					{sections.map((section, index) => (
-						// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- hover-only tab, keyboard goes through the search input
+						// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- hover and click tab, keyboard goes through the search input
 						<div
 							key={section.name}
 							className={
@@ -265,6 +281,9 @@ export function SearchHelpers({
 								hoverTab(index);
 							}}
 							onMouseLeave={cancelHover}
+							onClick={() => {
+								onClickTab?.(index);
+							}}
 						>
 							<FaIcon icon={section.icon} size="sm" />
 						</div>

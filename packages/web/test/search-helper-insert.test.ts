@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {insertHelperValue} from "../src/client/search/helper-insert.js";
+import {insertHelperValue, replaceSearchWord} from "../src/client/search/helper-insert.js";
 
 describe("insertHelperValue", () => {
 	it("inserts, toggles, and replaces group members like upstream's search helper", () => {
@@ -32,5 +32,31 @@ describe("insertHelperValue", () => {
 			{query: "", caret: 0},
 			{query: "x ", caret: 2},
 		]);
+	});
+});
+
+describe("replaceSearchWord", () => {
+	it("replaces the word under the caret with the value and a trailing space, without toggling", () => {
+		expect({
+			empty: replaceSearchWord("is:", 3, "is:shared"),
+			middle: replaceSearchWord("foo is:co bar", 9, "is:complete"),
+			afterCaret: replaceSearchWord("is:comp", 4, "is:complete"),
+			doubleSpace: replaceSearchWord("a  is:", 6, "is:todo"),
+			datePhrase: replaceSearchWord("this week", 9, "is:todo"),
+			noToggle: replaceSearchWord("is:complete", 11, "is:complete"),
+		}).toStrictEqual({
+			empty: {query: "is:shared ", caret: 10},
+			middle: {query: "foo is:complete bar", caret: 16},
+			afterCaret: {query: "is:complete ", caret: 12},
+			doubleSpace: {query: "a  is:todo ", caret: 11},
+			datePhrase: {query: "this is:todo ", caret: 13},
+			noToggle: {query: "is:complete ", caret: 12},
+		});
+	});
+
+	it("honours trailingSpace and caretOffset for in: values", () => {
+		expect(
+			replaceSearchWord("is:shared in:", 13, 'in:note:""', {trailingSpace: false, caretOffset: -1}),
+		).toStrictEqual({query: 'is:shared in:note:""', caret: 19});
 	});
 });

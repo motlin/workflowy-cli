@@ -15,9 +15,12 @@ interface StoreState {
 	setSearchInput: (value: string) => void;
 	setSearchFocused: (focused: boolean) => void;
 	commitSearch: (query: string) => void;
+	openJumpMenu: () => void;
 }
 
 const listeners = new Set<() => void>();
+const jumpOpens: number[] = [];
+const commits: string[] = [];
 let state: StoreState = {
 	searchInput: "",
 	searchFocused: true,
@@ -26,7 +29,11 @@ let state: StoreState = {
 	},
 	setSearchFocused: () => {},
 	commitSearch: (query) => {
+		commits.push(query);
 		setState({searchInput: query});
+	},
+	openJumpMenu: () => {
+		jumpOpens.push(1);
 	},
 };
 
@@ -74,6 +81,8 @@ afterEach(() => {
 	root = undefined;
 	document.body.innerHTML = "";
 	state = {...state, searchInput: ""};
+	jumpOpens.length = 0;
+	commits.length = 0;
 });
 
 function mount(): HTMLInputElement {
@@ -86,9 +95,34 @@ function mount(): HTMLInputElement {
 	return document.querySelector<HTMLInputElement>("#srch-input")!;
 }
 
-function press(input: HTMLInputElement, key: string): void {
+function press(input: HTMLInputElement, key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+	const event = new KeyboardEvent("keydown", {key, code: key, bubbles: true, cancelable: true, ...init});
 	act(() => {
-		input.dispatchEvent(new KeyboardEvent("keydown", {key, bubbles: true, cancelable: true}));
+		input.dispatchEvent(event);
+	});
+	return event;
+}
+
+function type(input: HTMLInputElement, text: string): void {
+	act(() => {
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, text);
+		input.setSelectionRange(text.length, text.length);
+		input.dispatchEvent(new Event("input", {bubbles: true}));
+	});
+}
+
+function tabs(): HTMLElement[] {
+	return [...document.querySelectorAll<HTMLElement>("svg[data-icon]")]
+		.filter((icon) => icon.closest(".flyout") !== null)
+		.map((icon) => icon.parentElement!);
+}
+
+async function hoverTab(index: number): Promise<void> {
+	await act(async () => {
+		tabs()[index]?.dispatchEvent(new MouseEvent("mouseover", {bubbles: true}));
+		await new Promise<void>((resolve) => {
+			setTimeout(resolve, 120);
+		});
 	});
 }
 
@@ -138,5 +172,72 @@ describe("search helper chips", () => {
 			afterChip: {query: "today ", chips: 13},
 			afterInput: 0,
 		});
+	});
+});
+
+describe("search helper keys", () => {
+	it("keeps the caret on ArrowUp by arming the tab row instead", () => {
+		const input = mount();
+		type(input, "ab");
+		const up = press(input, "ArrowUp");
+		const right = press(input, "ArrowRight");
+
+		expect({up: up.defaultPrevented, right: right.defaultPrevented, tabs: chips().length}).toStrictEqual({
+			up: true,
+			right: true,
+			tabs: 0,
+		});
+	});
+
+	it("swallows Space and Tab on a hovered chip tab without typing or leaving the search", async () => {
+		const input = mount();
+		act(() => {
+			input.focus();
+		});
+		type(input, "ab");
+		await hoverTab(2);
+		const space = press(input, " ", {code: "Space"});
+		const tab = press(input, "Tab", {code: "Tab"});
+
+		expect({
+			value: input.value,
+			space: space.defaultPrevented,
+			tab: tab.defaultPrevented,
+			focused: document.activeElement === input,
+			commits,
+			chips: chips().length,
+		}).toStrictEqual({value: "ab", space: true, tab: true, focused: true, commits: [], chips: 13});
+	});
+
+	it("selects tab 0 with Ctrl+N from nothing", () => {
+		const input = mount();
+		press(input, "n", {code: "KeyN", ctrlKey: true});
+
+		expect(document.body.textContent).toContain("For the jump to-menu");
+	});
+});
+
+describe("search helper tabs", () => {
+	it("opens the jump menu when the globe tab is clicked, and not for other tabs", () => {
+		mount();
+		act(() => {
+			tabs()[2]?.click();
+		});
+		const afterDates = jumpOpens.length;
+		act(() => {
+			tabs()[0]?.click();
+		});
+
+		expect({afterDates, afterGlobe: jumpOpens.length}).toStrictEqual({afterDates: 0, afterGlobe: 1});
+	});
+
+	it("opens the jump menu on Enter by code, not on NumpadEnter", () => {
+		const input = mount();
+		press(input, "ArrowDown");
+		press(input, "Enter", {code: "NumpadEnter"});
+		const afterNumpad = jumpOpens.length;
+		press(input, "Enter", {code: "Enter"});
+
+		expect({afterNumpad, afterEnter: jumpOpens.length}).toStrictEqual({afterNumpad: 0, afterEnter: 1});
 	});
 });

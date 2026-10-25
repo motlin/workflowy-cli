@@ -38,7 +38,7 @@ function tokenMatch(query: string, value: string): RegExpMatchArray | null {
 	return query.match(new RegExp(String.raw`(\s|^)${escapeRegExp(value)}(\s|$)`, "iu"));
 }
 
-function wordAt(query: string, caret: number): Word {
+export function wordAt(query: string, caret: number): Word {
 	if (caret === 0 || query[caret - 1] === " ") {
 		return {text: "", index: caret};
 	}
@@ -67,6 +67,22 @@ function replaceWordAt(query: string, caret: number, replacement: string): Helpe
 	const before = query.slice(0, word.index);
 	const after = query.slice(end + (query[end] === " " ? 1 : 0));
 	return {query: `${before}${replacement}${after}`, caret: before.length + replacement.length};
+}
+
+export interface ReplaceSearchWordOptions {
+	trailingSpace?: boolean;
+	caretOffset?: number;
+}
+
+/** Upstream `WF.Search.replace`: swaps the word under the caret for `value`, with no toggle or group logic. */
+export function replaceSearchWord(
+	query: string,
+	caret: number,
+	value: string,
+	{trailingSpace = true, caretOffset = 0}: ReplaceSearchWordOptions = {},
+): HelperInsertResult {
+	const result = replaceWordAt(query, caret, trailingSpace ? `${value} ` : value);
+	return {query: result.query, caret: result.caret + caretOffset};
 }
 
 function removeOne(query: string, value: string, caret: number): HelperInsertResult {
