@@ -1,3 +1,4 @@
+import {selectionExportRequest} from "../export-entry.js";
 import {makeTableDeps} from "./use-table-actions.js";
 import {cellDelete, duplicateColumn, moveCell, structureTable} from "../table-actions.js";
 import type {TableDeps} from "../table-actions.js";
@@ -1480,7 +1481,7 @@ export function useCommandRegistry(): CommandRegistry {
 			execute(ctx) {
 				if (ctx.items.length > 0) {
 					commitEdit();
-					openExportDialog({nodeIds: [...ctx.items]});
+					openExportDialog(selectionExportRequest(ctx.items));
 					useOutlineStore.getState().clearItemSelection();
 				}
 			},

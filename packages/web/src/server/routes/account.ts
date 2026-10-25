@@ -1,4 +1,5 @@
-/** The signed-in Workflowy account: `GET /` -> `{userId, joinedAt, fullName}` (ISO date). */
+/** The signed-in Workflowy account: `GET /` -> `{userId, joinedAt, fullName, email}` (ISO date). `email` is the OPML export's ownerEmail, from
+ * `WORKFLOWY_USERNAME` (the session does not carry it), and "" when unset. */
 
 import {Hono} from "hono";
 import type {AppEnv} from "../context.js";
@@ -11,7 +12,12 @@ export function createAccountRouter(): Hono<AppEnv> {
 		"/",
 		withAdapter(async (c, adapter) => {
 			const {userId, joinedAt, fullName} = await adapter.getAccount();
-			return c.json({userId, joinedAt: joinedAt.toISOString(), fullName});
+			return c.json({
+				userId,
+				joinedAt: joinedAt.toISOString(),
+				fullName,
+				email: process.env.WORKFLOWY_USERNAME ?? "",
+			});
 		}),
 	);
 

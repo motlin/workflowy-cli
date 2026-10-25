@@ -1,3 +1,4 @@
+import type {ExportRequest} from "../export-entry.js";
 import type {LeftBarDropPos} from "../left-bar-drop.js";
 import {create} from "zustand";
 import type {PickerResult} from "../location-picker-model.js";
@@ -205,9 +206,7 @@ export interface LinkPopupState {
 	position: readonly [number, number];
 }
 
-interface ExportContext {
-	nodeIds: string[];
-}
+type ExportContext = ExportRequest;
 
 interface PresentationContext {
 	nodeId: string;

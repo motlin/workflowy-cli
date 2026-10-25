@@ -547,6 +547,53 @@ body {
 	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
 }
 
+/* Upstream's bare `button` base, `.primary` and `.large` inside its dialogs (export). Zero specificity, so the markup's
+   utilities still win. */
+:where(.wf-dialog) button {
+	display: inline-block;
+	position: relative;
+	-webkit-appearance: none;
+	appearance: none;
+	border: none;
+	outline: none;
+	box-sizing: border-box;
+	border-radius: var(--wf-radius-pill);
+	padding: var(--wf-space-s) var(--wf-space-l);
+	font-weight: var(--wf-font-weight-regular);
+	line-height: var(--wf-line-height-s);
+	font-family: inherit;
+	font-size: var(--wf-font-size-s);
+	background: var(--wf-background-tertiary);
+	text-align: center;
+	text-decoration: none;
+	color: var(--wf-text-primary);
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+:where(.wf-dialog) button:focus,
+:where(.wf-dialog) button:hover,
+:where(.wf-dialog) button:active {
+	text-decoration: none;
+	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
+}
+
+:where(.wf-dialog) .primary {
+	background: var(--wf-background-tint);
+	color: var(--wf-text-on-color);
+}
+
+:where(.wf-dialog) .primary:focus,
+:where(.wf-dialog) .primary:hover,
+:where(.wf-dialog) .primary:active {
+	background-color: color-mix(in srgb, var(--wf-background-tint) 85%, black);
+}
+
+:where(.wf-dialog) .large {
+	border-radius: var(--wf-radius-pill);
+	padding: var(--wf-space-m) var(--wf-space-l);
+}
+
 /* Upstream's day cell is content-box: w-[24px] h-[24px] plus the 1px today border is a 26x26 cell. */
 .date-picker-day-cell {
 	box-sizing: content-box;
@@ -2427,218 +2474,6 @@ body.moving * {
 	100% {
 		transform: rotate(-180deg);
 	}
-}
-
-/* ================================
-   Export Dialog Styles
-   ================================ */
-
-.export-dialog-overlay {
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	background-color: rgba(0, 0, 0, 0.5);
-	display: flex;
-	justify-content: center;
-	align-items: flex-start;
-	padding-top: 10vh;
-	z-index: 1001;
-}
-
-.export-dialog {
-	width: 100%;
-	max-width: 600px;
-	background-color: var(--color-bg);
-	border-radius: 8px;
-	box-shadow:
-		0 8px 30px rgba(0, 0, 0, 0.2),
-		0 0 1px rgba(0, 0, 0, 0.1);
-	display: flex;
-	flex-direction: column;
-	max-height: 70vh;
-}
-
-.export-dialog-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 16px;
-	border-bottom: 1px solid var(--color-border);
-}
-
-.export-dialog-title {
-	margin: 0;
-	font-size: 16px;
-	font-weight: 600;
-	color: var(--color-text);
-}
-
-.export-dialog-close {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
-	padding: 0;
-	background: transparent;
-	border: none;
-	border-radius: 4px;
-	cursor: pointer;
-	font-size: 18px;
-	color: var(--color-text-muted);
-	transition:
-		background-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.export-dialog-close:hover {
-	background-color: var(--color-bg-hover);
-	color: var(--color-text);
-}
-
-.export-dialog-close:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
-}
-
-.export-dialog-format-row {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	padding: 12px 16px;
-	border-bottom: 1px solid var(--color-border);
-}
-
-.export-dialog-format-label {
-	font-size: 13px;
-	font-weight: 500;
-	color: var(--color-text-secondary);
-}
-
-.export-dialog-format-buttons {
-	display: flex;
-	gap: 6px;
-}
-
-.export-dialog-format-button {
-	padding: 6px 12px;
-	font-size: 13px;
-	font-family: inherit;
-	border: 1px solid var(--color-border-light);
-	border-radius: 4px;
-	background-color: var(--color-bg);
-	color: var(--color-text-secondary);
-	cursor: pointer;
-	transition:
-		background-color 0.15s ease,
-		border-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.export-dialog-format-button:hover {
-	background-color: var(--color-bg-hover);
-	border-color: var(--color-border-light);
-}
-
-.export-dialog-format-button.selected {
-	background-color: var(--color-accent-bg);
-	border-color: var(--color-border-focus);
-	color: var(--color-accent);
-}
-
-.export-dialog-format-button:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
-}
-
-.export-dialog-content {
-	flex: 1;
-	padding: 16px;
-	min-height: 200px;
-	overflow: hidden;
-}
-
-.export-dialog-status {
-	margin: 0;
-	text-align: center;
-	color: var(--color-text-muted);
-	font-size: 14px;
-	padding: 40px 0;
-}
-
-.export-dialog-textarea {
-	width: 100%;
-	height: 250px;
-	padding: 12px;
-	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-	font-size: 12px;
-	line-height: 1.5;
-	border: 1px solid var(--color-border-light);
-	border-radius: 6px;
-	background-color: var(--color-bg-secondary);
-	color: var(--color-text);
-	resize: none;
-	outline: none;
-}
-
-.export-dialog-textarea:focus {
-	border-color: var(--color-border-focus);
-}
-
-.export-dialog-footer {
-	display: flex;
-	justify-content: flex-end;
-	gap: 10px;
-	padding: 12px 16px;
-	border-top: 1px solid var(--color-border);
-	background-color: var(--color-bg-secondary);
-	border-radius: 0 0 8px 8px;
-}
-
-.export-dialog-button {
-	padding: 8px 16px;
-	font-size: 13px;
-	font-family: inherit;
-	font-weight: 500;
-	border-radius: 6px;
-	cursor: pointer;
-	transition:
-		background-color 0.15s ease,
-		border-color 0.15s ease;
-}
-
-.export-dialog-button:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
-.export-dialog-button:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
-}
-
-.export-dialog-copy {
-	background-color: var(--color-bg);
-	border: 1px solid var(--color-border-light);
-	color: var(--color-text);
-}
-
-.export-dialog-copy:hover:not(:disabled) {
-	background-color: var(--color-bg-hover);
-	border-color: var(--color-border-light);
-}
-
-.export-dialog-download {
-	background-color: var(--color-accent);
-	border: 1px solid var(--color-accent);
-	color: #fff;
-}
-
-.export-dialog-download:hover:not(:disabled) {
-	background-color: var(--color-accent-hover);
-	border-color: var(--color-accent-hover);
 }
 
 /* ================================

@@ -771,3 +771,139 @@ export function copyItemsPlainText(items: ExportItem[], childFilter: ChildAccess
 	}
 	return lines.join("\n");
 }
+
+// ---- Export dialog support ----
+
+export interface ExportOption {
+	label: string;
+	extension: string;
+	type: string;
+	/** Plain formats are previewed and downloaded as `text/plain`. */
+	plain: boolean;
+}
+
+/** Upstream's `config("export")` options, in tab order. */
+export const EXPORT_OPTIONS: Record<ExportFormatType, ExportOption> = {
+	html: {label: "Formatted", extension: "html", type: "text/html", plain: false},
+	markdown: {label: "Markdown", extension: "md", type: "text/markdown", plain: true},
+	text: {label: "Plain Text", extension: "txt", type: "text/plain", plain: true},
+	opml: {label: "OPML", extension: "opml", type: "text/xml", plain: true},
+};
+
+/** The tabs, in order. */
+export const EXPORT_FORMATS: readonly ExportFormatType[] = ["html", "markdown", "text", "opml"];
+
+export const EXPORT_DEFAULT: ExportFormatType = "html";
+
+/** Upstream's Windows `post_format` patch: every bare `\n` in a chunk becomes `\r\n`. */
+export function windowsPostFormat(chunk: string): string {
+	return chunk.replaceAll(/([^\r]|^)\n/gu, "$1\r\n");
+}
+
+const PREPARING_THRESHOLD = 1_048_576;
+
+/** The preview placeholder text: megabytes written so far, shown only while generating and from 1 MiB. */
+export function preparingLabel(generating: boolean, bytes: number): string | null {
+	return generating && bytes >= PREPARING_THRESHOLD
+		? `Preparing your export… ${(bytes / PREPARING_THRESHOLD).toFixed(1)} MB`
+		: null;
+}
+
+const FLUSH_CHARS = 524_288;
+
+/** Upstream's chunked Blob writer: buffers chunks, appends to a Blob every 512 Ki chars and yields to the event loop. */
+export class ExportBlobWriter {
+	blob: Blob;
+	private buffer = "";
+
+	constructor(
+		private readonly type: string,
+		private readonly signal: AbortSignal,
+		private readonly onWrite: (bytes: number) => void,
+	) {
+		this.blob = new Blob([], {type});
+	}
+
+	async write(chunks: Iterable<string>): Promise<void> {
+		for (const chunk of chunks) {
+			this.signal.throwIfAborted();
+			this.buffer += chunk;
+			if (this.buffer.length >= FLUSH_CHARS) {
+				this.flush();
+				await new Promise<void>((resolve) => {
+					setTimeout(resolve, 0);
+				});
+			}
+		}
+		this.signal.throwIfAborted();
+		if (this.buffer !== "") {
+			this.flush();
+		}
+	}
+
+	private flush(): void {
+		this.blob = new Blob([this.blob, this.buffer], {type: this.type});
+		this.buffer = "";
+		this.onWrite(this.blob.size);
+	}
+}
+
+const FILE_NAME_LIMIT = 50;
+
+function twoDigits(value: number): string {
+	return String(value).padStart(2, "0");
+}
+
+/** `WF - <name> - <YYMMDD-HHmmss>.<ext>`: the name is the one item's plain text, or "Export". */
+export function exportFileName(items: readonly {name: string}[], extension: string, now: Date): string {
+	const stamp = `${twoDigits(now.getFullYear() % 100)}${twoDigits(now.getMonth() + 1)}${twoDigits(now.getDate())}-${twoDigits(now.getHours())}${twoDigits(now.getMinutes())}${twoDigits(now.getSeconds())}`;
+	const suffix = ` - ${stamp}.${extension}`;
+	const [only] = items;
+	const name =
+		items.length === 1 && only !== undefined
+			? plainText(only.name)
+					.replace(/[^\p{L}\p{N} ]/u, "")
+					.replace(/[^\p{L}\p{N} ]/u, "")
+					.trim()
+			: "";
+	return `WF - ${(name === "" ? "Export" : name).slice(0, FILE_NAME_LIMIT - "WF - ".length - suffix.length)}${suffix}`;
+}
+
+/** Upstream's `USE_IFRAME_COPY_FOR`: on Android, Formatted copies by selecting the preview iframe's body. */
+export function usesIframeCopy(format: ExportFormatType, userAgent: string): boolean {
+	return format === "html" && /(android|silk-accelerated)/iu.test(userAgent);
+}
+
+/** One export-tree item as the server sends it (no parent link). */
+export type ExportTreeItem = Omit<ExportItem, "parent" | "children"> & {children: ExportTreeItem[]};
+
+/** The server's tree as formatter items with parents linked. */
+export function toExportItems(items: ExportTreeItem[]): ExportItem[] {
+	const convert = (item: ExportTreeItem): ExportItem => ({
+		...item,
+		parent: null,
+		children: item.children.map(convert),
+	});
+	return linkParents(items.map(convert));
+}
+
+/** Formats `items` into a Blob chunk by chunk (CRLF on Windows), rejecting with the abort reason if `signal` aborts. */
+export async function generateExport(
+	format: ExportFormatType,
+	items: ExportItem[],
+	ownerEmail: string,
+	signal: AbortSignal,
+	onWrite: (bytes: number) => void,
+	userAgent: string,
+): Promise<Blob> {
+	const option = EXPORT_OPTIONS[format];
+	const writer = new ExportBlobWriter(option.plain ? "text/plain" : option.type, signal, onWrite);
+	const post = /windows/iu.test(userAgent) ? windowsPostFormat : identity;
+	function* chunks(): Generator<string> {
+		for (const chunk of formatChunks(format, items, undefined, {ownerEmail})) {
+			yield post(chunk);
+		}
+	}
+	await writer.write(chunks());
+	return writer.blob;
+}

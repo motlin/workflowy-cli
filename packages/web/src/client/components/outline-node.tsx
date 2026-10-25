@@ -1,5 +1,6 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
+import {selectionExportRequest} from "../export-entry.js";
 import {plainText} from "../rich-text.js";
 import {CopyCodeButton} from "./copy-code-button.js";
 import {canHaveNote} from "../layout-types.js";
@@ -175,7 +176,7 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 					}
 				},
 				onExport: () => {
-					openExportDialog({nodeIds: [node.id]});
+					openExportDialog(selectionExportRequest([node.id]));
 				},
 				onCopyLink: () => {
 					void copyLink(node.id);

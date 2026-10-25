@@ -1,7 +1,9 @@
 import {isValidElement, useState} from "react";
 import type {ReactElement, ReactNode} from "react";
+import {openMenuExport} from "../export-entry.js";
 import {useSaving} from "../hooks/use-saving.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {readJson} from "../read-json.js";
+import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {autosaveText} from "../time-ago.js";
 import {useUndoStore} from "../undo-history.js";
 import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
@@ -213,7 +215,16 @@ export function useGearMenuRows({
 			key="export"
 			label="Export all"
 			onSelect={() => {
-				openExportDialog({nodeIds: []});
+				void openMenuExport(
+					activeZoomedId(useOutlineStore.getState()),
+					async () => {
+						const response = await fetch("/api/v1/nodes");
+						return response.ok
+							? (await readJson<{nodes: {id: string}[]}>(response)).nodes.map((node) => node.id)
+							: [];
+					},
+					openExportDialog,
+				);
 			}}
 		/>,
 		<MenuItem icon={<DownloadIcon />} key="download" label="Download Files" />,

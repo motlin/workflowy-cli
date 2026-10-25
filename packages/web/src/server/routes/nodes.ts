@@ -620,6 +620,68 @@ function parseBulkTrees(raw: unknown, count: {total: number}): NewTree[] | strin
 	return trees;
 }
 
+/** One node of `POST /export-tree`: the raw stored text and the fields the export formatters read. */
+interface ExportTreeItem {
+	id: string;
+	name: string;
+	note: string;
+	layoutMode: string | null;
+	numberedStart: number | null;
+	completed: boolean;
+	children: ExportTreeItem[];
+}
+
+/**
+ * `ids` and everything below them as export items. A mirror takes its original's text and children, and a mirror
+ * inside its own original's subtree stops there. Completed descendants are dropped unless `includeCompleted`;
+ * the roots always stay.
+ */
+async function readExportTree(ctx: ServerContext, ids: string[], includeCompleted: boolean): Promise<ExportTreeItem[]> {
+	const reader = new NodeTreeReader(ctx.cacheService);
+	const toItems = async (nodes: Node[], path: ReadonlySet<string>): Promise<ExportTreeItem[]> => {
+		const metadata = loadInternalMetadataFields(
+			ctx,
+			nodes.map((node) => node.id),
+		);
+		const items: ExportTreeItem[] = [];
+		for (const node of nodes) {
+			const fetchId = node.mirror.originalNodeId ?? node.id;
+			const below = new Set([...path, fetchId]);
+			const children = path.has(fetchId)
+				? []
+				: (await reader.readChildren(fetchId, {depth: 0})).filter(
+						(child) =>
+							!child.hasReferencesRoot &&
+							!child.inChat &&
+							(includeCompleted || child.completedAt === null),
+					);
+			items.push({
+				id: node.id,
+				name: node.name ?? "",
+				note: node.note ?? "",
+				layoutMode: node.layoutMode,
+				numberedStart: metadata.get(node.id)?.numberedStart ?? null,
+				completed: node.completedAt !== null,
+				children: await toItems(children, below),
+			});
+		}
+		return items;
+	};
+	return toItems(await reader.readNodes(ids, {depth: 0}), new Set());
+}
+
+// POST /api/v1/nodes/export-tree - The subtrees the export dialog formats, in one round trip
+nodesRouter.post("/export-tree", async (c) => {
+	const ctx = c.get("ctx");
+	const body = await c.req.json<{ids?: unknown; includeCompleted?: unknown}>();
+	const {ids} = body;
+	if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string")) {
+		return c.json({error: "ids must be an array of strings"}, 400);
+	}
+	const resolved = ids.flatMap((id) => resolveNodeId(ctx, id) ?? []);
+	return c.json({items: await readExportTree(ctx, resolved, body.includeCompleted === true)});
+});
+
 // POST /api/v1/nodes/trees - Create many trees at one slot with a single bulk_create
 nodesRouter.post("/trees", async (c) => {
 	const ctx = c.get("ctx");

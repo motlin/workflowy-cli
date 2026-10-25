@@ -274,7 +274,7 @@ describe("GET /api/v1/account", () => {
 
 		await expect(request("GET", "/account")).resolves.toStrictEqual({
 			status: 200,
-			body: {userId: 42, joinedAt: "2017-07-14T02:40:00.000Z", fullName: null},
+			body: {userId: 42, joinedAt: "2017-07-14T02:40:00.000Z", fullName: null, email: ""},
 		});
 	});
 
