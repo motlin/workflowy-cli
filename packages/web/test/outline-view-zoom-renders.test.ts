@@ -91,6 +91,7 @@ const SHELL = {
 	RightBar: 1,
 	RelatedNodesPanel: 1,
 	JumpMenu: 1,
+	AlertDialog: 1,
 	LinkInsertModal: 1,
 	LocationPickerHost: 1,
 	ExportDialog: 1,

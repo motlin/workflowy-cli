@@ -11,7 +11,7 @@ import {
 } from "../keys/dispatch.js";
 import {comboFromEvent} from "../keys/keymap.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
-import {commandTargets} from "../item-selection.js";
+import {commandTargets, listenForSelectionPaste} from "../item-selection.js";
 import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {useDeleteNode} from "./use-nodes.js";
 import {currentSelectionView, isTextTarget, runSelectionKey} from "./use-selection-keymap.js";
@@ -96,9 +96,14 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 			() => useOutlineStore.getState().appMessage?.actions,
 			comboFromEvent,
 		);
+		const stopSelectionPaste = listenForSelectionPaste(
+			document,
+			() => useOutlineStore.getState().itemSelection.entries.length > 0,
+		);
 		return () => {
 			globalThis.removeEventListener("keydown", onKeyDown);
 			stopAppMessageKeys();
+			stopSelectionPaste();
 		};
 	}, [queryClient, deleteNode, navigate]);
 }

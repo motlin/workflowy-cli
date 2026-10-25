@@ -30,6 +30,8 @@ import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
 import {plainText} from "../rich-text.js";
+import {usePlainPasteKey} from "../hooks/use-plain-paste-key.js";
+import {notePasteHtml} from "../paste/note.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripSlashChip} from "../slash-trigger.js";
@@ -87,6 +89,27 @@ function insertAtSelection(text: string, caretInText: number): void {
 	const textNode = document.createTextNode(text);
 	range.insertNode(textNode);
 	range.setStart(textNode, caretInText);
+	range.collapse(true);
+	selection.removeAllRanges();
+	selection.addRange(range);
+}
+
+/** Replaces the selection with the nodes of `html` and puts the caret after them. */
+function insertHtmlAtSelection(html: string): void {
+	const selection = globalThis.getSelection();
+	if (selection === null || selection.rangeCount === 0) {
+		return;
+	}
+	const range = selection.getRangeAt(0);
+	range.deleteContents();
+	const template = document.createElement("template");
+	template.innerHTML = html;
+	const fragment = template.content;
+	const last = fragment.lastChild;
+	range.insertNode(fragment);
+	if (last !== null) {
+		range.setStartAfter(last);
+	}
 	range.collapse(true);
 	selection.removeAllRanges();
 	selection.addRange(range);
@@ -553,6 +576,30 @@ export function EditableNote({
 		],
 	);
 
+	const plainPasteKey = usePlainPasteKey();
+	// Upstream `MD4`: a paste goes in place with its newlines and allowed formatting; it never creates rows.
+	const handlePaste = useCallback(
+		(event: React.ClipboardEvent<HTMLDivElement>) => {
+			const element = contentRef.current;
+			const data = event.clipboardData;
+			if (element === null || (data.files.length > 0 && data.getData("text/plain") === "")) {
+				return;
+			}
+			event.preventDefault();
+			element.classList.add("copyOrPasteInProgress");
+			insertHtmlAtSelection(
+				notePasteHtml({
+					text: data.getData("text/plain"),
+					html: data.getData("text/html"),
+					plain: plainPasteKey.current,
+				}),
+			);
+			handleInput();
+			element.classList.remove("copyOrPasteInProgress");
+		},
+		[handleInput, plainPasteKey],
+	);
+
 	return (
 		<div className={withClasses(isMain ? "notes notes--main" : "notes", extraClasses)}>
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model */}
@@ -567,6 +614,7 @@ export function EditableNote({
 				onFocus={handleFocus}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
+				onPaste={handlePaste}
 				onMouseDown={(event) => {
 					// Before the browser places the caret, so the click lands in the plain DOM it will edit.
 					tagPointer.onMouseDown(event);

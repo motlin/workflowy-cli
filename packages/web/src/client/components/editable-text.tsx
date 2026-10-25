@@ -60,6 +60,7 @@ import {useDateAutocomplete} from "./date-autocomplete.js";
 import {routeTypedInput} from "../inline-input-router.js";
 import {plainText, splitHtml} from "../rich-text.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
+import {useNamePaste} from "../hooks/use-name-paste.js";
 import {
 	toolbarFormatAttr,
 	toolbarLayoutCommand,
@@ -521,6 +522,18 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	const slashMenu = useSlashMenu({editorRef: contentRef, nodeId, onChange: changeName, onSave: saveName});
 	const slashDiscovered = useSlashDiscovered();
 	const {handleInput: handleSlashInput, handleKeyDown: handleSlashKey, detach: detachSlashMenu} = slashMenu;
+
+	const handlePaste = useNamePaste({
+		nodeId,
+		parentId,
+		contentRef,
+		dateSettings,
+		account,
+		resetSaved: (name) => {
+			nameSaver.reset(name);
+		},
+		changed: changeName,
+	});
 
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
@@ -1093,6 +1106,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				onClick={handleEditingClick}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
+				onPaste={handlePaste}
 				onMouseDown={(event) => {
 					tagPointer.onMouseDown(event);
 					detachTagAutocomplete();

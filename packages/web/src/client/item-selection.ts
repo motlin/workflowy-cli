@@ -531,3 +531,25 @@ export function contentMouseDownAction(
 	}
 	return "DRAG";
 }
+
+/**
+ * Upstream's `Px4`: while items are selected and no editor holds the caret, a paste is swallowed, so nothing is
+ * inserted anywhere. Returns the listener's remover.
+ */
+export function listenForSelectionPaste(target: EventTarget, hasSelection: () => boolean): () => void {
+	const onPaste = (event: Event): void => {
+		const inText =
+			event.target instanceof HTMLElement &&
+			(event.target.isContentEditable ||
+				event.target instanceof HTMLInputElement ||
+				event.target instanceof HTMLTextAreaElement);
+		if (hasSelection() && !inText) {
+			event.preventDefault();
+			event.stopPropagation();
+		}
+	};
+	target.addEventListener("paste", onPaste, true);
+	return () => {
+		target.removeEventListener("paste", onPaste, true);
+	};
+}
