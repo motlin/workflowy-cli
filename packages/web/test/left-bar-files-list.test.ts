@@ -5,7 +5,7 @@ import type {NodeResponse} from "../src/node-types.js";
 import type * as ExpansionsModule from "../src/client/stores/left-bar-expansions.js";
 
 const storeState = {zoomedNodeId: null as string | null, showCompleted: false};
-const expansionState = {expansions: {} as Record<string, string[]>, toggle: () => {}};
+const expansionState = {keys: new Set<string>(), toggle: vi.fn<(key: string) => void>()};
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof storeState) => unknown) =>
@@ -64,12 +64,13 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 }));
 
 const {FilesListRows} = await import("../src/client/components/left-bar-files-list.js");
-const {toggleExpansion} = await import("../src/client/stores/left-bar-expansions.js");
+const {leftBarExpansionKey, pageUniqueId} = await import("../src/client/stores/left-bar-expansions.js");
+const {filesListArrow, nextLimit, renderLimit} = await import("../src/client/components/left-bar-files-list.js");
 
-const CTX = "leftbar__home__";
+const homeKey = (top: string, id: string) => `leftbar__home__None/${top}/__${id}`;
 
 function rows(): string[] {
-	const html = renderToStaticMarkup(createElement(FilesListRows, {parentId: "root", depth: 0, contextKey: CTX}));
+	const html = renderToStaticMarkup(createElement(FilesListRows, {parentId: "root", depth: 0, section: "home"}));
 	return html
 		.split("<a ")
 		.slice(1)
@@ -92,7 +93,8 @@ function innerTag(row: string): string {
 beforeEach(() => {
 	storeState.zoomedNodeId = null;
 	storeState.showCompleted = false;
-	expansionState.expansions = {};
+	expansionState.keys = new Set();
+	expansionState.toggle.mockClear();
 });
 
 describe("FilesListRows", () => {
@@ -110,7 +112,7 @@ describe("FilesListRows", () => {
 	});
 
 	it("renders expanded children flat with deeper padding and highlights the current node", () => {
-		expansionState.expansions = {[CTX]: ["A"]};
+		expansionState.keys = new Set([homeKey("A", "A")]);
 		storeState.zoomedNodeId = "A1";
 		const result = rows();
 		expect(
@@ -191,20 +193,93 @@ describe("FilesListRows arrow opacity", () => {
 	});
 });
 
-describe("toggleExpansion", () => {
-	it("adds then removes an id within its context only", () => {
-		const opened = toggleExpansion({other: ["X"]}, CTX, "A");
-		expect({opened, closed: toggleExpansion(opened, CTX, "A")}).toStrictEqual({
-			opened: {other: ["X"], [CTX]: ["A"]},
-			closed: {other: ["X"], [CTX]: []},
+describe("account-synced expansion keys", () => {
+	it("builds upstream's key strings", () => {
+		const sandbox = "7aed376b-80c8-42c5-8065-ab03ee6d2ae0";
+		expect({
+			row: leftBarExpansionKey("home", pageUniqueId(sandbox), sandbox),
+			home: leftBarExpansionKey("starred", pageUniqueId(null), null),
+		}).toStrictEqual({
+			row: "leftbar__home__None/7aed376b-80c8-42c5-8065-ab03ee6d2ae0/__7aed376b",
+			home: "leftbar__starred__None/None/__None",
 		});
+	});
+
+	it("keeps a nested key dormant until its top row is expanded", () => {
+		const originalA = children.A;
+		children.A = [node("A1", "A1"), node("B1", "B1", {hasChildren: false})];
+		children.A1 = [node("A1a", "A1a", {hasChildren: false})];
+		expansionState.keys = new Set([homeKey("A", "A1")]);
+		const dormant = rows().map(label);
+		expansionState.keys = new Set([homeKey("A", "A"), homeKey("A", "A1")]);
+		const open = rows().map((row) => ({label: label(row), expanded: row.includes("arrow expanded")}));
+		children.A = originalA;
+		expect({dormant, open}).toStrictEqual({
+			dormant: ['<span class="colored c-blue">A</span>'],
+			open: [
+				{label: '<span class="colored c-blue">A</span>', expanded: true},
+				{label: "A1", expanded: true},
+				{label: "A1a", expanded: false},
+				{label: "B1", expanded: false},
+			],
+		});
+	});
+});
+
+describe("FilesListRows toggling", () => {
+	function rowArrowOnClick(tree: unknown): (event: unknown) => void {
+		const arrow = tree as {props: {onClick: (event: unknown) => void}};
+		return arrow.props.onClick;
+	}
+
+	it("swallows the click and toggles through onToggle", () => {
+		const click = {preventDefault: vi.fn<() => void>(), stopPropagation: vi.fn<() => void>()};
+		const onToggle = vi.fn<() => void>();
+		rowArrowOnClick(filesListArrow({expanded: false, noChildren: false, current: false, onToggle}))(click);
+		expect({toggled: onToggle.mock.calls.length, stopped: click.stopPropagation.mock.calls.length}).toStrictEqual({
+			toggled: 1,
+			stopped: 1,
+		});
+	});
+});
+
+describe("FilesListRows windowing", () => {
+	const originalRoot = children.root;
+	afterEach(() => {
+		children.root = originalRoot;
+	});
+
+	function count(limit: number): number {
+		return (
+			renderToStaticMarkup(
+				createElement(FilesListRows, {parentId: "root", depth: 0, section: "home", windowed: true, limit}),
+			).split("<a ").length - 1
+		);
+	}
+
+	it("limits rows to the scroll window plus 100", () => {
+		children.root = Array.from({length: 500}, (_, index) => node(`n${index}`, `n${index}`));
+		expect({
+			first: renderLimit({scrollTop: 0, offsetHeight: 800, rulerOffsetTop: 100}),
+			scrolled: renderLimit({scrollTop: 3200, offsetHeight: 800, rulerOffsetTop: 100}),
+			small: nextLimit(122, 150),
+			big: nextLimit(122, 200),
+			rendered: count(122),
+		}).toStrictEqual({first: 122, scrolled: 222, small: 122, big: 200, rendered: 122});
+	});
+
+	it("nested lists share the remaining budget", () => {
+		children.root = [node("A", "A")];
+		children.A = Array.from({length: 50}, (_, index) => node(`a${index}`, `a${index}`, {hasChildren: false}));
+		expansionState.keys = new Set([homeKey("A", "A")]);
+		expect(count(11)).toBe(11);
 	});
 });
 
 describe("FilesListRows date names", () => {
 	it("renders a <time> name as a pill, with the friendly prefix only on a calendar day node", () => {
 		const result = renderToStaticMarkup(
-			createElement(FilesListRows, {parentId: "days", depth: 0, contextKey: CTX}),
+			createElement(FilesListRows, {parentId: "days", depth: 0, section: "home"}),
 		);
 		const spans = [...result.matchAll(/(Today, )?<span style="pointer-events:none;white-space:nowrap">/gu)].map(
 			(match) => match[1] || "",

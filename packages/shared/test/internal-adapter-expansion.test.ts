@@ -255,4 +255,35 @@ describe("WorkflowyInternalAdapter expansion", () => {
 
 		expect(api.requests).toStrictEqual([]);
 	});
+	it("lists only the leftbar__ keys, unresolved", async () => {
+		const {api, adapter} = tracked();
+		api.respond("/get_tree_data/", () =>
+			treeData(["1a2b3c4d", "leftbar__home__None/x/__abcdefgh", "leftbar__starred__None/None/__None"]),
+		);
+
+		await expect(adapter.getLeftBarExpansionKeys()).resolves.toStrictEqual([
+			"leftbar__home__None/x/__abcdefgh",
+			"leftbar__starred__None/None/__None",
+		]);
+	});
+
+	it("pushes raw expansion keys verbatim and applies them to the cached keys", async () => {
+		const {api, adapter} = tracked();
+		api.respond("/get_tree_data/", () => treeData(["leftbar__home__None/x/__old00000"]));
+		await adapter.getLeftBarExpansionKeys();
+
+		await adapter.setRawExpansionKeys({
+			"leftbar__home__None/x/__abcdefgh": true,
+			"leftbar__home__None/x/__old00000": false,
+		});
+
+		const push = api.requests.find((r) => r.path === "/push_and_poll");
+		expect({
+			delta: (pushedTrees(push) as {project_expansions_delta: unknown}[])[0]?.project_expansions_delta,
+			keys: await adapter.getLeftBarExpansionKeys(),
+		}).toStrictEqual({
+			delta: {"leftbar__home__None/x/__abcdefgh": true, "leftbar__home__None/x/__old00000": false},
+			keys: ["leftbar__home__None/x/__abcdefgh"],
+		});
+	});
 });

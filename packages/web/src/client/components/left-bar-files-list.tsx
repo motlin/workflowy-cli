@@ -1,4 +1,4 @@
-import {memo, useState} from "react";
+import {memo, useEffect, useRef, useState} from "react";
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import type {NodeResponse} from "../../node-types.js";
@@ -10,7 +10,8 @@ import {renderDatePills} from "../date-pills.js";
 import type {DateSettings} from "../date-settings.js";
 import {addMonolithGuards} from "../monolith-guards.js";
 import {nodeUrl} from "../navigation.js";
-import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
+import {leftBarExpansionKey, pageUniqueId, useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
+import type {LeftBarSectionName} from "../stores/left-bar-expansions.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {triangleSvg} from "./fa-icons.js";
@@ -194,34 +195,108 @@ export function LeftBarRow(props: LeftBarRowProps) {
 	return leftBarRowLink(props, useLeftBarRowState());
 }
 
+const ROW_HEIGHT = 32;
+const LIMIT_PADDING = 100;
+const LIMIT_HYSTERESIS = 40;
+
+/** Upstream's FilesList render limit: rows to the bottom of the scroller's viewport, plus 100. */
+export function renderLimit({
+	scrollTop,
+	offsetHeight,
+	rulerOffsetTop,
+}: {
+	scrollTop: number;
+	offsetHeight: number;
+	rulerOffsetTop: number;
+}): number {
+	return Math.ceil(Math.max(0, scrollTop + offsetHeight - rulerOffsetTop) / ROW_HEIGHT) + LIMIT_PADDING;
+}
+
+/** The limit is only replaced when it moves by more than 40, as upstream. */
+export function nextLimit(current: number, computed: number): number {
+	return Math.abs(computed - current) > LIMIT_HYSTERESIS ? computed : current;
+}
+
+/** Tracks the render limit of the list whose ruler element `ruler` is, from its `.scroller` ancestor. */
+function useRenderLimit(ruler: {current: HTMLElement | null}): number {
+	const [limit, setLimit] = useState(() => renderLimit({scrollTop: 0, offsetHeight: 0, rulerOffsetTop: 0}));
+	useEffect(() => {
+		const element = ruler.current;
+		const scroller = element?.closest<HTMLElement>(".scroller");
+		const update = () => {
+			if (!element || !scroller) {
+				return;
+			}
+			const computed = renderLimit({
+				scrollTop: scroller.scrollTop,
+				offsetHeight: scroller.offsetHeight,
+				rulerOffsetTop: element.offsetTop,
+			});
+			setLimit((current) => nextLimit(current, computed));
+		};
+		update();
+		scroller?.addEventListener("scroll", update);
+		window.addEventListener("resize", update);
+		return () => {
+			scroller?.removeEventListener("scroll", update);
+			window.removeEventListener("resize", update);
+		};
+	}, [ruler]);
+	return limit;
+}
+
 /**
  * Upstream's left-bar FilesList: a flat run of rows for `parentId`'s children, each followed by its
- * own children's rows when expanded in `contextKey`. Expansion is browser-local and never synced.
+ * own children's rows when expanded. Expansion is account state keyed `leftbar__<section>__<top row>__<id8>`.
+ * The `windowed` root renders a ruler and limits its rows (and those under them) to the scroll window;
+ * `budget` is the rows a nested list may still render.
  */
 export function FilesListRows({
 	parentId,
 	depth,
-	contextKey,
+	section,
+	topUniqueId,
+	windowed = false,
+	budget,
+	limit: forcedLimit,
 }: {
 	parentId: string | null;
 	depth: number;
-	contextKey: string;
+	section: LeftBarSectionName;
+	/** The enclosing top-level row's unique id; top-level rows use their own. */
+	topUniqueId?: string;
+	windowed?: boolean;
+	budget?: number;
+	/** Overrides the measured limit (tests). */
+	limit?: number;
 }) {
 	const {data: nodes} = useChildren(parentId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
-	const expandedIds = useLeftBarExpansionStore((state) => state.expansions[contextKey]);
+	const keys = useLeftBarExpansionStore((state) => state.keys);
+	const ruler = useRef<HTMLDivElement>(null);
+	const measured = useRenderLimit(ruler);
+	const available = windowed ? (forcedLimit ?? measured) : (budget ?? Number.POSITIVE_INFINITY);
 
-	return nodes
-		?.filter((node) => isListed(node, showCompleted))
-		.map((node) => (
-			<FilesListBranch
-				contextKey={contextKey}
-				depth={depth}
-				expanded={expandedIds?.includes(node.id) ?? false}
-				key={node.id}
-				node={node}
-			/>
-		));
+	const listed = nodes?.filter((node) => isListed(node, showCompleted)).slice(0, Math.max(0, available));
+	return (
+		<>
+			{windowed ? <div ref={ruler} /> : null}
+			{listed?.map((node, index) => {
+				const top = topUniqueId ?? pageUniqueId(node.id);
+				return (
+					<FilesListBranch
+						budget={available - index - 1}
+						depth={depth}
+						expanded={keys.has(leftBarExpansionKey(section, top, node.id))}
+						key={node.id}
+						node={node}
+						section={section}
+						topUniqueId={top}
+					/>
+				);
+			})}
+		</>
+	);
 }
 
 /**
@@ -231,13 +306,17 @@ export function FilesListRows({
 const FilesListBranch = memo(function FilesListBranch({
 	node,
 	depth,
-	contextKey,
+	section,
+	topUniqueId,
 	expanded,
+	budget,
 }: {
 	node: NodeResponse;
 	depth: number;
-	contextKey: string;
+	section: LeftBarSectionName;
+	topUniqueId: string;
 	expanded: boolean;
+	budget: number;
 }) {
 	const toggle = useLeftBarExpansionStore((state) => state.toggle);
 	const current = useOutlineStore((state) => state.zoomedNodeId === node.id);
@@ -253,7 +332,10 @@ const FilesListBranch = memo(function FilesListBranch({
 						expanded,
 						noChildren: !rowHasChildren(node, showCompleted),
 						onToggle: () => {
-							toggle(contextKey, node.id);
+							// Upstream skips items with no children at all (completed ones count).
+							if (node.hasChildren !== false) {
+								toggle(leftBarExpansionKey(section, topUniqueId, node.id));
+							}
 						},
 					}),
 					completed: node.completedAt !== null,
@@ -265,7 +347,15 @@ const FilesListBranch = memo(function FilesListBranch({
 				},
 				rowState,
 			)}
-			{expanded ? <FilesListRows contextKey={contextKey} depth={depth + 1} parentId={node.id} /> : null}
+			{expanded ? (
+				<FilesListRows
+					budget={budget}
+					depth={depth + 1}
+					parentId={node.id}
+					section={section}
+					topUniqueId={topUniqueId}
+				/>
+			) : null}
 		</>
 	);
 });

@@ -11,11 +11,21 @@ import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon, triangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {FilesListRows, LeftBarRow, filesListArrow, rowName, useNodeRowName} from "./left-bar-files-list.js";
-import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
+import {leftBarExpansionKey, pageUniqueId, useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
+import {domkitInputClass} from "./domkit-input.js";
+import {create} from "zustand";
 import {rowHasChildren} from "../tree-ops.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 
 const STARRED_CONTEXT = "leftbar__starred__";
+
+/** The key of the starred search being renamed inline, if any. */
+const useStarRenameStore = create<{renaming: string | null; setRenaming: (key: string | null) => void}>((set) => ({
+	renaming: null,
+	setRenaming: (renaming) => {
+		set({renaming});
+	},
+}));
 
 /** The current zoom/search location is this star's location. */
 function useIsCurrent(star: Star): boolean {
@@ -41,6 +51,19 @@ export function StarredRowControls({star}: {star: Star}) {
 	const startEditing = useOutlineStore((state) => state.startEditing);
 	return (
 		<>
+			{star.query === null ? null : (
+				<IconButton
+					className="hover:!bg-quaternary"
+					onClick={(event) => {
+						swallow(event);
+						useStarRenameStore.getState().setRenaming(star.key);
+					}}
+					shape="square"
+					size="sm"
+				>
+					<FaIcon icon="fal:pencil" />
+				</IconButton>
+			)}
 			<IconButton
 				className="!text-spark hover:!bg-quaternary"
 				onClick={(event) => {
@@ -81,9 +104,9 @@ export function StarredRowControls({star}: {star: Star}) {
 function StarredPageRow({star}: {star: Star}) {
 	const {data: node} = useNode(star.nodeId);
 	const current = useIsCurrent(star);
-	const expansionKey = star.nodeId ?? "None";
-	const expanded =
-		useLeftBarExpansionStore((state) => state.expansions[STARRED_CONTEXT])?.includes(expansionKey) ?? false;
+	const topUniqueId = pageUniqueId(star.nodeId);
+	const expansionKey = leftBarExpansionKey("starred", topUniqueId, star.nodeId);
+	const expanded = useLeftBarExpansionStore((state) => state.keys.has(expansionKey));
 	const toggle = useLeftBarExpansionStore((state) => state.toggle);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const customName = star.name !== null && star.name !== "";
@@ -97,7 +120,10 @@ function StarredPageRow({star}: {star: Star}) {
 					expanded,
 					noChildren: star.nodeId !== null && node !== undefined && !rowHasChildren(node, showCompleted),
 					onToggle: () => {
-						toggle(STARRED_CONTEXT, expansionKey);
+						// Upstream skips items with no children at all.
+						if (node?.hasChildren !== false) {
+							toggle(expansionKey);
+						}
 					},
 				})}
 				completed={(node?.completedAt ?? null) !== null}
@@ -108,8 +134,47 @@ function StarredPageRow({star}: {star: Star}) {
 				href={locationUrl({id: star.nodeId})}
 				label={name}
 			/>
-			{expanded ? <FilesListRows contextKey={STARRED_CONTEXT} depth={1} parentId={star.nodeId} /> : null}
+			{expanded ? (
+				<FilesListRows depth={1} parentId={star.nodeId} section="starred" topUniqueId={topUniqueId} />
+			) : null}
 		</>
+	);
+}
+
+/** Upstream's inline rename: a small DomKit input; Enter commits, Escape and blur cancel. */
+export function StarRenameInput({
+	initial,
+	onCommit,
+	onCancel,
+}: {
+	initial: string;
+	onCommit: (value: string) => void;
+	onCancel: () => void;
+}) {
+	return (
+		<div className="flex flex-col w-full">
+			<input
+				ref={(element) => {
+					element?.focus();
+				}}
+				className={domkitInputClass("small")}
+				defaultValue={initial}
+				onBlur={onCancel}
+				onClick={(event) => {
+					event.preventDefault();
+				}}
+				onKeyDown={(event) => {
+					if (event.key === "Escape") {
+						event.stopPropagation();
+						onCancel();
+					} else if (event.key === "Enter") {
+						event.preventDefault();
+						onCommit(event.currentTarget.value);
+					}
+				}}
+				type="text"
+			/>
+		</div>
 	);
 }
 
@@ -118,6 +183,9 @@ function StarredSearchRow({star}: {star: Star}) {
 	const {data: node} = useNode(star.nodeId);
 	const current = useIsCurrent(star);
 	const richName = useNodeRowName(node);
+	const renaming = useStarRenameStore((state) => state.renaming === star.key);
+	const setRenaming = useStarRenameStore((state) => state.setRenaming);
+	const {renameStar} = useStarActions();
 	return (
 		<LeftBarRow
 			arrow={
@@ -132,12 +200,25 @@ function StarredSearchRow({star}: {star: Star}) {
 			expanded={false}
 			href={locationUrl({id: star.nodeId, query: star.query})}
 			label={
-				<span>
-					{label(star, () => "")}{" "}
-					<span className="font-light text-[.8em] opacity-75">
-						in {star.nodeId === null ? rowName({text: "Home"}) : richName}
+				renaming ? (
+					<StarRenameInput
+						initial={star.name ?? ""}
+						onCancel={() => {
+							setRenaming(null);
+						}}
+						onCommit={(value) => {
+							void renameStar(star.key, value);
+							setRenaming(null);
+						}}
+					/>
+				) : (
+					<span>
+						{label(star, () => "")}{" "}
+						<span className="font-light text-[.8em] opacity-75">
+							in {star.nodeId === null ? rowName({text: "Home"}) : richName}
+						</span>
 					</span>
-				</span>
+				)
 			}
 		/>
 	);
@@ -281,6 +362,7 @@ export function NewNodeButton() {
 	return (
 		<div className="mt-ml mx-xl">
 			<button
+				tabIndex={0}
 				className="w-full cursor-pointer button"
 				onClick={() => {
 					createNode.mutate(
@@ -292,7 +374,6 @@ export function NewNodeButton() {
 						},
 					);
 				}}
-				type="button"
 			>
 				<span className="">
 					<FaIcon className="mr-xs opacity-50" icon="fal:plus" /> New node
@@ -306,6 +387,10 @@ export function NewNodeButton() {
 /** Records each visit to a starred location; its own component, so a zoom re-renders nothing else in the left bar. */
 function RecordStarViews() {
 	useRecordStarViews();
+	const load = useLeftBarExpansionStore((state) => state.load);
+	useEffect(() => {
+		void load();
+	}, [load]);
 	return null;
 }
 
@@ -318,7 +403,7 @@ function LeftBarSections() {
 			<StarredSection />
 
 			<LeftBarSection contextKey="leftbar__home__" name={<HomeSectionName />}>
-				<FilesListRows contextKey="leftbar__home__" depth={0} parentId={null} />
+				<FilesListRows depth={0} parentId={null} section="home" windowed />
 			</LeftBarSection>
 			<NewNodeButton />
 		</>

@@ -17,6 +17,10 @@ const FLUSH_DELAY_MS = 500;
 
 const PatchSchema = z.object({changes: z.record(z.string(), z.boolean())});
 
+const LeftBarPatchSchema = z.object({
+	changes: z.record(z.string().regex(/^leftbar__(home|starred)__/u), z.boolean()),
+});
+
 export function createExpansionRouter(): Hono<AppEnv> {
 	const router = new Hono<AppEnv>();
 	let pending: Record<string, boolean> = {};
@@ -51,6 +55,38 @@ export function createExpansionRouter(): Hono<AppEnv> {
 		clearTimeout(timer);
 		timer = setTimeout(() => {
 			flush(adapter);
+		}, FLUSH_DELAY_MS);
+		return c.body(null, 204);
+	});
+
+	let pendingRaw: Record<string, boolean> = {};
+	let rawTimer: ReturnType<typeof setTimeout> | undefined;
+
+	router.get("/left-bar", async (c) => {
+		const adapter = c.get("ctx").internalAdapter?.();
+		if (!adapter) {
+			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+		}
+		return c.json({keys: await adapter.getLeftBarExpansionKeys()});
+	});
+
+	router.patch("/left-bar", async (c) => {
+		const adapter = c.get("ctx").internalAdapter?.();
+		if (!adapter) {
+			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+		}
+		const body = LeftBarPatchSchema.safeParse(await c.req.json().catch(() => {}));
+		if (!body.success) {
+			return c.json({error: "body must be {changes: {[leftbar__home__|leftbar__starred__ key]: boolean}}"}, 400);
+		}
+		pendingRaw = {...pendingRaw, ...body.data.changes};
+		clearTimeout(rawTimer);
+		rawTimer = setTimeout(() => {
+			const changes = pendingRaw;
+			pendingRaw = {};
+			adapter.setRawExpansionKeys(changes).catch((error: unknown) => {
+				console.error("Failed to push left-bar expansion changes", error);
+			});
 		}, FLUSH_DELAY_MS);
 		return c.body(null, 204);
 	});

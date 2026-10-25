@@ -37,6 +37,7 @@ const view: OutlineViewResponse = {
 /** What the API answers on page load, keyed by path. Anything else is a request this test does not expect. */
 const responses: Partial<Record<string, () => Response>> = {
 	"/api/v1/expansion": () => Response.json({expandedIds: ["alice"]}),
+	"/api/v1/expansion/left-bar": () => Response.json({keys: []}),
 	"/api/v1/home": () => Response.json({layoutMode: "bullets"}),
 	"/api/v1/preferences": () =>
 		Response.json({

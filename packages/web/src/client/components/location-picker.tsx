@@ -17,6 +17,7 @@ import {placePopper} from "./flyout/place-popper.js";
 import {popperTransform} from "./flyout/popper-transform.js";
 import {IconButton} from "./icon-button.js";
 import {POPUP_Z} from "./flyout/popover-box.js";
+import {domkitInputClass} from "./domkit-input.js";
 
 /** One ancestor shown in a location row's subtext, top-down, Home excluded. */
 export interface LocationCrumb {
@@ -56,26 +57,7 @@ export interface LocationPickerProps {
 const WRAPPER_CLASS = `[&_.flyout]:static [&_.flyout]:m-0 [&_.flyout]:min-w-[480px] [&_.flyout]:p-0
         [&_.flyout:empty]:hidden [&_.flyout.menu]:border-0 [&_.flyout.menu]:rounded-none `;
 
-// Upstream WF.DomKit.Input; its whitespace-only lines and 12-space indents are rebuilt here so no trailing space sits in the source.
-const INDENT = " ".repeat(12);
-const INPUT_CLASS = [
-	"block w-full box-border appearance-none p-m rounded-s",
-	INDENT,
-	INDENT,
-	`${INDENT}outline-none border border-solid border-primary bg-primary focus:border-tint`,
-	INDENT,
-	INDENT,
-	`${INDENT}text-s leading-s text-primary placeholder:text-tertiary selection:bg-selected`,
-	`${INDENT}[&:-webkit-autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
-	`${INDENT}[&:-webkit-autofill]:[-webkit-text-fill-color:inherit]`,
-	`${INDENT}[&:-webkit-autofill]:border-tint`,
-	`${INDENT}[&:-webkit-autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
-	`${INDENT}[&:-webkit-autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
-	`${INDENT}[&:autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
-	`${INDENT}[&:autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
-	`${INDENT}[&:autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
-	INDENT,
-].join("\n");
+const INPUT_CLASS = domkitInputClass();
 
 const MENU_MAX_HEIGHT = 240;
 

@@ -43,7 +43,7 @@ beforeAll(() => {
 			createElement(
 				QueryClientProvider,
 				{client: queryClient},
-				createElement(FilesListRows, {parentId: null, depth: 0, contextKey: "home"}),
+				createElement(FilesListRows, {parentId: null, depth: 0, section: "home"}),
 			),
 		);
 	});

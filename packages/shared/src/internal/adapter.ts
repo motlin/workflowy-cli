@@ -1418,7 +1418,27 @@ export class WorkflowyInternalAdapter {
 			return;
 		}
 		await this.session();
-		const expansionsDelta = Object.fromEntries(entries.map(([id, expanded]) => [expansionKey(id), expanded]));
+		await this.pushExpansionsDelta(
+			Object.fromEntries(entries.map(([id, expanded]) => [expansionKey(id), expanded])),
+		);
+	}
+
+	/** The account's left-bar expansion keys (`leftbar__<section>__<context>__<id8>`), as stored, unresolved. */
+	async getLeftBarExpansionKeys(): Promise<string[]> {
+		const keys = await this.expandedKeys(false);
+		return [...keys].filter((key) => key.startsWith("leftbar__")).toSorted();
+	}
+
+	/** Push expansion changes keyed by raw upstream keys, with no id-prefix mapping. */
+	async setRawExpansionKeys(changes: Record<string, boolean>): Promise<void> {
+		if (Object.keys(changes).length === 0) {
+			return;
+		}
+		await this.session();
+		await this.pushExpansionsDelta(changes);
+	}
+
+	private async pushExpansionsDelta(expansionsDelta: Record<string, boolean>): Promise<void> {
 		await this.pusher.pushAndPoll({expansionsDelta});
 		this.pushedDuringRefresh?.push(expansionsDelta);
 		const cached = this.loadExpandedKeys();

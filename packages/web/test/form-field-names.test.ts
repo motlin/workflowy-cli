@@ -31,8 +31,8 @@ function openingTag(source: string, start: number): string {
 }
 
 /** Every `<input>`, `<textarea>`, and `<select>` in the client lacking an `id` or `name` attribute, as `file:line`. */
-// The location picker's input is an exact upstream clone (class, type, placeholder, value only), so it carries no name.
-const UPSTREAM_CLONE_FILES = new Set(["components/location-picker.tsx"]);
+// The location picker and left-bar rename inputs are exact upstream clone (class, type, placeholder, value only), so it carries no name.
+const UPSTREAM_CLONE_FILES = new Set(["components/location-picker.tsx", "components/left-sidebar.tsx"]);
 
 function unnamedFormFields(): string[] {
 	const unnamed: string[] = [];

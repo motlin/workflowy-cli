@@ -13,6 +13,10 @@ function setup(configured: boolean) {
 	const adapter = {
 		getExpandedIds: vi.fn<WorkflowyInternalAdapter["getExpandedIds"]>(async () => Promise.resolve([ALPHA])),
 		setExpanded: vi.fn<WorkflowyInternalAdapter["setExpanded"]>(async () => Promise.resolve()),
+		getLeftBarExpansionKeys: vi.fn<WorkflowyInternalAdapter["getLeftBarExpansionKeys"]>(async () =>
+			Promise.resolve(["leftbar__home__None/x/__abcdefgh"]),
+		),
+		setRawExpansionKeys: vi.fn<WorkflowyInternalAdapter["setRawExpansionKeys"]>(async () => Promise.resolve()),
 	};
 	const ctx = {
 		internalAuth: configured ? {} : undefined,
@@ -24,9 +28,9 @@ function setup(configured: boolean) {
 		await next();
 	});
 	app.route("/api/v1/expansion", createExpansionRouter());
-	const request = async (method: string, body?: unknown, query = "") => {
+	const request = async (method: string, body?: unknown, query = "", path = "") => {
 		const res = await app.fetch(
-			new Request(`http://x/api/v1/expansion${query}`, {
+			new Request(`http://x/api/v1/expansion${path}${query}`, {
 				method,
 				headers: {"content-type": "application/json"},
 				...(body === undefined ? {} : {body: JSON.stringify(body)}),
@@ -124,6 +128,44 @@ describe("PATCH /api/v1/expansion", () => {
 		await expect(request("PATCH", {changes: {[ALPHA]: true}})).resolves.toStrictEqual({
 			status: 503,
 			body: {error: NOT_CONFIGURED},
+		});
+	});
+});
+
+describe("/api/v1/expansion/left-bar", () => {
+	it("lists the adapter's left-bar keys", async () => {
+		const {request} = setup(true);
+
+		await expect(request("GET", undefined, "", "/left-bar")).resolves.toStrictEqual({
+			status: 200,
+			body: {keys: ["leftbar__home__None/x/__abcdefgh"]},
+		});
+	});
+
+	it("pushes raw keys once, 500ms after the last PATCH", async () => {
+		const {adapter, request} = setup(true);
+
+		const first = await request("PATCH", {changes: {"leftbar__home__None/x/__abcdefgh": true}}, "", "/left-bar");
+		await vi.advanceTimersByTimeAsync(499);
+		const before = adapter.setRawExpansionKeys.mock.calls.length;
+		await vi.advanceTimersByTimeAsync(1);
+
+		expect({first, before, calls: adapter.setRawExpansionKeys.mock.calls}).toStrictEqual({
+			first: {status: 204, body: null},
+			before: 0,
+			calls: [[{"leftbar__home__None/x/__abcdefgh": true}]],
+		});
+	});
+
+	it("rejects keys that are not left-bar keys", async () => {
+		const {adapter, request} = setup(true);
+
+		const res = await request("PATCH", {changes: {main__abc: true}}, "", "/left-bar");
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect({status: res.status, calls: adapter.setRawExpansionKeys.mock.calls}).toStrictEqual({
+			status: 400,
+			calls: [],
 		});
 	});
 });

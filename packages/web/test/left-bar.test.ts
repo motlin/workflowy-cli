@@ -38,7 +38,7 @@ const nodesById: Record<string, {id: string; name: string; completedAt: null}> =
 vi.mock("../src/client/hooks/use-starred.js", () => ({
 	STARS_UNAVAILABLE_TOOLTIP: "Stars need Workflowy login",
 	useRecordStarViews: () => {},
-	useStarActions: () => ({toggleStar: toggleStarMock}),
+	useStarActions: () => ({toggleStar: toggleStarMock, renameStar: async () => Promise.resolve()}),
 	useStarredLocations: () => starred,
 	useStars: () => ({stars: [], unavailable: false}),
 }));
@@ -62,6 +62,7 @@ const {
 	LeftBarSection,
 	NewNodeButton,
 	StarredRowControls,
+	StarRenameInput,
 	StarredSection,
 	TodayRow,
 	applyBodyOffset,
@@ -251,7 +252,7 @@ describe("NewNodeButton", () => {
 	it("renders upstream's pill button markup", () => {
 		const html = renderToStaticMarkup(createElement(NewNodeButton)).replace(/ d="[^"]*"/u, "");
 		expect(html).toBe(
-			'<div class="mt-ml mx-xl"><button class="w-full cursor-pointer button" type="button"><span class="">' +
+			'<div class="mt-ml mx-xl"><button tabindex="0" class="w-full cursor-pointer button"><span class="">' +
 				'<svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="plus" class="svg-inline--fa fa-plus fa-1x mr-xs opacity-50" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor"></path></svg>' +
 				" New node</span></button></div>",
 		);
@@ -361,11 +362,12 @@ describe("Starred section", () => {
 		]);
 	});
 
-	it("gives a search row only the star control", () => {
+	it("gives a search row a pencil then the star control", () => {
 		const html = renderToStaticMarkup(
 			createElement(StarredRowControls, {star: star({key: "p_x", nodeId: "p", query: "x"})}),
 		);
 		expect([...html.matchAll(/class="([^"]*iconButton[^"]*)"/gu)].map((match) => match[1])).toStrictEqual([
+			"hover:!bg-quaternary iconButton sm shape-square",
 			STAR_CLASS,
 		]);
 	});
@@ -382,7 +384,7 @@ describe("Starred section", () => {
 	it("unstars the row's location from the star control without following the link", () => {
 		toggleStarMock.mockClear();
 		const click = event();
-		controls(star({key: "p_x", nodeId: "p", query: "x"}))[0]?.props.onClick(click);
+		controls(star({key: "p_x", nodeId: "p", query: "x"}))[1]?.props.onClick(click);
 		expect({
 			calls: toggleStarMock.mock.calls,
 			prevented: click.preventDefault.mock.calls.length,
@@ -404,6 +406,43 @@ describe("Starred section", () => {
 			navigate: [["/#/p"]],
 			payloads: [{parent_id: "p", name: "", position: 0}],
 			editing: [["new-id"]],
+		});
+	});
+});
+
+describe("Starred search rename", () => {
+	it("renders a small DomKit text input", () => {
+		const html = renderToStaticMarkup(
+			createElement(StarRenameInput, {initial: "Old", onCommit: () => {}, onCancel: () => {}}),
+		);
+		expect({
+			wrapper: html.startsWith('<div class="flex flex-col w-full"><input'),
+			text: html.includes('type="text"') && html.includes('value="Old"'),
+			small: html.includes("p-m rounded-s py-xs px-s"),
+		}).toStrictEqual({wrapper: true, text: true, small: true});
+	});
+
+	it("renames on Enter and cancels on Escape or blur", () => {
+		const onCommit = vi.fn<(value: string) => void>();
+		const onCancel = vi.fn<() => void>();
+		const root = StarRenameInput({initial: "Old", onCommit, onCancel}) as {
+			props: {children: {props: {onKeyDown: (e: unknown) => void; onBlur: () => void}}};
+		};
+		const {onKeyDown, onBlur} = root.props.children.props;
+		const key = (name: string) => ({
+			key: name,
+			preventDefault: () => {},
+			stopPropagation: () => {},
+			currentTarget: {value: "New"},
+		});
+		onKeyDown(key("Enter"));
+		const afterEnter = [onCommit.mock.calls, onCancel.mock.calls.length];
+		onKeyDown(key("Escape"));
+		onBlur();
+		expect({afterEnter, commits: onCommit.mock.calls.length, cancels: onCancel.mock.calls.length}).toStrictEqual({
+			afterEnter: [[["New"]], 0],
+			commits: 1,
+			cancels: 2,
 		});
 	});
 });
