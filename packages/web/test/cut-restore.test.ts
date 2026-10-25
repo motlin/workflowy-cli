@@ -92,6 +92,7 @@ describe("pasteSteps", () => {
 					return Promise.resolve();
 				},
 				copyFromCache: async () => Promise.resolve(undefined),
+				mirror: async () => Promise.resolve(undefined),
 				fallbackCopy: async (stepIndex, index) => {
 					log.push(`fallback ${stepIndex}@${index}`);
 					return Promise.resolve(`new${stepIndex}`);

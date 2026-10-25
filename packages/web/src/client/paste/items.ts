@@ -13,13 +13,17 @@ const PASTE_ITEM_LIMIT = 10_000;
 export type ItemPasteStep =
 	| {kind: "restore"; shortId: string; id: string}
 	/** `id` is the full id of the cached row to duplicate, or null when it is not cached. */
-	| {kind: "copy"; shortId: string; id: string | null};
+	| {kind: "copy"; shortId: string; id: string | null}
+	/** A mirrored original, or a mirror, pastes as a new mirror of `originalId` (upstream `mirrorProjectTree`). */
+	| {kind: "mirror"; shortId: string; originalId: string};
 
 export interface ItemPasteLookup {
 	/** The full id of a row the last cut removed that is still waiting to be pasted. */
 	cutId: (shortId: string) => string | undefined;
 	/** The full id of a cached row with this short id. */
 	resolve: (shortId: string) => string | undefined;
+	/** The original a cached row mirrors, or itself when it is an original with mirrors; undefined for a plain row. */
+	mirrorOriginal?: (id: string) => string | undefined;
 }
 
 /**
@@ -41,15 +45,18 @@ export function planItemPaste(html: string, lookup: ItemPasteLookup): ItemPasteS
 	return tops.map((element): ItemPasteStep => {
 		const shortId = element.getAttribute("data-wfid") ?? "";
 		const cut = lookup.cutId(shortId);
-		return cut === undefined
-			? {kind: "copy", shortId, id: lookup.resolve(shortId) ?? null}
-			: {kind: "restore", shortId, id: cut};
+		if (cut !== undefined) {
+			return {kind: "restore", shortId, id: cut};
+		}
+		const id = lookup.resolve(shortId) ?? null;
+		const originalId = id === null ? undefined : lookup.mirrorOriginal?.(id);
+		return originalId === undefined ? {kind: "copy", shortId, id} : {kind: "mirror", shortId, originalId};
 	});
 }
 
 /** Whether every step can run from the model alone (a copy needs its row cached). */
 export function stepsRunnable(steps: readonly ItemPasteStep[]): boolean {
-	return steps.every((step) => step.kind === "restore" || step.id !== null);
+	return steps.every((step) => step.kind !== "copy" || step.id !== null);
 }
 
 /** The cached row whose id ends with `shortId`, scanning every cached children list. */
@@ -91,6 +98,8 @@ export interface PasteStepsIo {
 	restore: (step: Extract<ItemPasteStep, {kind: "restore"}>, index: number) => Promise<void>;
 	/** Duplicates a cached row at `index`; resolves to the new id. */
 	copyFromCache: (id: string, index: number) => Promise<string | undefined>;
+	/** Mirrors the original at `index`; resolves to the new mirror's id. */
+	mirror: (originalId: string, index: number) => Promise<string | undefined>;
 	/** Pastes the html's copy of the `stepIndex`th top row at `index`; resolves to the new id. */
 	fallbackCopy: (stepIndex: number, index: number) => Promise<string | undefined>;
 }
@@ -130,6 +139,9 @@ export async function pasteSteps(
 				// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
 				lastId = (await io.fallbackCopy(stepIndex, at)) ?? lastId;
 			}
+		} else if (step.kind === "mirror") {
+			// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
+			lastId = (await io.mirror(step.originalId, at)) ?? lastId;
 		} else if (step.id !== null) {
 			// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
 			lastId = (await io.copyFromCache(step.id, at)) ?? lastId;
@@ -137,4 +149,13 @@ export async function pasteSteps(
 		at += 1;
 	}
 	return {unmovable: false, lastId, fellBack};
+}
+
+/** What a cached row mirrors: its original for a mirror, itself for an original with mirrors, else undefined. */
+export function mirrorOriginalFromCache(queryClient: QueryClient, id: string): string | undefined {
+	const node = readNode(queryClient, id);
+	if (node?.isMirror === true) {
+		return node.originalNodeId ?? undefined;
+	}
+	return node?.hasMirrors === true ? id : undefined;
 }

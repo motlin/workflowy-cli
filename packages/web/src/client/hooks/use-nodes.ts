@@ -1195,6 +1195,26 @@ async function mirrorNodes(request: MirrorNodesRequest): Promise<NodeResponse[]>
 	return data.nodes;
 }
 
+/** Mirrors `originalId` under `parentId` at `index` inside the open undo step (paste of a mirrored row); the new id. */
+export async function mirrorNodeAt(
+	queryClient: QueryClient,
+	originalId: string,
+	parentId: string | null,
+	index: number,
+): Promise<string | undefined> {
+	const slot = holdUndoSlot();
+	try {
+		const [node] = await mirrorNodes({item_ids: [originalId], parent_id: parentId, index});
+		slot.settle(
+			toUndoOps({kind: "mirror", nodeIds: node === undefined ? [] : [node.id], parentId, index}, queryClient),
+		);
+		return node?.id;
+	} catch (error) {
+		slot.settle([]);
+		throw error;
+	}
+}
+
 const mirrorNodesUndos = new HeldUndos<NodeResponse[], MirrorNodesRequest>();
 
 /** The new mirrors' ids are known only from the reply, so the ops are built then. */

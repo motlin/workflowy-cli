@@ -23,11 +23,12 @@ import {activePaneView, outlineActions} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {captureOutlineView, holdUndoSlot, runInUndoBatch} from "../undo-batch.js";
 import {usePlainPasteKey} from "./use-plain-paste-key.js";
-import {restoreNode, toggleComplete, useDeleteNode, useUpdateNode} from "./use-nodes.js";
+import {mirrorNodeAt, restoreNode, toggleComplete, useDeleteNode, useUpdateNode} from "./use-nodes.js";
 import {cutEntryFor, forgetCut} from "../cut-registry.js";
 import {
 	CUT_PASTE_WARNING,
 	copyTreeFromCache,
+	mirrorOriginalFromCache,
 	pasteSteps,
 	planItemPaste,
 	resolveShortId,
@@ -79,6 +80,7 @@ async function pasteItemSteps(
 			forgetCut(step.shortId);
 			hideBanner();
 		},
+		mirror: async (originalId, at) => mirrorNodeAt(queryClient, originalId, parentId, at),
 		copyFromCache: async (id, at) => createOne(copyTreeFromCache(queryClient, id), at),
 		fallbackCopy: async (stepIndex, at) => createOne(copyTrees[stepIndex], at),
 	});
@@ -177,6 +179,7 @@ export function useNamePaste({
 				: planItemPaste(html, {
 						cutId: (shortId) => cutEntryFor(shortId)?.id,
 						resolve: (shortId) => resolveShortId(queryClient, shortId),
+						mirrorOriginal: (id) => mirrorOriginalFromCache(queryClient, id),
 					});
 			if (itemSteps !== null && "alert" in itemSteps) {
 				showAlert(itemSteps.alert, "Error");

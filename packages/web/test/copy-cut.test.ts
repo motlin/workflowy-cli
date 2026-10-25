@@ -6,7 +6,10 @@ import {planCut, cutBannerText, selectedMarkup} from "../src/client/copy-cut-pla
 import {clearCutRegistry, cutEntryFor} from "../src/client/cut-registry.js";
 import {linkParents} from "../src/client/export-format.js";
 import type {ExportItem} from "../src/client/export-format.js";
+import {searchFilter} from "../src/client/search-filter.js";
+import {highlightSearchMatches} from "../src/client/highlight-html.js";
 import expected from "./fixtures/copy-format-expected.json" with {type: "json"};
+import searchExpected from "./fixtures/copy-search-expected.json" with {type: "json"};
 
 function mk(shortId: string, name: string, note = "", children: ExportItem[] = []): ExportItem {
 	return {
@@ -224,5 +227,43 @@ describe("zoom-title copy and cut", () => {
 
 	it("cuts the markup substring", () => {
 		expect(selectedMarkup("Bravo <b>bold</b>", 2, 8)).toBe("avo <b>bo</b>");
+	});
+});
+
+describe("search-mode copy", () => {
+	const plainRow = mk("f858f5ef34bf", "Plain", "plain note", [mk("1dffea89a928", "P1"), mk("2dffea89a929", "P2")]);
+	linkParents([mk("b0adce4a2894", "Home", "", [plainRow])]);
+	const [p1, p2] = plainRow.children as [ExportItem, ExportItem];
+	const result = {
+		matchIds: [p1.id],
+		nameMatchIds: [p1.id],
+		noteMatchIds: [],
+		metaMatchIds: [],
+		ancestorIds: [plainRow.id],
+		halfExpandedIds: [plainRow.id],
+		rootHalfExpanded: false,
+		completedMatchCount: 0,
+		matchCount: 1,
+		revealsCompleted: false,
+	};
+
+	it("copies only the matching descendants of a search-expanded row, with highlights", () => {
+		const search = searchFilter(result, new Set(), new Map());
+		const childFilter = makeChildFilter({expandedIds: new Set(), zoomedId: null, showCompleted: false, search});
+		const options = {
+			renderName: (html: string) => highlightSearchMatches(html, "P1"),
+			renderNote: (html: string) => highlightSearchMatches(html, "P1"),
+		};
+		expect(planCopy([plainRow], childFilter, options)).toStrictEqual({
+			html: searchExpected.html,
+			text: searchExpected.text,
+		});
+		expect(p2.name).toBe("P2");
+	});
+
+	it("honours a search expansion override that collapses the row", () => {
+		const search = searchFilter(result, new Set(), new Map([[plainRow.id, false]]));
+		const childFilter = makeChildFilter({expandedIds: new Set(), zoomedId: null, showCompleted: false, search});
+		expect(childFilter(plainRow)).toStrictEqual([]);
 	});
 });

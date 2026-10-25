@@ -1,0 +1,4 @@
+{
+	"html": "\n<div>\n<span class=\"name\" style=\"color:#333; \" data-wfid=\"f858f5ef34bf\" data-parent=\"b0adce4a2894\"><span class=\"innerContentContainer\">Plain</span></span>\n<br>\n<span class=\"note\" style=\"font-size:12px; color:#666; \"><span class=\"innerContentContainer\">plain note</span></span>\n<ul>\n  <li>\n    <div class=\"name\" style=\"color:#333; \" data-chid=\"1dffea89a928\" data-parent=\"f858f5ef34bf\"><span class=\"innerContentContainer\"><span class=\"contentMatch\">P1</span></span></div>\n  </li>\n</ul></div>",
+	"text": "Plain\n\nplain note\nP1"
+}

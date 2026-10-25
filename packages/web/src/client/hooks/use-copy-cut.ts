@@ -2,7 +2,14 @@ import {useEffect} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {selectionTextOffsets} from "../caret-dom.js";
-import {exportItemsFromCache, handleCopy, handleCut, handleTitleCopyCut, makeChildFilter} from "../copy-cut.js";
+import {
+	exportItemsFromCache,
+	handleCopy,
+	handleCut,
+	handleTitleCopyCut,
+	makeChildFilter,
+	searchFormatOptions,
+} from "../copy-cut.js";
 import type {CopyCutDeps, TitleSelection} from "../copy-cut.js";
 import {serializeEditorHtml} from "../editor-html.js";
 import {sortedIds} from "../item-selection.js";
@@ -11,6 +18,7 @@ import {cutUndoMatch} from "../cut-registry.js";
 import {hideBanner, showBanner} from "../stores/banner.js";
 import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import {activeCommandRegistry} from "./use-global-keymap.js";
+import {currentSearchFilter} from "./use-tree-search.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {useDeleteNode} from "./use-nodes.js";
 import {currentSelectionView, deleteSelectedItems, isTextTarget} from "./use-selection-keymap.js";
@@ -50,7 +58,15 @@ function depsFor(
 		items: (ids) => exportItemsFromCache(queryClient, ids),
 		get childFilter() {
 			const {expandedIds, zoomedNodeId, showCompleted} = activePaneView();
-			return makeChildFilter({expandedIds, zoomedId: zoomedNodeId, showCompleted});
+			return makeChildFilter({
+				expandedIds,
+				zoomedId: zoomedNodeId,
+				showCompleted,
+				search: currentSearchFilter(queryClient),
+			});
+		},
+		get format() {
+			return searchFormatOptions(currentSearchFilter(queryClient) === null ? "" : activePaneView().searchQuery);
 		},
 		canCut: (id) => {
 			const node = readNode(queryClient, id);

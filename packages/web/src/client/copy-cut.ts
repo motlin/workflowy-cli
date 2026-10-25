@@ -1,6 +1,9 @@
 import type {QueryClient} from "@tanstack/react-query";
 import {copyItemsHtml, copyItemsPlainText, linkParents} from "./export-format.js";
-import type {ChildAccessor, ExportItem} from "./export-format.js";
+import type {ChildAccessor, ExportItem, FormatOptions} from "./export-format.js";
+import {highlightSearchMatches} from "./highlight-html.js";
+import {isSearchExpanded} from "./search-filter.js";
+import type {SearchFilter} from "./search-filter.js";
 import {readChildren, readNode} from "./node-cache.js";
 import {sortByPriority} from "./tree-position.js";
 import {recordCut} from "./cut-registry.js";
@@ -12,6 +15,8 @@ export interface CopyCutDeps {
 	/** The rows as export trees (children loaded from the cache). */
 	items: (ids: readonly string[]) => ExportItem[];
 	childFilter: ChildAccessor;
+	/** Renderers for the copied name/note html (the search highlight); stored markup when absent. */
+	format?: FormatOptions;
 	canCut: (id: string) => boolean;
 	/** Child ids of a row, for the big-cut count; undefined when the subtree is not loaded. */
 	childIds: (id: string) => string[] | undefined;
@@ -24,8 +29,22 @@ export interface CopyCutDeps {
 }
 
 /** The clipboard half of a copy: the Formatted html and the line-per-name text. */
-export function planCopy(items: ExportItem[], childFilter: ChildAccessor): {html: string; text: string} {
-	return {html: copyItemsHtml(items, childFilter), text: copyItemsPlainText(items, childFilter)};
+export function planCopy(
+	items: ExportItem[],
+	childFilter: ChildAccessor,
+	options?: FormatOptions,
+): {html: string; text: string} {
+	return {html: copyItemsHtml(items, childFilter, options), text: copyItemsPlainText(items, childFilter, options)};
+}
+
+/** The copy renderers while a search is committed: matched words keep their `contentMatch` highlight. */
+export function searchFormatOptions(query: string): FormatOptions | undefined {
+	return query === ""
+		? undefined
+		: {
+				renderName: (html) => highlightSearchMatches(html, query),
+				renderNote: (html) => highlightSearchMatches(html, query),
+			};
 }
 
 /** Upstream's copy childFilter: rows keep children only when expanded or zoomed, minus hidden completed ones. */
@@ -33,11 +52,28 @@ export function makeChildFilter({
 	expandedIds,
 	zoomedId,
 	showCompleted,
+	search = null,
 }: {
 	expandedIds: ReadonlySet<string>;
 	zoomedId: string | null;
 	showCompleted: boolean;
+	/** The committed search: only the rows it renders are copied, under the rows it expands. */
+	search?: SearchFilter | null;
 }): ChildAccessor {
+	if (search !== null) {
+		const completedShown = showCompleted || search.result.revealsCompleted;
+		return (item) =>
+			item.id === zoomedId || isSearchExpanded(item.id, search)
+				? item.children.filter(
+						(child) =>
+							(!child.completed || completedShown) &&
+							(search.matchIds.has(child.id) ||
+								search.ancestorIds.has(child.id) ||
+								search.createdIds.has(child.id) ||
+								search.expansion.get(item.id) === true),
+					)
+				: [];
+	}
 	return (item) =>
 		item.id === zoomedId || expandedIds.has(item.id)
 			? item.children.filter((child) => !child.completed || showCompleted)
@@ -102,7 +138,7 @@ function writeClipboard(event: ClipboardLike, deps: CopyCutDeps, ids: readonly s
 	if (data === null) {
 		return false;
 	}
-	const {html, text} = planCopy(deps.items(ids), deps.childFilter);
+	const {html, text} = planCopy(deps.items(ids), deps.childFilter, deps.format);
 	data.setData("text/html", html);
 	data.setData("text/plain", text);
 	event.preventDefault();

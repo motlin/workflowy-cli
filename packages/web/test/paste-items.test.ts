@@ -1,7 +1,14 @@
 // @vitest-environment happy-dom
 import {describe, expect, it} from "vite-plus/test";
 import {QueryClient} from "@tanstack/react-query";
-import {planItemPaste, copyTreeFromCache, resolveShortId, stepsRunnable} from "../src/client/paste/items.js";
+import {
+	pasteSteps,
+	planItemPaste,
+	copyTreeFromCache,
+	resolveShortId,
+	stepsRunnable,
+} from "../src/client/paste/items.js";
+import type {ItemPasteLookup} from "../src/client/paste/items.js";
 import {PASTE_LIMIT_ALERT} from "../src/client/paste/apply.js";
 import {nodeKeys} from "../src/client/node-cache.js";
 import type {NodeResponse} from "../src/node-types.js";
@@ -72,6 +79,62 @@ describe("planItemPaste", () => {
 		const html = `<ul>${'<li><div class="name" data-wfid="aaaaaaaaaaaa">x</div></li>'.repeat(10_001)}</ul>`;
 		expect(planItemPaste(html, {cutId: () => {}, resolve: () => {}})).toStrictEqual({
 			alert: PASTE_LIMIT_ALERT,
+		});
+	});
+});
+
+describe("mirror-aware paste plan", () => {
+	const ORIG = "00000000-0000-0000-0000-0d8bb6069b31";
+	const MIRROR = "00000000-0000-0000-0000-70fab4089100";
+	const mirrorOriginal = (id: string): string | undefined => (id === ORIG || id === MIRROR ? ORIG : undefined);
+	const lookup: ItemPasteLookup = {
+		cutId: () => {},
+		resolve: (short: string) =>
+			short === "0d8bb6069b31" ? ORIG : short === "70fab4089100" ? MIRROR : `plain-${short}`,
+		mirrorOriginal,
+	};
+
+	it("pastes an original that has mirrors, and a mirror, as mirrors of the original", () => {
+		expect(planItemPaste(expected.a2_bravo.html, lookup)).toStrictEqual([
+			{kind: "mirror", shortId: "0d8bb6069b31", originalId: ORIG},
+			{kind: "mirror", shortId: "70fab4089100", originalId: ORIG},
+		]);
+	});
+
+	it("copies a plain row", () => {
+		expect(planItemPaste(expected.a2_bravo.html, {...lookup, mirrorOriginal: () => {}})).toStrictEqual([
+			{kind: "copy", shortId: "0d8bb6069b31", id: ORIG},
+			{kind: "copy", shortId: "70fab4089100", id: MIRROR},
+		]);
+	});
+
+	it("lets a cut row restore before any mirror rule", () => {
+		expect(
+			planItemPaste(expected.a2_bravo.html, {
+				...lookup,
+				cutId: (short) => (short === "0d8bb6069b31" ? ORIG : undefined),
+			}),
+		).toStrictEqual([
+			{kind: "restore", shortId: "0d8bb6069b31", id: ORIG},
+			{kind: "mirror", shortId: "70fab4089100", originalId: ORIG},
+		]);
+	});
+
+	it("runs mirror steps through the mirror effect in order", async () => {
+		const calls: string[] = [];
+		const steps = planItemPaste(expected.a2_bravo.html, lookup);
+		const result = await pasteSteps(Array.isArray(steps) ? steps : [], 3, {
+			restore: async () => {},
+			copyFromCache: async () => {},
+			fallbackCopy: async () => {},
+			mirror: async (originalId, at) => {
+				calls.push(`${originalId}@${at}`);
+				return Promise.resolve(`m${at}`);
+			},
+		});
+		expect({calls, result}).toStrictEqual({
+			calls: [`${ORIG}@3`, `${ORIG}@4`],
+			result: {unmovable: false, lastId: "m4", fellBack: false},
 		});
 	});
 });
