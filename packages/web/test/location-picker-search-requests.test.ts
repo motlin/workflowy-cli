@@ -17,11 +17,14 @@ const {nodeKeys} = await import("../src/client/node-cache.js");
 /** Each `/api/search/locations` request in order, with a resolver to answer it later. */
 let searches: {query: string; answer: (label?: string) => void}[];
 
+let relatedRequests: {nodeId: string; type: string}[];
+
 let root: Root | undefined;
 
 beforeEach(() => {
 	globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 	searches = [];
+	relatedRequests = [];
 	sessionStorage.clear();
 	vi.stubGlobal(
 		"fetch",
@@ -43,6 +46,15 @@ beforeEach(() => {
 							);
 						},
 					});
+				});
+			}
+			if (url === "/api/related") {
+				const body = JSON.parse(init?.body as string) as {nodeId: string; type: string};
+				relatedRequests.push(body);
+				return Response.json({
+					results: [
+						{id: "rel1", name: "Related <b>One</b>", note: null, distance: 0.2, path: ["Top", "Mid"]},
+					],
 				});
 			}
 			if (url.endsWith("/ancestors")) {
@@ -171,6 +183,34 @@ describe("Location picker options", () => {
 		await flush();
 		expect(document.querySelector("input[placeholder='Find location...']")).toBeNull();
 		expect(searches.map((search) => search.query)).toStrictEqual(["qz"]);
+	});
+});
+
+describe("Location picker related nodes", () => {
+	it("lists semantically related nodes for relatedToId when the filter is empty", async () => {
+		const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}});
+		const container = document.createElement("div");
+		document.body.append(container);
+		root = createRoot(container);
+		act(() => {
+			root?.render(createElement(QueryClientProvider, {client: queryClient}, createElement(LocationPickerHost)));
+			void useOutlineStore
+				.getState()
+				.openLocationPicker(
+					{forItemId: "row", headerText: "link to", relatedToId: "row", getFilter: () => ""},
+					{x: 0, y: 0},
+				);
+		});
+		await flush();
+		await flush();
+		const items = [...document.querySelectorAll("a.menuItem")];
+		expect({
+			requests: relatedRequests,
+			labels: items.map((item) => item.querySelector("[data-menu-item-label]")?.textContent),
+		}).toStrictEqual({
+			requests: [{nodeId: "row", type: "link-targets", limit: 8, threshold: 0.6}],
+			labels: ["Related One", 'New "" in: Notes', 'New "" in…'],
+		});
 	});
 });
 

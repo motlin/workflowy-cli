@@ -144,7 +144,13 @@ export function useInlineLinkPopup({
 			void useOutlineStore
 				.getState()
 				.openLocationPicker(
-					{forItemId: nodeId, headerText: "link to", subActionName: "", getFilter: () => filterRef.current},
+					{
+						forItemId: nodeId,
+						headerText: "link to",
+						subActionName: "",
+						getFilter: () => filterRef.current,
+						relatedToId: nodeId,
+					},
 					bracketAnchor(content, match.index),
 				)
 				.then(async (result) => {

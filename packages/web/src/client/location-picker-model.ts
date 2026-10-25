@@ -6,7 +6,15 @@ import {stripHtmlTags} from "@workflowy/shared/html";
 // two enabled create rows. The keyboard model lives in the shared menu reducer, which skips
 // `disabled` rows.
 
-export type PickerRowKind = "result" | "recent" | "starred" | "more" | "create-default" | "create-elsewhere" | "help";
+export type PickerRowKind =
+	| "result"
+	| "related"
+	| "recent"
+	| "starred"
+	| "more"
+	| "create-default"
+	| "create-elsewhere"
+	| "help";
 
 export type PickerIcon = "clock" | "star" | "ellipsis" | "plus" | "arrow-up" | null;
 
@@ -26,6 +34,8 @@ export interface PickerResult {
 export interface PickerRowsInput {
 	query: string;
 	results: readonly PickerResult[];
+	/** Local extra: semantically related nodes, listed first when the query is empty. */
+	related?: readonly PickerResult[];
 	/** Recent location ids, newest first. */
 	recentIds: readonly string[];
 	/** Starred page ids in `mostRecent` order (Home and searches already excluded). */
@@ -58,6 +68,13 @@ function escapeHtml(text: string): string {
 function locationRows(input: PickerRowsInput): PickerRow[] {
 	const listed = new Set<string>();
 	const rows: PickerRow[] = [];
+	for (const {id, labelHtml} of input.related ?? []) {
+		if (id === input.forItemId || listed.has(id)) {
+			continue;
+		}
+		listed.add(id);
+		rows.push({kind: "related", id, labelHtml, disabled: false, icon: null});
+	}
 	// Upstream checks the exclusion list only for starred locations, never for recents.
 	for (const id of input.recentIds) {
 		if (listed.has(id) || input.exists?.(id) === false) {

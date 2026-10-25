@@ -289,6 +289,8 @@ export interface LocationPickerOptions {
 	subActionName?: string;
 	/** A non-null filter hides the input and drives the query. */
 	getFilter?: () => string | null;
+	/** Local extra: with an empty query, lists nodes semantically related to this one above the other locations. */
+	relatedToId?: string;
 }
 
 /** `{id}` from a chosen location, `{createdId}` from create-and-move, undefined when closed. */

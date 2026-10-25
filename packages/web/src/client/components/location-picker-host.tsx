@@ -88,6 +88,53 @@ function useSearchHits(query: string): {hits: readonly SearchHit[]; pending: boo
 	return {hits: landed ? found.hits : EMPTY_HITS, pending: !landed && query.trim() !== ""};
 }
 
+interface RelatedHit {
+	id: string;
+	name: string | null;
+	path: string[];
+}
+
+const RELATED_LIMIT = 8;
+const RELATED_THRESHOLD = 0.6;
+const EMPTY_RELATED: readonly RelatedHit[] = [];
+
+/** Local extra: nodes semantically related to `nodeId` (`/api/related` link-targets), empty when unset or failed. */
+function useRelatedHits(nodeId: string | undefined): readonly RelatedHit[] {
+	const [found, setFound] = useState<{nodeId: string; hits: readonly RelatedHit[]}>({nodeId: "", hits: []});
+	useEffect(() => {
+		if (nodeId === undefined) {
+			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
+			return undefined;
+		}
+		const controller = new AbortController();
+		void (async () => {
+			const response = await fetch("/api/related", {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
+				body: JSON.stringify({
+					nodeId,
+					type: "link-targets",
+					limit: RELATED_LIMIT,
+					threshold: RELATED_THRESHOLD,
+				}),
+			});
+			if (!response.ok) {
+				return;
+			}
+			const {results} = await readJson<{results: RelatedHit[]}>(response);
+			setFound({nodeId, hits: results});
+		})().catch((error: unknown) => {
+			if (!controller.signal.aborted) {
+				throw error;
+			}
+		});
+		return () => {
+			controller.abort();
+		};
+	}, [nodeId]);
+	return found.nodeId === nodeId ? found.hits : EMPTY_RELATED;
+}
+
 /** One open picker: its step machine, rows and the create-and-move sub-action. */
 function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 	const queryClient = useQueryClient();
@@ -108,6 +155,8 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 					labelHtml,
 					ancestors: [],
 				}));
+
+	const relatedHits = useRelatedHits(picker.relatedToId);
 
 	const nameOf = (id: string): string =>
 		readNode(queryClient, id)?.name ?? stars.find((star) => star.nodeId === id)?.name ?? "";
@@ -133,11 +182,16 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 			id,
 			ancestorCrumbs(chains[index]?.data ?? []),
 		]),
+		...relatedHits.map((hit): [string, readonly LocationCrumb[]] => [
+			hit.id,
+			hit.path.map((name, index) => ({id: `${hit.id}-${index}`, name})),
+		]),
 		...hits.map((hit): [string, readonly LocationCrumb[]] => [hit.id, hit.ancestors]),
 	]);
 	const rows = buildPickerRows({
 		query,
 		results,
+		related: relatedHits.map((hit) => ({id: hit.id, labelHtml: plainLabel(hit.name ?? "") || "Untitled"})),
 		eager: searcher?.eager,
 		action: searcher?.action,
 		subActionName: picker.subActionName,
