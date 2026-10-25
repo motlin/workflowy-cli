@@ -24,6 +24,7 @@ function row(
 		completedAt: null,
 		layoutMode: null,
 		isMirror: false,
+		isBacklink: false,
 		...overrides,
 	};
 }

@@ -22,12 +22,20 @@ import type {RestoreInput, WorkflowyInternalAdapter, NewTree} from "@workflowy/s
 import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {HOME_TARGET} from "@workflowy/shared/types";
-import {hasInternalLink, internalLinkShortIds, isShortId, parseVirtualShortId} from "@workflowy/shared/workflowy";
+import {internalLinkShortIds, isShortId, parseVirtualShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
 import {z} from "zod";
 import type {Context} from "hono";
-import {childFlags, currentBacklinkSources, findReferencesRoot, notReferencesRoot} from "../backlinks.js";
+import {
+	backlinksNeedSync,
+	backlinkTargetsOfSource,
+	childFlags,
+	currentBacklinkSources,
+	findReferencesRoot,
+	notReferencesRoot,
+	referencesRootLabel,
+} from "../backlinks.js";
 import {loadCalendarInfo} from "../calendar-day.js";
 import {findFoundDates, timesDiffer} from "../calendar-found.js";
 import type {AppEnv, ServerContext} from "../context.js";
@@ -275,7 +283,8 @@ export async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeR
 	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
 	const metadata = loadInternalMetadataFields(ctx, [id]).get(id);
 	const calendar = loadCalendarInfo({db: ctx.db, cache: ctx.cacheService}, [node]).get(id);
-	return nodeToRestDto(node, {
+	const label = referencesRootLabel(ctx.db, id);
+	const dto = nodeToRestDto(node, {
 		hasMirrors: !node.mirror.isMirror && originalsWithMirrors(ctx, [id]).has(id),
 		hasChildren: flags.withChildren.size > 0,
 		hasUncompletedChildren: flags.withUncompletedChildren.size > 0,
@@ -285,6 +294,7 @@ export async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeR
 		metadata,
 		calendar,
 	});
+	return label === null ? dto : {...dto, isReferencesRoot: true, backlinksLabel: label};
 }
 
 /** A parent's children (Home's for `null`) as the REST API returns them, read from the cache. */
@@ -1000,10 +1010,18 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 				...(name === undefined ? {} : {name}),
 				...(note === undefined ? {} : {note}),
 			});
-			// Upstream's client keeps backlinks in step with a source's links; only a
-			// link added or removed can change them.
-			if (hasInternalLink(`${before?.name ?? ""} ${before?.note ?? ""} ${name ?? ""} ${note ?? ""}`)) {
-				await adapter.syncBacklinks([sourceId]);
+			// Upstream's client keeps backlinks in step with a source's links; the whole-tree
+			// sync runs only when a link moved or a linked target lacks its backlink.
+			const beforeText = `${before?.name ?? ""} ${before?.note ?? ""}`;
+			const afterText = `${name ?? before?.name ?? ""} ${note ?? before?.note ?? ""}`;
+			if (backlinksNeedSync(ctx, sourceId, beforeText, afterText)) {
+				const existing = backlinkTargetsOfSource(ctx.db, sourceId);
+				const synced = await adapter.syncBacklinks([sourceId]);
+				const touched = [
+					...synced.created.map((created) => created.targetId),
+					...synced.deleted.flatMap((itemId) => existing.get(itemId) ?? []),
+				];
+				effects = {...effects, backlinkTargets: [...new Set([...effects.backlinkTargets, ...touched])]};
 			}
 		}
 		if (changes.length > 0) {
@@ -1257,7 +1275,8 @@ nodesRouter.get("/:id/ancestors", (c) => {
 		...nodeToRestDto(node, {
 			hasChildren: true,
 			hasUncompletedChildren: true,
-			name: node.name,
+			// A references root reads "N Backlinks", never "Untitled" (upstream `displayLabel`).
+			name: referencesRootLabel(ctx.db, node.id) ?? node.name,
 			note: node.note,
 			calendar: calendar.get(node.id),
 		}),
@@ -1310,7 +1329,7 @@ async function readBacklinks(ctx: ServerContext, id: string): Promise<BacklinksR
 			if (!ancestor) {
 				break;
 			}
-			crumbs.unshift({id: ancestor.id, name: ancestor.name ?? ""});
+			crumbs.unshift({id: ancestor.id, name: referencesRootLabel(db, ancestor.id) ?? ancestor.name ?? ""});
 			currentId = ancestor.parentId;
 		}
 		return crumbs;

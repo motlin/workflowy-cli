@@ -50,6 +50,15 @@ class NoteTermNode extends TermNode {
 	}
 }
 
+/** A term matched only on backlink items (`in:backlink:"words"`). */
+class BacklinkTermNode extends TermNode {
+	override matches(item: SearchItem): MatchResult {
+		return item.isBacklink
+			? super.matches(item)
+			: {matches: false, nameMatches: false, noteMatches: false, metaMatches: false};
+	}
+}
+
 const MATCH_NOTHING = new MetaNode(() => false);
 
 /** An operator recognised by exact (lowercased) tokens. */
@@ -106,6 +115,7 @@ export const isComplete = exact(["is:complete"], completed, {
 /** Local alias for upstream's `-is:complete`. */
 export const isIncomplete = exact(["is:incomplete"], (item) => !completed(item) && notUnderCompleted(item));
 export const isMirror = exact(["is:mirror"], (item) => item.isMirror);
+export const isBacklink = exact(["is:backlink"], (item) => item.isBacklink);
 export const isTodo = exact(["is:todo", "is:task"], layout("todo", "check"));
 export const isDivider = exact(["is:divider"], layout("divider"));
 export const hasNote = exact(["has:note"], (item) => item.noteHtml.trim().length > 0);
@@ -170,5 +180,22 @@ export const inNote: SearchOperator = {
 	create(token) {
 		const term = normalizeForSearch(token.slice(IN_NOTE.length + 1, -1));
 		return term.length === 0 ? MATCH_NOTHING : new NoteTermNode(term, true);
+	},
+};
+
+const IN_BACKLINK = "in:backlink:";
+const IN_BACKLINK_TOKEN = /in:backlink:"([^"\r\n]+)"/iuy;
+
+export const inBacklink: SearchOperator = {
+	name: IN_BACKLINK,
+	parseToken(query, start) {
+		IN_BACKLINK_TOKEN.lastIndex = start;
+		const match = IN_BACKLINK_TOKEN.exec(query);
+		return match === null ? null : start + match[0].length;
+	},
+	matchesToken: (token) => /^in:backlink:"[^"\r\n]+"$/iu.test(token),
+	create(token) {
+		const term = normalizeForSearch(token.slice(IN_BACKLINK.length + 1, -1));
+		return term.length === 0 ? MATCH_NOTHING : new BacklinkTermNode(term, true);
 	},
 };

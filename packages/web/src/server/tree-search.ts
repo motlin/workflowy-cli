@@ -13,6 +13,8 @@ export interface TreeSearchRow {
 	completedAt: number | null;
 	layoutMode: string | null;
 	isMirror: boolean;
+	/** A backlink item under a references root; only `is:backlink` / `in:backlink:` queries load these rows. */
+	isBacklink: boolean;
 }
 
 export interface TreeSearchResult {
@@ -104,6 +106,7 @@ export function searchItem(row: TreeSearchRow, childCount: number, ancestorCompl
 		layoutMode: row.layoutMode,
 		childCount,
 		isMirror: row.isMirror,
+		isBacklink: row.isBacklink,
 		ancestorCompleted,
 	};
 	slots[slot] = item;

@@ -11,6 +11,7 @@ export function searchItem(nameHtml: string, noteHtml = "", overrides: Partial<S
 		layoutMode: null,
 		childCount: 0,
 		isMirror: false,
+		isBacklink: false,
 		ancestorCompleted: false,
 		...overrides,
 	};

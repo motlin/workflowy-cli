@@ -1,6 +1,8 @@
 import type {QueryClient} from "@tanstack/react-query";
+import {setNavigableRowsReader} from "../backlink-edit.js";
+import {isBacklinksSectionVisible} from "../backlinks.js";
 import {nodeKeys} from "../node-cache.js";
-import type {NodeResponse} from "../../node-types.js";
+import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
 import {activePaneView} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {rendersInstanceChildren, rendersInstanceRow} from "../render-window.js";
@@ -31,6 +33,25 @@ export function collectVisibleNodeIds(
 ): string[] {
 	const visibleIds: string[] = [];
 
+	/** The Backlinks section's rows after `parentId`'s children: its references row, then its items while it is open. */
+	const collectBacklinks = (parentId: string | null) => {
+		if (parentId === null || search !== null) {
+			return;
+		}
+		const backlinks = queryClient.getQueryData<BacklinksResponse>(nodeKeys.backlinks(parentId));
+		if (backlinks?.rootId == null || !isBacklinksSectionVisible(backlinks, showCompleted)) {
+			return;
+		}
+		visibleIds.push(backlinks.rootId);
+		if (expandedIds.has(backlinks.rootId)) {
+			for (const item of backlinks.items) {
+				if (showCompleted || item.node.completedAt === null) {
+					visibleIds.push(item.node.id);
+				}
+			}
+		}
+	};
+
 	const collectVisibleNodes = (parentId: string | null, instance: MirrorInstance | null) => {
 		const children = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
 
@@ -49,6 +70,7 @@ export function collectVisibleNodeIds(
 				collectVisibleNodes(node.id, childInstance(node, instance));
 			}
 		}
+		collectBacklinks(parentId);
 	};
 
 	collectVisibleNodes(zoomedNodeId, null);
@@ -67,6 +89,8 @@ export function currentNavigableIds(queryClient: QueryClient): string[] {
 		collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 	);
 }
+
+setNavigableRowsReader(currentNavigableIds);
 
 /**
  * The rendered rows under the zoom root with their depth and whether each is a parent, read from the store and

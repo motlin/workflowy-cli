@@ -94,3 +94,26 @@ function safeDecode(value: string): string {
 		return value;
 	}
 }
+
+function onContentLinkContextMenu(event: Event): void {
+	const anchor = event.target instanceof Element ? event.target.closest("a.contentLink") : null;
+	if (anchor === null) {
+		return;
+	}
+	anchor.setAttribute("contenteditable", "false");
+	setTimeout(() => {
+		anchor.removeAttribute("contenteditable");
+	}, 0);
+}
+
+/**
+ * Upstream's right-click fix for links inside an editing row: the anchor is briefly `contenteditable="false"` while the
+ * native context menu opens, so the browser offers its link items (Open link in new tab, Copy link address). Returns
+ * the uninstall function; the default is never prevented.
+ */
+export function installContentLinkContextMenu(doc: Document): () => void {
+	doc.addEventListener("contextmenu", onContentLinkContextMenu);
+	return () => {
+		doc.removeEventListener("contextmenu", onContentLinkContextMenu);
+	};
+}

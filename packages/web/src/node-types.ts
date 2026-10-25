@@ -43,6 +43,10 @@ export interface NodeResponse {
 	defaultToBottom?: boolean;
 	/** Upstream `metadata.table` of a table item: header-row flag, column widths by header cell id, cell color. */
 	table?: TableMetadata | null;
+	/** The node is a target's hidden references root (the zoom page of its Backlinks section). */
+	isReferencesRoot?: boolean;
+	/** For a references root: its read-only name, "N Backlinks". */
+	backlinksLabel?: string;
 	/** The node's 📆 Calendar role (root or date node), or null for any other node. */
 	calendar?: CalendarInfo | null;
 }

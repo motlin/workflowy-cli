@@ -157,3 +157,33 @@ describe("link:, in:note: and id: operators", () => {
 		expect(parseQuery("id:ffff").matches(row).matches).toBe(false);
 	});
 });
+
+describe("is:backlink and in:backlink: operators", () => {
+	const backlink = searchItem("Source S", "", {isMirror: true, isBacklink: true});
+	const plain = searchItem("Source S");
+
+	it("is:backlink is a meta match on backlink items only", () => {
+		expect(parseQuery("is:backlink").matches(backlink)).toStrictEqual({
+			matches: true,
+			nameMatches: false,
+			noteMatches: false,
+			metaMatches: true,
+		});
+		expect(parseQuery("is:backlink").matches(plain).matches).toBe(false);
+	});
+
+	it('in:backlink:"Sou" matches a backlink item by name prefix, not a plain item', () => {
+		expect(parseQuery('in:backlink:"Sou"').matches(backlink)).toStrictEqual({
+			matches: true,
+			nameMatches: true,
+			noteMatches: false,
+			metaMatches: false,
+		});
+		expect(parseQuery('in:backlink:"Sou"').matches(plain).matches).toBe(false);
+	});
+
+	it("an unquoted in:backlink:Source is a plain term", () => {
+		expect(parseQuery("in:backlink:Source").matches(backlink).matches).toBe(false);
+		expect(parseQuery("in:backlink:Source").matches(searchItem("in:backlink:Source")).matches).toBe(true);
+	});
+});

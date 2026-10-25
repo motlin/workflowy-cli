@@ -46,6 +46,7 @@ function toSearchRow(row: TreeSqlRow): TreeSearchRow {
 		completedAt: toMillis(row.completedAt),
 		layoutMode: row.layoutMode,
 		isMirror: row.isMirror === 1,
+		isBacklink: row.underReferencesRoot === 1,
 	};
 }
 
@@ -187,6 +188,7 @@ const ROW_FIELDS = [
 	"completedAt",
 	"layoutMode",
 	"isMirror",
+	"isBacklink",
 ] as const satisfies readonly (keyof TreeSearchRow)[];
 
 /** `old` when every field of `row` is unchanged, keeping caches keyed on the row object warm. */
@@ -514,4 +516,30 @@ export function loadTreeRows(database: Database, rootId: string | null): TreeSea
 	const members = new Set(subtreeIds(snapshot, rootId));
 	// Keep the whole-tree row order, which matches the SQL subtree query's (first-seen tag casing depends on it).
 	return snapshot.rows.filter((row) => members.has(row.id));
+}
+
+/** Whether `query` asks for backlink items, which are searchable only then (upstream `JP.isSearchable`). */
+export function queryNeedsBacklinks(query: string): boolean {
+	return /is:backlink|in:backlink/iu.test(query);
+}
+
+const REFERENCES_SEEDS = sql`SELECT id, 0 FROM node_content WHERE system_to = ${FAR_FUTURE_DATE} AND (id IN ${LIVE_REFERENCES_ROOTS} OR parent_id IN ${LIVE_REFERENCES_ROOTS})`;
+
+/**
+ * {@link loadTreeRows} plus the references roots and backlink items under the loaded rows, for a query that
+ * searches backlinks. The roots carry no text and the items are mirrors of their sources, so only the items match.
+ */
+export function loadTreeRowsWithBacklinks(database: Database, rootId: string | null): TreeSearchRow[] {
+	const rows = loadTreeRows(database, rootId);
+	const ids = new Set(rows.map((row) => row.id));
+	const references = selectTreeRows(database, REFERENCES_SEEDS, false);
+	const roots = new Set(
+		references.filter((row) => row.isReferencesRoot === 1 && ids.has(row.parentId ?? "")).map((row) => row.id),
+	);
+	return [
+		...rows,
+		...references
+			.filter((row) => roots.has(row.id) || roots.has(row.parentId ?? ""))
+			.map((row) => toSearchRow(row)),
+	];
 }

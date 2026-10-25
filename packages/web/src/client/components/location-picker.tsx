@@ -333,6 +333,7 @@ export function LocationPicker(props: LocationPickerProps) {
 		menuClass = `[&_.help-text]:p-l ${query ? "[&_.help-text]:pt-m" : ""}`;
 	}
 	return createPortal(
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the mousedown only keeps the editor's caret; upstream's wrapper is a bare div
 		<div
 			ref={ref}
 			className={WRAPPER_CLASS}
@@ -345,6 +346,14 @@ export function LocationPicker(props: LocationPickerProps) {
 				zIndex: POPUP_Z,
 				transform: popperTransform(placed[0], placed[1], globalThis.devicePixelRatio || 1),
 			}}
+			// A filter-driven picker (`[[`) sits beside an editor that keeps the caret: pressing a row must not blur it.
+			onMouseDown={
+				hideInput
+					? (event) => {
+							event.preventDefault();
+						}
+					: undefined
+			}
 			onBlur={(event) => {
 				if (onFocusLeave && !event.currentTarget.contains(event.relatedTarget)) {
 					onFocusLeave();

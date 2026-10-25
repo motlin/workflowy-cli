@@ -583,6 +583,11 @@ export class WorkflowyInternalAdapter {
 			const changes: MetadataChange[] = [];
 
 			for (const itemId of stringKeys(getPath(metadata, ["mirror", "backlinkMirrorRootIds"]))) {
+				if (!metadataById.has(itemId)) {
+					// The item is gone from the tree; upstream's detach drops its id from the source.
+					changes.push({path: ["mirror", "backlinkMirrorRootIds", itemId], value: undefined});
+					continue;
+				}
 				const backlink = backlinkOf(metadataById.get(itemId));
 				if (backlink?.sourceID !== sourceId) {
 					continue;

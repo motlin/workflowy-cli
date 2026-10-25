@@ -321,6 +321,35 @@ describe("PATCH /api/v1/nodes/:id metadata", () => {
 		expect(adapter.syncBacklinks.mock.calls).toStrictEqual([[["n1"]]]);
 	});
 
+	it("reports the target of a backlink recreated by an edit that leaves the link set unchanged", async () => {
+		const TARGET = "aaaaaaaa-aaaa-4aaa-8aaa-0123456789ab";
+		const link = '<a href="https://workflowy.com/#/0123456789ab">t</a>';
+		const {adapter, request, cacheService} = setup(true);
+		cacheService.insertNode({...apiNode(TARGET), name: "target"}, null);
+		cacheService.insertNode({...apiNode("n1"), name: link}, null);
+		updateNode.mockResolvedValue(apiNode("n1"));
+		adapter.syncBacklinks.mockResolvedValue({
+			created: [{id: "b", sourceId: "n1", targetId: TARGET}],
+			referencesRoots: [],
+			deleted: [],
+		});
+
+		const {body} = await request("PATCH", "/nodes/n1", {name: `${link} more`});
+
+		expect((body as {effects: unknown}).effects).toStrictEqual({backlinkTargets: [TARGET], dates: false});
+	});
+
+	it("does not sync backlinks for a keystroke in a row whose link target is unknown to the cache and unchanged", async () => {
+		const link = '<a href="https://workflowy.com/#/0123456789ab">t</a>';
+		const {adapter, request, cacheService} = setup(true);
+		cacheService.insertNode({...apiNode("n1"), name: link}, null);
+		updateNode.mockResolvedValue(apiNode("n1"));
+
+		await request("PATCH", "/nodes/n1", {name: `${link} more`});
+
+		expect(adapter.syncBacklinks.mock.calls).toStrictEqual([]);
+	});
+
 	it("leaves backlinks alone when neither the old nor the new text links anywhere", async () => {
 		const {adapter, request} = setup(true);
 		updateNode.mockResolvedValue(apiNode("n1"));

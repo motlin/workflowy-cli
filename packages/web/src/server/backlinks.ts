@@ -3,6 +3,8 @@ import {aiMetadata, backlinks, nodeContent, nodeMetadata, referencesRoots} from 
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
+import {internalLinkShortIds} from "@workflowy/shared/workflowy";
+import {backlinksLabel} from "../backlinks-label.js";
 import type {ServerContext} from "./context.js";
 
 type ServerDatabase = ServerContext["db"];
@@ -75,7 +77,51 @@ export function childFlags(db: ServerDatabase, parentIds: string[]): ChildFlags 
 			),
 		)
 		.all();
-	return childFlagsFromRows(rows);
+	const flags = childFlagsFromRows(rows);
+	addReferencesRootFlags(db, parentIds, flags);
+	return flags;
+}
+
+/**
+ * A displayable references root counts as a child of its target (upstream's
+ * `isDisplayable`: some backlink item is potentially visible), so a target
+ * whose only child is the section still has an arrow. It counts as an
+ * uncompleted child only while some backlink source is uncompleted.
+ */
+function addReferencesRootFlags(db: ServerDatabase, parentIds: string[], flags: ChildFlags): void {
+	const roots = db
+		.select({id: nodeContent.id, parentId: nodeContent.parentId})
+		.from(nodeContent)
+		.where(
+			and(
+				inArray(nodeContent.parentId, parentIds),
+				eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+				sql`${nodeContent.id} IN ${currentReferencesRootIds}`,
+			),
+		)
+		.all();
+	for (const {id, parentId} of roots) {
+		if (parentId === null) {
+			continue;
+		}
+		const sourceIds = [...new Set(currentBacklinkSources(db, id).values())];
+		if (sourceIds.length === 0) {
+			continue;
+		}
+		flags.withChildren.add(parentId);
+		const sources = db
+			.select({completedAt: effectiveCompletedAt(nodeContent.id, nodeMetadata.completedAt)})
+			.from(nodeContent)
+			.leftJoin(
+				nodeMetadata,
+				and(eq(nodeMetadata.nodeId, nodeContent.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+			)
+			.where(and(inArray(nodeContent.id, sourceIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+			.all();
+		if (sources.some((source) => source.completedAt === null)) {
+			flags.withUncompletedChildren.add(parentId);
+		}
+	}
 }
 
 /** The current references root under `targetId`, or null. */
@@ -114,4 +160,71 @@ export function currentBacklinkSources(db: ServerDatabase, rootId: string): Map<
 		)
 		.all();
 	return new Map(rows.map((row) => [row.nodeId, row.sourceId]));
+}
+
+/** The target of every current backlink item made from `sourceId`, keyed by the item's id. */
+export function backlinkTargetsOfSource(db: ServerDatabase, sourceId: string): Map<string, string> {
+	const rows = db
+		.select({nodeId: backlinks.nodeId, targetId: backlinks.targetId})
+		.from(backlinks)
+		.where(and(eq(backlinks.sourceId, sourceId), eq(backlinks.systemTo, FAR_FUTURE_DATE)))
+		.all();
+	return new Map(rows.map((row) => [row.nodeId, row.targetId]));
+}
+
+/**
+ * Whether saving a source's text can change its backlinks: its link set
+ * moved, or a linked target lacks the current backlink item under a current
+ * references root that upstream's edit would recreate. Keeps the whole-tree
+ * `syncBacklinks` off the path of a plain keystroke in a linked row.
+ */
+export function backlinksNeedSync(
+	ctx: ServerContext,
+	sourceId: string,
+	beforeText: string,
+	afterText: string,
+): boolean {
+	const before = new Set(internalLinkShortIds(beforeText));
+	const after = new Set(internalLinkShortIds(afterText));
+	if (before.size !== after.size || [...after].some((id) => !before.has(id))) {
+		return true;
+	}
+	const present = new Set(
+		[...backlinkTargetsOfSource(ctx.db, sourceId).entries()]
+			.filter(([itemId]) => {
+				const row = ctx.db
+					.select({parentId: nodeContent.parentId})
+					.from(nodeContent)
+					.where(and(eq(nodeContent.id, itemId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.get();
+				return row?.parentId != null && findReferencesRootId(ctx.db, row.parentId) !== null;
+			})
+			.map(([, targetId]) => targetId),
+	);
+	for (const shortId of after) {
+		const resolved = ctx.cacheService.resolveShortIdToUuid(shortId);
+		if (resolved === null) {
+			continue;
+		}
+		const target = ctx.cacheService.getMirrorOriginal(resolved) ?? resolved;
+		if (target !== sourceId && !present.has(target)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** `rootId` when it is a current references root, else null. */
+function findReferencesRootId(db: ServerDatabase, rootId: string): string | null {
+	const row = db
+		.select({nodeId: referencesRoots.nodeId})
+		.from(referencesRoots)
+		.where(and(eq(referencesRoots.nodeId, rootId), eq(referencesRoots.systemTo, FAR_FUTURE_DATE)))
+		.get();
+	return row?.nodeId ?? null;
+}
+
+/** A current references root's "N Backlinks" label (upstream `JP.displayLabel`), or null for any other node. */
+export function referencesRootLabel(db: ServerDatabase, nodeId: string): string | null {
+	return findReferencesRootId(db, nodeId) === null ? null : backlinksLabel(currentBacklinkSources(db, nodeId).size);
 }

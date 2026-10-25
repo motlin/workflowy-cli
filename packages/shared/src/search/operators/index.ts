@@ -11,6 +11,7 @@ export const SEARCH_OPERATORS: SearchOperator[] = [
 	meta.isComplete,
 	meta.isIncomplete,
 	meta.isMirror,
+	meta.isBacklink,
 	meta.isTodo,
 	meta.isDivider,
 	meta.hasNote,
@@ -46,4 +47,5 @@ export const SEARCH_OPERATORS: SearchOperator[] = [
 	meta.isCodeBlock,
 	meta.isQuote,
 	meta.inNote,
+	meta.inBacklink,
 ];

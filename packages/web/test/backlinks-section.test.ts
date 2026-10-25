@@ -1,6 +1,6 @@
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
@@ -86,6 +86,10 @@ vi.mock("../src/client/hooks/use-nodes.js", async () => {
 		useToggleComplete: () => noopMutation,
 	};
 });
+vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => ({
+	...(await importOriginal()),
+	measureCrumbLabel: (label: string) => label.length * 7,
+}));
 vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
@@ -139,16 +143,22 @@ describe("isBacklinksSectionVisible", () => {
 });
 
 const COLLAPSED_SECTION =
-	'<div class="font-custom project references collapsed"><div tabindex="-1" class="name empty" role="presentation"><a href="/#/refs" data-handbook="bullet.handle" data-item-id="refs" class="bullet bullet--backlink-root" style="left:calc(var(--name-left-overhang) + 1px);width:18px;--bullet-size:18px"><span class="bulletHalo"><svg width="100%" height="100%" viewBox="0 0 18 18" fill="currentColor" class="zoomBulletIcon"><circle cx="9" cy="9" r="3.5"></circle></svg></span></a><div class="notranslate content whitespace-pre-wrap"><span class="innerContentContainer">2 Backlinks</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div><button type="button" aria-expanded="false" aria-label="Expand" data-handbook="expand.toggle"';
+	'<div class="font-custom project references collapsed"><div tabindex="-1" class="name empty" role="presentation"><a href="/#/refs" data-handbook="bullet.handle" data-item-id="refs" class="bullet bullet--show-halo bullet--backlink-root keep-bullet" style="left:calc(var(--name-left-overhang) + 1px);width:18px;opacity:0;--bullet-size:18px"><span class="bulletHalo"><svg width="100%" height="100%" viewBox="0 0 18 18" fill="currentColor" class="zoomBulletIcon"><circle cx="9" cy="9" r="3.5"></circle></svg></span></a><div class="notranslate content whitespace-pre-wrap"><span class="innerContentContainer">2 Backlinks</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div><button type="button" aria-expanded="false" aria-label="Expand" data-handbook="expand.toggle"';
 
 describe("OutlineChildren Backlinks section", () => {
 	beforeEach(() => {
+		// Backlink crumbs collapse from the left to the window's width, as Found Dates' do.
+		vi.stubGlobal("window", {innerWidth: 400});
 		outlineState.expandedIds = new Set();
 		outlineState.showCompleted = true;
 		childrenByParent.clear();
 		backlinksByNode.clear();
 		childrenByParent.set("target", [makeNode({id: "child-a", parent_id: "target", name: "Child A"})]);
 		backlinksByNode.set("target", TWO_BACKLINKS);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
 	});
 
 	it("renders a collapsed N Backlinks row after the last child, inside the .children", () => {
@@ -237,6 +247,78 @@ describe("OutlineChildren Backlinks section", () => {
 			first: html.includes('data-item-id="bl-1"'),
 			second: html.includes('data-item-id="bl-2"'),
 		}).toStrictEqual({first: true, second: false});
+	});
+});
+
+describe("Backlinks section parity", () => {
+	beforeEach(() => {
+		vi.stubGlobal("window", {innerWidth: 400});
+		outlineState.expandedIds = new Set();
+		outlineState.showCompleted = true;
+		childrenByParent.clear();
+		backlinksByNode.clear();
+		childrenByParent.set("target", [makeNode({id: "child-a", parent_id: "target", name: "Child A"})]);
+		backlinksByNode.set("target", TWO_BACKLINKS);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	function renderOwned(parentId: string): string {
+		return renderToStaticMarkup(
+			createElement(
+				QueryClientProvider,
+				{client: new QueryClient()},
+				createElement(OutlineChildren, {parentId, owner: makeNode({id: parentId, parent_id: null})}),
+			),
+		);
+	}
+
+	it("puts the add-sibling svg between the rows and the Backlinks section in a nested .children", () => {
+		const html = renderOwned("target");
+
+		expect(html.indexOf('class="absolute left-[-11px]')).toBeGreaterThan(html.indexOf('data-item-id="child-a"'));
+		expect(html.indexOf('class="absolute left-[-11px]')).toBeLessThan(html.indexOf("references collapsed"));
+	});
+
+	it("ends an open section's .children with an add-sibling svg", () => {
+		outlineState.expandedIds = new Set(["refs"]);
+
+		const html = renderOwned("target");
+		const section = html.slice(html.indexOf("references open"));
+
+		expect(section.lastIndexOf("addSiblingButton")).toBeGreaterThan(section.lastIndexOf('data-item-id="bl-2"'));
+	});
+
+	it("gives an open section's bullet no halo, keeping it hidden at rest", () => {
+		outlineState.expandedIds = new Set(["refs"]);
+
+		const html = render("target");
+
+		expect(html).toContain(
+			'class="bullet bullet--backlink-root" style="left:calc(var(--name-left-overhang) + 1px);width:18px;opacity:0;',
+		);
+	});
+
+	it("collapses a long source path from the left into an ellipsis", () => {
+		outlineState.expandedIds = new Set(["refs"]);
+		const deep = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"].map((name) => ({
+			id: name.toLowerCase(),
+			name: `${name} ${"x".repeat(14 - name.length)}`,
+		}));
+		backlinksByNode.set("target", {rootId: "refs", items: [backlinkItem("bl-1", "src-1", deep)]});
+
+		const html = render("target");
+		const trail = html.slice(html.indexOf("breadcrumbs grow"));
+
+		expect(trail.indexOf('data-icon="ellipsis"')).toBeLessThan(trail.indexOf("breadcrumb-item"));
+	});
+
+	it("leaves a row whose only child is the references root without an add-sibling svg", () => {
+		childrenByParent.set("target", []);
+
+		expect(renderOwned("target").includes('class="absolute left-[-11px]')).toBe(false);
 	});
 });
 

@@ -181,6 +181,14 @@ function rangeAtTextOffset(element: HTMLElement, offset: number): Range {
 	return range;
 }
 
+/** The box of plain-text units `start`..`end` of `element`, each clamped to its end. */
+export function textRangeBox(element: HTMLElement, start: number, end: number): AnchorRect {
+	const range = rangeAtTextOffset(element, start);
+	const boundary = rangeAtTextOffset(element, end);
+	range.setEnd(boundary.endContainer, boundary.endOffset);
+	return range.getBoundingClientRect();
+}
+
 /** Select plain-text units `start`..`end` of `element` (either order), each clamped to its end. */
 export function placeSelectionAtTextOffsets(element: HTMLElement, start: number, end: number, reversed = false): void {
 	const ordered = orderOffsets(start, end);

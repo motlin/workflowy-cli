@@ -12,13 +12,16 @@ import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/tempor
 import {and, eq} from "drizzle-orm";
 import {
 	loadTreeRows,
+	loadTreeRowsWithBacklinks,
 	loadTreeSearchRows,
+	queryNeedsBacklinks,
 	peekTreeSnapshotBuild,
 	peekTreeSnapshotRows,
 	rebuildTreeSnapshotAfterWrites,
 	scheduleTreeSnapshotRebuild,
 	warmTreeSnapshot,
 } from "../src/server/tree-snapshot.js";
+import {computeTreeSearch} from "../src/server/tree-search.js";
 import {peekSwitcherText} from "../src/server/switcher-search.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
@@ -129,8 +132,18 @@ describe("loadTreeSearchRows", () => {
 					completedAt: COMPLETED.getTime(),
 					layoutMode: "todo",
 					isMirror: false,
+					isBacklink: false,
 				},
-				{id: "a1", parentId: "a", priority: 2, name: "Alpha child", note: null, ...NO_META, isMirror: false},
+				{
+					id: "a1",
+					parentId: "a",
+					priority: 2,
+					name: "Alpha child",
+					note: null,
+					...NO_META,
+					isMirror: false,
+					isBacklink: false,
+				},
 				{
 					id: "mirror",
 					parentId: "root",
@@ -139,8 +152,18 @@ describe("loadTreeSearchRows", () => {
 					note: "other note",
 					...NO_META,
 					isMirror: true,
+					isBacklink: false,
 				},
-				{id: "root", parentId: null, priority: 0, name: "Root", note: null, ...NO_META, isMirror: false},
+				{
+					id: "root",
+					parentId: null,
+					priority: 0,
+					name: "Root",
+					note: null,
+					...NO_META,
+					isMirror: false,
+					isBacklink: false,
+				},
 			]),
 		);
 	});
@@ -555,5 +578,55 @@ describe("incremental snapshot patches", () => {
 		})();
 		expect(loadTreeRows(db, null)).toStrictEqual(loadTreeSearchRows(db, null));
 		expect(peekTreeSnapshotBuild(db)).toBe("full");
+	});
+});
+
+describe("backlink search", () => {
+	/** root > refs (references root) > bl, a backlink item mirroring "a" ("Alpha"). */
+	function setupWithBacklink() {
+		const db = setup();
+		db.insert(mirrors)
+			.values({mirrorId: "bl", originalId: "a", systemFrom: SEEDED_AT, systemTo: FAR_FUTURE_DATE})
+			.run();
+		return db;
+	}
+
+	it("is:backlink matches the backlink item as a meta match and reveals the references root as an ancestor", () => {
+		const db = setupWithBacklink();
+
+		const result = computeTreeSearch(loadTreeRowsWithBacklinks(db, "root"), "root", "is:backlink", 0);
+
+		expect({
+			matchIds: result.matchIds,
+			metaMatchIds: result.metaMatchIds,
+			ancestorIds: result.ancestorIds,
+		}).toStrictEqual({matchIds: ["bl"], metaMatchIds: ["bl"], ancestorIds: ["refs"]});
+	});
+
+	it('in:backlink:"Alp" matches the backlink item by its source text, not the source itself', () => {
+		const db = setupWithBacklink();
+
+		const result = computeTreeSearch(loadTreeRowsWithBacklinks(db, "root"), "root", 'in:backlink:"Alp"', 0);
+
+		expect({matchIds: result.matchIds, nameMatchIds: result.nameMatchIds}).toStrictEqual({
+			matchIds: ["bl"],
+			nameMatchIds: ["bl"],
+		});
+	});
+
+	it("a plain query never returns the backlink item", () => {
+		const db = setupWithBacklink();
+
+		const result = computeTreeSearch(loadTreeRows(db, "root"), "root", "Alpha", 0);
+
+		expect(result.matchIds).toStrictEqual(["a", "a1"]);
+	});
+
+	it("only queries naming a backlink operator load backlink rows", () => {
+		expect([
+			queryNeedsBacklinks("Alpha"),
+			queryNeedsBacklinks("x is:backlink"),
+			queryNeedsBacklinks('in:backlink:"a"'),
+		]).toStrictEqual([false, true, true]);
 	});
 });

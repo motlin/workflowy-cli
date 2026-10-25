@@ -335,3 +335,28 @@ describe("picker styles", () => {
 		);
 	});
 });
+
+describe("LocationPicker driven by an outside filter", () => {
+	it("renders the link-to header with no input wrapper when hideInput is set", () => {
+		const html = renderToStaticMarkup(
+			createElement(LocationPicker, {
+				position: [203, 361.5],
+				step: 1,
+				headerText: "link to",
+				hideInput: true,
+				query: "tar",
+				onQueryChange: () => {},
+				rows: [{kind: "result", id: "r1", labelHtml: "<b><u>Tar</u></b>get", disabled: false, icon: null}],
+				crumbsOf: () => [],
+				onSelect: () => {},
+			}),
+		);
+
+		expect({
+			header: html.includes(">link to</div>"),
+			input: html.includes("<input"),
+			wrapper: html.includes("p-l pt-0 mobile:pl-ml"),
+			menuClass: html.includes("[&amp;_.help-text]:p-l [&amp;_.help-text]:pt-m !static"),
+		}).toStrictEqual({header: true, input: false, wrapper: false, menuClass: true});
+	});
+});

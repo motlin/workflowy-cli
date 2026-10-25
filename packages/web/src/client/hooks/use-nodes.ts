@@ -40,6 +40,7 @@ import {
 	removeOptimistic,
 } from "../node-cache.js";
 import {affectedKeys, verifyAgainstServer} from "../cache-verify.js";
+import {backlinkEditFallback, readNavigableRows} from "../backlink-edit.js";
 import {activePaneView, localExpansionChangeState, useOutlineStore} from "../stores/outline.js";
 import {removeDeletedRow, textReplayPending} from "../undo-cache.js";
 import {createChildrenBatcher} from "../children-batcher.js";
@@ -694,6 +695,39 @@ function patchOptimisticUpdate(queryClient: QueryClient, variables: UpdateNodeRe
 /**
  * Updates a node with optimistic update.
  */
+/**
+ * An edit made through a backlink row can remove the link that made the row. Captured before the targets' Backlinks
+ * refetch, this returns what to do after it: put the caret on the neighbouring row, or go Home when the item was zoomed
+ * (history replaced). Undefined when the node is not a backlink item of a changed target.
+ */
+function backlinkRowFallback(queryClient: QueryClient, nodeId: string, targets: string[]): (() => void) | undefined {
+	const target = targets.find((id) =>
+		queryClient
+			.getQueryData<BacklinksResponse>(nodeKeys.backlinks(id))
+			?.items.some((item) => item.node.id === nodeId),
+	);
+	const {editingId} = useOutlineStore.getState();
+	if (target === undefined || editingId !== nodeId) {
+		return undefined;
+	}
+	const rows = readNavigableRows(queryClient);
+	const zoomedId = activePaneView().zoomedNodeId;
+	return () => {
+		const stillThere = queryClient
+			.getQueryData<BacklinksResponse>(nodeKeys.backlinks(target))
+			?.items.some((item) => item.node.id === nodeId);
+		if (stillThere === true || useOutlineStore.getState().editingId !== nodeId) {
+			return;
+		}
+		const plan = backlinkEditFallback(rows, nodeId, zoomedId);
+		if ("home" in plan) {
+			globalThis.location.replace("/#/");
+		} else {
+			useOutlineStore.getState().resumeEditing(plan.id, plan.offset === "end" ? Number.MAX_SAFE_INTEGER : 0);
+		}
+	};
+}
+
 export function useUpdateNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
@@ -735,7 +769,9 @@ export function useUpdateNode() {
 				applySavedText(queryClient, data.node);
 				verifyAgainstServer(queryClient, "update", affectedKeys(queryClient, [nodeId], []));
 			}
+			const fallback = backlinkRowFallback(queryClient, nodeId, data.effects.backlinkTargets);
 			await invalidateSaveEffects(queryClient, data.effects);
+			fallback?.();
 		},
 	});
 	const {mutate: sendUpdate} = mutation;

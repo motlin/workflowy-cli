@@ -86,6 +86,7 @@ import type {TagColorName} from "./tag-color-picker.js";
 import {useMentionMenu} from "../hooks/use-mention-menu.js";
 import {stripMirrorChip, useMirrorMenu} from "../hooks/use-mirror-menu.js";
 import {useInlineMirrorPick} from "../hooks/use-inline-mirror-pick.js";
+import {useInlineLinkPopup} from "../hooks/use-inline-link-popup.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripMentionChip} from "../mention-trigger.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
@@ -560,6 +561,23 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		detach: detachMirrorMenu,
 		isOpen: isMirrorMenuOpen,
 	} = mirrorMenu;
+	// Typing "[[" closes it with "]]" and, while the caret is inside, offers items to link to.
+	const applyLink = useCallback(
+		(html: string, caret: number) => {
+			const content = contentRef.current;
+			if (content === null) {
+				return;
+			}
+			content.innerHTML = renderEditorHtml(html, dateSettings, account);
+			placeCaretAtTextOffset(content, caret);
+			void runInUndoBatch(captureOutlineView, () => {
+				saveInPlace();
+			});
+		},
+		[account, dateSettings, saveInPlace],
+	);
+	const linkPopup = useInlineLinkPopup({nodeId, contentRef, dateSettings, account, applyLink});
+	const {handleInput: handleLinkInput, handleKeyDown: handleLinkKey, handleBlur: handleLinkBlur} = linkPopup;
 	const {
 		handleInput: handleSlashInput,
 		handleKeyDown: handleSlashKey,
@@ -670,6 +688,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				mention.armedBefore || mention.armedAfter || slash.armedBefore || slash.armedAfter
 					? {armedBefore: false, armedAfter: false}
 					: handleMirrorInput(event.nativeEvent);
+			handleLinkInput(event.nativeEvent);
 			const armedBefore = mention.armedBefore || slash.armedBefore || mirror.armedBefore;
 			const armedAfter = mention.armedAfter || slash.armedAfter || mirror.armedAfter;
 			const chipRoute = routeTypedInput({
@@ -702,6 +721,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			changeName,
 			dateSettings,
 			account,
+			handleLinkInput,
 			handleSlashInput,
 			handleMentionInput,
 			handleMirrorInput,
@@ -1098,27 +1118,32 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		releaseEditing();
 	});
 
-	const handleBlur = useCallback(() => {
-		if (contentRef.current !== null) {
-			savePaneCaretOnBlur(contentRef.current, nodeId, "name");
-		}
-		detachSlashMenu();
-		detachMentionMenu();
-		detachMirrorMenu();
-		hideDateAutocomplete();
-		detachTagAutocomplete();
-		if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
-			saveChanges();
-		}
-	}, [
-		nodeId,
-		saveChanges,
-		detachSlashMenu,
-		detachMentionMenu,
-		detachMirrorMenu,
-		hideDateAutocomplete,
-		detachTagAutocomplete,
-	]);
+	const handleBlur = useCallback(
+		(event: React.FocusEvent<HTMLSpanElement>) => {
+			handleLinkBlur(event);
+			if (contentRef.current !== null) {
+				savePaneCaretOnBlur(contentRef.current, nodeId, "name");
+			}
+			detachSlashMenu();
+			detachMentionMenu();
+			detachMirrorMenu();
+			hideDateAutocomplete();
+			detachTagAutocomplete();
+			if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
+				saveChanges();
+			}
+		},
+		[
+			nodeId,
+			handleLinkBlur,
+			saveChanges,
+			detachSlashMenu,
+			detachMentionMenu,
+			detachMirrorMenu,
+			hideDateAutocomplete,
+			detachTagAutocomplete,
+		],
+	);
 
 	/**
 	 * ⇧↑ at the text start, ⇧↓ at its end, or ⌘A over the already fully selected text: commit the text, stop editing
@@ -1164,6 +1189,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
 			// A capture-phase listener (the app message's action shortcut) already claimed this key.
 			if (event.nativeEvent.defaultPrevented) {
+				return;
+			}
+			if (handleLinkKey(event)) {
 				return;
 			}
 			if (handleSlashKey(event)) {
@@ -1225,6 +1253,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			deleteIfEmpty,
 			enterRootNote,
 			focusNote,
+			handleLinkKey,
 			handleSlashKey,
 			handleMentionKey,
 			handleMirrorKey,

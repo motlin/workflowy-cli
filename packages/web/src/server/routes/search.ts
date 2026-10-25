@@ -15,7 +15,7 @@ import {filterLocations} from "../location-search.js";
 import {rankSwitcher} from "../switcher-search.js";
 import {computeTreeSearch} from "../tree-search.js";
 import type {TreeSearchRow} from "../tree-search.js";
-import {loadTreeRows} from "../tree-snapshot.js";
+import {loadTreeRows, loadTreeRowsWithBacklinks, queryNeedsBacklinks} from "../tree-snapshot.js";
 
 export const searchRouter = new Hono<AppEnv>();
 
@@ -81,7 +81,9 @@ async function loadDateFormat(c: Context<AppEnv>): Promise<string | null> {
 // POST /api/search/tree - In-place search of the zoomed subtree, driven by the upstream query AST
 searchRouter.post("/tree", async (c) => {
 	const {query, rootId} = await c.req.json<TreeSearchBody>();
-	const rows = loadTreeRows(getDatabase(), rootId);
+	const rows = queryNeedsBacklinks(query)
+		? loadTreeRowsWithBacklinks(getDatabase(), rootId)
+		: loadTreeRows(getDatabase(), rootId);
 	const dateFormat = await loadDateFormat(c);
 	return c.json(computeTreeSearch(rows, rootId, query, Date.now(), dateFormat === null ? {} : {dateFormat}));
 });

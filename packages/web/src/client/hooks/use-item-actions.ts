@@ -1,7 +1,7 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {internalLinkUrl} from "../item-menu-model.js";
-import {nodeKeys} from "../node-cache.js";
+import {nodeKeys, readNode} from "../node-cache.js";
 import {runSortChildren} from "../sort-children.js";
 import type {SortDirection} from "../sort-children.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -9,15 +9,20 @@ import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {activeCommandRegistry} from "./use-global-keymap.js";
 import {fetchChildren, sendBlockMoves, useMoveNodes} from "./use-nodes.js";
 
-/** Upstream `copy_link`: copy the item's internal link and confirm with a brief toast. */
+/**
+ * Upstream `copy_link`: copy the item's internal link and confirm with a brief toast. A mirror (or a backlink item)
+ * copies its original's link, not its own id.
+ */
 export function useCopyLink(): (nodeId: string) => Promise<void> {
+	const queryClient = useQueryClient();
 	const showAppMessage = useOutlineStore((state) => state.showAppMessage);
 	return useCallback(
 		async (nodeId) => {
-			await navigator.clipboard.writeText(internalLinkUrl(nodeId));
+			const original = readNode(queryClient, nodeId)?.originalNodeId ?? nodeId;
+			await navigator.clipboard.writeText(internalLinkUrl(original));
 			showAppMessage("Link copied.", {timeout: 1000});
 		},
-		[showAppMessage],
+		[queryClient, showAppMessage],
 	);
 }
 

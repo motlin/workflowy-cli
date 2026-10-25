@@ -1,9 +1,6 @@
 import type {BacklinksResponse} from "../node-types.js";
 
-/** Upstream's references-root label: `${count} Backlink${count > 1 ? "s" : ""}`. */
-export function backlinksLabel(count: number): string {
-	return `${count} Backlink${count > 1 ? "s" : ""}`;
-}
+export {backlinksLabel} from "../backlinks-label.js";
 
 /**
  * Upstream's `isDisplayable` for a references root: it has a root and at least

@@ -228,7 +228,7 @@ const ID1 = "00000000-0000-4000-8000-000000000001";
 const ID2 = "00000000-0000-4000-8000-000000000002";
 
 describe("internal links", () => {
-	it("finds short-id and full-id workflowy.com links, deduplicated, ignoring other hrefs", () => {
+	it("finds short-id and full-id links on any host, deduplicated, ignoring bare urls", () => {
 		const text = `${link(TARGET)} <a href="https://beta.workflowy.com/#/${OTHER}">y</a> ${link(TARGET)} <a href="https://example.com/#/333333333333">z</a> https://workflowy.com/#/444444444444`;
 
 		expect({
@@ -381,6 +381,24 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			],
 			current: [{node_id: ID1, source_id: SOURCE, target_id: OTHER}],
 			oldItemCurrent: [],
+		});
+	});
+
+	it("drops a backlinkMirrorRootIds entry whose item no longer exists, without a delete op", async () => {
+		const {adapter, pushes} = await tracked([
+			[SOURCE, node("plain", ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+		]);
+
+		const result = await adapter.syncBacklinks([SOURCE]);
+
+		expect({
+			result,
+			ops: pushes.flat().map((op) => [op.type, op.data.projectid]),
+			edit: pushes.flat().find((op) => op.type === "edit")?.data.metadataPatches,
+		}).toStrictEqual({
+			result: {created: [], referencesRoots: [], deleted: []},
+			ops: [["edit", SOURCE]],
+			edit: [{op: "remove", path: ["mirror", "backlinkMirrorRootIds", OLD_ITEM]}],
 		});
 	});
 

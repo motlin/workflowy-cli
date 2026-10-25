@@ -31,6 +31,10 @@ import {useOutlineStore} from "../stores/outline.js";
 import {SearchFilterContext, useOutlineSearchFilter} from "../search-filter-context.js";
 import {useShallow} from "zustand/react/shallow";
 import {lastChildShapeLayout, planAddChild, planAddSibling, rowHasChildren} from "../tree-ops.js";
+import {useZoomTo} from "../hooks/use-zoom-to.js";
+import {currentNavigableIds} from "../hooks/use-visible-nodes.js";
+import {horizontalTarget, planVerticalCross} from "../caret-navigation.js";
+import {placeCaretAtTextOffset} from "../caret-dom.js";
 import {expandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
@@ -43,7 +47,7 @@ import {NodeItemMenu, OutlineRow} from "./outline-node.js";
 import {DividerLine} from "./divider-line.js";
 import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
 import {renderedNumbers, siblingNumber} from "../numbered-list.js";
-import {useInActivePane, usePaneExpandedIds, usePaneId} from "./pane-context.js";
+import {PaneContext, useInActivePane, usePaneExpandedIds, usePaneId} from "./pane-context.js";
 import {itemMenuLeft} from "../item-menu-model.js";
 import {hasMirrorsClass, nameClassName, projectClassName} from "./row-classes.js";
 import {planBlankSpaceClick} from "../blank-space-click.js";
@@ -126,12 +130,16 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
  * until the next mouseenter. Uses no React built-in hooks so tests can invoke its
  * handlers directly.
  */
-export function AddSiblingButton({owner}: {owner: NodeResponse}) {
+export function AddSiblingButton({owner}: {owner?: NodeResponse}) {
 	const createNode = useCreateNode();
-	const {data: siblings} = useChildren(owner.parent_id);
+	const {data: siblings} = useChildren(owner?.parent_id ?? null, owner !== undefined);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
 
 	const handleClick = (event: {currentTarget: {style: {opacity: string}}}) => {
+		// The Backlinks section's references root is read-only: upstream draws the button, but it adds nothing.
+		if (owner === undefined) {
+			return;
+		}
 		const plan = planAddSibling({owner, siblings: siblings ?? [owner]});
 		const id = crypto.randomUUID();
 		event.currentTarget.style.opacity = "0";
@@ -180,7 +188,9 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const isDragHoveredIn = useOutlineStore(
 		(state) => dropHoverOf(state.dropIndicator, nodeId ?? HOME_ROOT, paneId) === "in",
 	);
-	const isEditing = inActivePane && !isMainTreeRoot && editingId === nodeId;
+	// A references root is read-only: its name is the "N Backlinks" label, never editable.
+	const isReferencesRoot = node?.isReferencesRoot === true;
+	const isEditing = inActivePane && !isMainTreeRoot && !isReferencesRoot && editingId === nodeId;
 	const searchRootClasses = rootSearchClasses(useOutlineSearchFilter());
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
 	const layout = resolveLayoutMode(node?.data.layoutMode);
@@ -251,6 +261,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					dragHoveredIn: isDragHoveredIn,
 				}),
 				isMainTreeRoot && "mainTreeRoot",
+				isReferencesRoot && "references",
 				...searchRootClasses,
 			]
 				.filter(Boolean)
@@ -273,7 +284,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					setIsHovered(false);
 				}}
 			>
-				{!isMainTreeRoot && nameHtml === "" && node?.data.layoutMode !== "numbered" ? (
+				{!isMainTreeRoot && !isReferencesRoot && nameHtml === "" && node?.data.layoutMode !== "numbered" ? (
 					<div className="contentEditablePlaceholderWrapper">
 						<div className="contentEditablePlaceholder">Untitled</div>
 					</div>
@@ -282,16 +293,18 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				{node?.calendar?.level === "day" ? <DayTitlePrefix node={node} /> : null}
 				{dividerLine}
 				<div className="notranslate content whitespace-pre-wrap">
-					{node && (nameHtml !== "" || isEditing)
-						? editableText({
-								clickPosition: isEditing ? (editingClickPosition ?? undefined) : undefined,
-								initialValue: nameHtml,
-								isEditing,
-								nodeId: node.id,
-								parentId: node.parent_id,
-								priority: node.priority,
-							})
-						: null}
+					{isReferencesRoot ? (
+						<span className="innerContentContainer">{node.backlinksLabel}</span>
+					) : node && (nameHtml !== "" || isEditing) ? (
+						editableText({
+							clickPosition: isEditing ? (editingClickPosition ?? undefined) : undefined,
+							initialValue: nameHtml,
+							isEditing,
+							nodeId: node.id,
+							parentId: node.parent_id,
+							priority: node.priority,
+						})
+					) : null}
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 				{dividerLine}
@@ -343,6 +356,92 @@ function RenderSentinel({onReached}: {onReached: () => void}) {
 }
 
 /**
+ * The references row's label. The caret can enter it (arrows walk the rows like any other), but upstream's name setter
+ * is a no-op: typing, Enter and Backspace change nothing here.
+ */
+function ReferencesLabel({rootId, label}: {rootId: string; label: string}) {
+	const queryClient = useQueryClient();
+	const inActivePane = useInActivePane();
+	const editing = useOutlineStore((state) => inActivePane && state.editingId === rootId);
+	const ref = useRef<HTMLSpanElement>(null);
+	useEffect(() => {
+		const content = ref.current;
+		if (!editing || content === null) {
+			return;
+		}
+		content.focus({preventScroll: true});
+		placeCaretAtTextOffset(content, useOutlineStore.getState().editingCaretOffset ?? 0);
+	}, [editing]);
+	if (!editing) {
+		return <span className="innerContentContainer">{label}</span>;
+	}
+	const cross = (key: string): boolean => {
+		const ids = currentNavigableIds(queryClient);
+		const {resumeEditing} = useOutlineStore.getState();
+		if (key === "ArrowUp" || key === "ArrowDown") {
+			const plan = planVerticalCross(ids, rootId, key === "ArrowUp" ? "up" : "down");
+			if (plan.kind === "move") {
+				resumeEditing(plan.nodeId, plan.caretOffset);
+			}
+			return plan.kind !== "native";
+		}
+		const selection = globalThis.getSelection();
+		const content = ref.current;
+		if (content === null || selection?.isCollapsed !== true) {
+			return false;
+		}
+		const offset = selection.anchorOffset;
+		const left = key === "ArrowLeft";
+		if (offset !== (left ? 0 : label.length)) {
+			return false;
+		}
+		const target = horizontalTarget(ids, rootId, left ? "left" : "right");
+		if (target === null) {
+			return false;
+		}
+		resumeEditing(target.nodeId, target.caretOffset);
+		return true;
+	};
+	return (
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model
+		<span
+			ref={ref}
+			className="innerContentContainer editing"
+			data-node-id={rootId}
+			contentEditable
+			suppressContentEditableWarning
+			onBeforeInput={(event) => {
+				event.preventDefault();
+			}}
+			onPaste={(event) => {
+				event.preventDefault();
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+				} else if (
+					["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key) &&
+					!event.shiftKey &&
+					!event.altKey &&
+					!event.metaKey &&
+					!event.ctrlKey &&
+					cross(event.key)
+				) {
+					event.preventDefault();
+				}
+			}}
+			onBlur={() => {
+				if (useOutlineStore.getState().editingId === rootId && !useOutlineStore.getState().editingHeld) {
+					useOutlineStore.getState().stopEditing();
+				}
+			}}
+		>
+			{label}
+		</span>
+	);
+}
+
+/**
  * Upstream's Backlinks section (`children_extra.backlink_root`): the item's
  * references root as a collapsible `.project.references` row labelled
  * "N Backlinks", whose children are the backlink items, each a mirror row
@@ -351,6 +450,16 @@ function RenderSentinel({onReached}: {onReached: () => void}) {
  */
 function BacklinksSection({rootId, items, depth}: {rootId: string; items: BacklinkItem[]; depth: number}) {
 	const isExpanded = usePaneExpandedIds().has(rootId);
+	const mainZoomTo = useZoomTo();
+	const pane = useContext(PaneContext);
+	// Upstream's bullet click is the standard one: it zooms into the references root (the arrow toggles).
+	const zoomIn = () => {
+		if (pane === null) {
+			void mainZoomTo(rootId, "first_child");
+		} else {
+			pane.zoom(rootId);
+		}
+	};
 	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const visibleItems = items.filter((item) => showCompleted || item.node.completedAt === null);
@@ -375,20 +484,26 @@ function BacklinksSection({rootId, items, depth}: {rootId: string; items: Backli
 					href={nodeUrl(rootId)}
 					data-handbook="bullet.handle"
 					data-item-id={rootId}
-					className="bullet bullet--backlink-root"
+					className={
+						isExpanded
+							? "bullet bullet--backlink-root"
+							: "bullet bullet--show-halo bullet--backlink-root keep-bullet"
+					}
 					style={{
 						left: "calc(var(--name-left-overhang) + 1px)",
 						width: "18px",
+						// Upstream keeps the bullet hidden at rest in both states; hovering the row shows it.
+						opacity: 0,
 						["--bullet-size" as string]: "18px",
 					}}
 					onClick={(event) => {
 						event.preventDefault();
-						toggleExpand(rootId);
+						zoomIn();
 					}}
 					onKeyDown={(event) => {
 						if (event.key === "Enter" || event.key === " ") {
 							event.preventDefault();
-							toggleExpand(rootId);
+							zoomIn();
 						}
 					}}
 				>
@@ -405,7 +520,7 @@ function BacklinksSection({rootId, items, depth}: {rootId: string; items: Backli
 					</span>
 				</a>
 				<div className="notranslate content whitespace-pre-wrap">
-					<span className="innerContentContainer">{backlinksLabel(items.length)}</span>
+					<ReferencesLabel rootId={rootId} label={backlinksLabel(items.length)} />
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 				{expandArrow({hasChildren: true, isExpanded, nodeId: rootId, onToggle: toggleExpand})}
@@ -419,10 +534,12 @@ function BacklinksSection({rootId, items, depth}: {rootId: string; items: Backli
 						<OutlineRow
 							key={item.node.id}
 							backlinkCrumbs={item.crumbs}
+							fitCrumbs
 							depth={depth + 1}
 							node={item.node}
 						/>
 					))}
+					<AddSiblingButton />
 				</div>
 			) : null}
 		</div>
@@ -644,13 +761,31 @@ export function OutlineChildren({
 				<OutlineRow key={node.id} depth={depth} node={node} number={numbers.get(node.id)} />
 			))}
 			{isRoot ? addChild : null}
+			{isRoot || owner === undefined || limit < total || total === 0 ? null : <AddSiblingButton owner={owner} />}
 			{backlinksRootId == null ? null : (
 				<BacklinksSection depth={depth} items={backlinks?.items ?? []} rootId={backlinksRootId} />
 			)}
 			{dayId === null || foundItems.length === 0 ? null : (
 				<FoundDatesSection dayId={dayId} depth={depth} items={foundItems} />
 			)}
-			{isRoot || owner === undefined || limit < total ? null : <AddSiblingButton owner={owner} />}
+		</div>
+	);
+}
+
+/**
+ * The zoomed references root's `.children`: the target's backlink items, each preceded by its source's crumbs (which
+ * collapse from the left like Found Dates'), then the add-child wrapper.
+ */
+function ReferencesRootChildren({targetId, addChild}: {targetId: string; addChild?: ReactNode}) {
+	const {data: backlinks} = useBacklinks(targetId);
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const items = (backlinks?.items ?? []).filter((item) => showCompleted || item.node.completedAt === null);
+	return (
+		<div className={ROOT_CHILDREN_CLASS}>
+			{items.map((item) => (
+				<OutlineRow key={item.node.id} backlinkCrumbs={item.crumbs} fitCrumbs depth={1} node={item.node} />
+			))}
+			{addChild}
 		</div>
 	);
 }
@@ -663,6 +798,9 @@ export function RootOutlineChildren({parentId, addChild}: {parentId: string | nu
 	const {data: zoomed} = useNode(parentId);
 	const dayId = zoomed?.calendar?.level === "day" ? zoomed.id : null;
 	const {data: response} = useFoundDates(dayId);
+	if (zoomed?.isReferencesRoot === true && zoomed.parent_id !== null) {
+		return <ReferencesRootChildren targetId={zoomed.parent_id} addChild={addChild} />;
+	}
 	return (
 		<OutlineChildren
 			addChild={addChild}

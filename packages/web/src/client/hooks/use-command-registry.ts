@@ -52,6 +52,7 @@ import {useNavigateToToday} from "./use-navigate-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {useMoveTo} from "./use-move-to.js";
 import {inlineMirrorInsertion} from "../inline-mirror.js";
+import {planInsertInlineLink} from "../inline-link.js";
 import {
 	isMirrorRootId,
 	useDetachMirror,
@@ -1011,6 +1012,29 @@ export function useCommandRegistry(): CommandRegistry {
 				selection.collapse(inserted, text.length);
 				// The input event arms the `((` popup like typed characters.
 				editor.dispatchEvent(new InputEvent("input", {bubbles: true, inputType: "insertText", data: text}));
+			},
+		},
+		insert_inline_link: {
+			available: () => editingId !== null,
+			execute() {
+				const editor = editingId === null ? null : editorElement(editingId);
+				if (editor === null) {
+					return;
+				}
+				const caret = caretTextOffset(editor);
+				const before = editor.textContent.slice(0, caret);
+				const text = planInsertInlineLink(before, before.length).text.slice(before.length);
+				const selection = globalThis.getSelection();
+				if (selection === null || selection.rangeCount === 0) {
+					return;
+				}
+				const range = selection.getRangeAt(0);
+				range.deleteContents();
+				const inserted = document.createTextNode(text);
+				range.insertNode(inserted);
+				selection.collapse(inserted, text.length);
+				// The input event closes the pair with "]]" and opens the popup, like typed characters.
+				editor.dispatchEvent(new InputEvent("input", {bubbles: true, inputType: "insertText", data: "["}));
 			},
 		},
 		complete: {

@@ -12,6 +12,8 @@ export interface SearchItem {
 	layoutMode: string | null;
 	childCount: number;
 	isMirror: boolean;
+	/** A backlink item (a mirror of a source under a target's references root), or the references root itself. */
+	isBacklink: boolean;
 	ancestorCompleted: boolean;
 	ancestors?: SearchItem[];
 }

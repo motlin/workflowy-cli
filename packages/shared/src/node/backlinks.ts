@@ -23,7 +23,14 @@ export async function syncBacklinksIfLinked(
 	if (sourceIds.length === 0 || !hasInternalLink(texts.join(" "))) {
 		return undefined;
 	}
-	return internalAdapter(database, writeThrough)?.syncBacklinks(sourceIds);
+	const adapter = internalAdapter(database, writeThrough);
+	if (adapter === undefined) {
+		process.stderr.write(
+			"Warning: the text links to other items, but no internal session is configured, so no backlinks were created or removed. Run 'internal login' or set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD.\n",
+		);
+		return undefined;
+	}
+	return adapter.syncBacklinks(sourceIds);
 }
 
 /**

@@ -1,4 +1,5 @@
-import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
+import {readInternalAuth} from "@workflowy/shared/node";
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
@@ -49,8 +50,15 @@ export default class SyncNode extends Command {
 		}
 
 		const apiClient = new WorkflowyApiClient(apiKey, logger, process.env.WORKFLOWY_API_URL);
-		const cacheService = new CacheService(createDatabase());
-		const syncService = new NodeSyncService(apiClient, cacheService);
+		const database = createDatabase();
+		const cacheService = new CacheService(database);
+		const syncService = new NodeSyncService(apiClient, cacheService, {
+			database,
+			treeData: async () => {
+				const auth = readInternalAuth();
+				return auth ? new WorkflowyInternalClient(auth).getTreeData() : undefined;
+			},
+		});
 
 		const targetNodeId = await resolveNodeId(flags, cacheService, apiClient);
 		const targetNodeName = flags.path ? `${flags.path} (${targetNodeId})` : targetNodeId;

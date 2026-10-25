@@ -281,7 +281,7 @@ export interface LocationPickerOptions {
 }
 
 /** `{id}` from a chosen location, `{createdId}` from create-and-move, undefined when closed. */
-type LocationPickerResult = {id: string} | {createdId: string} | undefined;
+export type LocationPickerResult = {id: string} | {createdId: string} | undefined;
 
 /** Upstream `createPaneId`: a fresh 11-character id no pane in the workspace uses yet. */
 function uniquePaneId(taken: readonly (string | null)[]): string {
@@ -646,6 +646,8 @@ interface OutlineActions {
 		anchor: {x: number; y: number},
 		returnTo?: CaretReturn,
 	) => Promise<LocationPickerResult>;
+	/** Re-render the open picker, e.g. after its `getFilter` source changed. */
+	refreshLocationPicker: () => void;
 	/** Close the picker, resolve its promise with `result` and return the caret to `returnTo`. */
 	closeLocationPicker: (result: LocationPickerResult) => void;
 }
@@ -1863,6 +1865,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			resolveLocationPicker = resolve;
 			set({locationPicker: {...options, anchor, returnTo: returnTo ?? null}});
 		});
+	},
+
+	refreshLocationPicker: () => {
+		set((state) => (state.locationPicker === null ? {} : {locationPicker: {...state.locationPicker}}));
 	},
 
 	closeLocationPicker: (result) => {

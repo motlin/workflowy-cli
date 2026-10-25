@@ -199,6 +199,44 @@ describe("GET /api/v1/nodes/:id/backlinks", () => {
 	});
 });
 
+describe("a references root fetched directly", () => {
+	it("flags itself and carries its Backlinks label", async () => {
+		const {app} = setup();
+
+		const body = (await getJson(app, "/api/v1/nodes/refs")) as {node: Record<string, unknown>};
+
+		expect({
+			isReferencesRoot: body.node.isReferencesRoot,
+			backlinksLabel: body.node.backlinksLabel,
+			name: body.node.name,
+		}).toStrictEqual({isReferencesRoot: true, backlinksLabel: "2 Backlinks", name: ""});
+	});
+
+	it("leaves an ordinary node unflagged", async () => {
+		const {app} = setup();
+
+		const body = (await getJson(app, "/api/v1/nodes/target")) as {node: Record<string, unknown>};
+
+		expect({isReferencesRoot: body.node.isReferencesRoot, backlinksLabel: body.node.backlinksLabel}).toStrictEqual({
+			isReferencesRoot: undefined,
+			backlinksLabel: undefined,
+		});
+	});
+
+	it("reads as its label in the ancestors of a backlink item", async () => {
+		const {app} = setup();
+
+		const body = (await getJson(app, "/api/v1/nodes/bl-1/ancestors")) as {ancestors: {id: string; name: string}[]};
+
+		expect(body.ancestors.map(({id, name}) => ({id, name}))).toStrictEqual([
+			{id: "folder", name: "Folder"},
+			{id: "target", name: "Target"},
+			{id: "refs", name: "2 Backlinks"},
+			{id: "bl-1", name: 'See <a href="https://workflowy.com/#/target">Target</a>'},
+		]);
+	});
+});
+
 describe("notReferencesContent", () => {
 	it("excludes references roots and the backlink items under them", () => {
 		const {db} = setup();

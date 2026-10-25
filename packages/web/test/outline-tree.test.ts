@@ -212,6 +212,23 @@ describe("OutlineTree zoom root row", () => {
 		expect(html.slice(start, start + expected.length)).toBe(expected);
 	});
 
+	it("renders a zoomed references root read-only as its Backlinks label, with no placeholder or editor", () => {
+		nodesById.set(
+			"refs",
+			makeNode({id: "refs", parent_id: "alice", name: "", isReferencesRoot: true, backlinksLabel: "2 Backlinks"}),
+		);
+		outlineState.editingId = "refs";
+		try {
+			const html = render("refs");
+			const start = html.indexOf('<div projectid="refs"');
+			expect(html.slice(start, html.indexOf('<div class="wf-menu nameButtons"', start))).toBe(
+				'<div projectid="refs" class="font-custom project selected root references"><div tabindex="-1" class="name name--main empty"><div class="notranslate content whitespace-pre-wrap"><span class="innerContentContainer">2 Backlinks</span></div>',
+			);
+		} finally {
+			outlineState.editingId = null;
+		}
+	});
+
 	it("renders the zoomed node's title as an editor while it is being edited", () => {
 		nodesById.set("alice", makeNode({name: "Alice"}));
 		outlineState.editingId = "alice";
