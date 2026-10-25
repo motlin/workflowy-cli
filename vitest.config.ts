@@ -27,7 +27,7 @@ export default defineConfig({
 					name: "unit",
 					include: [
 						"packages/shared/test/**/*.test.ts",
-						"packages/web/test/**/*.test.ts",
+						"packages/web/test/**/*.test.{ts,tsx}",
 						"scripts/**/*.test.mjs",
 					],
 				},
