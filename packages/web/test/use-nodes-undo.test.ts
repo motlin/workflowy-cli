@@ -196,6 +196,59 @@ describe("mutation hooks record undo ops", () => {
 		]);
 		expect(undoHistory.canUndo).toBe(false);
 	});
+
+	it("joins a block prefix's rename, layout and completion into ONE undo step", async () => {
+		const queryClient = seeded();
+		patchCachedNode(queryClient, "a", (cached) => ({...cached, name: "[x] task"}));
+		const hooks = captureHooks(queryClient);
+		await runInUndoBatch(
+			() => view,
+			() => {
+				hooks.update.mutate({nodeId: "a", name: "task", layoutMode: "todo"});
+				hooks.toggle.mutate({nodeId: "a", isCurrentlyCompleted: false});
+			},
+		);
+		await settled(queryClient);
+		const step = undoHistory.popUndo();
+		previewUndoOps(queryClient, step?.ops ?? []);
+		const restored = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children("p"))?.find((c) => c.id === "a");
+		expect({
+			restored: {name: restored?.name, data: restored?.data, completedAt: restored?.completedAt},
+			more: undoHistory.canUndo,
+		}).toStrictEqual({
+			restored: {name: "[x] task", data: {layoutMode: null}, completedAt: null},
+			more: false,
+		});
+	});
+
+	it("joins a divider prefix's rename and divider create into ONE undo step", async () => {
+		const queryClient = seeded();
+		patchCachedNode(queryClient, "a", (cached) => ({...cached, name: "- - - abc"}));
+		const hooks = captureHooks(queryClient);
+		await runInUndoBatch(
+			() => view,
+			() => {
+				hooks.update.mutate({nodeId: "a", name: "abc"});
+				hooks.create.mutate({id: "n", parent_id: "p", name: "", layoutMode: "divider", index: 0});
+			},
+		);
+		await settled(queryClient);
+		const step = undoHistory.popUndo();
+		previewUndoOps(queryClient, step?.ops ?? []);
+		expect({
+			children: queryClient
+				.getQueryData<NodeResponse[]>(nodeKeys.children("p"))
+				?.map((child) => [child.id, child.name]),
+			more: undoHistory.canUndo,
+		}).toStrictEqual({
+			children: [
+				["a", "- - - abc"],
+				["b", "beta"],
+				["c", "gamma"],
+			],
+			more: false,
+		});
+	});
 });
 
 describe("creates during a search", () => {

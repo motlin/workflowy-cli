@@ -18,6 +18,7 @@ import {
 	rowShapeLayout,
 } from "../tree-ops.js";
 import type {MergeRow} from "../tree-ops.js";
+import {planBlockPrefix, prefixedName} from "../block-prefix.js";
 import {sortByPriority} from "../tree-position.js";
 import type {NodeResponse} from "../../node-types.js";
 import {
@@ -42,7 +43,7 @@ import {nodeKeys, patchCachedNode, readChildren, readDetail, readNode} from "../
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {currentSelectionView, freshSelection, scrollRowIntoView} from "../hooks/use-selection-keymap.js";
 import {editorSelectAllTakesOver, editorShiftArrowTakesOver} from "../item-selection.js";
-import {useCreateNode, useDeleteNode, useMoveNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {toggleComplete, useCreateNode, useDeleteNode, useMoveNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useLatest} from "../hooks/use-latest.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
@@ -521,7 +522,12 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	}, [saveInPlace]);
 	const slashMenu = useSlashMenu({editorRef: contentRef, nodeId, onChange: changeName, onSave: saveName});
 	const slashDiscovered = useSlashDiscovered();
-	const {handleInput: handleSlashInput, handleKeyDown: handleSlashKey, detach: detachSlashMenu} = slashMenu;
+	const {
+		handleInput: handleSlashInput,
+		handleKeyDown: handleSlashKey,
+		detach: detachSlashMenu,
+		isOpen: isSlashMenuOpen,
+	} = slashMenu;
 
 	const handlePaste = useNamePaste({
 		nodeId,
@@ -535,9 +541,79 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		changed: changeName,
 	});
 
+	/**
+	 * Upstream's markdown-style block prefixes: a prefix typed at the very start of the name (`[] `, `# `, `> `, ...)
+	 * turns the row into that block type. The strip, the type change, the completion and a divider's creation are one
+	 * undo step. Returns true when the input was handled.
+	 */
+	const applyBlockPrefix = useCallback(
+		(content: HTMLElement): boolean => {
+			const node = readNode(queryClient, nodeId);
+			const html = serializeEditorHtml(content.innerHTML);
+			const text = plainText(html, PILL_UNIT);
+			const offset = caretTextOffset(content);
+			const layoutMode = node?.data.layoutMode ?? null;
+			const plan = planBlockPrefix({before: text.slice(0, offset), after: text.slice(offset), layoutMode});
+			if (plan === null) {
+				return false;
+			}
+			const name = prefixedName(html, plan, PILL_UNIT);
+			content.innerHTML = renderEditorHtml(name, dateSettings, account);
+			nameSaver.reset(name);
+			placeCaretAtTextOffset(content, 0);
+			holdEditing(0);
+			const slot = sortByPriority(readChildren(queryClient, parentId) ?? []).findIndex(
+				(sibling) => sibling.id === nodeId,
+			);
+			void runInUndoBatch(captureOutlineView, () => {
+				updateNodeMutation.mutate(
+					{
+						nodeId,
+						name,
+						...(plan.kind === "divider-above" ? {} : {layoutMode: plan.layoutMode}),
+						...(plan.numberedStart === undefined ? {} : {numberedStart: plan.numberedStart}),
+					},
+					{onSettled: releaseEditing},
+				);
+				if (plan.complete && node?.completedAt === null) {
+					toggleComplete(queryClient, {nodeId, isCurrentlyCompleted: false});
+				}
+				if (plan.kind === "divider-above") {
+					createNodeMutation.mutate({
+						parent_id: parentId ?? undefined,
+						index: Math.max(slot, 0),
+						name: "",
+						layoutMode: "divider",
+					});
+				}
+			});
+			return true;
+		},
+		[
+			account,
+			createNodeMutation,
+			dateSettings,
+			holdEditing,
+			nameSaver,
+			nodeId,
+			parentId,
+			queryClient,
+			releaseEditing,
+			updateNodeMutation,
+		],
+	);
+
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
 			const content = contentRef.current;
+			if (
+				content !== null &&
+				!isComposingInput(event.nativeEvent) &&
+				!isSlashMenuOpen() &&
+				applyBlockPrefix(content)
+			) {
+				return;
+			}
 			if (content !== null && !isComposingInput(event.nativeEvent)) {
 				retagEditor(content, renderEditorHtml(serializeEditorHtml(content.innerHTML), dateSettings, account));
 			}
@@ -569,10 +645,12 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			}
 		},
 		[
+			applyBlockPrefix,
 			changeName,
 			dateSettings,
 			account,
 			handleSlashInput,
+			isSlashMenuOpen,
 			isDatePickerOpen,
 			handleDateTrigger,
 			handleDateAutocomplete,
