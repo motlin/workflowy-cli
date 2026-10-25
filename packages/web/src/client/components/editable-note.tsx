@@ -30,6 +30,7 @@ import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
 import {plainText} from "../rich-text.js";
+import {cachedLinkTargetName, linkPasteAnchorHtml, planLinkPaste} from "../link-paste.js";
 import {usePlainPasteKey} from "../hooks/use-plain-paste-key.js";
 import {notePasteHtml} from "../paste/note.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
@@ -587,17 +588,32 @@ export function EditableNote({
 			}
 			event.preventDefault();
 			element.classList.add("copyOrPasteInProgress");
+			const selection = globalThis.getSelection();
+			const anchorNode = selection?.anchorNode;
+			const anchorElement = anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement;
+			const selectedText = selection?.toString() ?? "";
+			const linkPlan = plainPasteKey.current
+				? null
+				: planLinkPaste({
+						clipboardText: data.getData("text/plain"),
+						selectionText: selectedText,
+						collapsed: selection?.isCollapsed ?? true,
+						inCode: anchorElement?.closest("code") != null,
+						resolveTargetName: (href) => cachedLinkTargetName(queryClient, href),
+					});
 			insertHtmlAtSelection(
-				notePasteHtml({
-					text: data.getData("text/plain"),
-					html: data.getData("text/html"),
-					plain: plainPasteKey.current,
-				}),
+				linkPlan === null
+					? notePasteHtml({
+							text: data.getData("text/plain"),
+							html: data.getData("text/html"),
+							plain: plainPasteKey.current,
+						})
+					: linkPasteAnchorHtml(linkPlan, selectedText),
 			);
 			handleInput();
 			element.classList.remove("copyOrPasteInProgress");
 		},
-		[handleInput, plainPasteKey],
+		[handleInput, plainPasteKey, queryClient],
 	);
 
 	return (

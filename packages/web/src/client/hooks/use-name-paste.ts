@@ -35,6 +35,7 @@ import {
 	stepsRunnable,
 } from "../paste/items.js";
 import type {ItemPasteStep} from "../paste/items.js";
+import {applyLinkPaste, cachedLinkTargetName, planLinkPaste} from "../link-paste.js";
 import {RequestStatusError} from "../request-error.js";
 import {hideBanner, showBanner} from "../stores/banner.js";
 
@@ -154,6 +155,22 @@ export function useNamePaste({
 					text: layoutMode === "code-block" ? text.trim() : text,
 				});
 				showName(splice.html, splice.caret);
+				changed();
+				return;
+			}
+			const linkPlan = plainKey.current
+				? null
+				: planLinkPaste({
+						clipboardText: text,
+						selectionText: selection?.toString() ?? "",
+						collapsed: offsets.start === offsets.end,
+						inCode: false,
+						resolveTargetName: (href) => cachedLinkTargetName(queryClient, href),
+					});
+			if (linkPlan !== null) {
+				event.preventDefault();
+				const linked = applyLinkPaste(stored, offsets, linkPlan);
+				showName(linked.html, linked.caret);
 				changed();
 				return;
 			}
