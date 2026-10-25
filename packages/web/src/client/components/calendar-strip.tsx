@@ -36,7 +36,7 @@ import type {StripDropDetail, StripLevel} from "../calendar-strip-model.js";
 import {CalendarStripView} from "./calendar-strip-view.js";
 import {layoutAppliedMessage, layoutPreviewMessage} from "../calendar-layout-model.js";
 import {CalendarLayoutView} from "./calendar-layout-view.js";
-import {calendarDayContent, calendarPickerSettingsRows} from "./calendar-picker-settings.js";
+import {calendarDayContent, calendarPickerSettingsRows, stripPickerSelection} from "./calendar-picker-settings.js";
 import {DatePickerPopup} from "./date-picker-popup.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
@@ -184,7 +184,7 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 				: createPortal(
 						<div ref={popup} className="contents">
 							<DatePickerPopup
-								selected={[date]}
+								selected={stripPickerSelection(term, date, guessDates(term, {dateFormat}))}
 								weekStartDay={weekStartDay}
 								showControls={false}
 								renderDayContent={calendarDayContent(eventDays.hasEvent)}

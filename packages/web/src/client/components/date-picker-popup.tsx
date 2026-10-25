@@ -214,7 +214,8 @@ function DateView({
 							const hover = day.selected
 								? "[&:hover_.date-picker-day-cell]:!bg-tint [&:focus-visible_.date-picker-day-cell]:!bg-tint"
 								: "[&:hover_.date-picker-day-cell]:!bg-secondary [&:focus-visible_.date-picker-day-cell]:!bg-secondary";
-							const props = dayButton(day, {
+							// Upstream's older datepicker build emits no aria-selected; the selected cell is styled by `!bg-tint`.
+							const {"aria-selected": _ariaSelected, ...props} = dayButton(day, {
 								onClick: (_event, date) => {
 									if (date) {
 										onDateClick(date);

@@ -3690,7 +3690,7 @@ label.toggle > div {
 	background: var(--wf-background-secondary);
 }
 
-.wf-menu .menuItem > span {
+.wf-menu .menuItem > span:not(.text) {
 	position: relative;
 	display: flex;
 	justify-content: space-between;

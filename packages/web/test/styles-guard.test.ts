@@ -153,6 +153,10 @@ describe("flyout surface styles guard", () => {
 });
 
 describe("menu item styles guard", () => {
+	it("keeps span.text subtexts out of the flex row rule", () => {
+		expect(hasSelector(styles, /\.wf-menu \.menuItem > span\s*\{/u)).toBe(false);
+	});
+
 	it("styles .wf-menu .menuItem rows, icons, shortcuts, separators and section headers", () => {
 		const selectors = [
 			".wf-menu .menuItem",
@@ -160,7 +164,7 @@ describe("menu item styles guard", () => {
 			".wf-menu .menuItem.text-tertiary",
 			".wf-menu .menuItem.canHover:hover",
 			".wf-menu .menuItem.active",
-			".wf-menu .menuItem > span",
+			".wf-menu .menuItem > span:not(.text)",
 			".wf-menu .menuItem > span > span:first-of-type",
 			".menuItemIcon",
 			".wf-menu .menuItem .text.ml-l",
@@ -177,7 +181,7 @@ describe("menu item styles guard", () => {
 			".wf-menu .menuItem.text-tertiary": ["color: var(--wf-text-tertiary)"],
 			".wf-menu .menuItem.canHover:hover": ["background: var(--wf-background-secondary)"],
 			".wf-menu .menuItem.active": ["background: var(--wf-background-secondary)"],
-			".wf-menu .menuItem > span": [
+			".wf-menu .menuItem > span:not(.text)": [
 				"position: relative;display: flex;justify-content: space-between;align-items: center",
 			],
 			".wf-menu .menuItem > span > span:first-of-type": [

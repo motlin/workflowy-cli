@@ -45,6 +45,16 @@ function menuRows(html: string): string[] {
 }
 
 describe("DatePickerPopup", () => {
+	it("does not emit aria-selected on day buttons", () => {
+		const html = render({selected: [new Date(2026, 9, 20)]});
+		expect({
+			ariaSelected: html.includes("aria-selected"),
+			active: [
+				...html.matchAll(/data-date-picker-active-button="true"[^>]*><div[^>]*><div[^>]*><div[^>]*>(\d+)</gu),
+			].map((m) => m[1]),
+		}).toStrictEqual({ariaSelected: false, active: ["20"]});
+	});
+
 	beforeEach(() => {
 		vi.useFakeTimers({toFake: ["Date"]});
 		vi.setSystemTime(new Date(2026, 9, 1, 10, 0));

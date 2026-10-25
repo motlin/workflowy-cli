@@ -79,3 +79,11 @@ export function calendarDayContent(hasDot: (date: Date) => boolean): DayContent 
 		);
 	};
 }
+
+/**
+ * The strip picker's grid selection: the page day while the input is blank, otherwise the typed date's parse
+ * (empty for an unparseable term, which clears the selection like upstream).
+ */
+export function stripPickerSelection(term: string, pageDate: Date, guess: Date[]): Date[] {
+	return term.trim() === "" ? [pageDate] : guess;
+}
