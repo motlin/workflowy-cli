@@ -4,11 +4,11 @@
  */
 
 import {stripHtmlTags} from "@workflowy/shared/html";
-import {nodeContent} from "@workflowy/shared/db";
+import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {findTags} from "@workflowy/shared/tags";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, eq, inArray, sql} from "drizzle-orm";
-import {changedContentIds, changesSince, latestSystemTime, readConsistently} from "./system-changes.js";
+import {changedNodeIds, changesSince, latestSystemTime, readConsistently} from "./system-changes.js";
 import type {Database} from "./tree-snapshot.js";
 import {changeToken} from "./tree-snapshot.js";
 
@@ -20,13 +20,18 @@ export interface TagCount {
 export interface TagRow {
 	name: string | null;
 	note: string | null;
+	/** A code block's text is plain: its tags never count (upstream's `tagging.ignore.code_block`). */
+	layoutMode?: string | null;
 }
 
 const TEMPLATE_TAG_PREFIX = "#use-template";
 
 /** An item's distinct tags (case-insensitive, first-seen casing), skipping #use-template tags. */
-function itemTags({name, note}: TagRow): Map<string, string> {
+function itemTags({name, note, layoutMode}: TagRow): Map<string, string> {
 	const tags = new Map<string, string>();
+	if (layoutMode === "code-block") {
+		return tags;
+	}
 	for (const {tag} of findTags(`${stripHtmlTags(name)}\n${stripHtmlTags(note)}`)) {
 		const lower = tag.toLowerCase();
 		if (!tags.has(lower) && !lower.startsWith(TEMPLATE_TAG_PREFIX)) {
@@ -98,10 +103,20 @@ const wholeTreeCounts = new WeakMap<Database, WholeTreeCounts>();
 /** Live items in rowid order, all of them or only `ids`. */
 function liveTagRows(database: Database, ids?: Set<string>) {
 	const live = eq(nodeContent.systemTo, FAR_FUTURE_DATE);
-	const rowid = sql<number>`rowid`;
+	const rowid = sql<number>`${nodeContent}.rowid`;
 	return database
-		.select({rowid, id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
+		.select({
+			rowid,
+			id: nodeContent.id,
+			name: nodeContent.name,
+			note: nodeContent.note,
+			layoutMode: nodeMetadata.layoutMode,
+		})
 		.from(nodeContent)
+		.leftJoin(
+			nodeMetadata,
+			and(eq(nodeMetadata.nodeId, nodeContent.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+		)
 		.where(ids === undefined ? live : and(live, inArray(nodeContent.id, [...ids])))
 		.orderBy(rowid)
 		.all();
@@ -165,7 +180,7 @@ function recount(database: Database, token: string): WholeTreeCounts {
 function patchCounts(database: Database, cached: WholeTreeCounts, token: string): WholeTreeCounts | null {
 	return readConsistently(database, () => {
 		const latest = latestSystemTime(database);
-		const changed = changedContentIds(database, changesSince(cached.latest), PATCH_LIMIT);
+		const changed = changedNodeIds(database, changesSince(cached.latest), PATCH_LIMIT);
 		if (changed === undefined) {
 			return null;
 		}

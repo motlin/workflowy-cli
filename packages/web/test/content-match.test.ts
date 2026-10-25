@@ -57,6 +57,18 @@ describe("highlightSearchMatches", () => {
 	});
 });
 
+describe("highlightSearchMatches inside code", () => {
+	it("nests matches inside code and across its boundary like upstream", () => {
+		expect([
+			highlightSearchMatches("plain <code>inline code</code> after", '"code after"'),
+			highlightSearchMatches("search <code>findme zz</code> tail", "findme"),
+		]).toStrictEqual([
+			'plain <code>inline <span class="contentMatch">code</span></code><span class="contentMatch"> after</span>',
+			'search <code><span class="contentMatch">findme</span> zz</code> tail',
+		]);
+	});
+});
+
 describe("contentMatch styles", () => {
 	it("colors matches only inside full matches and meta-only matches", () => {
 		expect({

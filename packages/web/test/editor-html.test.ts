@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {renderEditorHtml, serializeEditorHtml} from "../src/client/editor-html.js";
+import {renderCodeBlockHtml, renderEditorHtml, serializeEditorHtml} from "../src/client/editor-html.js";
 
 const settings = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
 const account = {userId: 7, fullName: "Alice Smith"};
@@ -55,5 +55,16 @@ describe("links in names", () => {
 		'A <a href="https://workflowy.com/#/0123456789ab">x</a>',
 	])("round-trips %s", (stored) => {
 		expect(serializeEditorHtml(renderEditorHtml(stored, settings))).toBe(stored);
+	});
+});
+
+describe("renderCodeBlockHtml", () => {
+	it("keeps only the plain text, spaces and newlines of the stored name", () => {
+		expect([
+			renderCodeBlockHtml(
+				'a <b>b</b> #t <a href="https://x.y">https://x.y</a> <time datetime="2026-10-01">Oct 1</time>\n  z',
+			),
+			renderCodeBlockHtml("1 &lt; 2 &amp; 3"),
+		]).toStrictEqual(["a b #t https://x.y Oct 1\n  z", "1 &lt; 2 &amp; 3"]);
 	});
 });

@@ -1,9 +1,11 @@
 import {describe, expect, it} from "vite-plus/test";
 import {
 	availableItemTypes,
+	canHaveNote,
 	currentTypeIcon,
 	ITEM_TYPES,
 	normalizeLayoutMode,
+	planBlockTypeChange,
 	planLayoutToggle,
 } from "../src/client/layout-types.js";
 import type {ItemTypeContext, LayoutToggleItem} from "../src/client/layout-types.js";
@@ -330,5 +332,78 @@ describe("normalizeLayoutMode", () => {
 			normalizeLayoutMode("h1"),
 			normalizeLayoutMode(null),
 		]).toStrictEqual(["p", "quote-block", "h1", null]);
+	});
+});
+
+describe("dividers drop their note", () => {
+	const noted = (overrides: Partial<LayoutToggleItem> = {}): LayoutToggleItem => ({
+		id: "d",
+		layoutMode: null,
+		numberedStart: null,
+		name: "x",
+		plainName: "x",
+		hasChildren: false,
+		hasNote: true,
+		...overrides,
+	});
+
+	it("clears the note when a row becomes a divider and leaves it alone otherwise", () => {
+		expect([
+			planLayoutToggle("toggle_divider", [noted()]).updates,
+			planLayoutToggle("toggle_divider", [noted({hasNote: false})]).updates,
+			planLayoutToggle("toggle_divider", [noted({layoutMode: "divider"})]).updates,
+		]).toStrictEqual([
+			[{id: "d", layoutMode: "divider", note: ""}],
+			[{id: "d", layoutMode: "divider"}],
+			[{id: "d", layoutMode: "bullets"}],
+		]);
+	});
+
+	it("never opens the note editor on a divider", () => {
+		expect([canHaveNote("divider"), canHaveNote("h1"), canHaveNote(null)]).toStrictEqual([false, true, true]);
+	});
+});
+
+describe("planBlockTypeChange", () => {
+	it("splits a multi-line code block into rows when it leaves for another type", () => {
+		expect(
+			planBlockTypeChange({id: "c", layoutMode: "code-block", plainName: "x\n  y\nz"}, "bullets"),
+		).toStrictEqual({
+			update: {id: "c", layoutMode: "bullets", name: "x"},
+			creates: [
+				{name: "  y", layoutMode: "bullets"},
+				{name: "z", layoutMode: "bullets"},
+			],
+		});
+	});
+
+	it("keeps every line between code and quote, and for a single line", () => {
+		expect([
+			planBlockTypeChange({id: "c", layoutMode: "code-block", plainName: "x\ny"}, "quote-block"),
+			planBlockTypeChange({id: "c", layoutMode: "code-block", plainName: "x"}, "h1"),
+			planBlockTypeChange({id: "c", layoutMode: null, plainName: "x\ny"}, "h1"),
+		]).toStrictEqual([
+			{update: {id: "c", layoutMode: "quote-block"}, creates: []},
+			{update: {id: "c", layoutMode: "h1"}, creates: []},
+			{update: {id: "c", layoutMode: "h1"}, creates: []},
+		]);
+	});
+
+	it("carries the split through a toggle plan with escaped text", () => {
+		const block = {
+			id: "c",
+			layoutMode: "quote-block",
+			numberedStart: null,
+			name: "a &lt; b\nc",
+			plainName: "a < b\nc",
+			hasChildren: false,
+			hasNote: false,
+		};
+		expect(planLayoutToggle("toggle_h1", [block])).toStrictEqual({
+			updates: [{id: "c", layoutMode: "h1", name: "a &lt; b"}],
+			deletes: [],
+			clearSelection: false,
+			creates: [{afterId: "c", name: "c", layoutMode: "h1"}],
+		});
 	});
 });

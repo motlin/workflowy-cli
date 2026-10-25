@@ -1,9 +1,11 @@
 // Clipboard HTML to paste lines (upstream `oh2` with the generic bucket cleaners): lists become nesting, text runs
 // become lines, and names keep only `b i u s code a[href]`. Everything else is unwrapped, so no foreign markup is stored.
+import {colorFromCss} from "../../color-palette.js";
 import type {PasteLine} from "./lines.js";
 import {escapeHtml} from "./lines.js";
 
 const FORMAT_TAGS = /<\s*(?:b|strong|i|em|u|s|del|strike|code|a)\b/iu;
+const COLOR_STYLE = /\bstyle\s*=\s*["'](?:[^"']*[\s;])?(?:background-)?color\s*:/iu;
 const LIST_TAGS = /<\s*(?:ul|ol|li|dt)\b/iu;
 const BLOCK_TAGS = new Set([
 	"p",
@@ -28,7 +30,7 @@ const SKIPPED_TAGS = new Set(["script", "style", "head", "meta", "title", "templ
 
 /** The clipboard HTML carries formatting or lists, so it must go through the HTML path instead of plain text. */
 export function hasRichContent(html: string): boolean {
-	return FORMAT_TAGS.test(html) || LIST_TAGS.test(html);
+	return FORMAT_TAGS.test(html) || LIST_TAGS.test(html) || COLOR_STYLE.test(html);
 }
 
 function fontWeightBold(style: string): boolean {
@@ -37,6 +39,53 @@ function fontWeightBold(style: string): boolean {
 		return false;
 	}
 	return weight === "bold" || weight === "bolder" || Number(weight) >= 600;
+}
+
+const TABLE_ELEMENTS = new Set(["TABLE", "TBODY", "THEAD", "TFOOT", "TR", "COLGROUP", "COL"]);
+
+/**
+ * Upstream's paste color normalizer (`qr2`): every non-table `[style]` element with a color or background color gets
+ * its children wrapped in a `<span>` carrying just those two properties, unless its parent is already a span with a
+ * color. The inline walk then reads that span, so a color lives on a span whatever element carried it.
+ */
+export function normalizePastedColors(doc: Document): void {
+	for (const element of doc.body.querySelectorAll<HTMLElement>("[style]")) {
+		if (TABLE_ELEMENTS.has(element.tagName)) {
+			continue;
+		}
+		const {color, backgroundColor} = element.style;
+		if (!color && !backgroundColor) {
+			continue;
+		}
+		const parent = element.parentElement;
+		if (parent?.tagName === "SPAN" && (parent.style.color || parent.style.backgroundColor)) {
+			continue;
+		}
+		const span = doc.createElement("span");
+		if (color) {
+			span.style.color = color;
+		}
+		if (backgroundColor) {
+			span.style.backgroundColor = backgroundColor;
+		}
+		while (element.firstChild) {
+			span.append(element.firstChild);
+		}
+		element.append(span);
+	}
+}
+
+/** A span whose `color` or `background-color` is exactly a palette shade becomes upstream's colored span. */
+function colorWrapper(element: Element): string | undefined {
+	if (element.tagName.toLowerCase() !== "span" || !(element instanceof HTMLElement)) {
+		return undefined;
+	}
+	const background = colorFromCss(element.style.backgroundColor);
+	if (background !== undefined) {
+		return `span class="colored bc-${background}"`;
+	}
+	const text = colorFromCss(element.style.color);
+	return text === undefined ? undefined : `span class="colored c-${text}"`;
 }
 
 /** The wrapping tags an element asks for, outermost first. */
@@ -61,6 +110,11 @@ function wrappers(element: Element): string[] {
 	}
 	if (tag === "code") {
 		tags.push("code");
+	}
+	// The normalizer wraps a colored span's children in a copy of it, so a span inside the same color adds nothing.
+	const color = colorWrapper(element);
+	if (color !== undefined && (element.parentElement === null || colorWrapper(element.parentElement) !== color)) {
+		tags.push(color);
 	}
 	return tags;
 }
@@ -104,6 +158,7 @@ const NOTE_BLOCK_TAGS = new Set([...BLOCK_TAGS, "li", "dt", "ul", "ol"]);
  */
 export function buildNoteHtml(html: string): string {
 	const doc = new DOMParser().parseFromString(html, "text/html");
+	normalizePastedColors(doc);
 	return inlineHtml(doc.body, NOTE_BLOCK_TAGS)
 		.replaceAll(/[ \t]*\n[ \t]*/gu, "\n")
 		.replaceAll(/\n{3,}/gu, "\n\n")
@@ -166,5 +221,6 @@ function containsList(element: Element): boolean {
 /** Lines of clipboard HTML; empty when the HTML has no text. */
 export function buildHtmlLines(html: string): PasteLine[] {
 	const doc = new DOMParser().parseFromString(html, "text/html");
+	normalizePastedColors(doc);
 	return containerLines(doc.body);
 }

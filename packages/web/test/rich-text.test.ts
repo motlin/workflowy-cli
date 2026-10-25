@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
 import {
+	colorAt,
 	concatHtml,
 	hasAttr,
 	parseInline,
@@ -8,10 +9,13 @@ import {
 	planInlineToggle,
 	planItemsAttrToggle,
 	planItemsCodeToggle,
+	planItemsColorClear,
+	planItemsColorToggle,
 	plainText,
 	serializeInline,
 	splitHtml,
 	toggleAttr,
+	toggleColor,
 	touchesAttr,
 	touchesColor,
 	trimmedPlainLength,
@@ -289,5 +293,151 @@ describe("touchesColor", () => {
 			touchesColor('<span style="background-color: red">x</span>', 0, 1),
 			touchesColor('<span class="other">x</span>', 0, 1),
 		]).toStrictEqual([true, true, false]);
+	});
+});
+
+describe("toggleColor", () => {
+	const red = '<span class="colored c-red">';
+	const yellow = '<span class="colored bc-yellow">';
+
+	it("sets a color on a range and removes it when the whole range already has it", () => {
+		const colored = toggleColor("Bravo plain text here", 6, 11, "text", "red");
+		expect([colored, toggleColor(colored, 6, 11, "text", "red")]).toStrictEqual([
+			`Bravo ${red}plain</span> text here`,
+			"Bravo plain text here",
+		]);
+	});
+
+	it("extends a partial color over the whole range", () => {
+		expect(toggleColor(`Bravo ${red}plain</span> text here`, 0, 11, "text", "red")).toBe(
+			`${red}Bravo plain</span> text here`,
+		);
+	});
+
+	it("replaces the other kind of the exclusive group on the range", () => {
+		const input = `${red}Bravo plain</span> text here`;
+		const highlighted = toggleColor(input, 6, 16, "highlight", "yellow");
+		expect([highlighted, toggleColor(highlighted, 0, 5, "text", null)]).toStrictEqual([
+			`${red}Bravo </span>${yellow}plain text</span> here`,
+			`Bravo${red} </span>${yellow}plain text</span> here`,
+		]);
+	});
+
+	it("reads an inline style that is a palette shade as a color class and leaves other spans opaque", () => {
+		expect([
+			serializeInline(parseInline('<span style="color: rgb(224, 36, 36)">x</span>')),
+			serializeInline(parseInline('<span style="color: rgb(1, 2, 3)">x</span>')),
+			serializeInline(parseInline('<span style="background-color: #FCE96A">x</span>')),
+		]).toStrictEqual([`${red}x</span>`, '<span style="color: rgb(1, 2, 3)">x</span>', `${yellow}x</span>`]);
+	});
+
+	it("keeps bold toggling working on colored text", () => {
+		expect(toggleAttr(`${red}ab</span>`, 0, 1, "b")).toBe(`${red}<b>a</b>b</span>`);
+	});
+});
+
+describe("colorAt", () => {
+	const html = 'Bravo <span class="colored bc-yellow">plain text</span> here';
+
+	it("returns the color covering the whole range", () => {
+		expect([colorAt(html, 6, 16), colorAt(html, 6, 17), colorAt(html, 0, 3)]).toStrictEqual([
+			{highlight: "yellow"},
+			{},
+			{},
+		]);
+	});
+});
+
+describe("planItemsColorToggle", () => {
+	const fields = [
+		{id: "c", field: "name" as const, html: "Charlie plain words here"},
+		{
+			id: "d",
+			field: "name" as const,
+			html: 'Delta <span class="colored bc-green">green hl</span> and <span class="colored c-blue">blue text</span>',
+		},
+		{id: "e", field: "note" as const, html: ""},
+	];
+	const latest = {kind: "highlight" as const, color: "yellow" as const};
+
+	it("sets the color on every non-empty field, then removes it from all", () => {
+		const set = planItemsColorToggle(fields, latest);
+		expect(set).toStrictEqual([
+			{id: "c", field: "name", html: '<span class="colored bc-yellow">Charlie plain words here</span>'},
+			{id: "d", field: "name", html: '<span class="colored bc-yellow">Delta green hl and blue text</span>'},
+		]);
+		expect(planItemsColorToggle(set, latest)).toStrictEqual([
+			{id: "c", field: "name", html: "Charlie plain words here"},
+			{id: "d", field: "name", html: "Delta green hl and blue text"},
+		]);
+	});
+
+	it("sets only the fields lacking the color", () => {
+		expect(
+			planItemsColorToggle(
+				[
+					{id: "a", field: "name", html: '<span class="colored c-green">A</span>'},
+					{id: "b", field: "name", html: "B"},
+				],
+				{kind: "text", color: "green"},
+			),
+		).toStrictEqual([{id: "b", field: "name", html: '<span class="colored c-green">B</span>'}]);
+	});
+});
+
+describe("pendingFormatApply with a color", () => {
+	it("wraps the typed character in the latest color", () => {
+		expect(pendingFormatApply("here", 4, new Set(), "z", {kind: "highlight", color: "yellow"})).toBe(
+			'here<span class="colored bc-yellow">z</span>',
+		);
+	});
+});
+
+describe("planItemsColorClear", () => {
+	it("strips both color kinds from the fields that have one", () => {
+		expect(
+			planItemsColorClear([
+				{id: "a", field: "name", html: 'x <span class="colored c-red">y</span>'},
+				{id: "b", field: "name", html: "plain"},
+				{id: "c", field: "note", html: '<span class="colored bc-green">z</span>'},
+			]),
+		).toStrictEqual([
+			{id: "a", field: "name", html: "x y"},
+			{id: "c", field: "note", html: "z"},
+		]);
+	});
+});
+
+describe("code is atomic", () => {
+	it("drops a link inside the range when code is set, keeping its text", () => {
+		expect(toggleAttr('go <a href="https://ex.com/z">ex</a> k', 0, 7, "code")).toBe("<code>go ex k</code>");
+	});
+
+	it("turns a date pill inside the range back into its text and keeps the selection over it", () => {
+		const html = 'on <time startYear="2026" startMonth="10" startDay="1">Oct 1</time> ok';
+		expect(planInlineToggle(html, {start: 0, end: 7}, "code")).toStrictEqual({
+			html: "<code>on Oct 1 ok</code>",
+			sel: {start: 0, end: 11},
+		});
+	});
+
+	it("keeps a link when code is removed", () => {
+		expect(toggleAttr('<code>go <a href="https://ex.com/z">ex</a></code>', 0, 5, "code")).toBe(
+			'go <a href="https://ex.com/z">ex</a>',
+		);
+	});
+});
+
+describe("code across split and merge", () => {
+	it("keeps code on both sides of a split and merges it back", () => {
+		expect([
+			splitHtml("split <code>abcd</code> z", 8, 8),
+			concatHtml("split <code>ab</code>", "<code>cd</code> z"),
+			concatHtml("x <code>a</code>", "<b>b</b>"),
+		]).toStrictEqual([
+			{before: "split <code>ab</code>", after: "<code>cd</code> z"},
+			"split <code>abcd</code> z",
+			"x <code>a</code><b>b</b>",
+		]);
 	});
 });

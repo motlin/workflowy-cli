@@ -14,9 +14,36 @@ export function renderEditorHtml(html: string, dateSettings: DateSettings, accou
 	);
 }
 
+const ENTITIES: Readonly<Record<string, string>> = {amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00A0"};
+
+function decodeEntities(text: string): string {
+	return text.replaceAll(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/giu, (match, ...groups: (string | undefined)[]) => {
+		const [decimal, hex, name] = groups;
+		if (decimal !== undefined) {
+			return String.fromCodePoint(Number(decimal));
+		}
+		if (hex !== undefined) {
+			return String.fromCodePoint(Number.parseInt(hex, 16));
+		}
+		return ENTITIES[(name ?? "").toLowerCase()] ?? match;
+	});
+}
+
+/**
+ * Upstream shows a code block's name as plain text: every tag (formatting, links, colors, date pills) is dropped
+ * but its text kept, and `\n` and spaces stay exactly as written. Tags, mentions and links are never rendered.
+ */
+export function renderCodeBlockHtml(html: string): string {
+	const text = decodeEntities(html.replaceAll(/<[^>]*>/gu, ""));
+	const escaped = text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+	// A final newline needs a <br> after it to show as an empty last line.
+	return text.endsWith("\n") ? `${escaped}<br>` : escaped;
+}
+
 /** The name editor's innerHTML back to stored HTML: tag spans unwrapped, date pills to canonical `<time>`. */
 export function serializeEditorHtml(html: string): string {
-	return serializeMentionPills(serializeDatePills(stripTagMarkup(storeAnchors(html))));
+	// A trailing <br> is the editor's placeholder that keeps a final newline visible, never part of the name.
+	return serializeMentionPills(serializeDatePills(stripTagMarkup(storeAnchors(html)))).replace(/<br\s*\/?>$/iu, "");
 }
 
 /** An IME composition is in progress, so the DOM under it must not be rewritten. */

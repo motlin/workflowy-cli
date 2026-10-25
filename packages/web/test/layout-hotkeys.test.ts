@@ -52,6 +52,7 @@ describe("planLayoutHotkey", () => {
 			updates: [{nodeId: "alice", layoutMode: "bullets"}],
 			deletes: [],
 			clearSelection: false,
+			creates: [],
 		});
 	});
 
@@ -60,6 +61,7 @@ describe("planLayoutHotkey", () => {
 			updates: [{nodeId: "alice", layoutMode: "numbered", numberedStart: 3, name: "Buy milk"}],
 			deletes: [],
 			clearSelection: false,
+			creates: [],
 		});
 	});
 
@@ -73,6 +75,7 @@ describe("planLayoutHotkey", () => {
 			updates: [{nodeId: "alice", layoutMode: "numbered", numberedStart: 3, name: "<b>Buy</b>"}],
 			deletes: [],
 			clearSelection: false,
+			creates: [],
 		});
 	});
 
@@ -92,6 +95,7 @@ describe("planLayoutHotkey", () => {
 			],
 			deletes: ["b"],
 			clearSelection: true,
+			creates: [],
 		});
 	});
 
@@ -100,6 +104,7 @@ describe("planLayoutHotkey", () => {
 			updates: [{nodeId: "a", layoutMode: "code-block", name: "a &amp; b"}],
 			deletes: [],
 			clearSelection: false,
+			creates: [],
 		});
 	});
 
@@ -110,6 +115,7 @@ describe("planLayoutHotkey", () => {
 			updates: [{nodeId: "a", layoutMode: "bullets", numberedStart: null}],
 			deletes: [],
 			clearSelection: false,
+			creates: [],
 		});
 	});
 });

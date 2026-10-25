@@ -1,8 +1,15 @@
 import {useCallback, useEffect, useLayoutEffect, useRef} from "react";
 import type {RefObject} from "react";
 import {placeCaretAtTextOffset, placeSelectionAtTextOffsets, selectionTextOffsets} from "../caret-dom.js";
+import * as latestColor from "../latest-color.js";
 import {pendingFormatApply, planInlineToggle} from "../rich-text.js";
-import type {InlineAttr} from "../rich-text.js";
+import type {ColorChoice, ColorKind, InlineAttr} from "../rich-text.js";
+import type {ColorName} from "../../color-palette.js";
+
+/** Whether a collapsed caret can make `attr` pending: Code is atomic upstream, so Shift+Cmd+C at a caret does nothing. */
+export function canBePending(attr: InlineAttr): boolean {
+	return attr !== "code";
+}
 
 /** `attrs` with `attr` toggled: a second toggle of the same attribute cancels the first. */
 export function togglePendingAttr(attrs: ReadonlySet<InlineAttr>, attr: InlineAttr): Set<InlineAttr> {
@@ -13,17 +20,18 @@ export function togglePendingAttr(attrs: ReadonlySet<InlineAttr>, attr: InlineAt
 	return next;
 }
 
-/** Inserts typed `text` at `pos`: its first character takes the pending attributes, the rest inherit from it. */
+/** Inserts typed `text` at `pos`: its first character takes the pending attributes, the rest inherit from it, and every character takes the pending color. */
 export function insertWithPendingFormat(
 	html: string,
 	pos: number,
 	attrs: ReadonlySet<InlineAttr>,
 	text: string,
+	color?: ColorChoice,
 ): string {
 	let result = html;
 	// oxlint-disable-next-line typescript/no-misused-spread -- rich-text counts code points, so each one is a character
 	for (const [index, char] of [...text].entries()) {
-		result = pendingFormatApply(result, pos + index, index === 0 ? attrs : new Set(), char);
+		result = pendingFormatApply(result, pos + index, index === 0 ? attrs : new Set(), char, color);
 	}
 	return result;
 }
@@ -50,7 +58,7 @@ export function useInlineFormat({editorRef, active, read, render, onChange}: Inl
 	useLayoutEffect(() => {
 		io.current = {read, render, onChange};
 	});
-	const pending = useRef<{attrs: Set<InlineAttr>; at: number}>({attrs: new Set(), at: -1});
+	const pending = useRef<{attrs: Set<InlineAttr>; color?: ColorChoice; at: number}>({attrs: new Set(), at: -1});
 
 	const applyInlineToggle = useCallback(
 		(attr: InlineAttr) => {
@@ -60,8 +68,15 @@ export function useInlineFormat({editorRef, active, read, render, onChange}: Inl
 			}
 			const sel = selectionTextOffsets(element);
 			if (sel.start === sel.end) {
-				const attrs = pending.current.at === sel.start ? pending.current.attrs : new Set<InlineAttr>();
-				pending.current = {attrs: togglePendingAttr(attrs, attr), at: sel.start};
+				if (canBePending(attr)) {
+					const prior = pending.current;
+					const attrs = prior.at === sel.start ? prior.attrs : new Set<InlineAttr>();
+					pending.current = {
+						attrs: togglePendingAttr(attrs, attr),
+						at: sel.start,
+						...(prior.at === sel.start && prior.color ? {color: prior.color} : {}),
+					};
+				}
 				return;
 			}
 			pending.current = {attrs: new Set(), at: -1};
@@ -71,6 +86,52 @@ export function useInlineFormat({editorRef, active, read, render, onChange}: Inl
 			io.current.onChange(plan.html);
 		},
 		[editorRef],
+	);
+
+	/** Applies the latest color to the selection (toggling it), as one change that keeps the selection. */
+	const applyLatestToSelection = useCallback((element: HTMLElement) => {
+		const sel = selectionTextOffsets(element);
+		pending.current = {attrs: new Set(), at: -1};
+		const html = latestColor.planApply(io.current.read(), sel.start, sel.end);
+		element.innerHTML = io.current.render(html);
+		placeSelectionAtTextOffsets(element, sel.start, sel.end);
+		io.current.onChange(html);
+	}, []);
+
+	/**
+	 * Upstream's `latestColor.applyToCaret` (the toolbar's font button and Shift+Cmd+H): a stretched selection toggles
+	 * the latest color, a collapsed caret makes it pending. Returns false when no color was ever picked, so the
+	 * caller opens the popup instead.
+	 */
+	const applyLatestColor = useCallback((): boolean => {
+		const element = editorRef.current;
+		const latest = latestColor.get();
+		if (element === null || latest === undefined) {
+			return false;
+		}
+		const sel = selectionTextOffsets(element);
+		if (sel.start === sel.end) {
+			const attrs = pending.current.at === sel.start ? pending.current.attrs : new Set<InlineAttr>();
+			const color = pending.current.at === sel.start ? pending.current.color : undefined;
+			const same = color?.kind === latest.kind && color.color === latest.color;
+			pending.current = {attrs, ...(same ? {} : {color: latest}), at: sel.start};
+			return true;
+		}
+		applyLatestToSelection(element);
+		return true;
+	}, [applyLatestToSelection, editorRef]);
+
+	/** A popup pick: `color` becomes the latest (null keeps it and removes the color once), then it is applied. */
+	const applyColorToggle = useCallback(
+		(kind: ColorKind, color: ColorName | null) => {
+			const element = editorRef.current;
+			if (element === null) {
+				return;
+			}
+			latestColor.change(kind, color);
+			applyLatestToSelection(element);
+		},
+		[applyLatestToSelection, editorRef],
 	);
 
 	useEffect(() => {
@@ -83,8 +144,8 @@ export function useInlineFormat({editorRef, active, read, render, onChange}: Inl
 			pending.current = {attrs: new Set(), at: -1};
 		};
 		const onBeforeInput = (event: InputEvent) => {
-			const {attrs, at} = pending.current;
-			if (attrs.size === 0) {
+			const {attrs, at, color} = pending.current;
+			if (attrs.size === 0 && color === undefined) {
 				return;
 			}
 			const sel = selectionTextOffsets(element);
@@ -93,7 +154,7 @@ export function useInlineFormat({editorRef, active, read, render, onChange}: Inl
 				return;
 			}
 			event.preventDefault();
-			const html = insertWithPendingFormat(io.current.read(), at, attrs, event.data);
+			const html = insertWithPendingFormat(io.current.read(), at, attrs, event.data, color);
 			element.innerHTML = io.current.render(html);
 			placeCaretAtTextOffset(element, at + event.data.length);
 			io.current.onChange(html);
@@ -106,5 +167,5 @@ export function useInlineFormat({editorRef, active, read, render, onChange}: Inl
 		};
 	}, [active, editorRef]);
 
-	return {applyInlineToggle};
+	return {applyInlineToggle, applyLatestColor, applyColorToggle};
 }

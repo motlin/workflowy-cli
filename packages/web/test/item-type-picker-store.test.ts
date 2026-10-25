@@ -95,6 +95,43 @@ describe("selectItemType", () => {
 		expect(calls).toStrictEqual({updates: [{nodeId: "alice", layoutMode: "h2"}], expanded: []});
 	});
 
+	it("splits a multi-line code block into one row per line when it becomes another type", () => {
+		const updates: unknown[] = [];
+		const creates: unknown[] = [];
+		const deps: ItemTypeSelectDeps = {
+			update: (nodeId, layoutMode, extra) => {
+				updates.push([nodeId, layoutMode, extra]);
+			},
+			plainName: () => "a < b\n  c",
+			createAfter: (nodeId, lines) => {
+				creates.push([nodeId, lines]);
+			},
+			expandAll: () => {},
+			childIds: () => [],
+			layoutMode: () => "code-block",
+		};
+		selectItemType(itemType("h2"), ["alice"], deps);
+		expect({updates, creates}).toStrictEqual({
+			updates: [["alice", "h2", {name: "a &lt; b"}]],
+			creates: [["alice", [{name: "  c", layoutMode: "h2"}]]],
+		});
+	});
+
+	it("clears the note of a row turned into a divider", () => {
+		const extras: unknown[] = [];
+		const deps: ItemTypeSelectDeps = {
+			update: (_nodeId, _layoutMode, extra) => {
+				extras.push(extra);
+			},
+			hasNote: (nodeId) => nodeId === "alice",
+			expandAll: () => {},
+			childIds: () => [],
+			layoutMode: () => null,
+		};
+		selectItemType(itemType("divider"), ["alice", "bob"], deps);
+		expect(extras).toStrictEqual([{note: ""}, undefined]);
+	});
+
 	it("sets Divider on a node that is not one, and keeps an existing divider", () => {
 		const on = recordingDeps({}, {bob: "h2"});
 		selectItemType(itemType("divider"), ["alice", "bob"], on.deps);

@@ -1,4 +1,6 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
+import {plainText} from "../rich-text.js";
+import {CopyCodeButton} from "./copy-code-button.js";
 import type {ReactNode, Ref} from "react";
 import type {BacklinkItem, FoundDateItem, FoundDatesResponse, NodeResponse} from "../../node-types.js";
 import {useContext, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
@@ -228,6 +230,9 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 			/>
 		) : null;
 
+	const copyCodeButton =
+		node?.data.layoutMode === "code-block" ? <CopyCodeButton plainText={plainText(nameHtml, "")} /> : null;
+
 	// Like a row, the root's `.notes--main` mounts once noted, note-focused, or title-focused, and stays mounted.
 	const [noteMounted, setNoteMounted] = useState(false);
 	const shouldMountNote = !isMainTreeRoot && (Boolean(node?.note) || isEditingNote || isEditing);
@@ -300,12 +305,14 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 							clickPosition: isEditing ? (editingClickPosition ?? undefined) : undefined,
 							initialValue: nameHtml,
 							isEditing,
+							layoutMode: node.data.layoutMode,
 							nodeId: node.id,
 							parentId: node.parent_id,
 							priority: node.priority,
 						})
 					) : null}
 				</div>
+				{copyCodeButton}
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 				{dividerLine}
 				{node && !isMainTreeRoot && (isHovered || isMenuOpen) ? (

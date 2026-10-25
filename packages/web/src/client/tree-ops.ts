@@ -1,7 +1,8 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../node-types.js";
+import {normalizeLayoutMode} from "./layout-types.js";
 import {readChildren, readNode, spliceBlock} from "./node-cache.js";
-import {concatHtml, plainLength, splitHtml, trimmedPlainLength} from "./rich-text.js";
+import {concatHtml, plainLength, plainText, splitHtml, trimmedPlainLength} from "./rich-text.js";
 import {sortByPriority} from "./tree-position.js";
 import type {UndoOp} from "./undo-history.js";
 
@@ -195,11 +196,14 @@ export interface SplitNode {
 	hasNextSibling: boolean;
 	/** False when the parent is the zoom root (or the tree root). */
 	canOutdent: boolean;
+	/** The row's layout mode: Enter in a code or quote block inserts a newline. */
+	layoutMode?: string | null | undefined;
 }
 
-/** What Enter does: outdent the empty row, or create a row and rename the current one. */
+/** What Enter does: outdent the empty row, insert a newline in a code or quote block, or create a row and rename the current one. */
 export type SplitPlan =
 	| {kind: "outdent"}
+	| {kind: "newline"}
 	| {
 			kind: "create";
 			parentId: string | null;
@@ -209,6 +213,42 @@ export type SplitPlan =
 			focus: "new" | "current";
 			layoutMode: string | null;
 	  };
+
+/** The newline run that exits a multi-line block with Enter: a code block ends after a blank line, a quote after one. */
+const MULTILINE_EXIT: Readonly<Record<string, string>> = {"code-block": "\n\n", "quote-block": "\n"};
+
+/**
+ * Enter in a code or quote block inserts a newline, except right after the exit run (`\n\n` in code, `\n` in a
+ * quote), which is removed and starts a new row after this one.
+ */
+function planBlockEnter({
+	node,
+	html,
+	selection,
+	shapeLayout,
+	exit,
+}: {
+	node: SplitNode;
+	html: string;
+	selection: {start: number; end: number};
+	shapeLayout: string | null;
+	exit: string;
+}): SplitPlan {
+	const {start, end} = selection;
+	if (start !== end || !plainText(html, "").slice(0, start).endsWith(exit)) {
+		return {kind: "newline"};
+	}
+	const {before, after} = splitHtml(html, start - exit.length, start);
+	return {
+		kind: "create",
+		parentId: node.parent_id,
+		index: node.index + 1,
+		newName: after,
+		currentName: before,
+		focus: "new",
+		layoutMode: shapeLayout,
+	};
+}
 
 /**
  * Plan Enter in the editor (upstream `hK`). A caret at the trimmed end creates a row
@@ -228,6 +268,10 @@ export function planSplit({
 	/** The new row's layout, from `rowShapeLayout` of the split row. */
 	shapeLayout: string | null;
 }): SplitPlan {
+	const block = node.isZoomRoot ? undefined : MULTILINE_EXIT[normalizeLayoutMode(node.layoutMode) ?? ""];
+	if (block !== undefined) {
+		return planBlockEnter({node, html, selection, shapeLayout, exit: block});
+	}
 	if (node.isEmpty && !node.hasNextSibling && node.canOutdent && !node.isZoomRoot) {
 		return {kind: "outdent"};
 	}

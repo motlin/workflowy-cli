@@ -13,7 +13,7 @@
  */
 
 import {Hono} from "hono";
-import {nodeContent} from "@workflowy/shared/db";
+import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, eq, sql} from "drizzle-orm";
 import type {AppEnv, ServerContext} from "../context.js";
@@ -35,22 +35,24 @@ function withLive(rows: IdRow[], live: LiveText | null): TagRow[] {
 		return rows;
 	}
 	return rows.map((row) =>
-		row.id === live.id ? {id: row.id, name: live.name ?? row.name, note: live.note ?? row.note} : row,
+		row.id === live.id ? {...row, name: live.name ?? row.name, note: live.note ?? row.note} : row,
 	);
 }
 
 function subtreeRows(ctx: ServerContext, rootId: string): IdRow[] {
 	return ctx.db.all<IdRow>(sql`
-		WITH RECURSIVE subtree(id, name, note) AS (
-			SELECT id, name, note FROM node_content
-			WHERE id = ${rootId}
-			AND system_to = ${FAR_FUTURE_DATE}
+		WITH RECURSIVE subtree(id, name, note, layoutMode) AS (
+			SELECT c.id, c.name, c.note, m.layout_mode FROM node_content c
+			LEFT JOIN node_metadata m ON m.node_id = c.id AND m.system_to = ${FAR_FUTURE_DATE}
+			WHERE c.id = ${rootId}
+			AND c.system_to = ${FAR_FUTURE_DATE}
 			UNION ALL
-			SELECT n.id, n.name, n.note FROM node_content n
+			SELECT n.id, n.name, n.note, m.layout_mode FROM node_content n
+			LEFT JOIN node_metadata m ON m.node_id = n.id AND m.system_to = ${FAR_FUTURE_DATE}
 			INNER JOIN subtree s ON n.parent_id = s.id
 			WHERE n.system_to = ${FAR_FUTURE_DATE}
 		)
-		SELECT id, name, note FROM subtree
+		SELECT id, name, note, layoutMode FROM subtree
 	`);
 }
 
@@ -61,14 +63,22 @@ function wholeTreeCounts(ctx: ServerContext, live: LiveText | null): ReturnType<
 		return counts;
 	}
 	const saved = ctx.db
-		.select({name: nodeContent.name, note: nodeContent.note})
+		.select({name: nodeContent.name, note: nodeContent.note, layoutMode: nodeMetadata.layoutMode})
 		.from(nodeContent)
+		.leftJoin(
+			nodeMetadata,
+			and(eq(nodeMetadata.nodeId, nodeContent.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+		)
 		.where(and(eq(nodeContent.id, live.id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
 		.get();
 	if (saved === undefined) {
 		return counts;
 	}
-	return swapItemText(counts, saved, {name: live.name ?? saved.name, note: live.note ?? saved.note});
+	return swapItemText(counts, saved, {
+		name: live.name ?? saved.name,
+		note: live.note ?? saved.note,
+		layoutMode: saved.layoutMode,
+	});
 }
 
 function parseLimit(raw: string | undefined): number {

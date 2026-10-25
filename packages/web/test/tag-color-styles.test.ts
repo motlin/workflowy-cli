@@ -33,17 +33,12 @@ describe("buildTagColorCss", () => {
 	});
 
 	it.each(COLORS)("paints .bc-%s from the upstream --wf-background token", (color) => {
-		expect(cssBlock(styles, `.bc-${color}`)["background-color"]).toBe(`var(--wf-background-${color})`);
+		expect(cssBlock(styles, `.bc-${color}.bc-${color}`)["background-color"]).toBe(`var(--wf-background-${color})`);
 	});
 
-	it.each(["green", "red", "blue", "yellow", "purple", "pink", "teal", "gray"])(
-		"colors .colored.c-%s text from the upstream --wf-text token",
-		(color) => {
-			expect(cssBlock(styles, `.innerContentContainer .colored.c-${color}`).color).toBe(
-				`var(--wf-text-${color})`,
-			);
-		},
-	);
+	it.each(COLORS)("colors .c-%s text from the upstream --wf-text token", (color) => {
+		expect(cssBlock(styles, `.c-${color}`).color).toBe(`var(--wf-text-${color})`);
+	});
 
 	it("is empty without colors", () => {
 		expect(buildTagColorCss({})).toBe("");

@@ -1,3 +1,5 @@
+import {readFileSync} from "node:fs";
+import {fileURLToPath} from "node:url";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {buildHotkeys, comboFromEvent, currentPlatform, HOTKEYS} from "../src/client/keys/keymap.js";
 import type {KeyComboEvent, Platform} from "../src/client/keys/keymap.js";
@@ -326,3 +328,24 @@ describe("comboFromEvent", () => {
 		expect(comboFromEvent(keyEvent)).toBe(combo);
 	});
 });
+
+describe("color commands", () => {
+	it("registers every command the color hotkeys and the selection menu run", () => {
+		const registry = readFileSync(
+			fileURLToPath(new URL("../src/client/hooks/use-command-registry.ts", import.meta.url)),
+			"utf8",
+		);
+		const bound = [...hotkeyTable("highlight_selected")];
+		expect({
+			bound,
+			registered: ["highlight_selected", "show_color_popup"].map((id) => registry.includes(`\t\t${id}: {`)),
+		}).toStrictEqual({bound: ["meta+shift+h", "ctrl+shift+h"], registered: [true, true]});
+	});
+});
+
+function hotkeyTable(command: string): string[] {
+	return [
+		...buildHotkeys({...CHROME, mac: true}).filter(([, id]) => id === command),
+		...buildHotkeys(CHROME).filter(([, id]) => id === command),
+	].map(([combo]) => combo);
+}

@@ -6,7 +6,7 @@ import {Hono} from "hono";
 import {join} from "node:path";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
-import {nodeContent} from "@workflowy/shared/db";
+import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {and, eq} from "drizzle-orm";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
@@ -36,6 +36,22 @@ const FIXTURE_ROWS = FIXTURE_NAMES.map((name) => ({name, note: null}));
 function asPairs(tags: TagCount[]): string[] {
 	return tags.map(({tag, count}) => `${tag}:${count}`);
 }
+
+describe("rankTags in code blocks", () => {
+	it("leaves a code block's tags out of the counts", () => {
+		expect(
+			asPairs(
+				rankTags(
+					[
+						{name: "#a", note: null, layoutMode: "code-block"},
+						{name: "#b", note: null},
+					],
+					{prefix: "#", limit: 8},
+				),
+			),
+		).toStrictEqual(["#b:1"]);
+	});
+});
 
 describe("rankTags", () => {
 	it("ranks every tag by count, then non-digit before digit, then plain string order, capped at the limit", () => {
@@ -143,7 +159,9 @@ function setup(db = setupDb()) {
 
 async function getTags(app: Hono<AppEnv>, query: string): Promise<string[]> {
 	const response = await app.fetch(new Request(`http://x/api/v1/tags/autocomplete?${query}`));
-	expect(response.status).toBe(200);
+	if (response.status !== 200) {
+		throw new Error(await response.text());
+	}
 	const body = (await response.json()) as {tags: TagCount[]};
 	return asPairs(body.tags);
 }
@@ -175,6 +193,31 @@ describe("GET /api/v1/tags/autocomplete", () => {
 		await expect(getTags(setup(), "prefix=%23taO")).resolves.toStrictEqual(["#taOutside:1"]);
 		await expect(getTags(setup(), "prefix=%23taZ")).resolves.toStrictEqual(["#taZebra:4"]);
 		await expect(getTags(setup(), "prefix=%23taG")).resolves.toStrictEqual([]);
+	});
+});
+
+describe("GET /api/v1/tags/autocomplete and code blocks", () => {
+	it("counts no tag from a code-block row, in the subtree or the whole tree", async () => {
+		const db = setupDb();
+		const at = "2026-01-02 00:00:00.000";
+		db.insert(nodeContent)
+			.values({
+				id: "code",
+				name: "#taCodeOnly #taZebra",
+				note: null,
+				parentId: "root",
+				systemFrom: at,
+				systemTo: FAR_FUTURE_DATE,
+			})
+			.run();
+		db.insert(nodeMetadata)
+			.values({nodeId: "code", layoutMode: "code-block", systemFrom: at, systemTo: FAR_FUTURE_DATE})
+			.run();
+		expect([
+			await getTags(setup(db), "prefix=%23taC"),
+			await getTags(setup(db), "root=root&prefix=%23taC&fallback=0"),
+			await getTags(setup(db), "prefix=%23taZ"),
+		]).toStrictEqual([[], [], ["#taZebra:4"]]);
 	});
 });
 

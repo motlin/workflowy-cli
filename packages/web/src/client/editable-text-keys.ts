@@ -96,6 +96,13 @@ export function classifyFormatKey(event: EditorKeyEvent & {code: string}, isMac:
 	return (shiftKey ? SHIFT_FORMAT_CODES[code] : FORMAT_CODES[code]) ?? null;
 }
 
+/** ⇧⌘H (Ctrl off mac), upstream's `highlight_selected`: reapply the latest text color or highlight. */
+export function isHighlightKey(event: EditorKeyEvent & {code: string}, isMac: boolean): boolean {
+	const {code, metaKey, ctrlKey, altKey, shiftKey} = event;
+	const mod = isMac ? metaKey && !ctrlKey : ctrlKey && !metaKey;
+	return mod && shiftKey && !altKey && code === "KeyH";
+}
+
 /** Whether the browser runs on an Apple platform, where the editor's mod key is meta. */
 export function isMacPlatform(): boolean {
 	return typeof navigator !== "undefined" && /Mac|iPhone|iPad/u.test(navigator.platform);

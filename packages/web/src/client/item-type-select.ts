@@ -1,11 +1,17 @@
 import {HOME_TARGET} from "@workflowy/shared/types";
-import {availableItemTypes} from "./layout-types.js";
+import {availableItemTypes, escapeBlockText, planBlockTypeChange} from "./layout-types.js";
 import type {ItemType} from "./layout-types.js";
 
 /** What choosing an item type needs from the outline: writes, expansion and the cached tree. */
 export interface ItemTypeSelectDeps {
 	/** Write `layoutMode` to the node (`"home"` for Home; `"bullets"` removes the stored key). */
-	update: (nodeId: string, layoutMode: string) => void;
+	update: (nodeId: string, layoutMode: string, extra?: {note?: ""; name?: string}) => void;
+	/** The node's plain text: a multi-line code or quote block that changes type splits into one row per line. */
+	plainName?: (nodeId: string) => string;
+	/** Create a row per line after `nodeId`, in order (the split lines). */
+	createAfter?: (nodeId: string, lines: {name: string; layoutMode: string}[]) => void;
+	/** Whether the node has a note; a node turned into a divider loses it. */
+	hasNote?: (nodeId: string) => boolean;
 	/** Expand each of `ids`. */
 	expandAll: (ids: readonly string[]) => void;
 	childIds: (nodeId: string) => readonly string[];
@@ -28,7 +34,8 @@ export function selectItemType(type: ItemType, nodeIds: readonly string[], deps:
 	if (type.layoutModeKey === "divider") {
 		for (const id of targets) {
 			if (deps.layoutMode(id) !== "divider") {
-				deps.update(id, "divider");
+				// Upstream's divider has no note: turning a row into one clears it in the same write.
+				deps.update(id, "divider", ...(deps.hasNote?.(id) === true ? [{note: ""} as const] : []));
 			}
 		}
 		return;
@@ -37,7 +44,19 @@ export function selectItemType(type: ItemType, nodeIds: readonly string[], deps:
 		deps.expandAll(targets.flatMap((id) => deps.childIds(id)));
 	}
 	for (const id of targets) {
-		deps.update(id, type.layoutModeKey);
+		const change = planBlockTypeChange(
+			{id, layoutMode: deps.layoutMode(id), plainName: deps.plainName?.(id) ?? ""},
+			type.layoutModeKey,
+		);
+		if (change.update.name === undefined) {
+			deps.update(id, type.layoutModeKey);
+			continue;
+		}
+		deps.update(id, type.layoutModeKey, {name: escapeBlockText(change.update.name)});
+		deps.createAfter?.(
+			id,
+			change.creates.map((line) => ({...line, name: escapeBlockText(line.name)})),
+		);
 	}
 }
 

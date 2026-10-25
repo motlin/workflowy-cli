@@ -64,11 +64,6 @@ function distinctIds(database: Database, query: SQL, limit: number): Set<string>
 	return rows.length > limit ? undefined : new Set(rows.map(({id}) => id));
 }
 
-/** Ids whose `node_content` changed after `since`, or undefined when more than `limit` did. */
-export function changedContentIds(database: Database, since: string, limit: number): Set<string> | undefined {
-	return distinctIds(database, changedIn("node_content", "id", since), limit);
-}
-
 /**
  * Ids of nodes whose search row may have changed after `since`, or undefined when more than `limit` did:
  * changed content, metadata, mirror links, references roots or AI metadata, plus live mirrors of a changed original

@@ -3,6 +3,7 @@ import {memo, useEffect, useState} from "react";
 import {createPortal} from "react-dom";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
+import {ItemColorPopupHost} from "./components/item-color-popup-host.js";
 import {MenusHost} from "./components/menus-host.js";
 import {AppMessages} from "./components/app-message.js";
 import {GuiBanner} from "./components/gui-banner.js";
@@ -292,6 +293,7 @@ export function App() {
 								<Route element={<NodeRedirect />} path="/node/:id" />
 							</Routes>
 						</div>
+						<ItemColorPopupHost />
 					</StableNavigateProvider>
 				</BrowserRouter>
 			</QueryClientProvider>

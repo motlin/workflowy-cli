@@ -371,7 +371,6 @@ body {
 	--color-bg-secondary: var(--wf-background-secondary);
 	--color-bg-hover: var(--wf-background-secondary);
 	--color-bg-selected: var(--wf-background-selected);
-	--color-bg-code: var(--wf-background-secondary);
 	--color-bg-overlay: var(--wf-black-opaque-60);
 	--color-text: var(--wf-text-primary);
 	--color-text-secondary: var(--wf-text-secondary);
@@ -1571,36 +1570,276 @@ body.moving .expand {
 	background-color: transparent;
 }
 
-/* Color-name backgrounds for picker swatches; tag pills are colored by the generated <style id="tags-None"> */
-.bc-red {
+/* Upstream color rules (wf-base): c-X text colors and bc-X highlights, used by inline spans, tag pills and picker swatches */
+.c-red {
+	color: var(--wf-text-red);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-red);
+}
+.c-red.c-red > a {
+	color: var(--wf-text-red);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-red);
+}
+.c-orange {
+	color: var(--wf-text-orange);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-orange);
+}
+.c-orange.c-orange > a {
+	color: var(--wf-text-orange);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-orange);
+}
+.c-yellow {
+	color: var(--wf-text-yellow);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-yellow);
+}
+.c-yellow.c-yellow > a {
+	color: var(--wf-text-yellow);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-yellow);
+}
+.c-green {
+	color: var(--wf-text-green);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-green);
+}
+.c-green.c-green > a {
+	color: var(--wf-text-green);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-green);
+}
+.c-blue {
+	color: var(--wf-text-blue);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-blue);
+}
+.c-blue.c-blue > a {
+	color: var(--wf-text-blue);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-blue);
+}
+.c-purple {
+	color: var(--wf-text-purple);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-purple);
+}
+.c-purple.c-purple > a {
+	color: var(--wf-text-purple);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-purple);
+}
+.c-gray {
+	color: var(--wf-text-gray);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-gray);
+}
+.c-gray.c-gray > a {
+	color: var(--wf-text-gray);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-gray);
+}
+.c-teal {
+	color: var(--wf-text-teal);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-teal);
+}
+.c-teal.c-teal > a {
+	color: var(--wf-text-teal);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-teal);
+}
+.c-sky {
+	color: var(--wf-text-sky);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-sky);
+}
+.c-sky.c-sky > a {
+	color: var(--wf-text-sky);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-sky);
+}
+.c-pink {
+	color: var(--wf-text-pink);
+	text-decoration: inherit;
+	text-decoration-color: var(--wf-text-pink);
+}
+.c-pink.c-pink > a {
+	color: var(--wf-text-pink);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-text-pink);
+}
+.bc-red.bc-red {
 	background-color: var(--wf-background-red);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
 }
-.bc-orange {
+a > .bc-red.bc-red {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
+}
+time > .bc-red.bc-red {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-red.bc-red > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-orange.bc-orange {
 	background-color: var(--wf-background-orange);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
 }
-.bc-yellow {
+a > .bc-orange.bc-orange {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
+}
+time > .bc-orange.bc-orange {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-orange.bc-orange > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-yellow.bc-yellow {
 	background-color: var(--wf-background-yellow);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
 }
-.bc-green {
+a > .bc-yellow.bc-yellow {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
+}
+time > .bc-yellow.bc-yellow {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-yellow.bc-yellow > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-green.bc-green {
 	background-color: var(--wf-background-green);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
 }
-.bc-teal {
-	background-color: var(--wf-background-teal);
+a > .bc-green.bc-green {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
 }
-.bc-sky {
-	background-color: var(--wf-background-sky);
+time > .bc-green.bc-green {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
 }
-.bc-blue {
+.bc-green.bc-green > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-blue.bc-blue {
 	background-color: var(--wf-background-blue);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
 }
-.bc-purple {
+a > .bc-blue.bc-blue {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
+}
+time > .bc-blue.bc-blue {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-blue.bc-blue > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-purple.bc-purple {
 	background-color: var(--wf-background-purple);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
 }
-.bc-pink {
-	background-color: var(--wf-background-pink);
+a > .bc-purple.bc-purple {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
 }
-.bc-gray {
+time > .bc-purple.bc-purple {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-purple.bc-purple > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-gray.bc-gray {
 	background-color: var(--wf-background-gray);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
+}
+a > .bc-gray.bc-gray {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
+}
+time > .bc-gray.bc-gray {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-gray.bc-gray > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-teal.bc-teal {
+	background-color: var(--wf-background-teal);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
+}
+a > .bc-teal.bc-teal {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
+}
+time > .bc-teal.bc-teal {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-teal.bc-teal > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-sky.bc-sky {
+	background-color: var(--wf-background-sky);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
+}
+a > .bc-sky.bc-sky {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
+}
+time > .bc-sky.bc-sky {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-sky.bc-sky > a {
+	color: var(--wf-text-quaternary);
+}
+.bc-pink.bc-pink {
+	background-color: var(--wf-background-pink);
+	color: var(--wf-text-quaternary);
+	padding: 2px 0;
+}
+a > .bc-pink.bc-pink {
+	color: var(--wf-text-quaternary);
+	text-decoration: underline;
+}
+time > .bc-pink.bc-pink {
+	color: var(--wf-text-on-color);
+	text-decoration: underline;
+	text-decoration-color: var(--wf-gray-300);
+}
+.bc-pink.bc-pink > a {
+	color: var(--wf-text-quaternary);
 }
 
 /* Tag color teaser - upstream's 21x21 hit area holding a 13x13 chevron circle at a hovered tag's right edge; mousedown opens the picker */
@@ -1636,39 +1875,6 @@ body.moving .expand {
 .tag-color-teaser-glyph svg {
 	width: 1em;
 	height: 1em;
-}
-
-/* Workflowy-style colored text spans */
-.innerContentContainer .colored.c-green {
-	color: var(--wf-text-green);
-}
-
-.innerContentContainer .colored.c-red {
-	color: var(--wf-text-red);
-}
-
-.innerContentContainer .colored.c-blue {
-	color: var(--wf-text-blue);
-}
-
-.innerContentContainer .colored.c-yellow {
-	color: var(--wf-text-yellow);
-}
-
-.innerContentContainer .colored.c-purple {
-	color: var(--wf-text-purple);
-}
-
-.innerContentContainer .colored.c-pink {
-	color: var(--wf-text-pink);
-}
-
-.innerContentContainer .colored.c-teal {
-	color: var(--wf-text-teal);
-}
-
-.innerContentContainer .colored.c-gray {
-	color: var(--wf-text-gray);
 }
 
 /* Upstream date pills (wf-base): stored <time> rendered as .monolith-pill in display mode */
@@ -1899,33 +2105,6 @@ code {
 .font-andale code {
 	padding: 0;
 	font-size: 100%;
-}
-
-/* Code block formatting (pre > code) */
-.innerContentContainer pre {
-	margin: 0;
-	background-color: var(--color-bg-code);
-	border-radius: 4px;
-	padding: 8px 12px;
-	overflow-x: auto;
-}
-
-.innerContentContainer pre code {
-	display: block;
-	padding: 0;
-	background-color: transparent;
-	border: 0;
-	white-space: pre-wrap;
-	word-wrap: break-word;
-}
-
-/* Blockquote formatting */
-.innerContentContainer blockquote {
-	margin: 0;
-	padding-left: 12px;
-	border-left: 3px solid var(--color-border-light);
-	color: var(--color-text-secondary);
-	font-style: italic;
 }
 
 /* Row labels reuse .innerContentContainer for name HTML; inherit the row's type instead of the outline's 16px/400/24px. */

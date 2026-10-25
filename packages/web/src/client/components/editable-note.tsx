@@ -23,14 +23,17 @@ import {prefetchPickerMonths} from "../hooks/use-calendar-event-days.js";
 import {useAccount} from "../hooks/use-account.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
+import {applyInlineCodeInput} from "../inline-code-edit.js";
+import {useColorPopup} from "../hooks/use-color-popup.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
+import {useLatestColorClass} from "../latest-color.js";
 import {toolbarFormatAttr, useSelectionToolbar} from "../hooks/use-selection-toolbar.js";
 import {SelectionToolbar} from "./selection-toolbar.js";
 import type {SelectionToolbarAction} from "./selection-toolbar.js";
 import {useTagPointer} from "../hooks/use-tag-pointer.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
-import {classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
+import {classifyFormatKey, isHighlightKey, isMacPlatform} from "../editable-text-keys.js";
 import {plainText} from "../rich-text.js";
 import {cachedLinkTargetName, linkPasteAnchorHtml, planLinkPaste} from "../link-paste.js";
 import {usePlainPasteKey} from "../hooks/use-plain-paste-key.js";
@@ -382,6 +385,18 @@ export function EditableNote({
 		(event?: React.SyntheticEvent<HTMLDivElement>) => {
 			// The note codec drops the slash chip, so tags wait while the slash menu is open.
 			const element = contentRef.current;
+			// Upstream's inline-code input rule: a closing backtick or a double space typed at the end of code.
+			if (
+				element !== null &&
+				!isSlashOpen() &&
+				applyInlineCodeInput(element, event?.nativeEvent, {
+					read: () => planNoteSave(noteSaver.saved, element.innerHTML).note,
+					render: (note) => noteContentHtml(note, dateSettings, undefined, account),
+				}) !== null
+			) {
+				changeNote();
+				return;
+			}
 			const mention =
 				isSlashOpen() || event === undefined
 					? {armedBefore: false, armedAfter: false}
@@ -420,6 +435,7 @@ export function EditableNote({
 		},
 		[
 			changeNote,
+			noteSaver,
 			dateSettings,
 			account,
 			handleSlashInput,
@@ -436,7 +452,7 @@ export function EditableNote({
 		() => (contentRef.current === null ? "" : planNoteSave(noteSaver.saved, contentRef.current.innerHTML).note),
 		[noteSaver],
 	);
-	const {applyInlineToggle} = useInlineFormat({
+	const {applyInlineToggle, applyLatestColor, applyColorToggle} = useInlineFormat({
 		editorRef: contentRef,
 		active: true,
 		read: readNote,
@@ -447,11 +463,28 @@ export function EditableNote({
 	});
 
 	// Upstream's floating format toolbar over a stretched selection in the focused note (no type buttons).
-	const {view: toolbarView} = useSelectionToolbar({
+	const {
+		view: toolbarView,
+		refresh: refreshToolbar,
+		hide: hideToolbar,
+	} = useSelectionToolbar({
 		editorRef: contentRef,
 		active: isFocused,
 		read: readNote,
 		modalOpen: isModalOpen,
+	});
+	const lastColorClass = useLatestColorClass();
+	const {
+		popup: colorPopup,
+		openPalette,
+		applyLatestOrOpen,
+	} = useColorPopup({
+		editorRef: contentRef,
+		read: readNote,
+		applyColorToggle,
+		applyLatestColor,
+		hideToolbar,
+		refreshToolbar,
 	});
 	const {openLinkPopup} = outlineActions();
 	const handleToolbarAction = useCallback(
@@ -464,9 +497,13 @@ export function EditableNote({
 				if (target !== null) {
 					openLinkPopup(target);
 				}
+			} else if (action === "latest-color") {
+				applyLatestOrOpen();
+			} else if (action === "show-palette") {
+				openPalette();
 			}
 		},
-		[applyInlineToggle, nodeId, openLinkPopup],
+		[applyInlineToggle, applyLatestOrOpen, nodeId, openLinkPopup, openPalette],
 	);
 
 	const handleFocus = useCallback(() => {
@@ -526,6 +563,11 @@ export function EditableNote({
 			}
 			if (event.key === "Enter" && event.altKey && openLinkAtCaret(element)) {
 				event.preventDefault();
+				return;
+			}
+			if (isHighlightKey(event, isMacPlatform()) && !event.nativeEvent.isComposing) {
+				event.preventDefault();
+				applyLatestOrOpen();
 				return;
 			}
 			const formatAttr = classifyFormatKey(event, isMacPlatform());
@@ -598,6 +640,7 @@ export function EditableNote({
 		},
 		[
 			applyInlineToggle,
+			applyLatestOrOpen,
 			dateSettings,
 			account,
 			focusName,
@@ -684,11 +727,13 @@ export function EditableNote({
 			{tagPointer.popups}
 			{slashMenu.menu}
 			{mentionMenu.menu}
+			{colorPopup}
 			{toolbarView && (
 				<SelectionToolbar
 					colorActive={toolbarView.colorActive}
 					activeAttrs={toolbarView.activeAttrs}
 					inNote
+					lastColorClass={lastColorClass}
 					layoutMode={readNode(queryClient, nodeId)?.data.layoutMode}
 					onAction={handleToolbarAction}
 					rect={toolbarView.rect}

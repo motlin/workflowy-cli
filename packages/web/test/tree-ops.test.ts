@@ -1303,3 +1303,76 @@ describe("toUndoOps", () => {
 		]);
 	});
 });
+
+describe("planSplit in code and quote blocks", () => {
+	const base = {
+		id: "n",
+		parent_id: "p",
+		index: 4,
+		hasVisibleChildren: false,
+		isExpanded: false,
+		isZoomRoot: false,
+		isEmpty: false,
+		hasNextSibling: true,
+		canOutdent: true,
+	};
+	const code = {...base, layoutMode: "code-block"};
+	const quote = {...base, layoutMode: "quote-block"};
+	const plan = (row: typeof code, html: string, caret: number) =>
+		planSplit({node: row, html, selection: {start: caret, end: caret}, shapeLayout: "code-block"});
+
+	it("inserts a newline in a code block", () => {
+		expect(plan(code, "a", 1)).toStrictEqual({kind: "newline"});
+	});
+
+	it("exits a code block after a blank line, dropping the two newlines", () => {
+		expect(plan(code, "a\n\n", 3)).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 5,
+			newName: "",
+			currentName: "a",
+			focus: "new",
+			layoutMode: "code-block",
+		});
+	});
+
+	it("inserts a newline in a quote, and exits after one newline", () => {
+		expect([plan(quote, "q", 1), plan(quote, "q\n", 2)]).toStrictEqual([
+			{kind: "newline"},
+			{
+				kind: "create",
+				parentId: "p",
+				index: 5,
+				newName: "",
+				currentName: "q",
+				focus: "new",
+				layoutMode: "code-block",
+			},
+		]);
+	});
+
+	it("keeps the zoom root's child-create plan", () => {
+		expect(plan({...code, isZoomRoot: true}, "a", 1)).toStrictEqual({
+			kind: "create",
+			parentId: "n",
+			index: 0,
+			newName: "",
+			currentName: "a",
+			focus: "new",
+			layoutMode: "code-block",
+		});
+	});
+
+	it("keeps the exit run's text after the caret in the new row", () => {
+		expect(plan(code, "a\n\nrest", 3)).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 5,
+			newName: "rest",
+			currentName: "a",
+			focus: "new",
+			layoutMode: "code-block",
+		});
+	});
+});

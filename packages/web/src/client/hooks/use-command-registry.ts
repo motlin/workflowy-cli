@@ -69,14 +69,25 @@ import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js
 import {saveAndSyncCommand} from "../save-and-sync.js";
 import {renderEditorHtml, serializeEditorHtml} from "../editor-html.js";
 import {planLayoutHotkey, todoModeAvailable} from "../layout-hotkeys.js";
+import {lineSplitRequests} from "../line-split.js";
+import {canHaveNote} from "../layout-types.js";
 import type {LayoutToggleCommand} from "../layout-types.js";
 import {toggleBoardOrTable} from "../item-type-select.js";
 import type {ItemTypeSelectDeps} from "../item-type-select.js";
 import {useCopyLink, useSortChildren} from "./use-item-actions.js";
 import {useAccount} from "./use-account.js";
 import {useDateSettings} from "./use-preferences.js";
-import {plainLength, planItemsAttrToggle, planItemsCodeToggle} from "../rich-text.js";
-import type {InlineAttr, ItemField} from "../rich-text.js";
+import {
+	plainLength,
+	plainText,
+	planItemsAttrToggle,
+	planItemsCodeToggle,
+	planItemsColorClear,
+	planItemsColorToggle,
+} from "../rich-text.js";
+import * as latestColor from "../latest-color.js";
+import {openItemColorPopup} from "../item-color-popup.js";
+import type {ColorChoice, InlineAttr, ItemField} from "../rich-text.js";
 import {applyOps, captureOutlineView, runInUndoBatch, settleUndoNow} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
 import {queueUndo} from "../undo-view-state.js";
@@ -406,6 +417,9 @@ export function useCommandRegistry(): CommandRegistry {
 			for (const nodeId of plan.deletes) {
 				deleteNodeMutation.mutate(nodeId);
 			}
+			for (const request of lineSplitRequests(queryClient, plan.creates)) {
+				createNodeMutation.mutate(request);
+			}
 		});
 		if (plan.clearSelection) {
 			useOutlineStore.getState().clearItemSelection();
@@ -419,9 +433,19 @@ export function useCommandRegistry(): CommandRegistry {
 	});
 
 	const itemTypeDeps: ItemTypeSelectDeps = {
-		update: (nodeId, layoutMode) => {
-			updateNodeMutation.mutate({nodeId, layoutMode});
+		update: (nodeId, layoutMode, extra) => {
+			updateNodeMutation.mutate({nodeId, layoutMode, ...extra});
 		},
+		plainName: (nodeId) => plainText(readNode(queryClient, nodeId)?.name ?? "", ""),
+		createAfter: (nodeId, lines) => {
+			for (const request of lineSplitRequests(
+				queryClient,
+				lines.map((line) => ({afterId: nodeId, ...line})),
+			)) {
+				createNodeMutation.mutate(request);
+			}
+		},
+		hasNote: (nodeId) => (readNode(queryClient, nodeId)?.note ?? "") !== "",
 		expandAll: (ids) => {
 			replaceExpanded(new Set([...activePaneView().expandedIds, ...ids]));
 		},
@@ -582,8 +606,8 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
-	/** Format the name and note of every selected item as one undo step; the selection stays. */
-	const formatSelection = (ctx: CommandContext, attr: InlineAttr): void => {
+	/** Rewrites the name and non-empty note of every selected item as one undo step; the selection stays. */
+	const editSelectionFields = (ctx: CommandContext, plan: (fields: ItemField[]) => ItemField[]): void => {
 		commitEdit();
 		const fields: ItemField[] = [];
 		for (const id of new Set(ctx.items)) {
@@ -596,7 +620,7 @@ export function useCommandRegistry(): CommandRegistry {
 				fields.push({id, field: "note", html: node.note});
 			}
 		}
-		const changed = attr === "code" ? planItemsCodeToggle(fields) : planItemsAttrToggle(fields, attr);
+		const changed = plan(fields);
 		const updates = new Map<string, {nodeId: string; name?: string; note?: string}>();
 		for (const {id, field, html} of changed) {
 			updates.set(id, {...updates.get(id), nodeId: id, [field]: html});
@@ -608,6 +632,39 @@ export function useCommandRegistry(): CommandRegistry {
 			for (const update of updates.values()) {
 				updateNodeMutation.mutate(update);
 			}
+		});
+	};
+
+	const formatSelection = (ctx: CommandContext, attr: InlineAttr): void => {
+		editSelectionFields(ctx, (fields) =>
+			attr === "code" ? planItemsCodeToggle(fields) : planItemsAttrToggle(fields, attr),
+		);
+	};
+
+	/** Upstream's `toggleAttributeForItems` with a color: the selected items' names and notes. */
+	const colorSelection = (ctx: CommandContext, choice: ColorChoice): void => {
+		editSelectionFields(ctx, (fields) => planItemsColorToggle(fields, choice));
+	};
+
+	/** Upstream's `openForItems`: the color popup under the last selected item's content. */
+	const openColorPopupForItems = (ctx: CommandContext): void => {
+		const [last] = ctx.items.toReversed();
+		const box = (last === undefined ? null : rowContent(last))?.getBoundingClientRect();
+		if (box === undefined) {
+			return;
+		}
+		openItemColorPopup({
+			left: box.left,
+			top: box.bottom,
+			onPick: (kind, color) => {
+				if (color === null) {
+					// "remove color" leaves the latest color alone and strips both kinds from every item.
+					editSelectionFields(ctx, planItemsColorClear);
+					return;
+				}
+				latestColor.change(kind, color);
+				colorSelection(ctx, {kind, color});
+			},
 		});
 	};
 
@@ -895,6 +952,24 @@ export function useCommandRegistry(): CommandRegistry {
 		toggle_underline: selectionFormatCommand("u"),
 		toggle_strikethrough: selectionFormatCommand("s"),
 		toggle_code: selectionFormatCommand("code"),
+		// ⇧⌘H over an item selection reapplies the latest color, or opens the popup when none was picked. The editor
+		// handles it itself while it has the caret.
+		highlight_selected: {
+			available: (ctx) => hasItemSelection() && ctx.items.length > 0,
+			execute: (ctx) => {
+				const latest = latestColor.get();
+				if (latest === undefined) {
+					openColorPopupForItems(ctx);
+				} else {
+					colorSelection(ctx, latest);
+				}
+			},
+		},
+		show_color_popup: {
+			available: (ctx) =>
+				ctx.items.length > 0 && ctx.items.every((id) => readNode(queryClient, id)?.readOnly !== true),
+			execute: openColorPopupForItems,
+		},
 		print: printCommand(),
 		present_it: {
 			execute(ctx) {
@@ -1164,7 +1239,7 @@ export function useCommandRegistry(): CommandRegistry {
 			const {editingNoteId, focusName, focusNote} = useOutlineStore.getState();
 			if (editingNoteId === nodeId) {
 				focusName(nodeId, "end");
-			} else {
+			} else if (canHaveNote(readNode(queryClient, nodeId)?.data.layoutMode)) {
 				focusNote(nodeId);
 			}
 		}),

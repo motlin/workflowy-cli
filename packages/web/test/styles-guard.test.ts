@@ -514,3 +514,13 @@ describe("node row anatomy styles guard", () => {
 		});
 	});
 });
+
+describe("legacy code and quote styles guard", () => {
+	it("drops --color-bg-code and the old pre and blockquote wrappers", () => {
+		expect({
+			token: uncommented.includes("--color-bg-code"),
+			pre: hasSelector(styles, /\.innerContentContainer pre\b/u),
+			blockquote: hasSelector(styles, /\.innerContentContainer blockquote\b/u),
+		}).toStrictEqual({token: false, pre: false, blockquote: false});
+	});
+});

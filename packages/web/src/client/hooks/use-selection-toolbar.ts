@@ -192,6 +192,8 @@ interface SelectionToolbarOptions {
 export function useSelectionToolbar({editorRef, active, read, modalOpen}: SelectionToolbarOptions): {
 	view: SelectionToolbarView | null;
 	refresh: () => void;
+	/** Closes the bar now (a popup that replaces it is about to open). */
+	hide: () => void;
 } {
 	const [view, setView] = useState<SelectionToolbarView | null>(null);
 	const io = useRef({read, modalOpen});
@@ -199,6 +201,7 @@ export function useSelectionToolbar({editorRef, active, read, modalOpen}: Select
 		io.current = {read, modalOpen};
 	});
 	const refreshRef = useRef<() => void>(() => {});
+	const hideRef = useRef<() => void>(() => {});
 
 	useEffect(() => {
 		const editor = editorRef.current;
@@ -241,6 +244,9 @@ export function useSelectionToolbar({editorRef, active, read, modalOpen}: Select
 			});
 		};
 		refreshRef.current = schedule;
+		hideRef.current = () => {
+			dispatch({type: "escape"});
+		};
 		const onPointerDown = (event: PointerEvent) => {
 			if (event.button === 0) {
 				const insideCtxMenu = event.target instanceof Element && event.target.closest(".ctx-menu") !== null;
@@ -276,6 +282,7 @@ export function useSelectionToolbar({editorRef, active, read, modalOpen}: Select
 		return () => {
 			cancelAnimationFrame(frame);
 			refreshRef.current = () => {};
+			hideRef.current = () => {};
 			document.removeEventListener("selectionchange", schedule);
 			document.removeEventListener("pointerdown", onPointerDown, true);
 			document.removeEventListener("pointerup", onPointerUp, true);
@@ -290,5 +297,8 @@ export function useSelectionToolbar({editorRef, active, read, modalOpen}: Select
 	const refresh = useCallback(() => {
 		refreshRef.current();
 	}, []);
-	return {view, refresh};
+	const hide = useCallback(() => {
+		hideRef.current();
+	}, []);
+	return {view, refresh, hide};
 }

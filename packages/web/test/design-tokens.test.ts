@@ -365,7 +365,6 @@ const LEGACY_ALIASES: Record<string, string> = {
 	"--color-bg-secondary": "var(--wf-background-secondary)",
 	"--color-bg-hover": "var(--wf-background-secondary)",
 	"--color-bg-selected": "var(--wf-background-selected)",
-	"--color-bg-code": "var(--wf-background-secondary)",
 	"--color-bg-overlay": "var(--wf-black-opaque-60)",
 	"--color-text": "var(--wf-text-primary)",
 	"--color-text-secondary": "var(--wf-text-secondary)",

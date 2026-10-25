@@ -87,6 +87,11 @@ export function normalizeLayoutMode(layoutMode: string | null | undefined): stri
 	return layoutMode ? (LEGACY_LAYOUT_ALIASES[layoutMode] ?? layoutMode) : null;
 }
 
+/** Upstream's divider has no note, so its note editor never opens (Shift+Enter, Add note). */
+export function canHaveNote(layoutMode: string | null | undefined): boolean {
+	return normalizeLayoutMode(layoutMode) !== "divider";
+}
+
 /** Icon for the item's current type; anything unrecognized shows the bullets icon. */
 export function currentTypeIcon(layoutMode: string | null | undefined): string {
 	const key = normalizeLayoutMode(layoutMode);
@@ -121,12 +126,69 @@ export interface LayoutToggleUpdate {
 	layoutMode: string;
 	numberedStart?: number | null;
 	name?: string;
+	/** Upstream's divider has no note: becoming one clears it. */
+	note?: "";
+}
+
+/** A row made from one more line of a code or quote block that changed type, placed after the row `afterId`. */
+export interface LineSplitCreate {
+	afterId: string;
+	/** The line as plain text. */
+	name: string;
+	layoutMode: string;
 }
 
 export interface LayoutTogglePlan {
 	updates: LayoutToggleUpdate[];
 	deletes: string[];
 	clearSelection: boolean;
+	/** The lines of a multi-line block that left its type, one new row each, in order. */
+	creates?: LineSplitCreate[];
+}
+
+const MULTILINE_TYPES: ReadonlySet<string> = new Set(["code-block", "quote-block"]);
+
+/**
+ * Upstream's type change of a multi-line code or quote block: leaving for a type that is neither of those, the row keeps
+ * its first line and every further line becomes a row after it with the new type. Any other change is a plain update.
+ */
+export function planBlockTypeChange(
+	item: {id: string; layoutMode: string | null; plainName: string},
+	target: string,
+): {update: {id: string; layoutMode: string; name?: string}; creates: {name: string; layoutMode: string}[]} {
+	const from = normalizeLayoutMode(item.layoutMode) ?? "";
+	const lines = item.plainName.split("\n");
+	if (!MULTILINE_TYPES.has(from) || MULTILINE_TYPES.has(target) || lines.length < 2) {
+		return {update: {id: item.id, layoutMode: target}, creates: []};
+	}
+	const [first = "", ...rest] = lines;
+	return {
+		update: {id: item.id, layoutMode: target, name: first},
+		creates: rest.map((name) => ({name, layoutMode: target})),
+	};
+}
+
+/** Plain block text as the name field stores it. */
+export function escapeBlockText(text: string): string {
+	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+/** `plan` with each multi-line block that left its type split into rows (`planBlockTypeChange`). */
+function withLineSplits(plan: LayoutTogglePlan, items: readonly LayoutToggleItem[]): LayoutTogglePlan {
+	const byId = new Map(items.map((item) => [item.id, item]));
+	const creates: LineSplitCreate[] = [];
+	const updates = plan.updates.map((update) => {
+		const item = byId.get(update.id);
+		if (item === undefined || update.name !== undefined) {
+			return update;
+		}
+		const change = planBlockTypeChange(item, update.layoutMode);
+		creates.push(
+			...change.creates.map((line) => ({afterId: update.id, ...line, name: escapeBlockText(line.name)})),
+		);
+		return change.update.name === undefined ? update : {...update, name: escapeBlockText(change.update.name)};
+	});
+	return creates.length === 0 ? plan : {...plan, updates, creates};
 }
 
 type SimpleToggleCommand = "toggle_h1" | "toggle_h2" | "toggle_h3" | "toggle_paragraph" | "toggle_todo";
@@ -185,11 +247,11 @@ function planBlock(items: readonly LayoutToggleItem[], target: string): LayoutTo
 	for (const [first, ...rest] of runs) {
 		const update: LayoutToggleUpdate = {id: first.id, layoutMode: toggledType(first, target)};
 		if (rest.length > 0) {
-			update.name = [first, ...rest].map((item) => item.plainName).join("\n");
+			update.name = escapeBlockText([first, ...rest].map((item) => item.plainName).join("\n"));
 			plan.deletes.push(...rest.map((item) => item.id));
 			plan.clearSelection = true;
 		} else if (target === "code-block" && update.layoutMode === target) {
-			update.name = first.plainName;
+			update.name = escapeBlockText(first.plainName);
 		}
 		plan.updates.push(update);
 	}
@@ -202,6 +264,10 @@ function planBlock(items: readonly LayoutToggleItem[], target: string): LayoutTo
  * captures a typed `N. ` start, code/quote blocks merge runs of plain leaves.
  */
 export function planLayoutToggle(command: LayoutToggleCommand, items: readonly LayoutToggleItem[]): LayoutTogglePlan {
+	return withLineSplits(planToggle(command, items), items);
+}
+
+function planToggle(command: LayoutToggleCommand, items: readonly LayoutToggleItem[]): LayoutTogglePlan {
 	switch (command) {
 		case "toggle_bullet":
 			return {
@@ -217,7 +283,10 @@ export function planLayoutToggle(command: LayoutToggleCommand, items: readonly L
 			return planBlock(items, "quote-block");
 		case "toggle_divider":
 			return {
-				updates: items.slice(0, 1).map((item) => ({id: item.id, layoutMode: toggledType(item, "divider")})),
+				updates: items.slice(0, 1).map((item) => {
+					const layoutMode = toggledType(item, "divider");
+					return {id: item.id, layoutMode, ...(layoutMode === "divider" && item.hasNote ? {note: ""} : {})};
+				}),
 				deletes: [],
 				clearSelection: false,
 			};

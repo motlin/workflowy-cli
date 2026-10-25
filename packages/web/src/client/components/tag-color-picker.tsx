@@ -2,6 +2,15 @@ import {createPortal} from "react-dom";
 import {TAG_COLORS} from "../../tag-colors.js";
 import {useCloseOnLocationChange} from "../hooks/use-close-on-location-change.js";
 import type {TagColorName} from "../../tag-colors.js";
+import {
+	CANCEL_SWATCH,
+	CancelIcon,
+	SELECTED_BORDER,
+	SWATCH,
+	UNSELECTED_BORDER,
+	capitalize,
+	swatchClick,
+} from "./color-swatches.js";
 import {FaIcon} from "./fa-icons.js";
 import {POPUP_Z, popoverBox} from "./flyout/popover-box.js";
 
@@ -17,6 +26,7 @@ import {POPUP_Z, popoverBox} from "./flyout/popover-box.js";
  */
 
 export type {TagColorName};
+export {swatchClick};
 
 interface TagColorPickerProps {
 	/** Viewport coordinates of the tag's bottom-left corner; upstream adds a 4px margin-top. */
@@ -29,23 +39,8 @@ interface TagColorPickerProps {
 	onClose: () => void;
 }
 
-/** Clicking the already-selected color removes it (upstream sends -1); any other swatch picks its color. */
-// oxlint-disable-next-line react/only-export-components -- pure click rule, tested beside the component
-export function swatchClick(current: string | undefined, clicked: TagColorName): TagColorName | null {
-	return current === clicked ? null : clicked;
-}
-
 // (10 colors + remove) * 32px pitch + 32px insets.
 const MAX_WIDTH = (TAG_COLORS.length + 1) * 32 + 32;
-
-const SWATCH =
-	"box-border h-[24px] w-[24px] flex items-center justify-center relative cursor-pointer bg-inherit rounded-s mobile:h-[36px] mobile:w-[36px] mobile:flex-shrink-0";
-const UNSELECTED_BORDER = "border border-solid border-primary hover:border-strong";
-const SELECTED_BORDER = "border border-solid border-strong";
-
-function capitalize(color: string): string {
-	return color.slice(0, 1).toUpperCase() + color.slice(1);
-}
 
 export function TagColorPicker({top, left, currentColor, onSelect, onRemove, onClose}: TagColorPickerProps) {
 	useCloseOnLocationChange(onClose);
@@ -76,14 +71,8 @@ export function TagColorPicker({top, left, currentColor, onSelect, onRemove, onC
 							<div className="w-full mobile:overflow-x-auto scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
 								<div className="flex gap-m mobile:gap-ml mobile:pl-l mobile:min-w-max">
 									{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's swatches are pointer-only divs */}
-									<div
-										title="remove color"
-										className={`${SWATCH} border border-primary border-solid hover:border-strong cancel`}
-										onClick={onRemove}
-									>
-										<svg viewBox="0 0 100 100">
-											<line x1="0" y1="100" x2="100" y2="0" stroke="#EB5757" strokeWidth="8" />
-										</svg>
+									<div title="remove color" className={CANCEL_SWATCH} onClick={onRemove}>
+										<CancelIcon />
 									</div>
 									{TAG_COLORS.map((color, index) => (
 										// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's swatches are pointer-only divs

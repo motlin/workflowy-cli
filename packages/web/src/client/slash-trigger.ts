@@ -65,10 +65,14 @@ export interface PlaceholderInput {
 	readonly isZoomRoot?: boolean;
 }
 
+/** Upstream draws no placeholder (neither the slash hint nor "Untitled") on these rows. */
+const NO_PLACEHOLDER_LAYOUTS: ReadonlySet<string> = new Set(["quote", "quote-block", "code-block", "divider"]);
+
 /**
  * Upstream's name placeholder (`doc/plugins/slash-hint` plus the zoom-root title): a focused empty
- * name hints at the slash menu until it is discovered, except on dividers and numbered rows; an
- * empty zoom-root title otherwise reads "Untitled". The account-age rule is n/a locally.
+ * name hints at the slash menu until it is discovered, except on numbered rows; an
+ * empty zoom-root title otherwise reads "Untitled". Quote, code and divider rows show neither. The account-age rule is
+ * n/a locally.
  */
 export function placeholderFor({
 	focused,
@@ -77,7 +81,7 @@ export function placeholderFor({
 	slashDiscovered = true,
 	isZoomRoot = false,
 }: PlaceholderInput): string | undefined {
-	if (!empty) {
+	if (!empty || NO_PLACEHOLDER_LAYOUTS.has(layoutMode ?? "")) {
 		return undefined;
 	}
 	if (focused && !slashDiscovered && layoutMode !== "divider" && layoutMode !== "numbered") {

@@ -1,5 +1,8 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
+import {plainText} from "../rich-text.js";
+import {CopyCodeButton} from "./copy-code-button.js";
+import {canHaveNote} from "../layout-types.js";
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {getHoveredRowId, setHoveredRowId} from "../hovered-row.js";
 import {useIsRowHovered} from "../hooks/use-row-hover.js";
@@ -94,7 +97,7 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 					// Upstream: "Add note" from inside the note moves the caret to the end of the name.
 					if (useOutlineStore.getState().editingNoteId === node.id) {
 						focusName(node.id, "end");
-					} else {
+					} else if (canHaveNote(node.data.layoutMode)) {
 						focusNote(node.id);
 					}
 				},
@@ -260,6 +263,9 @@ function NodeName({
 		/>
 	) : null;
 
+	const copyCodeButton =
+		node.data.layoutMode === "code-block" ? <CopyCodeButton plainText={plainText(name, "")} /> : null;
+
 	const nameClasses = withClasses(
 		nameClassName({focused: isEditing, empty: name === "", withEmbedder}),
 		searchNameClasses,
@@ -309,6 +315,7 @@ function NodeName({
 							clickPosition: isEditing ? (editingClickPosition ?? undefined) : undefined,
 							initialValue: name,
 							isEditing,
+							layoutMode: node.data.layoutMode,
 							nodeId: node.id,
 							parentId: node.parent_id,
 							priority: node.priority,
@@ -316,6 +323,7 @@ function NodeName({
 					: null}
 				{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
 			</div>
+			{copyCodeButton}
 			<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 			{dividerLine}
 			{/* Hook-free, so called as a plain element rather than mounted as a component. */}

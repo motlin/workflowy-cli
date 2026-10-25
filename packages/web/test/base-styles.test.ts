@@ -226,20 +226,10 @@ describe("upstream button variants and duotone icons", () => {
 		});
 		expect(cssBlock(styles, ".font-andale code")).toStrictEqual({padding: "0", "font-size": "100%"});
 		expect(hasSelector(styles, /^\s*\.innerContentContainer code\s*$/u)).toBe(false);
-		expect(cssBlock(styles, ".innerContentContainer pre code")).toMatchObject({
-			padding: "0",
-			"background-color": "transparent",
-			border: "0",
-		});
 	});
 
 	it("keeps other code rules from setting absolute code sizes", () => {
-		const allowed = new Set([
-			"code",
-			".addedToSelection code",
-			".font-andale code",
-			".innerContentContainer pre code",
-		]);
+		const allowed = new Set(["code", ".addedToSelection code", ".font-andale code"]);
 		const offenders = cssPreludes(stripComments(styles))
 			.map((prelude) => prelude.replace(/^[\s}]*/u, "").trim())
 			.filter((prelude) => prelude.endsWith("code") && !allowed.has(prelude));

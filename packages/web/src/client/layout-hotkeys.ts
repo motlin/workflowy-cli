@@ -1,6 +1,6 @@
 import type {NodeResponse} from "../node-types.js";
 import {planLayoutToggle} from "./layout-types.js";
-import type {LayoutToggleCommand, LayoutToggleItem} from "./layout-types.js";
+import type {LayoutToggleCommand, LayoutToggleItem, LineSplitCreate} from "./layout-types.js";
 import {plainText} from "./rich-text.js";
 
 /** Upstream's ⌥⌘ digit layout toggles (⌥⌘1-4, 6-9, 0), in keymap order. */
@@ -24,22 +24,21 @@ export interface LayoutUpdateRequest {
 	layoutMode: string;
 	numberedStart?: number | null;
 	name?: string;
+	note?: "";
 }
 
 export interface LayoutHotkeyWrites {
 	updates: LayoutUpdateRequest[];
 	deletes: string[];
 	clearSelection: boolean;
+	/** Rows for the lines of a multi-line block that changed type, each after its row. */
+	creates: LineSplitCreate[];
 }
 
 /** The edited row's unsaved text, which replaces its cached name. */
 export interface EditedName {
 	nodeId: string;
 	name: string;
-}
-
-function escapeHtml(text: string): string {
-	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 function toggleItem(node: NodeResponse, edited: EditedName | undefined): LayoutToggleItem {
@@ -68,15 +67,11 @@ export function planLayoutHotkey(
 		command,
 		nodes.map((node) => toggleItem(node, edited)),
 	);
-	const plainNames = command === "toggle_code_block" || command === "toggle_quote_block";
 	return {
-		updates: plan.updates.map(({id, name, ...rest}) => ({
-			nodeId: id,
-			...rest,
-			...(name === undefined ? {} : {name: plainNames ? escapeHtml(name) : name}),
-		})),
+		updates: plan.updates.map(({id, ...rest}) => ({nodeId: id, ...rest})),
 		deletes: plan.deletes,
 		clearSelection: plan.clearSelection,
+		creates: plan.creates ?? [],
 	};
 }
 

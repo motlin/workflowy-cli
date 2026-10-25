@@ -92,6 +92,37 @@ describe("resting OutlineRow components", () => {
 	});
 });
 
+describe("code block rows", () => {
+	function nameHtml(node: NodeResponse): string {
+		const host = document.createElement("div");
+		root = createRoot(host);
+		const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+		act(() => {
+			root?.render(
+				createElement(
+					QueryClientProvider,
+					{client: queryClient},
+					createElement(MemoryRouter, null, createElement(OutlineRow, {node})),
+				),
+			);
+		});
+		return host.querySelector(".name .content")?.innerHTML ?? "";
+	}
+
+	it("renders no tag pill or link in a code block, but still renders them in a bullet", () => {
+		const name = "x #tag https://example.com";
+		const code = nameHtml({...restingRow(false), name, data: {layoutMode: "code-block"}});
+		act(() => {
+			root?.unmount();
+		});
+		const bullet = nameHtml({...restingRow(false), name});
+		expect({
+			code: [code.includes("contentTag"), code.includes("contentLink")],
+			bullet: [bullet.includes("contentTag"), bullet.includes("contentLink")],
+		}).toStrictEqual({code: [false, false], bullet: [true, true]});
+	});
+});
+
 describe("calendar day OutlineRow", () => {
 	const PREFIX_CLASS =
 		"flex h-[var(--line-height)] whitespace-nowrap items-center pr-m pt-[--wf-content-padding-top] pb-[--wf-content-padding-bottom]";

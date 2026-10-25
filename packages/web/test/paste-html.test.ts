@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import {describe, expect, it} from "vite-plus/test";
-import {buildHtmlLines, hasRichContent} from "../src/client/paste/html.js";
+import {buildHtmlLines, hasRichContent, normalizePastedColors} from "../src/client/paste/html.js";
 import {buildOpmlLines, isOpml} from "../src/client/paste/opml.js";
 import {notePasteHtml} from "../src/client/paste/note.js";
 
@@ -118,5 +118,47 @@ describe("notePasteHtml", () => {
 
 	it("ignores html when pasting plain", () => {
 		expect(notePasteHtml({text: "a", html: "<b>a</b>", plain: true})).toBe("a");
+	});
+});
+
+describe("normalizePastedColors", () => {
+	function normalized(html: string): string {
+		const doc = new DOMParser().parseFromString(html, "text/html");
+		normalizePastedColors(doc);
+		return doc.body.innerHTML;
+	}
+
+	it("wraps the children of a colored element in a span carrying the color", () => {
+		// happy-dom keeps the hex; a browser reports rgb(224, 36, 36). Both read as red.
+		expect(normalized('<p style="color:#E02424">a</p>')).toBe(
+			'<p style="color:#E02424"><span style="color: #E02424;">a</span></p>',
+		);
+	});
+
+	it("skips an element whose parent span is already colored", () => {
+		const html = '<span style="color:#E02424"><b style="color:#E02424">a</b></span>';
+		expect(normalized(html)).toContain('<b style="color:#E02424">a</b>');
+	});
+
+	it("leaves table elements alone", () => {
+		expect(
+			normalized(
+				'<table style="color:red"><tbody style="color:red"><tr style="color:red"><td>a</td></tr></tbody></table>',
+			),
+		).not.toContain("<span");
+	});
+});
+
+describe("pasted colors", () => {
+	it("keeps a palette color as a colored span and drops any other", () => {
+		expect(
+			buildHtmlLines(
+				'<p>a <span style="color:#E02424">red</span> <span style="background-color:#FCE96A">hl</span> <span style="color:#123456">odd</span></p><ul><li>x</li></ul>',
+			)[0]?.name,
+		).toBe('a <span class="colored c-red">red</span> <span class="colored bc-yellow">hl</span> odd');
+	});
+
+	it("treats color styles as rich content", () => {
+		expect(hasRichContent('<span style="color:#E02424">x</span>')).toBe(true);
 	});
 });
