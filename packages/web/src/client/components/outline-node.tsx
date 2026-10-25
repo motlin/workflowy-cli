@@ -14,6 +14,7 @@ import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {useNodeNavigation} from "../navigation.js";
 import {bulletInSelection, clearSelectionFromBullet, useContentMouseDown} from "../hooks/use-drag-select.js";
 import {useBulletDrag} from "../hooks/use-bullet-drag.js";
+import {useCheckboxComplete} from "../hooks/use-checkbox-complete.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useMoveTo} from "../hooks/use-move-to.js";
 import {useDetachMirror, useMirrorCopy, useMirrorTo} from "../hooks/use-mirror-to.js";
@@ -303,12 +304,21 @@ function NodeName({
 		toggleComplete(queryClient, {nodeId: node.id, isCurrentlyCompleted: isCompleted});
 	};
 
+	const checkboxComplete = useCheckboxComplete();
 	const prefixPieces: ReactNode[] = [];
 	if (number !== undefined) {
 		prefixPieces.push(<NumberPiece key="numbered" number={number} />);
 	}
 	if (layout.isTodo) {
-		prefixPieces.push(<ItemCheckbox key="todo" isCompleted={isCompleted} onComplete={handleComplete} />);
+		prefixPieces.push(
+			<ItemCheckbox
+				key="todo"
+				isCompleted={isCompleted}
+				onComplete={() => {
+					checkboxComplete(node, false);
+				}}
+			/>,
+		);
 	}
 	const isDivider = node.data.layoutMode === "divider";
 	const dividerLine = isDivider ? (

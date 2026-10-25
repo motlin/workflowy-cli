@@ -53,6 +53,7 @@ import {TableChildren} from "./table-view.js";
 import {TABLE_ROOT_ZOOMED_SUFFIX, TABLE_TITLE_CLASS} from "./table-classes.js";
 import {isTable} from "../table.js";
 import {DividerLine} from "./divider-line.js";
+import {useCheckboxComplete} from "../hooks/use-checkbox-complete.js";
 import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
 import {renderedNumbers, siblingNumber} from "../numbered-list.js";
 import {PaneContext, useInActivePane, usePaneExpandedIds, usePaneId} from "./pane-context.js";
@@ -216,13 +217,21 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 		node && rootIsNumbered && rootSiblings
 			? siblingNumber(numberingRows(rootSiblings.filter((s) => showCompleted || s.completedAt === null)), node.id)
 			: undefined;
+	const checkboxComplete = useCheckboxComplete();
 	const prefixPieces: ReactNode[] = [];
 	if (rootNumber !== undefined && rootNumber > 0) {
 		prefixPieces.push(<NumberPiece key="numbered" number={rootNumber} />);
 	}
 	if (node && layout.isTodo) {
 		prefixPieces.push(
-			<ItemCheckbox key="todo" isCompleted={node.completedAt !== null} isZoomRoot onComplete={handleComplete} />,
+			<ItemCheckbox
+				key="todo"
+				isCompleted={node.completedAt !== null}
+				isZoomRoot
+				onComplete={() => {
+					checkboxComplete(node, true);
+				}}
+			/>,
 		);
 	}
 	const dividerLine =
