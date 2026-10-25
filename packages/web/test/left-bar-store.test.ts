@@ -138,6 +138,18 @@ describe("left-bar store actions", () => {
 		}).toStrictEqual({opened: ["drawerOpen", '"drawerOpen"'], closed: ["drawerClosed", '"drawerClosed"']});
 	});
 
+	it("closing the drawer clears the hovered flag and the left-bar drop target", () => {
+		const pos = {parentId: "A", index: 0, ambiguous: false, bar: {top: 1, left: 2, width: 3}};
+		useOutlineStore.setState({leftBarMode: "drawerOpen", leftBarHovered: true, leftBarDrop: pos});
+		useOutlineStore.getState().closeLeftBarDrawer();
+		const {leftBarMode, leftBarHovered, leftBarDrop} = useOutlineStore.getState();
+		expect({leftBarMode, leftBarHovered, leftBarDrop}).toStrictEqual({
+			leftBarMode: "drawerClosed",
+			leftBarHovered: false,
+			leftBarDrop: null,
+		});
+	});
+
 	it("leftBarOffset is the width when pinned and 0 otherwise", () => {
 		const {leftBarOffset} = useOutlineStore.getState();
 		const closed = leftBarOffset();

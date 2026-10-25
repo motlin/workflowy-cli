@@ -18,13 +18,23 @@ import {
 	isOutsideViewport,
 	rotateOrigin,
 } from "../bullet-drag-state.js";
-import type {BulletDragAction, BulletDragState, CopyPlan, DropPlan, DropTargetFacts} from "../bullet-drag-state.js";
+import type {
+	BulletDragAction,
+	DragAction,
+	BulletDragState,
+	CopyPlan,
+	DropPlan,
+	DropTargetFacts,
+} from "../bullet-drag-state.js";
+import {LEFT_BAR_TODAY_KEY, leftBarDragArmed, planTodayDrop, pointInsideStrict} from "../left-bar-drop.js";
+import type {LeftBarDropPos} from "../left-bar-drop.js";
+import {findOrEnsureCalendarNode} from "../today.js";
 import {STRIP_DROP_EVENT, stripDropCellOf, stripDropKey} from "../calendar-strip-model.js";
 import type {StripDropCell, StripDropDetail} from "../calendar-strip-model.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
 import {readChildren, readNode, removeFoundDates, nodeKeys} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
-import type {DropRows} from "../outline-drop-target.js";
+import type {DropRows, DropTarget} from "../outline-drop-target.js";
 import {createEdgeAutoscroller, pickScroller, scrollerOf} from "../pointer-drag.js";
 import type {AutoscrollScroller} from "../pointer-drag.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
@@ -312,6 +322,338 @@ function makeGhost(bullet: HTMLElement, x: number, y: number, count: number): HT
 	return ghost;
 }
 
+/** What one press-and-drag moves, and where the pointer's hit test is anchored. */
+interface OutlineDragParams {
+	nodeId: string;
+	items: {ids: readonly string[]; home: {parentId: string; index: number} | null; selection: boolean};
+	dragAction: DragAction;
+	fromFoundDates: boolean;
+	startX: number;
+	startY: number;
+	/** The pressed bullet (ghost source, hidden while dragging), or null for a left-bar row: no ghost, nothing hidden. */
+	bullet: HTMLElement | null;
+	/** The row whose top anchors the hit test, or the left-bar label rect's top when given. */
+	sourceRow: Element | null;
+	originTop: number | null;
+	/** Armed presses ignore moves until this returns true (the left bar's 10px max-axis rule). */
+	armedBy?: (dx: number, dy: number) => boolean;
+	/** The element whose scroller autoscrolls first. */
+	scrollFrom: Element;
+}
+
+/** The drop target a stored left-bar position stands for. */
+function leftBarTargetOf(drop: LeftBarDropPos | null): DropTarget | null {
+	return drop === null ? null : {parentId: drop.parentId, index: drop.index, ambiguous: drop.ambiguous};
+}
+
+/** The Today row's rect, when the pointer is strictly inside it. */
+function todayRowAt(x: number, y: number): boolean {
+	const row = document.querySelector("[data-left-bar-today]");
+	return row !== null && pointInsideStrict(row.getBoundingClientRect(), x, y);
+}
+
+/** Upstream's Today row `accept`: the items go to the top of today's day node, with no toast or navigation. */
+async function dropOnToday(queryClient: QueryClient, ids: readonly string[]): Promise<void> {
+	await runInUndoBatch(captureOutlineView, async () => {
+		const day = await findOrEnsureCalendarNode({date: new Date(), createChild: false}, fetch);
+		const plan = day === null ? null : planTodayDrop(ids, {id: day.dayId});
+		if (plan !== null) {
+			moveNodesNow(queryClient, {ids: [...plan.ids], parent_id: plan.parentId, index: plan.index});
+		}
+	});
+	globalThis.dispatchEvent(new CustomEvent("moving.end", {detail: {itemIds: ids, parentId: undefined}}));
+}
+
+/**
+ * Upstream's mouse-driven drag machine, shared by a bullet press and a left-bar row press: a threshold arms it, each
+ * move re-resolves the drop target (strip card, Today row, left-bar slot, or outline row), release moves the rows
+ * through the API, and Escape cancels.
+ */
+function startOutlineDrag(queryClient: QueryClient, params: OutlineDragParams): void {
+	const {
+		nodeId,
+		items,
+		dragAction,
+		fromFoundDates,
+		startX,
+		startY,
+		bullet,
+		sourceRow,
+		originTop,
+		armedBy,
+		scrollFrom,
+	} = params;
+	let state: BulletDragState = bulletDragReducer(IDLE_BULLET_DRAG, {
+		type: "start",
+		id: nodeId,
+		x: startX,
+		y: startY,
+		itemIds: items.ids,
+		home: items.home,
+		action: dragAction,
+		selection: items.selection,
+	});
+	let ghost: HTMLElement | null = null;
+	let began = false;
+	let rowTop = 0;
+	let pointer = {x: startX, y: startY};
+	const {setBulletDrag, setLeftBarDrop} = useOutlineStore.getState();
+
+	let stripHit: {card: Element; cell: StripDropCell} | null = null;
+	let todayHit = false;
+
+	const dispatch = (action: BulletDragAction) => {
+		state = bulletDragReducer(state, action);
+		setBulletDrag(
+			state.draggingIds,
+			state.indicator,
+			stripHit === null ? (todayHit ? LEFT_BAR_TODAY_KEY : null) : stripDropKey(stripHit.cell),
+		);
+	};
+
+	const begin = () => {
+		began = true;
+		leaveEditor();
+		if (bullet !== null) {
+			delete bullet.dataset.preDragClick;
+		}
+		rowTop = originTop ?? sourceRow?.getBoundingClientRect().top ?? startY;
+		document.body.classList.add("moving");
+		if (bullet !== null) {
+			ghost = makeGhost(bullet, startX, startY, state.draggingIds.length);
+			document.body.append(ghost);
+			// A selection drag, or an Alt (duplicate) drag, leaves the source bullet visible.
+			if (hidesSourceBullet(dragAction, items.selection)) {
+				bullet.style.visibility = "hidden";
+			}
+		}
+		setBulletDrag(state.draggingIds, null);
+	};
+
+	const hover = (x: number, y: number) => {
+		// Upstream `WF.Moving.target`: a strip card or the Today row under the pointer itself takes the drop.
+		stripHit = dragAction === "move" ? stripCardAt(x, y) : null;
+		todayHit = stripHit === null && dragAction === "move" && todayRowAt(x, y);
+		if (stripHit !== null || todayHit) {
+			dispatch({type: "hover", target: null, indicator: null});
+			return;
+		}
+		// Upstream `G92`: over the left bar the last left-bar row position is the target; the outline is not hit-tested.
+		const {leftBarHovered, leftBarDrop} = useOutlineStore.getState();
+		if (leftBarHovered) {
+			dispatch({type: "hover", target: leftBarTargetOf(leftBarDrop), indicator: null});
+			return;
+		}
+		const x2 = hitX(x, pageBounds());
+		const hitY = rowTop + (y - startY) - 1;
+		const hit = hitRow(x2, hitY);
+		if (hit === null) {
+			return;
+		}
+		const {rows, zoomRootId} = outlineRows(queryClient, hit.container, hit.paneId);
+		const predecessorId = hit.isRoot ? zoomRootId : hit.rowId;
+		const target = resolveDropTarget({
+			x: x2,
+			rows,
+			predecessorId,
+			movingIds: new Set(state.draggingIds),
+			zoomRootId,
+		});
+		const indicator = dropIndicatorFor(
+			target,
+			target === null ? [] : childIdsOf(queryClient, target.parentId),
+			hit.paneId,
+		);
+		dispatch({type: "hover", target, indicator});
+	};
+
+	const onMove = (moveEvent: MouseEvent) => {
+		if (state.phase === "armed" && armedBy !== undefined) {
+			// Upstream: once pressed, each move is preventDefaulted, but nothing starts until the threshold.
+			moveEvent.preventDefault();
+			if (!armedBy(moveEvent.clientX - startX, moveEvent.clientY - startY)) {
+				return;
+			}
+		}
+		const wasDragging = state.phase === "dragging";
+		state = bulletDragReducer(state, {type: "move", x: moveEvent.clientX, y: moveEvent.clientY});
+		if (state.phase !== "dragging") {
+			return;
+		}
+		if (!wasDragging) {
+			begin();
+		}
+		if (ghost !== null) {
+			ghost.style.transform = state.ghostTransform ?? "";
+		}
+		pointer = {x: moveEvent.clientX, y: moveEvent.clientY};
+		if (isOutsideViewport(pointer, {width: globalThis.innerWidth, height: globalThis.innerHeight})) {
+			dispatch({type: "leave"});
+		} else {
+			hover(pointer.x, pointer.y);
+		}
+		const picked = pickScroller(
+			moveEvent.target instanceof Element ? moveEvent.target : scrollFrom,
+			currentScroller,
+		);
+		if (picked.changed) {
+			currentScroller = picked.scroller;
+			autoscroll.update(pointer.y, scrollerAdapter(currentScroller));
+		} else {
+			autoscroll.update(pointer.y);
+		}
+	};
+
+	let currentScroller = scrollerOf(scrollFrom);
+	const autoscroll = createEdgeAutoscroller({
+		scroller: scrollerAdapter(currentScroller),
+		startY,
+		mobile: document.body.classList.contains("is-mobile"),
+		raf: (callback) => requestAnimationFrame(callback),
+		cancelRaf: (handle) => {
+			cancelAnimationFrame(handle);
+		},
+		now: () => performance.now(),
+		afterScroll: () => {
+			hover(pointer.x, pointer.y);
+		},
+	});
+
+	// Upstream's window mouseleave keeps autoscrolling from the exit point and only clears the indicator.
+	const onLeaveWindow = (outEvent: MouseEvent) => {
+		if (outEvent.relatedTarget === null && state.phase === "dragging") {
+			pointer = {x: outEvent.clientX, y: outEvent.clientY};
+			autoscroll.update(pointer.y);
+			dispatch({type: "leave"});
+		}
+	};
+
+	const finish = () => {
+		globalThis.removeEventListener("mousemove", onMove, true);
+		globalThis.removeEventListener("mouseup", onUp, true);
+		globalThis.removeEventListener("keydown", onKeyDown, true);
+		document.removeEventListener("mouseout", onLeaveWindow, true);
+		autoscroll.dispose();
+		if (began) {
+			ghost?.remove();
+			if (bullet !== null) {
+				bullet.style.visibility = "";
+			}
+			document.body.classList.remove("moving");
+		}
+		setBulletDrag([], null);
+		setLeftBarDrop(null);
+	};
+
+	const onUp = () => {
+		let overLeftBar = false;
+		if (state.phase === "dragging") {
+			// The strip or Today row may have autoscrolled under a still pointer.
+			stripHit = dragAction === "move" ? stripCardAt(pointer.x, pointer.y) : null;
+			todayHit = stripHit === null && dragAction === "move" && todayRowAt(pointer.x, pointer.y);
+			const {leftBarHovered, leftBarDrop} = useOutlineStore.getState();
+			overLeftBar = leftBarHovered && stripHit === null && !todayHit;
+			if (overLeftBar) {
+				// The row's own mousemove runs after this window listener, so take its freshest slot.
+				state = bulletDragReducer(state, {
+					type: "hover",
+					target: leftBarTargetOf(leftBarDrop),
+					indicator: null,
+				});
+			}
+		}
+		if (todayHit) {
+			const ids = state.draggingIds;
+			swallowNextClick();
+			state = IDLE_BULLET_DRAG;
+			todayHit = false;
+			finish();
+			void dropOnToday(queryClient, ids);
+			return;
+		}
+		if (stripHit !== null) {
+			const detail: StripDropDetail = {itemIds: state.draggingIds, cell: stripHit.cell};
+			const {card} = stripHit;
+			swallowNextClick();
+			state = IDLE_BULLET_DRAG;
+			stripHit = null;
+			finish();
+			card.dispatchEvent(new CustomEvent(STRIP_DROP_EVENT, {bubbles: true, detail}));
+			return;
+		}
+		const collapsed = state.target?.ambiguous === true;
+		const releasedParentId = state.target?.parentId ?? null;
+		const {plan, copy} = dropBulletDrag(state, (targetId) => targetFacts(queryClient, targetId, collapsed));
+		const ghostRect = overLeftBar ? null : (ghost?.querySelector(ROW_BULLET)?.getBoundingClientRect() ?? null);
+		if (state.phase === "dragging") {
+			swallowNextClick();
+		}
+		state = IDLE_BULLET_DRAG;
+		finish();
+		if (copy !== null) {
+			void runCopyDrop(queryClient, copy, releasedParentId);
+			return;
+		}
+		if (plan.move !== null) {
+			if (fromFoundDates) {
+				removeFoundDates(queryClient, plan.move.ids);
+			}
+			moveNodesNow(queryClient, {
+				ids: [...plan.move.ids],
+				parent_id: plan.move.parentId === HOME_ROOT ? null : plan.move.parentId,
+				index: plan.move.index,
+			});
+		}
+		runDropEffects(plan, ghostRect, fromFoundDates, releasedParentId);
+	};
+
+	const onKeyDown = (keyEvent: KeyboardEvent) => {
+		if (keyEvent.key !== "Escape" || state.phase !== "dragging") {
+			return;
+		}
+		keyEvent.preventDefault();
+		keyEvent.stopPropagation();
+		if (bullet !== null) {
+			delete bullet.dataset.preDragClick;
+		}
+		state = bulletDragReducer(state, {type: "cancel"});
+		finish();
+	};
+
+	globalThis.addEventListener("mousemove", onMove, true);
+	globalThis.addEventListener("mouseup", onUp, true);
+	globalThis.addEventListener("keydown", onKeyDown, true);
+	document.addEventListener("mouseout", onLeaveWindow, true);
+}
+
+/** Upstream's left-bar row press: a drag of just that row, armed at 10px, with the hit test anchored on its label. */
+export function startLeftBarRowDrag(
+	queryClient: QueryClient,
+	nodeId: string,
+	event: {clientX: number; clientY: number; currentTarget: Element},
+): void {
+	const node = readNode(queryClient, nodeId);
+	if (node === undefined) {
+		return;
+	}
+	const label = event.currentTarget.querySelector("[data-expanded]") ?? event.currentTarget;
+	const parentId = node.parent_id ?? HOME_ROOT;
+	const index = childIdsOf(queryClient, node.parent_id ?? HOME_ROOT).indexOf(nodeId);
+	startOutlineDrag(queryClient, {
+		nodeId,
+		items: {ids: [nodeId], home: index === -1 ? null : {parentId, index}, selection: false},
+		dragAction: "move",
+		fromFoundDates: false,
+		startX: event.clientX,
+		startY: event.clientY,
+		bullet: null,
+		sourceRow: null,
+		originTop: label.getBoundingClientRect().top,
+		armedBy: leftBarDragArmed,
+		scrollFrom: event.currentTarget,
+	});
+}
+
 /**
  * Upstream's mouse-driven bullet drag: a press on the bullet arms it, a 3px move starts it (ghost, hidden
  * source bullet, `.moving` rows), each move re-resolves the drop target, release moves the row through the API,
@@ -345,201 +687,18 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				tree: currentSelectionView(queryClient).tree,
 				childIdsOf: (id) => childIdsOf(queryClient, id),
 			});
-			const {clientX: startX, clientY: startY} = event;
-			let state: BulletDragState = bulletDragReducer(IDLE_BULLET_DRAG, {
-				type: "start",
-				id: nodeId,
-				x: startX,
-				y: startY,
-				itemIds: items.ids,
-				home: items.home,
-				action: dragAction,
-				selection: items.selection,
+			startOutlineDrag(queryClient, {
+				nodeId,
+				items,
+				dragAction,
+				fromFoundDates,
+				startX: event.clientX,
+				startY: event.clientY,
+				bullet,
+				sourceRow,
+				originTop: null,
+				scrollFrom: bullet,
 			});
-			let ghost: HTMLElement | null = null;
-			let rowTop = 0;
-			let pointer = {x: startX, y: startY};
-			const {setBulletDrag} = useOutlineStore.getState();
-
-			let stripHit: {card: Element; cell: StripDropCell} | null = null;
-
-			const dispatch = (action: BulletDragAction) => {
-				state = bulletDragReducer(state, action);
-				setBulletDrag(
-					state.draggingIds,
-					state.indicator,
-					stripHit === null ? null : stripDropKey(stripHit.cell),
-				);
-			};
-
-			const begin = () => {
-				leaveEditor();
-				delete bullet.dataset.preDragClick;
-				rowTop = sourceRow.getBoundingClientRect().top;
-				document.body.classList.add("moving");
-				ghost = makeGhost(bullet, startX, startY, state.draggingIds.length);
-				document.body.append(ghost);
-				// A selection drag, or an Alt (duplicate) drag, leaves the source bullet visible.
-				if (hidesSourceBullet(dragAction, items.selection)) {
-					bullet.style.visibility = "hidden";
-				}
-				setBulletDrag(state.draggingIds, null);
-			};
-
-			const hover = (x: number, y: number) => {
-				// Upstream `WF.Moving.target`: a strip card under the pointer itself takes the drop.
-				stripHit = dragAction === "move" ? stripCardAt(x, y) : null;
-				if (stripHit !== null) {
-					dispatch({type: "hover", target: null, indicator: null});
-					return;
-				}
-				const x2 = hitX(x, pageBounds());
-				const hitY = rowTop + (y - startY) - 1;
-				const hit = hitRow(x2, hitY);
-				if (hit === null) {
-					return;
-				}
-				const {rows, zoomRootId} = outlineRows(queryClient, hit.container, hit.paneId);
-				const predecessorId = hit.isRoot ? zoomRootId : hit.rowId;
-				const target = resolveDropTarget({
-					x: x2,
-					rows,
-					predecessorId,
-					movingIds: new Set(state.draggingIds),
-					zoomRootId,
-				});
-				const indicator = dropIndicatorFor(
-					target,
-					target === null ? [] : childIdsOf(queryClient, target.parentId),
-					hit.paneId,
-				);
-				dispatch({type: "hover", target, indicator});
-			};
-
-			const onMove = (moveEvent: MouseEvent) => {
-				const wasDragging = state.phase === "dragging";
-				state = bulletDragReducer(state, {type: "move", x: moveEvent.clientX, y: moveEvent.clientY});
-				if (state.phase !== "dragging") {
-					return;
-				}
-				if (!wasDragging) {
-					begin();
-				}
-				if (ghost !== null) {
-					ghost.style.transform = state.ghostTransform ?? "";
-				}
-				pointer = {x: moveEvent.clientX, y: moveEvent.clientY};
-				if (isOutsideViewport(pointer, {width: globalThis.innerWidth, height: globalThis.innerHeight})) {
-					dispatch({type: "leave"});
-				} else {
-					hover(pointer.x, pointer.y);
-				}
-				const picked = pickScroller(
-					moveEvent.target instanceof Element ? moveEvent.target : bullet,
-					currentScroller,
-				);
-				if (picked.changed) {
-					currentScroller = picked.scroller;
-					autoscroll.update(pointer.y, scrollerAdapter(currentScroller));
-				} else {
-					autoscroll.update(pointer.y);
-				}
-			};
-
-			let currentScroller = scrollerOf(bullet);
-			const autoscroll = createEdgeAutoscroller({
-				scroller: scrollerAdapter(currentScroller),
-				startY,
-				mobile: document.body.classList.contains("is-mobile"),
-				raf: (callback) => requestAnimationFrame(callback),
-				cancelRaf: (handle) => {
-					cancelAnimationFrame(handle);
-				},
-				now: () => performance.now(),
-				afterScroll: () => {
-					hover(pointer.x, pointer.y);
-				},
-			});
-
-			// Upstream's window mouseleave keeps autoscrolling from the exit point and only clears the indicator.
-			const onLeaveWindow = (outEvent: MouseEvent) => {
-				if (outEvent.relatedTarget === null && state.phase === "dragging") {
-					pointer = {x: outEvent.clientX, y: outEvent.clientY};
-					autoscroll.update(pointer.y);
-					dispatch({type: "leave"});
-				}
-			};
-
-			const finish = () => {
-				globalThis.removeEventListener("mousemove", onMove, true);
-				globalThis.removeEventListener("mouseup", onUp, true);
-				globalThis.removeEventListener("keydown", onKeyDown, true);
-				document.removeEventListener("mouseout", onLeaveWindow, true);
-				autoscroll.dispose();
-				if (ghost !== null) {
-					ghost.remove();
-					bullet.style.visibility = "";
-					document.body.classList.remove("moving");
-				}
-				setBulletDrag([], null);
-			};
-
-			const onUp = () => {
-				if (state.phase === "dragging") {
-					// The strip may have autoscrolled under a still pointer.
-					stripHit = dragAction === "move" ? stripCardAt(pointer.x, pointer.y) : null;
-				}
-				if (stripHit !== null) {
-					const detail: StripDropDetail = {itemIds: state.draggingIds, cell: stripHit.cell};
-					const {card} = stripHit;
-					swallowNextClick();
-					state = IDLE_BULLET_DRAG;
-					stripHit = null;
-					finish();
-					card.dispatchEvent(new CustomEvent(STRIP_DROP_EVENT, {bubbles: true, detail}));
-					return;
-				}
-				const collapsed = state.target?.ambiguous === true;
-				const releasedParentId = state.target?.parentId ?? null;
-				const {plan, copy} = dropBulletDrag(state, (targetId) => targetFacts(queryClient, targetId, collapsed));
-				const ghostRect = ghost?.querySelector(ROW_BULLET)?.getBoundingClientRect() ?? null;
-				if (state.phase === "dragging") {
-					swallowNextClick();
-				}
-				state = IDLE_BULLET_DRAG;
-				finish();
-				if (copy !== null) {
-					void runCopyDrop(queryClient, copy, releasedParentId);
-					return;
-				}
-				if (plan.move !== null) {
-					if (fromFoundDates) {
-						removeFoundDates(queryClient, plan.move.ids);
-					}
-					moveNodesNow(queryClient, {
-						ids: [...plan.move.ids],
-						parent_id: plan.move.parentId === HOME_ROOT ? null : plan.move.parentId,
-						index: plan.move.index,
-					});
-				}
-				runDropEffects(plan, ghostRect, fromFoundDates, releasedParentId);
-			};
-
-			const onKeyDown = (keyEvent: KeyboardEvent) => {
-				if (keyEvent.key !== "Escape" || state.phase !== "dragging") {
-					return;
-				}
-				keyEvent.preventDefault();
-				keyEvent.stopPropagation();
-				delete bullet.dataset.preDragClick;
-				state = bulletDragReducer(state, {type: "cancel"});
-				finish();
-			};
-
-			globalThis.addEventListener("mousemove", onMove, true);
-			globalThis.addEventListener("mouseup", onUp, true);
-			globalThis.addEventListener("keydown", onKeyDown, true);
-			document.addEventListener("mouseout", onLeaveWindow, true);
 		},
 		[nodeId, queryClient],
 	);

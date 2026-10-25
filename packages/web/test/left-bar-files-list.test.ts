@@ -4,7 +4,12 @@ import {renderToStaticMarkup} from "react-dom/server";
 import type {NodeResponse} from "../src/node-types.js";
 import type * as ExpansionsModule from "../src/client/stores/left-bar-expansions.js";
 
-const storeState = {zoomedNodeId: null as string | null, showCompleted: false};
+const storeState = {
+	zoomedNodeId: null as string | null,
+	showCompleted: false,
+	draggingIds: [] as string[],
+	starDragActive: false,
+};
 const expansionState = {keys: new Set<string>(), toggle: vi.fn<(key: string) => void>()};
 
 vi.mock("../src/client/stores/outline.js", () => ({
@@ -145,6 +150,28 @@ describe("FilesListRows", () => {
 			labels: ['<span class="colored c-blue">A</span>', "B"],
 			anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:line-through left-bar-section-item font-custom " draggable="false" href="/#/B" style="padding-left:12px;color:var(--wf-text-tertiary);text-decoration:line-through;opacity:0.5">',
 		});
+	});
+});
+
+describe("rows while a drag carries one", () => {
+	it("shows the grabbed row secondary, bold and dimmed, and the zoomed row as plain", () => {
+		expansionState.keys = new Set([homeKey("A", "A")]);
+		storeState.zoomedNodeId = "A1";
+		storeState.draggingIds = ["A"];
+		const result = rows();
+		storeState.draggingIds = [];
+		expect(
+			result.map((row) => ({
+				style: /style="([^"]*)"/u.exec(row)?.[1],
+				weight: /font-weight:(\d+)/u.exec(innerTag(row))?.[1],
+			})),
+		).toStrictEqual([
+			{
+				style: "padding-left:12px;color:var(--wf-text-secondary);opacity:0.3",
+				weight: "600",
+			},
+			{style: "padding-left:24px;color:var(--wf-text-tertiary)", weight: "400"},
+		]);
 	});
 });
 

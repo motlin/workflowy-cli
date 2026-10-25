@@ -1,8 +1,10 @@
-import {useEffect, useRef} from "react";
+import {Fragment, useEffect, useRef} from "react";
+import {createPortal} from "react-dom";
 import {useShallow} from "zustand/react/shallow";
 import type {ReactNode, PointerEvent as ReactPointerEvent} from "react";
 import {label} from "@workflowy/shared";
 import type {Star} from "@workflowy/shared";
+import {LEFT_BAR_TODAY_KEY, starDropAfter, starIndicatorClass} from "../left-bar-drop.js";
 import {locationUrl} from "../location.js";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
@@ -100,44 +102,59 @@ export function StarredRowControls({star}: {star: Star}) {
 	);
 }
 
-/** A starred page: an expandable FilesList row in the starred context, labelled by its custom name or rich name. */
-function StarredPageRow({star}: {star: Star}) {
-	const {data: node} = useNode(star.nodeId);
-	const current = useIsCurrent(star);
+/** Whether a star's page row is expanded in the starred context, and the key that toggles it. */
+function useStarExpanded(star: Star): {expanded: boolean; topUniqueId: string; expansionKey: string} {
 	const topUniqueId = pageUniqueId(star.nodeId);
 	const expansionKey = leftBarExpansionKey("starred", topUniqueId, star.nodeId);
 	const expanded = useLeftBarExpansionStore((state) => state.keys.has(expansionKey));
+	return {expanded, topUniqueId, expansionKey};
+}
+
+/** A starred page row (depth 0 only; expanded children render as flat siblings after its wrapper, as upstream). */
+function StarredPageRow({star}: {star: Star}) {
+	const {data: node} = useNode(star.nodeId);
+	const current = useIsCurrent(star);
+	const {expanded, expansionKey} = useStarExpanded(star);
 	const toggle = useLeftBarExpansionStore((state) => state.toggle);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const customName = star.name !== null && star.name !== "";
 	const richName = useNodeRowName(node);
 	const name = customName || star.nodeId === null ? rowName({text: label(star, () => "")}) : richName;
 	return (
-		<>
-			<LeftBarRow
-				arrow={filesListArrow({
-					current,
-					expanded,
-					noChildren: star.nodeId !== null && node !== undefined && !rowHasChildren(node, showCompleted),
-					onToggle: () => {
-						// Upstream skips items with no children at all.
-						if (node?.hasChildren !== false) {
-							toggle(expansionKey);
+		<LeftBarRow
+			dropItem={
+				star.nodeId === null
+					? undefined
+					: {
+							id: star.nodeId,
+							parentId: "home",
+							index: 0,
+							expanded,
+							isSearch: false,
+							disableRootMoves: true,
+							previousId: null,
+							previousExpanded: false,
 						}
-					},
-				})}
-				completed={(node?.completedAt ?? null) !== null}
-				controls={<StarredRowControls star={star} />}
-				current={current}
-				depth={0}
-				expanded={expanded}
-				href={locationUrl({id: star.nodeId})}
-				label={name}
-			/>
-			{expanded ? (
-				<FilesListRows depth={1} parentId={star.nodeId} section="starred" topUniqueId={topUniqueId} />
-			) : null}
-		</>
+			}
+			arrow={filesListArrow({
+				current,
+				expanded,
+				noChildren: star.nodeId !== null && node !== undefined && !rowHasChildren(node, showCompleted),
+				onToggle: () => {
+					// Upstream skips items with no children at all.
+					if (node?.hasChildren !== false) {
+						toggle(expansionKey);
+					}
+				},
+			})}
+			completed={(node?.completedAt ?? null) !== null}
+			controls={<StarredRowControls star={star} />}
+			current={current}
+			depth={0}
+			expanded={expanded}
+			href={locationUrl({id: star.nodeId})}
+			label={name}
+		/>
 	);
 }
 
@@ -224,6 +241,81 @@ function StarredSearchRow({star}: {star: Star}) {
 	);
 }
 
+/** The star being reordered by HTML5 drag and drop, and the indicator line in the hovered wrapper. */
+let draggedStarKey: string | null = null;
+let starIndicator: HTMLElement | null = null;
+
+function removeStarIndicator(): void {
+	starIndicator?.remove();
+	starIndicator = null;
+}
+
+/**
+ * One depth-0 star: a draggable wrapper holding only its row (upstream `vh4`), then its expanded children as flat
+ * siblings. A drop reorders; unlike upstream, dropping a star on itself is a no-op (`moveKey`).
+ */
+function StarredEntry({star}: {star: Star}) {
+	const {expanded, topUniqueId} = useStarExpanded(star);
+	const {moveStar} = useStarActions();
+	const setStarDragActive = useOutlineStore((state) => state.setStarDragActive);
+	return (
+		<Fragment>
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- upstream markup: a draggable wrapper */}
+			<div
+				draggable="true"
+				className="relative"
+				onDragEnd={() => {
+					removeStarIndicator();
+					draggedStarKey = null;
+					setTimeout(() => {
+						setStarDragActive(false);
+					}, 20);
+				}}
+				onDragLeave={() => {
+					const leaving = starIndicator;
+					setTimeout(() => {
+						if (leaving !== null && leaving === starIndicator) {
+							removeStarIndicator();
+						}
+					}, 50);
+				}}
+				onDragOver={(event) => {
+					// Only stars accept the drop.
+					if (draggedStarKey === null) {
+						return;
+					}
+					event.preventDefault();
+					removeStarIndicator();
+					const lower = starDropAfter(event.currentTarget.getBoundingClientRect(), event.clientY);
+					starIndicator = document.createElement("div");
+					starIndicator.className = starIndicatorClass(lower);
+					event.currentTarget.append(starIndicator);
+				}}
+				onDragStart={(event) => {
+					draggedStarKey = star.key;
+					event.dataTransfer.effectAllowed = "move";
+					event.dataTransfer.dropEffect = "move";
+					event.dataTransfer.setDragImage(new Image(), 0, 0);
+					setStarDragActive(true);
+				}}
+				onDrop={(event) => {
+					event.preventDefault();
+					const lower = starDropAfter(event.currentTarget.getBoundingClientRect(), event.clientY);
+					removeStarIndicator();
+					if (draggedStarKey !== null) {
+						void moveStar(draggedStarKey, star.key, lower);
+					}
+				}}
+			>
+				{star.query === null ? <StarredPageRow star={star} /> : <StarredSearchRow star={star} />}
+			</div>
+			{expanded && star.query === null ? (
+				<FilesListRows depth={1} parentId={star.nodeId} section="starred" topUniqueId={topUniqueId} />
+			) : null}
+		</Fragment>
+	);
+}
+
 /** Upstream's Starred section: hidden entirely when nothing is starred, rows in the hook's order. */
 export function StarredSection() {
 	const stars = useStarredLocations();
@@ -233,9 +325,7 @@ export function StarredSection() {
 	return (
 		<LeftBarSection contextKey={STARRED_CONTEXT} name="Starred">
 			{stars.map((star) => (
-				<div className="relative" key={star.key}>
-					{star.query === null ? <StarredPageRow star={star} /> : <StarredSearchRow star={star} />}
-				</div>
+				<StarredEntry key={star.key} star={star} />
 			))}
 		</LeftBarSection>
 	);
@@ -340,13 +430,23 @@ export function HomeSectionName() {
 /** Upstream's Today row: zooms to today's day node. */
 export function TodayRow() {
 	const navigateToToday = useNavigateToToday();
+	// Upstream `s30`: a drag over the row paints it quaternary with a 4px bar under its label.
+	const dropHovered = useOutlineStore((state) => state.stripDropKey === LEFT_BAR_TODAY_KEY);
 	return (
 		<div className="my-xl mx-l desktop:mt-m desktop:mb-2xl">
 			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable div */}
 			<div
 				className="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer"
+				data-left-bar-today=""
 				onClick={() => void navigateToToday()}
+				style={dropHovered ? {background: "var(--wf-background-quaternary)"} : undefined}
 			>
+				{dropHovered ? (
+					<div
+						className="absolute left-[24px] right-0 bottom-0 h-[4px] rounded-full"
+						style={{background: "#ccc"}}
+					/>
+				) : null}
 				<FaIcon className="text-tertiary" icon="fal:calendar-day" />
 				<span>Today</span>
 			</div>
@@ -410,6 +510,31 @@ function LeftBarSections() {
 	);
 }
 
+/** Upstream `QC4`: the 4px body-level bar marking the left-bar slot a drop would take. */
+function LeftBarDropBar() {
+	const drop = useOutlineStore((state) => state.leftBarDrop);
+	const dragging = useOutlineStore((state) => state.draggingIds.length > 0);
+	if (drop === null || !dragging) {
+		return null;
+	}
+	return createPortal(
+		<div
+			style={{
+				position: "absolute",
+				height: "4px",
+				background: "#ccc",
+				borderRadius: "2px",
+				zIndex: 200,
+				pointerEvents: "none",
+				top: `${drop.bar.top + globalThis.scrollY}px`,
+				left: `${drop.bar.left}px`,
+				width: `${drop.bar.width}px`,
+			}}
+		/>,
+		document.body,
+	);
+}
+
 /**
  * Upstream's always-mounted `.leftBar` shell: an offscreen drawer below the header (drawerClosed),
  * the same drawer slid in with a shadow (drawerOpen), or a full-height pinned column with a
@@ -423,6 +548,7 @@ export function LeftBar() {
 		toggleLeftBar,
 		closeLeftBarDrawer,
 		setLeftBarHovered,
+		setLeftBarDrop,
 		setLeftBarWidth,
 	} = useOutlineStore(
 		useShallow((state) => ({
@@ -432,6 +558,7 @@ export function LeftBar() {
 			toggleLeftBar: state.toggleLeftBar,
 			closeLeftBarDrawer: state.closeLeftBarDrawer,
 			setLeftBarHovered: state.setLeftBarHovered,
+			setLeftBarDrop: state.setLeftBarDrop,
 			setLeftBarWidth: state.setLeftBarWidth,
 		})),
 	);
@@ -452,6 +579,8 @@ export function LeftBar() {
 			}}
 			onMouseLeave={() => {
 				setLeftBarHovered(false);
+				// Upstream `setLastFoundDropPosition(null)`: leaving the bar forgets the left-bar target.
+				setLeftBarDrop(null);
 				if (drawerOpen) {
 					closeLeftBarDrawer();
 				}
@@ -486,6 +615,7 @@ export function LeftBar() {
 					}}
 				>
 					<LeftBarSections />
+					<LeftBarDropBar />
 				</div>
 				{pinned ? (
 					<>

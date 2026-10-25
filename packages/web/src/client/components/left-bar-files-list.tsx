@@ -1,5 +1,10 @@
-import {memo, useEffect, useRef, useState} from "react";
+import {QueryClientContext} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
+import {memo, useContext, useEffect, useRef, useState} from "react";
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react";
+import {startLeftBarRowDrag} from "../hooks/use-bullet-drag.js";
+import {isValidLeftBarParent, planLeftBarDrop, rowMovingStyle} from "../left-bar-drop.js";
+import {readChildren, readNode} from "../node-cache.js";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import type {NodeResponse} from "../../node-types.js";
 import {friendlyPrefix} from "@workflowy/shared";
@@ -121,7 +126,36 @@ export function filesListArrow({
 	);
 }
 
+/** What a left-bar row knows about itself as a drop target and drag source. */
+interface LeftBarDropItem {
+	id: string;
+	/** The list's parent (`"home"` for the root list). */
+	parentId: string;
+	index: number;
+	expanded: boolean;
+	isSearch: boolean;
+	/** Starred depth-0 rows accept only a drop into them and cannot be dragged. */
+	disableRootMoves: boolean;
+	previousId: string | null;
+	previousExpanded: boolean;
+}
+
+/** The ids above `id` in the cached tree, nearest first. */
+function ancestorsInCache(queryClient: QueryClient | undefined, id: string): string[] {
+	const chain: string[] = [];
+	if (queryClient === undefined) {
+		return chain;
+	}
+	let parentId = readNode(queryClient, id)?.parent_id ?? null;
+	while (parentId !== null && !chain.includes(parentId)) {
+		chain.push(parentId);
+		parentId = readNode(queryClient, parentId)?.parent_id ?? null;
+	}
+	return chain;
+}
+
 interface LeftBarRowProps {
+	dropItem?: LeftBarDropItem;
 	href: string;
 	depth: number;
 	current: boolean;
@@ -136,14 +170,60 @@ interface LeftBarRowProps {
 function useLeftBarRowState() {
 	const navigate = useStableNavigate();
 	const [hovered, setHovered] = useState(false);
-	return {navigate, hovered, setHovered};
+	/** Upstream's `WF.Moving.happening`: a bullet drag or a Starred reorder freezes row hover. */
+	const moving = useOutlineStore((state) => state.draggingIds.length > 0 || state.starDragActive);
+	const grabbedId = useOutlineStore((state) => state.draggingIds[0] ?? null);
+	const queryClient = useContext(QueryClientContext);
+	return {navigate, hovered, setHovered, moving, grabbedId, queryClient};
 }
 
 /** One upstream FilesList row: a link with an arrow slot, a label, and hover-only controls. */
 function leftBarRowLink(
-	{href, depth, current, completed, expanded, arrow, label, controls}: LeftBarRowProps,
-	{navigate, hovered, setHovered}: ReturnType<typeof useLeftBarRowState>,
+	{href, depth, current: zoomed, completed, expanded, arrow, label, controls, dropItem}: LeftBarRowProps,
+	{navigate, hovered, setHovered, moving, grabbedId, queryClient}: ReturnType<typeof useLeftBarRowState>,
 ) {
+	// While a drag carries rows, upstream shows the grabbed item (and anything inside it) as secondary/600 and dimmed.
+	const {inside, dim} =
+		grabbedId === null || dropItem === undefined
+			? {inside: false, dim: false}
+			: rowMovingStyle(dropItem.id, grabbedId, (id) => ancestorsInCache(queryClient, id));
+	const current = grabbedId === null ? zoomed : inside;
+	/** Upstream `G`: while rows are carried, hovering a row plans where a drop here would land. */
+	const planDrop = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+		const {draggingIds, setLeftBarDrop} = useOutlineStore.getState();
+		if (draggingIds.length === 0 || dropItem === undefined) {
+			return;
+		}
+		const labelRect = (
+			event.currentTarget.querySelector("[data-expanded]") ?? event.currentTarget
+		).getBoundingClientRect();
+		const rowRect = event.currentTarget.getBoundingClientRect();
+		const pos = planLeftBarDrop({
+			rowRect: {top: rowRect.top, height: rowRect.height},
+			labelRect: {left: labelRect.left, width: labelRect.width},
+			point: {x: event.clientX, y: event.clientY},
+			item: dropItem,
+			disableRootMoves: dropItem.disableRootMoves,
+			previousSibling:
+				dropItem.previousId === null
+					? null
+					: {
+							id: dropItem.previousId,
+							expanded: dropItem.previousExpanded,
+							childCount:
+								queryClient === undefined
+									? 0
+									: (readChildren(queryClient, dropItem.previousId)?.length ?? 0),
+						},
+			isValidParent: (id) =>
+				isValidLeftBarParent(id, draggingIds, (ancestor) => ancestorsInCache(queryClient, ancestor)),
+		});
+		// Upstream keeps the last valid position when this row has none.
+		if (pos !== null) {
+			setLeftBarDrop(pos);
+		}
+	};
+
 	const handleClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
 		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
 			return;
@@ -158,18 +238,38 @@ function leftBarRowLink(
 			draggable="false"
 			href={href}
 			onClick={handleClick}
-			onMouseEnter={() => {
-				setHovered(true);
+			onMouseDown={(event) => {
+				if (
+					queryClient === undefined ||
+					dropItem === undefined ||
+					dropItem.disableRootMoves ||
+					dropItem.isSearch ||
+					event.button !== 0 ||
+					event.ctrlKey ||
+					event.metaKey
+				) {
+					return;
+				}
+				startLeftBarRowDrag(queryClient, dropItem.id, event);
+			}}
+			onMouseEnter={(event) => {
+				if (!moving) {
+					setHovered(true);
+				}
+				planDrop(event);
 			}}
 			onMouseLeave={() => {
-				setHovered(false);
+				if (!moving) {
+					setHovered(false);
+				}
 			}}
+			onMouseMove={planDrop}
 			style={{
 				paddingLeft: 12 * (depth + 1),
 				background: hovered ? "var(--wf-background-tertiary)" : undefined,
 				color: current ? "var(--wf-text-secondary)" : "var(--wf-text-tertiary)",
 				textDecoration: completed ? "line-through" : undefined,
-				opacity: completed ? 0.5 : undefined,
+				opacity: dim ? 0.3 : completed ? 0.5 : undefined,
 			}}
 		>
 			<div
@@ -278,18 +378,26 @@ export function FilesListRows({
 	const available = windowed ? (forcedLimit ?? measured) : (budget ?? Number.POSITIVE_INFINITY);
 
 	const listed = nodes?.filter((node) => isListed(node, showCompleted)).slice(0, Math.max(0, available));
+	const listParentId = parentId ?? "home";
 	return (
 		<>
 			{windowed ? <div ref={ruler} /> : null}
 			{listed?.map((node, index) => {
 				const top = topUniqueId ?? pageUniqueId(node.id);
+				const previous = listed[index - 1];
 				return (
 					<FilesListBranch
 						budget={available - index - 1}
 						depth={depth}
 						expanded={keys.has(leftBarExpansionKey(section, top, node.id))}
 						key={node.id}
+						listParentId={listParentId}
 						node={node}
+						previousExpanded={
+							previous !== undefined && keys.has(leftBarExpansionKey(section, top, previous.id))
+						}
+						previousId={previous?.id ?? null}
+						siblingIndex={nodes?.indexOf(node) ?? index}
 						section={section}
 						topUniqueId={top}
 					/>
@@ -310,7 +418,15 @@ const FilesListBranch = memo(function FilesListBranch({
 	topUniqueId,
 	expanded,
 	budget,
+	listParentId,
+	previousId,
+	previousExpanded,
+	siblingIndex,
 }: {
+	listParentId: string;
+	previousId: string | null;
+	previousExpanded: boolean;
+	siblingIndex: number;
 	node: NodeResponse;
 	depth: number;
 	section: LeftBarSectionName;
@@ -341,6 +457,16 @@ const FilesListBranch = memo(function FilesListBranch({
 					completed: node.completedAt !== null,
 					current,
 					depth,
+					dropItem: {
+						id: node.id,
+						parentId: listParentId,
+						index: siblingIndex,
+						expanded,
+						isSearch: false,
+						disableRootMoves: false,
+						previousId,
+						previousExpanded,
+					},
 					expanded,
 					href: nodeUrl(node.id),
 					label: nameLabel,

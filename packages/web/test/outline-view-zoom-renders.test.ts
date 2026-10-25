@@ -122,6 +122,7 @@ const HEADER = {
 /** The left bar's frame around its Home rows. */
 const LEFT_BAR = {
 	LeftBar: 1,
+	LeftBarDropBar: 1,
 	LeftBarSections: 1,
 	RecordStarViews: 1,
 	TodayRow: 1,

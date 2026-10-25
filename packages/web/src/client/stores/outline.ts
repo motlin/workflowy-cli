@@ -1,3 +1,4 @@
+import type {LeftBarDropPos} from "../left-bar-drop.js";
 import {create} from "zustand";
 import type {PickerResult} from "../location-picker-model.js";
 import {MAIN_PANE_ID, canPlacePane, findPane, paneExpandedIds} from "../pane-ids.js";
@@ -399,6 +400,10 @@ interface OutlineState {
 	leftBarWidth: number;
 	leftBarSectionExpansions: Record<string, boolean>;
 	leftBarHovered: boolean;
+	/** The last left-bar row slot a bullet drag hovered (upstream `setLastFoundDropPosition`); kept until the bar is left. */
+	leftBarDrop: LeftBarDropPos | null;
+	/** A Starred HTML5 reorder is in progress: row hover is frozen. */
+	starDragActive: boolean;
 	/** Upstream's account setting `show_keyboard_shortcuts`: the right bar shows the shortcuts help. */
 	showKeyboardShortcuts: boolean;
 	/** Whether the right bar is collapsed; always true on load and never persisted. */
@@ -545,6 +550,8 @@ interface OutlineActions {
 	setLeftBarWidth: (width: number) => void;
 	setLeftBarSectionExpanded: (key: string, value: boolean) => void;
 	setLeftBarHovered: (hovered: boolean) => void;
+	setLeftBarDrop: (drop: LeftBarDropPos | null) => void;
+	setStarDragActive: (active: boolean) => void;
 	/** Horizontal space the pinned bar takes from the page; 0 for the drawer. */
 	leftBarOffset: () => number;
 	/** Set and persist `showKeyboardShortcuts` through `/api/v1/preferences`. */
@@ -970,6 +977,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	itemMenuOpenId: null,
 	...getInitialLeftBarState(),
 	leftBarHovered: false,
+	leftBarDrop: null,
+	starDragActive: false,
 	showKeyboardShortcuts: false,
 	rightBarCollapsed: true,
 	searchReturn: null,
@@ -1288,7 +1297,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	toggleLeftBar: () => {
 		const leftBarMode = nextLeftBarMode(get().leftBarMode);
-		set({leftBarMode});
+		set(leftBarMode === "drawerClosed" ? {leftBarMode, leftBarHovered: false, leftBarDrop: null} : {leftBarMode});
 		writeStored(LEFT_BAR_MODE_STORAGE_KEY, leftBarMode);
 		setTimeout(() => {
 			globalThis.dispatchEvent(new Event("resize"));
@@ -1307,7 +1316,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		if (get().leftBarMode === "alwaysOpen") {
 			return;
 		}
-		set({leftBarMode: "drawerClosed"});
+		// Upstream's DrawerClosed effect: closing by any route forces hovered off and forgets the drop target.
+		set({leftBarMode: "drawerClosed", leftBarHovered: false, leftBarDrop: null});
 		writeStored(LEFT_BAR_MODE_STORAGE_KEY, "drawerClosed");
 	},
 
@@ -1325,6 +1335,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	setLeftBarHovered: (leftBarHovered) => {
 		set({leftBarHovered});
+	},
+
+	setLeftBarDrop: (leftBarDrop) => {
+		set({leftBarDrop});
+	},
+
+	setStarDragActive: (starDragActive) => {
+		set({starDragActive});
 	},
 
 	leftBarOffset: () => {

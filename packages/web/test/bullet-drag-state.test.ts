@@ -301,6 +301,23 @@ describe("dropBulletDrag", () => {
 	});
 });
 
+describe("dropping on a left-bar slot", () => {
+	it("moves to the slot the left bar stored, with a collapsed parent landing at its default end", () => {
+		const hovering = bulletDragReducer(dragging, {
+			type: "hover",
+			target: {parentId: "alpha", index: 0, ambiguous: true},
+			indicator: null,
+		});
+		const {plan} = dropBulletDrag(hovering, () => ({
+			childCount: 2,
+			wasLeaf: false,
+			wasCollapsed: true,
+			defaultToBottom: false,
+		}));
+		expect(plan.move).toStrictEqual({ids: ["delta"], parentId: "alpha", index: 0});
+	});
+});
+
 describe("planDrop", () => {
 	const facts = {childCount: 0, wasLeaf: false, wasCollapsed: false, defaultToBottom: false};
 	const nothing = {move: null, expandId: null, flashParentId: null, animate: false, flashIds: ["bravo", "charlie"]};

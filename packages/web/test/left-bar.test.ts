@@ -6,11 +6,17 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {Star} from "@workflowy/shared";
 import type {LeftBarMode} from "../src/client/stores/outline.js";
+import type * as ExpansionsModule from "../src/client/stores/left-bar-expansions.js";
 
 const storeState = {
 	leftBarMode: "drawerClosed" as LeftBarMode,
 	leftBarWidth: 296,
 	leftBarHovered: false,
+	draggingIds: [] as string[],
+	starDragActive: false,
+	stripDropKey: null as string | null,
+	setStarDragActive: vi.fn<(active: boolean) => void>(),
+	setLeftBarDrop: vi.fn<(drop: unknown) => void>(),
 	toggleLeftBar: () => {},
 	closeLeftBarDrawer: () => {},
 	setLeftBarHovered: () => {},
@@ -52,6 +58,11 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useChildren: () => ({data: rootChildren}),
 	useCreateNode: () => ({mutate: mutateMock}),
 	useNode: (id: string | null) => ({data: id === null ? undefined : nodesById[id]}),
+}));
+const expansionState = {keys: new Set<string>(), toggle: vi.fn<(key: string) => void>(), load: async () => {}};
+vi.mock("../src/client/stores/left-bar-expansions.js", async (importActual) => ({
+	...(await importActual<typeof ExpansionsModule>()),
+	useLeftBarExpansionStore: (selector: (state: typeof expansionState) => unknown) => selector(expansionState),
 }));
 const navigateToTodayMock = vi.fn<() => Promise<void>>(async () => {});
 vi.mock("../src/client/hooks/use-navigate-to-today.js", () => ({useNavigateToToday: () => navigateToTodayMock}));
@@ -227,9 +238,19 @@ describe("TodayRow", () => {
 	it("renders upstream's Today block with the light calendar-day icon", () => {
 		const html = renderToStaticMarkup(createElement(TodayRow)).replace(/ d="[^"]*"/u, "");
 		expect(html).toBe(
-			'<div class="my-xl mx-l desktop:mt-m desktop:mb-2xl"><div class="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer">' +
+			'<div class="my-xl mx-l desktop:mt-m desktop:mb-2xl"><div class="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer" data-left-bar-today="">' +
 				'<svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="calendar-day" class="svg-inline--fa fa-calendar-day fa-1x text-tertiary" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor"></path></svg>' +
 				"<span>Today</span></div></div>",
+		);
+	});
+
+	it("paints a quaternary background and a bar under the label while a drag hovers it", () => {
+		storeState.stripDropKey = "left-bar-today";
+		const html = renderToStaticMarkup(createElement(TodayRow)).replace(/ d="[^"]*"/u, "");
+		storeState.stripDropKey = null;
+		expect(html.slice(0, html.indexOf("<svg"))).toBe(
+			'<div class="my-xl mx-l desktop:mt-m desktop:mb-2xl"><div class="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer" data-left-bar-today="" style="background:var(--wf-background-quaternary)">' +
+				'<div class="absolute left-[24px] right-0 bottom-0 h-[4px] rounded-full" style="background:#ccc"></div>',
 		);
 	});
 
@@ -302,7 +323,10 @@ describe("Starred section", () => {
 	}
 
 	function rows(html: string): string {
-		return html.slice(html.indexOf('<div class="relative">'), html.lastIndexOf('<div style="margin-bottom'));
+		return html.slice(
+			html.indexOf('<div draggable="true" class="relative">'),
+			html.lastIndexOf('<div style="margin-bottom'),
+		);
 	}
 
 	it("renders nothing when nothing is starred", () => {
@@ -312,7 +336,7 @@ describe("Starred section", () => {
 	it("renders a search row with the magnifier slot and its page name", () => {
 		nodesById.x = {id: "x", name: "<b>Xname</b>", completedAt: null};
 		expect(rows(renderStarred([star({key: "x_date:past", nodeId: "x", query: "date:past"})]))).toBe(
-			`<div class="relative">` +
+			`<div draggable="true" class="relative">` +
 				`<a class="${ROW_CLASS}" draggable="false" href="/#/x?q=date%3Apast" style="padding-left:12px;color:var(--wf-text-tertiary)">${
 					INNER
 				}<div class="flex shrink-0 items-center justify-center" style="width:20px;height:20px">` +
@@ -332,12 +356,37 @@ describe("Starred section", () => {
 	it("renders a page row as an expandable FilesList row with the node's rich name", () => {
 		nodesById.p = {id: "p", name: "<i>Page</i>", completedAt: null};
 		expect(rows(renderStarred([star({key: "p", nodeId: "p"})]))).toBe(
-			`<div class="relative">` +
+			`<div draggable="true" class="relative">` +
 				`<a class="${ROW_CLASS}" draggable="false" href="/#/p" style="padding-left:12px;color:var(--wf-text-tertiary)">${
 					INNER
 				}${ARROW}<div>TRI</div></div><div class="grow py-xs truncate" data-expanded="false"><span style="pointer-events:none;white-space:nowrap"><span class="innerContentContainer"><i>Page</i></span></span></div>` +
 				`</div></a></div>`,
 		);
+	});
+
+	it("keeps only the depth-0 row in the draggable wrapper and renders expanded children as flat siblings", async () => {
+		nodesById.p = {id: "p", name: "Page", completedAt: null};
+		starred = [star({key: "p", nodeId: "p"})];
+		storeState.leftBarSectionExpansions = {};
+		const {leftBarExpansionKey, pageUniqueId} = await import("../src/client/stores/left-bar-expansions.js");
+		expansionState.keys = new Set([leftBarExpansionKey("starred", pageUniqueId("p"), "p")]);
+		rootChildren = [{id: "c1", name: "Child", completedAt: null, hasChildren: false}] as never;
+		const html = renderToStaticMarkup(createElement(StarredSection));
+		expansionState.keys = new Set();
+		rootChildren = [];
+		starred = [];
+		const wrapperEnd = html.indexOf("</a></div>") + "</a></div>".length;
+		expect({
+			wrapperStart: html.slice(html.indexOf('<div draggable="true"'), html.indexOf("<a ")),
+			anchorsInWrapper: html.slice(0, wrapperEnd).split("<a ").length - 1,
+			nextIsChildRow: html.slice(wrapperEnd).startsWith('<a class="flex justify-between'),
+			childPadding: html.slice(wrapperEnd).includes("padding-left:24px"),
+		}).toStrictEqual({
+			wrapperStart: '<div draggable="true" class="relative">',
+			anchorsInWrapper: 1,
+			nextIsChildRow: true,
+			childPadding: true,
+		});
 	});
 
 	it("labels a renamed star with its custom name", () => {
