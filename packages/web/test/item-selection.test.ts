@@ -15,6 +15,7 @@ import {
 	pivotTo,
 	removeIds,
 	selectIds,
+	selectionMenuAnchor,
 	selectionDeletePlan,
 	selectionKeyAction,
 	sortedIds,
@@ -420,5 +421,26 @@ describe("commandTargets", () => {
 
 	it("is empty with neither a selection nor an edited row", () => {
 		expect(commandTargets(emptySelection(), () => tree, null)).toStrictEqual([]);
+	});
+});
+
+describe("selectionMenuAnchor", () => {
+	const delta = (id: string) => id !== "never";
+	const picked = selectIds(selectIds(emptySelection(), fixtureTree(), ["Delta"]), fixtureTree(), ["Alpha"]);
+
+	it("anchors on the last inserted entry and counts every entry", () => {
+		expect(selectionMenuAnchor(picked, delta)).toStrictEqual({anchorId: "Alpha", count: 2});
+	});
+
+	it("falls back to the previous entry when the last one has no rendered row", () => {
+		expect(selectionMenuAnchor(picked, (id) => id !== "Alpha")).toStrictEqual({anchorId: "Delta", count: 2});
+	});
+
+	it("has no anchor when nothing is rendered, but still counts", () => {
+		expect(selectionMenuAnchor(picked, () => false)).toStrictEqual({anchorId: null, count: 2});
+	});
+
+	it("is empty for an empty selection", () => {
+		expect(selectionMenuAnchor(emptySelection(), delta)).toStrictEqual({anchorId: null, count: 0});
 	});
 });

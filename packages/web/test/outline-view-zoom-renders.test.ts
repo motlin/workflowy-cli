@@ -95,6 +95,7 @@ const SHELL = {
 	LinkInsertModal: 1,
 	LocationPickerHost: 1,
 	ExportDialog: 1,
+	SelectionMenu: 1,
 	Settings: 1,
 	PresentationMode: 1,
 	ErrorNotifications: 1,

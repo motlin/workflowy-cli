@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {LAYOUT_HOTKEY_COMMANDS, planLayoutHotkey} from "../src/client/layout-hotkeys.js";
+import {LAYOUT_HOTKEY_COMMANDS, planLayoutHotkey, todoModeAvailable} from "../src/client/layout-hotkeys.js";
 import {buildHotkeys} from "../src/client/keys/keymap.js";
 import type {NodeResponse} from "../src/node-types.js";
 
@@ -111,5 +111,24 @@ describe("planLayoutHotkey", () => {
 			deletes: [],
 			clearSelection: false,
 		});
+	});
+});
+
+describe("todoModeAvailable", () => {
+	it("is true when some target is writable and can take the to-do layout", () => {
+		expect(
+			todoModeAvailable([node("a", {readOnly: true}), node("b"), node("c", {data: {layoutMode: "code-block"}})]),
+		).toBe(true);
+	});
+
+	it("is false when every target is read-only or cannot take the to-do layout, or there are none", () => {
+		expect([
+			todoModeAvailable([node("a", {readOnly: true}), node("b", {readOnly: true})]),
+			todoModeAvailable([
+				node("a", {data: {layoutMode: "divider"}}),
+				node("b", {data: {layoutMode: "quote-block"}}),
+			]),
+			todoModeAvailable([]),
+		]).toStrictEqual([false, false, false]);
 	});
 });

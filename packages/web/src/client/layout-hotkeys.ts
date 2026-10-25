@@ -79,3 +79,14 @@ export function planLayoutHotkey(
 		clearSelection: plan.clearSelection,
 	};
 }
+
+/** Layout modes that keep their own structure and cannot become a to-do. */
+const NO_TODO_LAYOUTS = new Set(["code-block", "quote-block", "divider"]);
+
+/**
+ * Upstream `toggle_todo_mode` availability (`xL1`): hidden when every target is read-only or no target can take the
+ * to-do layout.
+ */
+export function todoModeAvailable(nodes: readonly NodeResponse[]): boolean {
+	return nodes.some((node) => node.readOnly !== true && !NO_TODO_LAYOUTS.has(node.data.layoutMode ?? ""));
+}

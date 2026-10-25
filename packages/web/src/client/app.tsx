@@ -16,6 +16,7 @@ import {LadderView} from "./components/ladder-view.js";
 import {LeftBar} from "./components/left-sidebar.js";
 import {LinkInsertModal} from "./components/link-insert-modal.js";
 import {LocationPickerHost} from "./components/location-picker-host.js";
+import {SelectionMenu} from "./components/selection-menu.js";
 import {OfflineBanner} from "./components/offline-banner.js";
 import {OutlineTree} from "./components/outline-tree.js";
 import {PresentationMode} from "./components/presentation-mode.js";
@@ -198,6 +199,7 @@ export const OutlineView = memo(function OutlineView() {
 			<AlertDialog />
 			<LinkInsertModal />
 			<LocationPickerHost />
+			<SelectionMenu />
 			<ExportDialog />
 			<Settings />
 			<PresentationMode />

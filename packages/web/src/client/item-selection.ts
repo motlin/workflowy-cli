@@ -553,3 +553,15 @@ export function listenForSelectionPaste(target: EventTarget, hasSelection: () =>
 		target.removeEventListener("paste", onPaste, true);
 	};
 }
+
+/**
+ * Upstream's selection-menu anchor (`fF4`): the LAST inserted entry that has a rendered row, and the footer count,
+ * which still includes unrendered entries. Entries are kept in insertion order.
+ */
+export function selectionMenuAnchor(
+	state: SelectionState,
+	rendered: (id: string) => boolean,
+): {anchorId: string | null; count: number} {
+	const anchor = state.entries.findLast((entry) => rendered(entry.id));
+	return {anchorId: anchor?.id ?? null, count: state.entries.length};
+}

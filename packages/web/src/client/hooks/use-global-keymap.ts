@@ -10,7 +10,9 @@ import {
 	processSelectionKey,
 } from "../keys/dispatch.js";
 import {comboFromEvent} from "../keys/keymap.js";
-import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
+import type {CommandContext, CommandRegistry, ComboResult} from "../keys/dispatch.js";
+import {maintainFocus} from "../focus-maintain.js";
+import {liveFocusEnv} from "../focus-maintain-env.js";
 import {commandTargets, listenForSelectionPaste} from "../item-selection.js";
 import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {useDeleteNode} from "./use-nodes.js";
@@ -86,7 +88,18 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 					: commandTargets(itemSelection, () => currentSelectionView(queryClient).tree, editingId),
 				zoomedId: activeZoomedId(state),
 			};
-			if (processCombo(combo, registryRef.current, ctx, isMac, undefined, state.panes.length > 0) === "claimed") {
+			const run = (): ComboResult =>
+				processCombo(combo, registryRef.current, ctx, isMac, undefined, state.panes.length > 0);
+			// A hotkey on the item selection keeps a caret afterwards, like upstream's `WF.Focus.maintain`.
+			let result = "unclaimed" as ComboResult;
+			if (itemSelection.entries.length > 0) {
+				maintainFocus(() => {
+					result = run();
+				}, liveFocusEnv(queryClient));
+			} else {
+				result = run();
+			}
+			if (result === "claimed") {
 				event.preventDefault();
 			}
 		};

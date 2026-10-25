@@ -1,5 +1,10 @@
 import {describe, expect, it} from "vite-plus/test";
-import {placePopper, popperTransform, popperViewport} from "../src/client/components/flyout/place-popper.js";
+import {
+	placePopper,
+	placeSideMenu,
+	popperTransform,
+	popperViewport,
+} from "../src/client/components/flyout/place-popper.js";
 
 describe("placePopper", () => {
 	it("centers a bottom popper under the breadcrumb reference", () => {
@@ -129,5 +134,89 @@ describe("main menu right clamp", () => {
 				viewport: popperViewport({documentElement: {clientWidth: 1265, clientHeight: 860}}),
 			}).x,
 		).toBe(1071.34);
+	});
+});
+
+describe("placeSideMenu", () => {
+	const anchor = (right: number, top: number) => ({left: 0, right, top, bottom: top + 27});
+
+	it("flips to left-start when right-start would overflow and pins y inside the viewport", () => {
+		expect(
+			placeSideMenu({
+				anchor: anchor(1120, 168),
+				popper: {width: 194, height: 752},
+				viewport: {width: 1272, height: 800},
+			}),
+		).toStrictEqual({
+			placement: "left-start",
+			x: 918,
+			y: 38,
+			referenceHidden: false,
+			style: {inset: "0px 0px auto auto", transform: "translate(-160px, 38px)"},
+		});
+	});
+
+	it("keeps an unclamped y on a tall viewport", () => {
+		expect(
+			placeSideMenu({
+				anchor: anchor(1448, 140),
+				popper: {width: 187, height: 821},
+				viewport: {width: 1600, height: 1400},
+			}),
+		).toStrictEqual({
+			placement: "left-start",
+			x: 1253,
+			y: 140,
+			referenceHidden: false,
+			style: {inset: "0px 0px auto auto", transform: "translate(-160px, 140px)"},
+		});
+	});
+
+	it("stays right-start when it fits", () => {
+		expect(
+			placeSideMenu({
+				anchor: anchor(600, 100),
+				popper: {width: 194, height: 300},
+				viewport: {width: 1272, height: 800},
+			}),
+		).toStrictEqual({
+			placement: "right-start",
+			x: 608,
+			y: 100,
+			referenceHidden: false,
+			style: {inset: "0px auto auto 0px", transform: "translate(608px, 100px)"},
+		});
+	});
+
+	it("keeps right-start and clamps x when neither side fits", () => {
+		expect(
+			placeSideMenu({
+				anchor: anchor(150, 100),
+				popper: {width: 300, height: 300},
+				viewport: {width: 320, height: 800},
+			}),
+		).toStrictEqual({
+			placement: "right-start",
+			x: 10,
+			y: 100,
+			referenceHidden: false,
+			style: {inset: "0px auto auto 0px", transform: "translate(10px, 100px)"},
+		});
+	});
+
+	it("reports the reference hidden once the anchor row leaves the viewport", () => {
+		expect(
+			placeSideMenu({
+				anchor: {left: 0, right: 600, top: -50, bottom: -23},
+				popper: {width: 194, height: 300},
+				viewport: {width: 1272, height: 800},
+			}),
+		).toStrictEqual({
+			placement: "right-start",
+			x: 608,
+			y: 10,
+			referenceHidden: true,
+			style: {inset: "0px auto auto 0px", transform: "translate(608px, 10px)"},
+		});
 	});
 });

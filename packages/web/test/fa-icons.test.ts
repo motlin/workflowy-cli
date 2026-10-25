@@ -122,7 +122,31 @@ describe("FA_ICONS", () => {
 			"fad:square-check",
 			"fal:calendar-lines-pen",
 			"fal:triangle-exclamation",
+			"fal:bold",
+			"fal:italic",
+			"fal:underline",
+			"fal:strikethrough",
+			"fal:code",
+			"fal:font",
 		]);
+	});
+
+	it("holds the light formatting icons the selection menu rows use, with upstream viewBoxes", () => {
+		expect(
+			Object.fromEntries(
+				(["bold", "italic", "underline", "strikethrough", "code", "font"] as const).map((name) => [
+					name,
+					`${FA_ICONS[`fal:${name}`].width}x${FA_ICONS[`fal:${name}`].height}`,
+				]),
+			),
+		).toStrictEqual({
+			bold: "384x512",
+			italic: "384x512",
+			underline: "448x512",
+			strikethrough: "512x512",
+			code: "640x512",
+			font: "448x512",
+		});
 	});
 
 	it("uses the upstream light-weight paths and sizes", () => {

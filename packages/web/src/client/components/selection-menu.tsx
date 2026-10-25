@@ -1,0 +1,218 @@
+import {useQueryClient} from "@tanstack/react-query";
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
+import type {CSSProperties} from "react";
+import {createPortal} from "react-dom";
+import {activeCommandRegistry} from "../hooks/use-global-keymap.js";
+import {commandTargets, selectionMenuAnchor} from "../item-selection.js";
+import {hint} from "../keys/hint.js";
+import {readNode} from "../node-cache.js";
+import {buildSelectionMenu} from "../selection-menu-model.js";
+import type {SelectionMenuEntry} from "../selection-menu-model.js";
+import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
+import {currentSelectionView} from "../hooks/use-selection-keymap.js";
+import {maintainFocus} from "../focus-maintain.js";
+import {liveFocusEnv} from "../focus-maintain-env.js";
+import {MenuBody} from "./flyout/menu.js";
+import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
+import {placeSideMenu} from "./flyout/place-popper.js";
+import type {SideMenuPosition} from "./flyout/place-popper.js";
+import {popoverBox} from "./flyout/popover-box.js";
+
+/** The `.project` row element of `id` in any pane, or null when it is not rendered. */
+function projectElement(id: string): HTMLElement | null {
+	const content = document.querySelector(`.innerContentContainer[data-node-id="${CSS.escape(id)}"]`);
+	return content?.closest<HTMLElement>(".project") ?? null;
+}
+
+const MENU_CLASS_NAME = (() => {
+	const box = popoverBox({minWidth: 144, maxWidth: 240});
+	return `
+            [.moving_&]:hidden
+            ${box.className}
+            flyout menu selection-menu
+          `;
+})();
+
+const MENU_BOX_STYLE = popoverBox({minWidth: 144, maxWidth: 240}).style;
+
+export interface SelectionMenuViewProps {
+	/** The row beside which the menu floats: upstream's last selected row that has a rendered element. */
+	anchor: HTMLElement;
+	entries: readonly SelectionMenuEntry[];
+	/** The footer count: every top-level selection entry. */
+	count: number;
+	/** Every selected item is read-only: no footer separator. */
+	readOnly: boolean;
+	onSelect: (id: string) => void;
+}
+
+function viewportSize(): {width: number; height: number} {
+	return {width: document.documentElement.clientWidth, height: document.documentElement.clientHeight};
+}
+
+/**
+ * Upstream's `.selection-menu` flyout (`uF4`): a `Menu.Static` with no keyboard model and no enter or exit
+ * animation, portaled to `body` and positioned by popper `right-start` / `left-start` beside the anchor row.
+ */
+export function SelectionMenuView({anchor, entries, count, readOnly, onSelect}: SelectionMenuViewProps) {
+	const menu = useRef<HTMLDivElement>(null);
+	const [position, setPosition] = useState<SideMenuPosition | null>(null);
+
+	const place = useCallback(() => {
+		const element = menu.current;
+		if (element === null) {
+			return;
+		}
+		const rect = anchor.getBoundingClientRect();
+		const size = element.getBoundingClientRect();
+		const next = placeSideMenu({
+			anchor: {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom},
+			popper: {width: size.width, height: size.height},
+			viewport: viewportSize(),
+		});
+		setPosition((current) =>
+			current !== null &&
+			current.placement === next.placement &&
+			current.referenceHidden === next.referenceHidden &&
+			current.style.transform === next.style.transform
+				? current
+				: next,
+		);
+	}, [anchor]);
+
+	// Every commit may change the rows (and so the menu's size); the guard in `place` stops a render loop.
+	useLayoutEffect(() => {
+		place();
+	});
+
+	useEffect(() => {
+		globalThis.addEventListener("scroll", place, true);
+		globalThis.addEventListener("resize", place);
+		return () => {
+			globalThis.removeEventListener("scroll", place, true);
+			globalThis.removeEventListener("resize", place);
+		};
+	}, [place]);
+
+	const style: CSSProperties = {
+		position: "fixed",
+		inset: position?.style.inset ?? "0px auto auto 0px",
+		...MENU_BOX_STYLE,
+		transform: position?.style.transform ?? "translate(0px, 0px)",
+	};
+	return createPortal(
+		<div
+			ref={menu}
+			className={MENU_CLASS_NAME}
+			style={style}
+			data-popper-reference-hidden={String(position?.referenceHidden ?? false)}
+			data-popper-escaped="false"
+			data-popper-placement={position?.placement ?? "right-start"}
+		>
+			<MenuBody unwrapped disableKeyboard>
+				{entries.map((entry, index) =>
+					entry.kind === "separator" ? (
+						// Separators have no identity beyond their position.
+						// oxlint-disable-next-line react/no-array-index-key
+						<MenuSeparator key={`separator${index}`} />
+					) : (
+						<MenuItem
+							key={entry.id}
+							handbook={entry.id}
+							icon={entry.icon}
+							label={entry.label}
+							shortcut={entry.shortcutCommand === null ? undefined : hint(entry.shortcutCommand)}
+							onSelect={() => {
+								onSelect(entry.id);
+							}}
+						/>
+					),
+				)}
+				{!readOnly && <MenuSeparator />}
+				<div className="text-center text-tertiary pt-s pb-ml text-xs">{count} items</div>
+			</MenuBody>
+		</div>,
+		document.body,
+	);
+}
+
+/** The floating menu of the item selection, mounted once beside the other global hosts; idle without a selection. */
+export function SelectionMenu() {
+	const hasSelection = useOutlineStore((state) => state.itemSelection.entries.length > 0);
+	return hasSelection ? <SelectionMenuHost /> : null;
+}
+
+function SelectionMenuHost() {
+	const queryClient = useQueryClient();
+	const selection = useOutlineStore((state) => state.itemSelection);
+	const [anchor, setAnchor] = useState<{element: HTMLElement; count: number} | null>(null);
+	const hasSelection = selection.entries.length > 0;
+	const zoomedId = useOutlineStore(activeZoomedId);
+	const [revision, setRevision] = useState(0);
+
+	// The anchor is captured when the selection changes, like upstream's `selected.changed` listener.
+	useLayoutEffect(() => {
+		const {anchorId, count} = selectionMenuAnchor(selection, (id) => projectElement(id) !== null);
+		const element = anchorId === null ? null : projectElement(anchorId);
+		// oxlint-disable-next-line react/set-state-in-effect -- the row element exists in the DOM only after the commit
+		setAnchor(element === null ? null : {element, count});
+	}, [selection]);
+
+	// Labels such as Complete/Uncomplete track the items' current state.
+	useEffect(() => {
+		const unsubscribe = hasSelection
+			? queryClient.getQueryCache().subscribe(() => {
+					setRevision((value) => value + 1);
+				})
+			: () => {};
+		return () => {
+			unsubscribe();
+		};
+	}, [queryClient, hasSelection]);
+
+	if (selection.entries.length === 0 || anchor === null) {
+		return null;
+	}
+	const view = currentSelectionView(queryClient);
+	const items = commandTargets(selection, () => view.tree, null);
+	const ctx = {items, zoomedId};
+	const registry = activeCommandRegistry();
+	const nodes = items.map((id) => readNode(queryClient, id));
+	const qualifiers = new Set<string>();
+	if (
+		items.some((id) => {
+			const parentId = readNode(queryClient, id)?.parent_id ?? null;
+			const grandparentId = parentId === null ? null : (readNode(queryClient, parentId)?.parent_id ?? null);
+			return grandparentId !== null && readNode(queryClient, grandparentId)?.data.layoutMode === "table";
+		})
+	) {
+		qualifiers.add("has_table_cell");
+	}
+	if (items.some((id) => projectElement(id)?.closest("[data-pane-id]") != null)) {
+		qualifiers.add("has_pane_item");
+	}
+	const entries = buildSelectionMenu({
+		available: (id) => registry[id] !== undefined && registry[id].available?.(ctx) !== false,
+		allCompleted: nodes.length > 0 && nodes.every((node) => node?.completedAt != null),
+		firstEmbedded: false,
+		qualifiers,
+	});
+	if (entries.length === 0) {
+		return null;
+	}
+	// `revision` only forces this render when the cache changes.
+	void revision;
+	return (
+		<SelectionMenuView
+			anchor={anchor.element}
+			entries={entries}
+			count={anchor.count}
+			readOnly={nodes.every((node) => node?.readOnly === true)}
+			onSelect={(id) => {
+				maintainFocus(() => {
+					registry[id]?.execute(ctx);
+				}, liveFocusEnv(queryClient));
+			}}
+		/>
+	);
+}

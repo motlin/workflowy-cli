@@ -56,7 +56,7 @@ import {presentCommand, printCommand} from "../keys/dispatch.js";
 import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
 import {renderEditorHtml, serializeEditorHtml} from "../editor-html.js";
-import {planLayoutHotkey} from "../layout-hotkeys.js";
+import {planLayoutHotkey, todoModeAvailable} from "../layout-hotkeys.js";
 import type {LayoutToggleCommand} from "../layout-types.js";
 import {toggleBoardOrTable} from "../item-type-select.js";
 import type {ItemTypeSelectDeps} from "../item-type-select.js";
@@ -980,6 +980,13 @@ export function useCommandRegistry(): CommandRegistry {
 		toggle_quote_block: layoutCommand("toggle_quote_block"),
 		toggle_bullet: layoutCommand("toggle_bullet"),
 		toggle_todo: layoutCommand("toggle_todo"),
+		// The selection menu's row: shown only while some selected item can take the to-do layout.
+		toggle_todo_mode: {
+			available: (ctx) => todoModeAvailable(ctx.items.flatMap((id) => readNode(queryClient, id) ?? [])),
+			execute(ctx) {
+				toggleLayout(ctx, "toggle_todo");
+			},
+		},
 		toggle_numbered: layoutCommand("toggle_numbered"),
 		toggle_divider: layoutCommand("toggle_divider"),
 		toggle_board: boardOrTableCommand("toggle_board"),
