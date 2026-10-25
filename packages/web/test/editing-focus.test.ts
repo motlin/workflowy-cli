@@ -137,7 +137,7 @@ describe("name and note share one focus", () => {
 	it("requestDatePicker focuses the end of the name and queues the picker for that row until taken", () => {
 		useOutlineStore.getState().focusNote("a");
 		useOutlineStore.getState().requestDatePicker("a");
-		const requested = {...nameNoteState(), datePickerRequestId: useOutlineStore.getState().datePickerRequestId};
+		const requested = {...nameNoteState(), datePickerRequest: useOutlineStore.getState().datePickerRequest};
 		const firstTake = useOutlineStore.getState().takeDatePickerRequest("a");
 		const secondTake = useOutlineStore.getState().takeDatePickerRequest("a");
 		expect({requested, firstTake, secondTake}).toStrictEqual({
@@ -147,10 +147,10 @@ describe("name and note share one focus", () => {
 				editingCaretOffset: Number.MAX_SAFE_INTEGER,
 				editingClickPosition: null,
 				lastEditedId: "a",
-				datePickerRequestId: "a",
+				datePickerRequest: {id: "a"},
 			},
-			firstTake: true,
-			secondTake: false,
+			firstTake: {id: "a"},
+			secondTake: null,
 		});
 	});
 
@@ -160,13 +160,13 @@ describe("name and note share one focus", () => {
 		useOutlineStore.getState().requestDatePicker("a", rect);
 		const requested = {
 			caret: useOutlineStore.getState().editingCaretOffset,
-			id: useOutlineStore.getState().datePickerRequestId,
+			id: useOutlineStore.getState().datePickerRequest?.id,
 			anchor: useOutlineStore.getState().datePickerAnchor,
 		};
 		const taken = useOutlineStore.getState().takeDatePickerRequest("a");
 		expect({requested, taken, anchorAfter: useOutlineStore.getState().datePickerAnchor}).toStrictEqual({
 			requested: {caret: 3, id: "a", anchor: rect},
-			taken: true,
+			taken: {id: "a"},
 			anchorAfter: null,
 		});
 	});
@@ -175,9 +175,19 @@ describe("name and note share one focus", () => {
 		useOutlineStore.getState().requestDatePicker("a");
 		expect({
 			taken: useOutlineStore.getState().takeDatePickerRequest("b"),
-			left: useOutlineStore.getState().datePickerRequestId,
-		}).toStrictEqual({taken: false, left: "a"});
-		useOutlineStore.setState({datePickerRequestId: null});
+			left: useOutlineStore.getState().datePickerRequest,
+		}).toStrictEqual({taken: null, left: {id: "a"}});
+		useOutlineStore.setState({datePickerRequest: null});
+	});
+
+	it("requestDatePicker keeps the header text and onSelect for the taking row only", () => {
+		const onSelect = () => {};
+		useOutlineStore.getState().requestDatePicker("a", undefined, {headerText: "Move to Date...", onSelect});
+		expect({
+			other: useOutlineStore.getState().takeDatePickerRequest("b"),
+			taken: useOutlineStore.getState().takeDatePickerRequest("a"),
+			again: useOutlineStore.getState().takeDatePickerRequest("a"),
+		}).toStrictEqual({other: null, taken: {id: "a", headerText: "Move to Date...", onSelect}, again: null});
 	});
 
 	it("blurNote clears only its own note's focus", () => {

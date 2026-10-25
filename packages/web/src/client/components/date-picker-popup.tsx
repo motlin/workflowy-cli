@@ -4,7 +4,7 @@ import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import type {ReactElement, ReactNode, RefObject} from "react";
 import {FaIcon} from "./fa-icons.js";
 import {MenuBody} from "./flyout/menu.js";
-import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
+import {MenuItem, MenuSectionHeader, MenuSeparator} from "./flyout/menu-item.js";
 import {popoverBox} from "./flyout/popover-box.js";
 import {IconButton} from "./icon-button.js";
 import {CALENDAR_KEYS, nextCalendarFocus} from "./date-picker-keyboard.js";
@@ -27,6 +27,8 @@ export interface DatePickerPopupProps {
 	initialView?: DatePickerView;
 	/** Upstream `showControls`: false for the day strip's calendar button, which drops the Range, Format and Remove date rows. */
 	showControls?: boolean;
+	/** Upstream `headerText`: a section header row above the input (Move to Date...). */
+	headerText?: string;
 	/** Viewport position of the popup's top-left corner, before the shell's 4px margin-top. */
 	position?: {left: number; top: number};
 	/** Whether a day has journal content under 📆 Calendar; draws the single-mode event dot (DP10). */
@@ -549,6 +551,7 @@ export function DatePickerPopup({
 	term = "",
 	initialView = "DATE",
 	showControls = true,
+	headerText,
 	position,
 	hasEvent = noEvents,
 	renderDayContent,
@@ -605,6 +608,9 @@ export function DatePickerPopup({
 	);
 	// MenuBody walks its direct children for MenuItems, so the rows are one flat keyed array, never a Fragment.
 	const rows: ReactNode[] = [
+		...(headerText === undefined
+			? []
+			: [<MenuSectionHeader key="date-popup-header">{headerText}</MenuSectionHeader>]),
 		<div key="date-popup-input" className="flex items-center px-l py-m bg-secondary">
 			{input}
 		</div>,

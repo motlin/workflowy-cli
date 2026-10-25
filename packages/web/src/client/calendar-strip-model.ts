@@ -1,6 +1,6 @@
 import {CALENDAR_LEVELS, navTooltips, nextOf, prevOf} from "@workflowy/shared";
 import type {CalendarLevel} from "@workflowy/shared";
-import {moveToastText} from "./move-to.js";
+import {MOVE_VERB, moveToastText} from "./move-to.js";
 import type {MoveToToast} from "./move-to.js";
 import type {CalendarTarget} from "./today.js";
 import type {BlockMove} from "./tree-ops.js";
@@ -272,10 +272,10 @@ export async function runStripDrop({
 	const text =
 		target.level === "month"
 			? `Moved to ${STRIP_MONTHS[date.getMonth()]} ${date.getFullYear()}`
-			: moveToastText("moved", dayName(date));
+			: moveToastText("ok", MOVE_VERB, dayName(date));
 	if (items.includes(page.id)) {
 		showToast({
-			text: moveToastText("cant", dayName(date)),
+			text: moveToastText("cant", MOVE_VERB, dayName(date)),
 			timeout: MOVE_TOAST_TIMEOUT,
 			actions: [],
 			type: "failure",

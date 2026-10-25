@@ -3,6 +3,7 @@ import type {ReactNode} from "react";
 import {createPortal} from "react-dom";
 import {formatPillLabel, guessDates, presetDate} from "@workflowy/shared";
 import type {DatePreset, TimeAttrs} from "@workflowy/shared";
+import {applyDatePick} from "../date-pick.js";
 import {caretTextOffset} from "../caret-dom.js";
 import {shouldTriggerDatePopup, timeAttrsFromDates} from "../date-pills.js";
 import type {DateSettings} from "../date-settings.js";
@@ -36,6 +37,10 @@ interface OpenPicker {
 	replaceEnd?: number;
 	/** Upstream "Add date": the pill gets a space before it unless whitespace or nothing precedes it. */
 	addSpaceBefore?: boolean;
+	/** Upstream `for()`'s custom onSelect (Move to Date): a pick calls it and inserts nothing. */
+	onSelect?: (dates: Date[]) => void;
+	/** Upstream `headerText`: a section header row above the input. */
+	headerText?: string;
 }
 
 /** Deletes the `!!` just typed before a collapsed caret in a text node; false when it is not there. */
@@ -103,7 +108,7 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 	/** Open the picker to replace the plain text `offset`..`replaceEnd`, its input prefilled with `term`. */
 	openForPhrase: (phrase: Required<Pick<OpenPicker, "replaceEnd">> & Omit<OpenPicker, "replaceEnd">) => void;
 	/** Open the picker at the editor's caret, as upstream's "Add date" command does with `addSpaceBefore`. */
-	openAtCaret: (anchorRect?: DOMRect | null) => void;
+	openAtCaret: (anchorRect?: DOMRect | null, options?: Pick<OpenPicker, "headerText" | "onSelect">) => void;
 	isOpen: () => boolean;
 	popup: ReactNode;
 } {
@@ -144,7 +149,7 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 	);
 
 	const openAtCaret = useCallback(
-		(anchorRect?: DOMRect | null) => {
+		(anchorRect?: DOMRect | null, options?: Pick<OpenPicker, "headerText" | "onSelect">) => {
 			const editor = editorRef.current;
 			if (editor === null || openRef.current !== null) {
 				return;
@@ -155,7 +160,7 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 				anchorRect === undefined || anchorRect === null
 					? caretPosition(editor)
 					: {left: anchorRect.left + globalThis.scrollX, top: anchorRect.bottom + globalThis.scrollY};
-			openForPhrase({offset, position, term: "", isRange: false, addSpaceBefore: true});
+			openForPhrase({offset, position, term: "", isRange: false, addSpaceBefore: true, ...options});
 		},
 		[editorRef, openForPhrase],
 	);
@@ -173,10 +178,15 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 		(dates: Date[]) => {
 			const opened = close();
 			if (opened !== null) {
-				onInsert(timeAttrsFromDates(dates), opened.offset, opened.replaceEnd, opened.addSpaceBefore);
+				applyDatePick(opened, dates, {
+					insert: (attrs) => {
+						onInsert(attrs, opened.offset, opened.replaceEnd, opened.addSpaceBefore);
+					},
+					cancel: onCancel,
+				});
 			}
 		},
-		[close, onInsert],
+		[close, onInsert, onCancel],
 	);
 
 	const cancel = useCallback(() => {
@@ -205,6 +215,9 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 						isRange={picker.isRange}
 						term={picker.term}
 						position={picker.position}
+						headerText={picker.headerText}
+						showControls={picker.onSelect === undefined}
+						showNoDate={picker.onSelect === undefined}
 						onTermChange={(term) => {
 							update({term});
 						}}

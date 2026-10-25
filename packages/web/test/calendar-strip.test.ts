@@ -540,7 +540,7 @@ describe("strip drag-and-drop", () => {
 			cleared: 1,
 			toasts: [
 				{
-					text: "Moved to '2026-10-5 day'",
+					text: "moved to '2026-10-5 day'",
 					timeout: 5000,
 					actions: [
 						{label: "View", shortcut: "shift+return"},

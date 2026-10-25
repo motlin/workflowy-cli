@@ -33,7 +33,7 @@ function menu(layoutMode: string | null, isMirror = false): string {
 describe("buildItemMenu with local availability", () => {
 	it("lists the plain bullet menu in the engine's order with group separators", () => {
 		expect(menu(null)).toBe(
-			"[node_type_picker] | open_in_pane complete add_note add_date present_it move_to mirror_to mirror duplicate | show_export copy_link make_template | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+			"[node_type_picker] | open_in_pane complete add_note add_date present_it move_to move_to_today move_to_tomorrow move_to_next_week move_to_date mirror_to mirror duplicate | show_export copy_link make_template | delete | expand_all collapse_all sort_children_asc sort_children_desc",
 		);
 	});
 
@@ -51,13 +51,13 @@ describe("buildItemMenu with local availability", () => {
 
 	it("drops add_date, present_it and make_template for code blocks", () => {
 		expect(menu("code-block")).toBe(
-			"[node_type_picker] | open_in_pane complete add_note move_to mirror_to mirror duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+			"[node_type_picker] | open_in_pane complete add_note move_to move_to_today move_to_tomorrow move_to_next_week move_to_date mirror_to mirror duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
 		);
 	});
 
 	it("drops present_it and make_template for quote blocks", () => {
 		expect(menu("quote-block")).toBe(
-			"[node_type_picker] | open_in_pane complete add_note add_date move_to mirror_to mirror duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+			"[node_type_picker] | open_in_pane complete add_note add_date move_to move_to_today move_to_tomorrow move_to_next_week move_to_date mirror_to mirror duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
 		);
 	});
 

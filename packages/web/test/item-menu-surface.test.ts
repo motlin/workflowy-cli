@@ -167,6 +167,10 @@ describe("item menu surface", () => {
 			ITEM_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
+			ITEM_TOKENS,
+			ITEM_TOKENS,
+			ITEM_TOKENS,
+			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
@@ -190,6 +194,10 @@ describe("item menu surface", () => {
 			"add_date",
 			"present_it",
 			"move_to",
+			"move_to_today",
+			"move_to_tomorrow",
+			"move_to_next_week",
+			"move_to_date",
 			"mirror_to",
 			"mirror",
 			"duplicate",
@@ -250,7 +258,7 @@ describe("item menu surface", () => {
 	});
 
 	it("renders Delete in the plain text color", () => {
-		const del = scrollerChildren(render(node))[16];
+		const del = scrollerChildren(render(node))[20];
 		expect(del).toContain('data-handbook="delete"');
 		expect(classTokens(del)).toStrictEqual(ITEM_TOKENS);
 		expect(del).not.toContain("danger");
@@ -272,6 +280,10 @@ describe("item menu surface", () => {
 			"Add date",
 			"Present",
 			"Move To...",
+			"Move to Today",
+			"Move to Tomorrow",
+			"Move to Next Week",
+			"Move to Date...",
 			"Mirror To...",
 			"Mirror",
 			"Duplicate",

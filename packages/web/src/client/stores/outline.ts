@@ -51,6 +51,16 @@ const MIN_LEFT_BAR_WIDTH = 160;
 /** Below this viewport width the left bar always starts as a closed drawer. */
 const LEFT_BAR_PIN_MIN_VIEWPORT = 800;
 
+/** Upstream `WF.Date.popup.for` options that Move to Date passes: a header row and a pick handler instead of inserting. */
+interface DatePickerRequestOptions {
+	headerText?: string;
+	onSelect?: (dates: Date[]) => void;
+}
+
+interface DatePickerRequest extends DatePickerRequestOptions {
+	id: string;
+}
+
 export interface LeftBarPersistedState {
 	leftBarMode: LeftBarMode;
 	leftBarWidth: number;
@@ -363,7 +373,7 @@ interface OutlineState {
 	/** The most recently edited node; panels that follow the user's place outlive the edit's blur. */
 	lastEditedId: string | null;
 	/** A row whose name editor should open the date picker at its caret once it is focused ("Add date"). */
-	datePickerRequestId: string | null;
+	datePickerRequest: DatePickerRequest | null;
 	/** Where the queued picker anchors (the removed slash chip); null anchors it at the caret. */
 	datePickerAnchor: DOMRect | null;
 	showCompleted: boolean;
@@ -498,9 +508,9 @@ interface OutlineActions {
 	/** Focus `id`'s name with the caret at its start or end, leaving any note. */
 	focusName: (id: string, caret: 0 | "end") => void;
 	/** Upstream "Add date" on an unfocused item: focus the end of `id`'s name and open the date picker there. */
-	requestDatePicker: (id: string, anchorRect?: DOMRect) => void;
+	requestDatePicker: (id: string, anchorRect?: DOMRect, options?: DatePickerRequestOptions) => void;
 	/** Clear and report whether the pending date-picker request is for `id`. */
-	takeDatePickerRequest: (id: string) => boolean;
+	takeDatePickerRequest: (id: string) => DatePickerRequest | null;
 	/** The note `id` lost focus: clear note focus unless it already moved elsewhere. */
 	blurNote: (id: string) => void;
 	/** Edit `id` with the caret `caretOffset` text characters in (clamped to the end). */
@@ -946,7 +956,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	editingNoteCaret: "end",
 	editingHeld: false,
 	lastEditedId: null,
-	datePickerRequestId: null,
+	datePickerRequest: null,
 	datePickerAnchor: null,
 	showCompleted: getInitialShowCompleted(),
 	alwaysVisibleControls: true,
@@ -1161,20 +1171,21 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		});
 	},
 
-	requestDatePicker: (id, anchorRect) => {
+	requestDatePicker: (id, anchorRect, options) => {
 		// From the slash menu the caret already sits where the chip was; the bullet menu jumps to the end.
 		if (anchorRect === undefined) {
 			get().focusName(id, "end");
 		}
-		set({datePickerRequestId: id, datePickerAnchor: anchorRect ?? null});
+		set({datePickerRequest: {id, ...options}, datePickerAnchor: anchorRect ?? null});
 	},
 
 	takeDatePickerRequest: (id) => {
-		if (get().datePickerRequestId !== id) {
-			return false;
+		const request = get().datePickerRequest;
+		if (request?.id !== id) {
+			return null;
 		}
-		set({datePickerRequestId: null, datePickerAnchor: null});
-		return true;
+		set({datePickerRequest: null, datePickerAnchor: null});
+		return request;
 	},
 
 	blurNote: (id) => {

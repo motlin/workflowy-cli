@@ -40,8 +40,16 @@ export function planMoveTo({
 	return {ids: [...items], parentId: target.id, index: defaultIndexIn(target, childCount)};
 }
 
-export function moveToastText(kind: "moved" | "cant", name: string): string {
-	return kind === "moved" ? `Moved to '${name}'` : `Can't move to '${name}'`;
+export interface MoveVerb {
+	verb: string;
+	verbPast: string;
+}
+
+export const MOVE_VERB: MoveVerb = {verb: "move", verbPast: "moved"};
+
+/** Upstream's literal toast text: lowercase success (the toast CSS capitalizes it) and `Can't <verb> to '<name>'`. */
+export function moveToastText(kind: "ok" | "cant", {verb, verbPast}: MoveVerb, name: string): string {
+	return kind === "ok" ? `${verbPast} to '${name}'` : `Can't ${verb} to '${name}'`;
 }
 
 /**
@@ -60,6 +68,7 @@ export function runMoveTo({
 	view,
 	undo,
 	leaveItem,
+	verb = MOVE_VERB,
 }: {
 	/** The item ids in document order. */
 	items: readonly string[];
@@ -74,10 +83,12 @@ export function runMoveTo({
 	undo: () => void;
 	/** Runs just before the move, while the item's row is still in place (caret to the previous visible row). */
 	leaveItem?: () => void;
+	/** Wording for the toast (default move/moved). */
+	verb?: MoveVerb;
 }): boolean {
 	if (!items.every((item) => canMoveUnder(parentOf, item, target.id))) {
 		showToast({
-			text: moveToastText("cant", target.name),
+			text: moveToastText("cant", verb, target.name),
 			timeout: MOVE_TOAST_TIMEOUT,
 			actions: [],
 			type: "failure",
@@ -87,7 +98,7 @@ export function runMoveTo({
 	leaveItem?.();
 	moveNodes([planMoveTo({items, target, childCount})]);
 	showToast({
-		text: moveToastText("moved", target.name),
+		text: moveToastText("ok", verb, target.name),
 		timeout: MOVE_TOAST_TIMEOUT,
 		actions: [
 			{

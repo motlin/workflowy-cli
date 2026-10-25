@@ -11,6 +11,9 @@ import type {MoveToToast} from "../src/client/move-to.js";
 import type {BlockMove} from "../src/client/tree-ops.js";
 
 // home > grandpa > {dad > {item > {child > {grandchild}}}, uncle}
+const MOVE = {verb: "move", verbPast: "moved"} as const;
+const MIRROR = {verb: "mirror", verbPast: "mirrored"} as const;
+
 const PARENTS: Record<string, string | null> = {
 	grandpa: null,
 	dad: "grandpa",
@@ -57,8 +60,10 @@ describe("planMoveTo", () => {
 
 describe("moveToastText", () => {
 	it("names the target", () => {
-		expect(moveToastText("moved", "Charlie")).toBe("Moved to 'Charlie'");
-		expect(moveToastText("cant", "Charlie")).toBe("Can't move to 'Charlie'");
+		expect(moveToastText("ok", MOVE, "Charlie")).toBe("moved to 'Charlie'");
+		expect(moveToastText("cant", MOVE, "Charlie")).toBe("Can't move to 'Charlie'");
+		expect(moveToastText("ok", MIRROR, "Charlie")).toBe("mirrored to 'Charlie'");
+		expect(moveToastText("cant", MIRROR, "Charlie")).toBe("Can't mirror to 'Charlie'");
 	});
 });
 
@@ -111,7 +116,7 @@ describe("runMoveTo", () => {
 			moves: [[{ids: ["item"], parentId: "uncle", index: 0}]],
 			toasts: [
 				{
-					text: "Moved to 'Uncle'",
+					text: "moved to 'Uncle'",
 					timeout: 5000,
 					actions: [
 						{label: "View", shortcut: "shift+return"},
@@ -200,7 +205,7 @@ describe("executeMoveTo", () => {
 	it("loads the chosen location, leaves the item's row, then moves it and toasts", async () => {
 		await expect(execute({id: "uncle"})).resolves.toStrictEqual({
 			moved: true,
-			log: ["load uncle", "leave", "move item uncle 0", "toast Moved to 'Uncle'"],
+			log: ["load uncle", "leave", "move item uncle 0", "toast moved to 'Uncle'"],
 		});
 	});
 
@@ -209,7 +214,7 @@ describe("executeMoveTo", () => {
 			"load fresh",
 			"leave",
 			"move item fresh 0",
-			"toast Moved to 'Uncle'",
+			"toast moved to 'Uncle'",
 		]);
 	});
 

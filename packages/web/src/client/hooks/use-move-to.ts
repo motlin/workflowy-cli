@@ -1,4 +1,6 @@
+import {stripHtmlTags} from "@workflowy/shared/html";
 import {useQueryClient} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {caretAnchor, caretBoxes, caretTextOffset, editorElement, rowContent} from "../caret-dom.js";
 import type {AnchorRect} from "../caret-dom.js";
@@ -29,10 +31,24 @@ export async function loadMoveTarget(id: string): Promise<LoadedMoveTarget> {
 	const [children, ancestors] = await Promise.all([fetchChildren(id), fetchAncestors(id)]);
 	const parents = new Map(ancestors.map((ancestor) => [ancestor.id, ancestor.parent_id]));
 	return {
-		target: {id, name: node.name ?? "", defaultToBottom: node.defaultToBottom === true},
+		target: {id, name: stripHtmlTags(node.name ?? ""), defaultToBottom: node.defaultToBottom === true},
 		childCount: children.length,
 		parentOf: (nodeId) => parents.get(nodeId) ?? null,
 	};
+}
+
+/** Upstream's caret after a move: from the moved row to the previous visible row (or out of editing). */
+export function leaveRow(queryClient: QueryClient, itemId: string): void {
+	const outline = useOutlineStore.getState();
+	if (outline.editingId !== itemId) {
+		return;
+	}
+	const next = editingAfterMoveOut(currentNavigableIds(queryClient), itemId, activePaneView().zoomedNodeId);
+	if (next === null) {
+		outline.stopEditing();
+	} else {
+		outline.resumeEditing(next.nodeId, next.caretOffset);
+	}
 }
 
 /**
@@ -67,20 +83,7 @@ export function useMoveTo(): (itemIds: readonly string[]) => Promise<void> {
 				),
 			loadTarget: loadMoveTarget,
 			leaveItem: () => {
-				const outline = useOutlineStore.getState();
-				if (outline.editingId !== first) {
-					return;
-				}
-				const next = editingAfterMoveOut(
-					currentNavigableIds(queryClient),
-					first,
-					activePaneView().zoomedNodeId,
-				);
-				if (next === null) {
-					outline.stopEditing();
-				} else {
-					outline.resumeEditing(next.nodeId, next.caretOffset);
-				}
+				leaveRow(queryClient, first);
 			},
 			moveNodes: (moves) => {
 				void runInUndoBatch(captureOutlineView, async () => sendBlockMoves(moves, moveNodes));

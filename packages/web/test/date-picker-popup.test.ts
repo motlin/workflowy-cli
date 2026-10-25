@@ -53,6 +53,21 @@ describe("DatePickerPopup", () => {
 		vi.useRealTimers();
 	});
 
+	it("headerText puts the section header first in the scroller and showControls=false drops Range and Format", () => {
+		const html = render({headerText: "Move to Date...", showControls: false});
+		expect({
+			header: /<div class="(py-m px-l[^"]*)"[^>]*>Move to Date\.\.\.<\/div>/u.exec(html)?.[1],
+			headerFirst: html.indexOf("Move to Date...") < html.indexOf("Type date"),
+			rows: menuRows(html),
+			plainHasHeader: render().includes("menu-section-header"),
+		}).toStrictEqual({
+			header: "py-m px-l text-tertiary text-xs uppercase bg-inherit mobile:bg-secondary menu-section-header mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right ",
+			headerFirst: true,
+			rows: ["Today", "Tomorrow", "Next week"],
+			plainHasHeader: false,
+		});
+	});
+
 	it("renders the static 42-day October 2026 grid with today outlined", () => {
 		const html = render();
 		const cells = dayCells(html);

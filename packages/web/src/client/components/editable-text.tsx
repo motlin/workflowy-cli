@@ -323,12 +323,13 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	const {handleInput: handleDateTrigger, openForPhrase, openAtCaret, isOpen: isDatePickerOpen} = datePicker;
 
 	// "Add date" from the item menu focuses this name at its end, then opens the picker there.
-	const datePickerRequestId = useOutlineStore((state) => state.datePickerRequestId);
+	const datePickerRequestId = useOutlineStore((state) => state.datePickerRequest?.id);
 	useEffect(() => {
 		if (isEditing && datePickerRequestId === nodeId && document.activeElement === contentRef.current) {
 			const anchor = useOutlineStore.getState().datePickerAnchor;
-			if (useOutlineStore.getState().takeDatePickerRequest(nodeId)) {
-				openAtCaret(anchor);
+			const request = useOutlineStore.getState().takeDatePickerRequest(nodeId);
+			if (request !== null) {
+				openAtCaret(anchor, request);
 			}
 		}
 	}, [isEditing, datePickerRequestId, nodeId, openAtCaret]);
