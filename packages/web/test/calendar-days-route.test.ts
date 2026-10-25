@@ -100,8 +100,8 @@ describe("GET /api/v1/calendar/days", () => {
 		scans.length = 0;
 
 		await expect(get("year=2026&month=10&found=1")).resolves.toStrictEqual({status: 200, body: {days: [1]}});
-		// Root lookups for the settings, the days and the Found Dates' calendar info, then the month's tagged days.
-		expect(scans.filter((sql) => sql.includes('"node_internal_metadata"') && sql.includes("like"))).toHaveLength(4);
+		// Only root lookups (the settings, the days, the Found Dates' calendar info, twice each for the node role); the strict walk reads children by id, not by scanning.
+		expect(scans.filter((sql) => sql.includes('"node_internal_metadata"') && sql.includes("like"))).toHaveLength(6);
 	});
 
 	it("rejects a missing or out-of-range year or month", async () => {

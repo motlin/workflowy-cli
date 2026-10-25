@@ -143,3 +143,14 @@ describe("keptInternalMetadata table", () => {
 		).toStrictEqual({layoutMode: "table", table: {headers: true, sizes: {c1: 200}}});
 	});
 });
+
+describe("keptInternalMetadata restorableUniqueNode", () => {
+	it("keeps the restorable flag beside calendar and drops unknown keys", () => {
+		const calendar = {level: "day", value: "5", timestamp: 1, dateId: 20_261_005};
+
+		expect(keptInternalMetadata({restorableUniqueNode: true, calendar, foo: 1})).toStrictEqual({
+			calendar,
+			restorableUniqueNode: true,
+		});
+	});
+});

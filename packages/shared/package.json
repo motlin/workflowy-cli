@@ -19,6 +19,11 @@
 			"types": "./dist/api/index.d.ts",
 			"import": "./dist/api/index.js"
 		},
+		"./calendar-lookup": {
+			"source": "./src/cache/calendar-lookup.ts",
+			"types": "./dist/cache/calendar-lookup.d.ts",
+			"import": "./dist/cache/calendar-lookup.js"
+		},
 		"./internal": {
 			"source": "./src/internal/index.ts",
 			"types": "./dist/internal/index.d.ts",

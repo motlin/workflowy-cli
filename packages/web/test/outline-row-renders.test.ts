@@ -110,7 +110,14 @@ describe("calendar day OutlineRow", () => {
 			id: `d${dateId}`,
 			parent_id: "m10",
 			name: "day",
-			calendar: {level: "day", dateId, root: false, foundDates: null, dayPrefix: null},
+			calendar: {
+				level: "day",
+				dateId,
+				root: false,
+				foundDates: null,
+				dayPrefix: null,
+				restorableUniqueNode: false,
+			},
 		};
 	}
 
@@ -131,13 +138,21 @@ describe("calendar day OutlineRow", () => {
 			calendar,
 		});
 		queryClient.setQueryData(nodeKeys.ancestors("m10"), [
-			chainNode("cal", null, {level: null, dateId: null, root: true, foundDates: true, dayPrefix}),
+			chainNode("cal", null, {
+				level: null,
+				dateId: null,
+				root: true,
+				foundDates: true,
+				dayPrefix,
+				restorableUniqueNode: false,
+			}),
 			chainNode("y2026", "cal", {
 				level: "year",
 				dateId: 20_260_000,
 				root: false,
 				foundDates: null,
 				dayPrefix: null,
+				restorableUniqueNode: false,
 			}),
 			chainNode("m10", "y2026", {
 				level: "month",
@@ -145,6 +160,7 @@ describe("calendar day OutlineRow", () => {
 				root: false,
 				foundDates: null,
 				dayPrefix: null,
+				restorableUniqueNode: false,
 			}),
 		]);
 		queryClient.setQueryData(nodeKeys.children("m10"), [node]);

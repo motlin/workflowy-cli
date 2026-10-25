@@ -10,3 +10,12 @@ export type {CalendarLayoutLevels, CalendarLayoutStep, LayoutNode} from "./calen
 export type {CalendarDate, CalendarLevel, CalendarLevelMetadata} from "./calendar-day.js";
 export {orderChanges, renameChanges, starChanges, starsFromRootMeta, unstarChanges} from "./stars.js";
 export type {StarNodes} from "./stars.js";
+export {adoptOnInsert, auditCalendarMonth, auditCalendarRoot} from "./calendar-adopt.js";
+export type {
+	AdoptOnInsertInput,
+	AuditNode,
+	CalendarAuditFinding,
+	CalendarAuditKind,
+	CalendarTag,
+	CalendarTagged,
+} from "./calendar-adopt.js";

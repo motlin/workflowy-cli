@@ -386,7 +386,7 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 				],
 			],
 			order: ["day-id", "x"],
-			cached: [{node_id: "day-id", metadata_json: JSON.stringify({calendar})}],
+			cached: [{node_id: "day-id", metadata_json: JSON.stringify({calendar, restorableUniqueNode: true})}],
 		});
 	});
 

@@ -125,7 +125,16 @@ describe("OutlineChildren Found Dates section", () => {
 		foundDatesCalls.length = 0;
 		nodesById.set(
 			"day",
-			makeNode({calendar: {level: "day", dateId: 20_260_930, root: false, foundDates: null, dayPrefix: null}}),
+			makeNode({
+				calendar: {
+					level: "day",
+					dateId: 20_260_930,
+					root: false,
+					foundDates: null,
+					dayPrefix: null,
+					restorableUniqueNode: false,
+				},
+			}),
 		);
 		nodesById.set("plain", makeNode({id: "plain", calendar: null}));
 		childrenByParent.set("day", [makeNode({id: "child-a", parent_id: "day", name: "Child A"})]);

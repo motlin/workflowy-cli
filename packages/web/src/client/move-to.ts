@@ -1,3 +1,6 @@
+import {CALENDAR_LEVELS, dateId} from "@workflowy/shared";
+import type {CalendarLevel} from "@workflowy/shared";
+import type {CalendarInfo} from "../node-types.js";
 import type {AppMessageAction, AppMessageType} from "./stores/outline.js";
 import {defaultIndexIn} from "./tree-ops.js";
 import type {BlockMove} from "./tree-ops.js";
@@ -25,6 +28,50 @@ export function canMoveUnder(parentOf: (id: string) => string | null, itemId: st
 		}
 	}
 	return true;
+}
+
+/** Upstream's levels for a calendar root that sets none. */
+export const DEFAULT_CALENDAR_LEVELS: Readonly<Record<CalendarLevel, boolean>> = {
+	year: true,
+	month: true,
+	week: false,
+	day: true,
+};
+
+/**
+ * Upstream `item.can_move_under.calendar_levels`: a restorable (app-created) 📆 Calendar level node, other than a
+ * mirror, moves only to its parent level. The first enabled level (year) needs the calendar root as the target; any
+ * other level needs a target of the previous enabled level for the same period. Adopted nodes, which lack
+ * `restorableUniqueNode`, and every other row move freely.
+ */
+export function canMoveUnderCalendar(
+	item: {calendar?: CalendarInfo | null; isMirror?: boolean},
+	target: {calendar?: CalendarInfo | null},
+	levels: Readonly<Record<CalendarLevel, boolean>>,
+): boolean {
+	const {calendar} = item;
+	if (calendar === null || calendar === undefined || calendar.root || item.isMirror === true) {
+		return true;
+	}
+	if (!calendar.restorableUniqueNode || calendar.dateId === null) {
+		return true;
+	}
+	const enabled = CALENDAR_LEVELS.filter((level) => levels[level]);
+	const index = enabled.findIndex((level) => level === calendar.level);
+	if (index === -1) {
+		return true;
+	}
+	if (index === 0) {
+		return target.calendar?.root === true;
+	}
+	const previous = enabled[index - 1];
+	const {dateId: id} = calendar;
+	const date = new Date(Math.floor(id / 10_000), (Math.floor(id / 100) % 100 || 1) - 1, id % 100 || 1);
+	return (
+		previous !== undefined &&
+		target.calendar?.level === previous &&
+		target.calendar.dateId === dateId(previous, date)
+	);
 }
 
 /** One block move of `items` (document order) into `target` at upstream's `WF.Priority.defaultIn` slot (top unless `defaultToBottom`). */
@@ -69,6 +116,7 @@ export function runMoveTo({
 	undo,
 	leaveItem,
 	verb = MOVE_VERB,
+	allowed = () => true,
 }: {
 	/** The item ids in document order. */
 	items: readonly string[];
@@ -85,8 +133,10 @@ export function runMoveTo({
 	leaveItem?: () => void;
 	/** Wording for the toast (default move/moved). */
 	verb?: MoveVerb;
+	/** An extra per-item rule beyond the ancestry check, such as the 📆 Calendar level guard. */
+	allowed?: (itemId: string, targetId: string) => boolean;
 }): boolean {
-	if (!items.every((item) => canMoveUnder(parentOf, item, target.id))) {
+	if (!items.every((item) => canMoveUnder(parentOf, item, target.id) && allowed(item, target.id))) {
 		showToast({
 			text: moveToastText("cant", verb, target.name),
 			timeout: MOVE_TOAST_TIMEOUT,

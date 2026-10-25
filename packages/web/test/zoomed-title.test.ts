@@ -21,11 +21,14 @@ const PREFIX_CLASS =
 	"flex h-[var(--line-height)] whitespace-nowrap items-center pr-m pt-[--wf-content-padding-top] pb-[--wf-content-padding-bottom]";
 
 function rootInfo(dayPrefix: boolean | null): CalendarInfo {
-	return {level: null, dateId: null, root: true, foundDates: true, dayPrefix};
+	return {level: null, dateId: null, root: true, foundDates: true, dayPrefix, restorableUniqueNode: false};
 }
 
 function dayNode(dateId: number): Pick<NodeResponse, "id" | "calendar"> {
-	return {id: `d${dateId}`, calendar: {level: "day", dateId, root: false, foundDates: null, dayPrefix: null}};
+	return {
+		id: `d${dateId}`,
+		calendar: {level: "day", dateId, root: false, foundDates: null, dayPrefix: null, restorableUniqueNode: false},
+	};
 }
 
 /** Render inside a client whose calendar settings cache holds `cached`, or nothing when undefined. */
@@ -68,7 +71,14 @@ describe("DayTitlePrefix", () => {
 			plain: render({id: "plain", calendar: null}),
 			month: render({
 				id: "m10",
-				calendar: {level: "month", dateId: 20_261_000, root: false, foundDates: null, dayPrefix: null},
+				calendar: {
+					level: "month",
+					dateId: 20_261_000,
+					root: false,
+					foundDates: null,
+					dayPrefix: null,
+					restorableUniqueNode: false,
+				},
 			}),
 			off: render(dayNode(20_261_002), false),
 			unset: render(dayNode(20_261_002), null),
@@ -94,9 +104,15 @@ describe("DayTitlePrefix", () => {
 
 	it("follows the cached calendar setting over the ancestors' root value, so a toggle shows before the refetch", () => {
 		ancestorsState.data = [{id: "cal", calendar: rootInfo(true)}, dayNode(20_261_002)];
-		const offWhileAncestorsSayOn = renderWith(dayNode(20_261_002), {foundDates: true, dayPrefix: false});
+		const offWhileAncestorsSayOn = renderWith(dayNode(20_261_002), {
+			foundDates: true,
+			dayPrefix: false,
+		});
 		ancestorsState.data = [{id: "cal", calendar: rootInfo(false)}, dayNode(20_261_002)];
-		const onWhileAncestorsSayOff = renderWith(dayNode(20_261_002), {foundDates: true, dayPrefix: true});
+		const onWhileAncestorsSayOff = renderWith(dayNode(20_261_002), {
+			foundDates: true,
+			dayPrefix: true,
+		});
 
 		expect({offWhileAncestorsSayOn, onWhileAncestorsSayOff}).toStrictEqual({
 			offWhileAncestorsSayOn: "",

@@ -307,7 +307,7 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 				["refresh", [Y2026, M10, D1017]],
 			],
 			months: [M09, "loose", M10, "nov"],
-			cachedDay: {calendar: d1017Metadata.calendar},
+			cachedDay: {calendar: d1017Metadata.calendar, restorableUniqueNode: true},
 		});
 	});
 

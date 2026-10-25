@@ -34,9 +34,13 @@ const TREE: [string, string | null, string][] = [
 	["wrongday", "m10", time(2026, 9, 3)],
 ];
 
+const ROOT_METADATA = {
+	calendar: {root: true, levels: {day: true, month: true, year: true}, found_dates: true, day_prefix: false},
+};
 const INTERNAL: Record<string, unknown> = {
-	cal: {calendar: {root: true, levels: {day: true, month: true, year: true}, found_dates: true, day_prefix: false}},
-	d1002: {calendar: {level: "day", value: "2", dateId: 20_261_002, timestamp: 0}},
+	cal: ROOT_METADATA,
+	d0930: {layoutMode: "bullets"},
+	d1002: {restorableUniqueNode: true, calendar: {level: "day", value: "2", dateId: 20_261_002, timestamp: 0}},
 };
 
 const BACKUP: {nodeId: string; level: string; dateId: number}[] = [
@@ -51,7 +55,7 @@ afterEach(() => {
 	}
 });
 
-function setup() {
+function setup({taggedRoot = true}: {taggedRoot?: boolean} = {}) {
 	const sqlite = new DatabaseConstructor(":memory:");
 	open.push(sqlite);
 	const db = drizzle(sqlite, {schema});
@@ -64,6 +68,9 @@ function setup() {
 		);
 	});
 	for (const [nodeId, metadata] of Object.entries(INTERNAL)) {
+		if (!taggedRoot && (nodeId === "cal" || nodeId === "d0930")) {
+			continue;
+		}
 		db.insert(schema.nodeInternalMetadata)
 			.values({nodeId, metadataJson: JSON.stringify(metadata), fetchedAt: 0})
 			.run();
@@ -84,7 +91,14 @@ function setup() {
 		(await app.fetch(new Request(`http://x/api/v1${path}`))).json() as Promise<unknown>;
 }
 
-const day = (dateId: number) => ({level: "day", dateId, root: false, foundDates: null, dayPrefix: null});
+const day = (dateId: number, restorableUniqueNode = false) => ({
+	level: "day",
+	dateId,
+	root: false,
+	foundDates: null,
+	dayPrefix: null,
+	restorableUniqueNode,
+});
 
 describe("node DTO calendar info", () => {
 	it("carries the calendar root's settings from its internal metadata", async () => {
@@ -95,8 +109,8 @@ describe("node DTO calendar info", () => {
 		});
 	});
 
-	it("tags day nodes by internal metadata, then backup metadata, then the year > month > <time> name walk", async () => {
-		const get = setup();
+	it("tags day nodes by internal metadata, then backup metadata, then the year > month > <time> name walk without a tagged root", async () => {
+		const get = setup({taggedRoot: false});
 
 		const body = (await get("/nodes?parent_id=m10")) as {nodes: {id: string; calendar: unknown}[]};
 		const single = (await get("/nodes/d0930")) as {node: {calendar: unknown}};
@@ -108,10 +122,30 @@ describe("node DTO calendar info", () => {
 			children: [
 				{id: "entry", calendar: null},
 				{id: "d1001", calendar: day(20_261_001)},
-				{id: "d1002", calendar: day(20_261_002)},
+				{id: "d1002", calendar: day(20_261_002, true)},
 				{id: "wrongday", calendar: null},
 			],
 			d0930: day(20_260_930),
+		});
+	});
+
+	it("trusts only internal metadata once the calendar root is tagged", async () => {
+		const get = setup();
+
+		const body = (await get("/nodes?parent_id=m10")) as {nodes: {id: string; calendar: unknown}[]};
+		const single = (await get("/nodes/d0930")) as {node: {calendar: unknown}};
+
+		expect({
+			children: body.nodes.map(({id, calendar}) => ({id, calendar})),
+			d0930: single.node.calendar,
+		}).toStrictEqual({
+			children: [
+				{id: "entry", calendar: null},
+				{id: "d1001", calendar: null},
+				{id: "d1002", calendar: day(20_261_002, true)},
+				{id: "wrongday", calendar: null},
+			],
+			d0930: null,
 		});
 	});
 
@@ -127,10 +161,20 @@ describe("node DTO calendar info", () => {
 		const body = (await get("/nodes/d1001/ancestors")) as {ancestors: {id: string; calendar: unknown}[]};
 
 		expect(body.ancestors.map(({id, calendar}) => ({id, calendar}))).toStrictEqual([
-			{id: "cal", calendar: {level: null, dateId: null, root: true, foundDates: true, dayPrefix: false}},
+			{
+				id: "cal",
+				calendar: {
+					level: null,
+					dateId: null,
+					root: true,
+					foundDates: true,
+					dayPrefix: false,
+					restorableUniqueNode: false,
+				},
+			},
 			{id: "y2026", calendar: null},
 			{id: "m10", calendar: null},
-			{id: "d1001", calendar: day(20_261_001)},
+			{id: "d1001", calendar: null},
 		]);
 	});
 });

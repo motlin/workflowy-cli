@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {
 	canMoveUnder,
+	canMoveUnderCalendar,
 	executeMoveTo,
 	moveToastText,
 	planMoveTo,
@@ -246,5 +247,52 @@ describe("viewMovedTarget", () => {
 
 	it("zooms the main outline when Move To ran there", () => {
 		expect(record(null)).toStrictEqual([["zoomMain", "charlie"]]);
+	});
+});
+
+describe("canMoveUnderCalendar", () => {
+	const levels = {year: true, month: true, week: false, day: true};
+	const tag = (level: string, dateId: number, restorableUniqueNode = true) => ({
+		calendar: {level, dateId, root: false, foundDates: null, dayPrefix: null, restorableUniqueNode},
+	});
+	const day = tag("day", 20_261_005);
+	const month = (dateId: number) => ({calendar: tag("month", dateId).calendar});
+	const root = {
+		calendar: {
+			level: null,
+			dateId: null,
+			root: true,
+			foundDates: null,
+			dayPrefix: null,
+			restorableUniqueNode: false,
+		},
+	};
+	const plain = {calendar: null};
+
+	it("lets a restorable day move only under its own month", () => {
+		expect([
+			canMoveUnderCalendar({...day, isMirror: false}, month(20_261_000), levels),
+			canMoveUnderCalendar({...day, isMirror: false}, month(20_261_100), levels),
+			canMoveUnderCalendar({...day, isMirror: false}, tag("year", 20_260_000), levels),
+			canMoveUnderCalendar({...day, isMirror: false}, plain, levels),
+		]).toStrictEqual([true, false, false, false]);
+	});
+
+	it("lets a restorable year move only under the calendar root", () => {
+		const year = tag("year", 20_260_000);
+
+		expect([
+			canMoveUnderCalendar({...year, isMirror: false}, root, levels),
+			canMoveUnderCalendar({...year, isMirror: false}, month(20_261_000), levels),
+			canMoveUnderCalendar({...year, isMirror: false}, plain, levels),
+		]).toStrictEqual([true, false, false]);
+	});
+
+	it("moves an adopted day, a mirror and a plain row freely", () => {
+		expect([
+			canMoveUnderCalendar({...tag("day", 20_261_005, false), isMirror: false}, plain, levels),
+			canMoveUnderCalendar({...day, isMirror: true}, plain, levels),
+			canMoveUnderCalendar({calendar: null, isMirror: false}, plain, levels),
+		]).toStrictEqual([true, true, true]);
 	});
 });

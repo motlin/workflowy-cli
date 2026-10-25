@@ -544,7 +544,14 @@ describe("cleanupEmptyDayOnLeave", () => {
 	const day = testNode(DAY, {
 		name: '<time startYear="2026" startMonth="10" startDay="20">Tue, Oct 20, 2026</time>',
 		hasChildren: true,
-		calendar: {level: "day", dateId: 20_261_020, root: false, foundDates: null, dayPrefix: null},
+		calendar: {
+			level: "day",
+			dateId: 20_261_020,
+			root: false,
+			foundDates: null,
+			dayPrefix: null,
+			restorableUniqueNode: false,
+		},
 	});
 
 	function leave(from: NodeResponse | undefined, children: NodeResponse[] | undefined, toId: string | null) {

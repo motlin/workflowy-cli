@@ -28,12 +28,12 @@ const TREE: [string, string | null, string, unknown?][] = [
 	["cal", null, "📆 Calendar", {calendar: {root: true, levels: {year: true, month: true, day: true}}}],
 	["other", null, "Other"],
 	[D1005_ELSEWHERE, "other", time(2026, 10, 5)],
-	["y2026", "cal", "2026"],
-	["m09", "y2026", "9"],
+	["y2026", "cal", "2026", {calendar: {level: "year", value: "2026", timestamp: 0, dateId: 20_260_000}}],
+	["m09", "y2026", "9", {calendar: {level: "month", value: "9", timestamp: 0, dateId: 20_260_900}}],
 	["d0902", "m09", time(2026, 9, 2)],
 	["d0930", "m09", "Sept 30", {calendar: {level: "day", value: "30", timestamp: 0, dateId: 20_260_930}}],
 	[W0906, "m09", "Week 37"],
-	["m10", "y2026", "10"],
+	["m10", "y2026", "10", {calendar: {level: "month", value: "10", timestamp: 0, dateId: 20_261_000}}],
 	[
 		"a-entry-1001",
 		"m10",
@@ -41,8 +41,11 @@ const TREE: [string, string | null, string, unknown?][] = [
 	],
 	["b-kickoff-1001", "m10", `Kickoff ${time(2026, 10, 1)}`],
 	["d1001", "m10", time(2026, 10, 1)],
-	[D1017, "m10", "Today"],
+	[D1017, "m10", "Today", {calendar: {level: "day", value: "17", timestamp: 0, dateId: 20_261_017}}],
 	["w1011", "m10", "Week 42", {calendar: {level: "week", value: "42", timestamp: 0, dateId: 20_261_011}}],
+	["z01", "y2026", "1", {calendar: {level: "month", value: "1", timestamp: 0, dateId: 20_260_100}}],
+	["u0115", "z01", time(2026, 1, 15)],
+	["nested", "u0115", "link", {calendar: {level: "day", value: "15", timestamp: 0, dateId: 20_260_115}}],
 ];
 
 /** [id, priority, kind]: today's children, inserted out of priority order; the references root and the deleted child sort first. */
@@ -60,7 +63,7 @@ afterEach(() => {
 	}
 });
 
-function setup(onStatement: (sql: string) => void = () => {}) {
+function setup(onStatement: (sql: string) => void = () => {}, {taggedRoot = true}: {taggedRoot?: boolean} = {}) {
 	const sqlite = new DatabaseConstructor(":memory:", {
 		verbose: (sql) => {
 			onStatement(String(sql));
@@ -73,7 +76,7 @@ function setup(onStatement: (sql: string) => void = () => {}) {
 		db.insert(schema.nodeContent)
 			.values({id, name, parentId, systemFrom: "2026-01-01", systemTo: FAR_FUTURE_DATE})
 			.run();
-		if (metadata !== undefined) {
+		if (metadata !== undefined && (taggedRoot || id !== "cal")) {
 			db.insert(schema.nodeInternalMetadata)
 				.values({nodeId: id, metadataJson: JSON.stringify(metadata), fetchedAt: 0})
 				.run();
@@ -91,15 +94,25 @@ function setup(onStatement: (sql: string) => void = () => {}) {
 }
 
 describe("findCalendarDay", () => {
-	it("finds a day by deterministic id, calendar metadata, then the year > month > <time> name walk", () => {
+	it("walks the root's direct children by calendar metadata, as upstream does", () => {
 		const deps = {...setup(), entropyKey: KEY};
+
+		expect(
+			[20_261_017, 20_260_930, 20_261_001, 20_260_902, 20_261_005, 20_260_115].map((dateId) =>
+				findCalendarDay(deps, dateId),
+			),
+		).toStrictEqual([D1017, "d0930", null, null, null, null]);
+	});
+
+	it("keeps the lenient deterministic-id, metadata and name lookup when the root is untagged", () => {
+		const deps = {...setup(undefined, {taggedRoot: false}), entropyKey: KEY};
 
 		expect(
 			[20_261_017, 20_260_930, 20_261_001, 20_260_902, 20_261_005].map((dateId) => findCalendarDay(deps, dateId)),
 		).toStrictEqual([D1017, "d0930", "d1001", "d0902", null]);
 	});
 
-	it("finds the month or year node holding a day by the name walk", () => {
+	it("finds the month or year node holding a day by its calendar metadata", () => {
 		const deps = {...setup(), entropyKey: KEY};
 
 		expect([
@@ -110,7 +123,7 @@ describe("findCalendarDay", () => {
 		]).toStrictEqual(["m10", "m09", "y2026", null]);
 	});
 
-	it("finds the week holding a day by deterministic id or calendar metadata, its start per weekStartDay", () => {
+	it("finds the week holding a day by calendar metadata, its start per weekStartDay", () => {
 		const deps = {...setup(), entropyKey: KEY};
 
 		expect([
@@ -118,13 +131,13 @@ describe("findCalendarDay", () => {
 			findCalendarDay(deps, 20_261_015, "week"),
 			findCalendarDay({...deps, weekStartDay: 1}, 20_261_015, "week"),
 			findCalendarDay(deps, 20_261_020, "week"),
-		]).toStrictEqual([W0906, "w1011", null, null]);
+		]).toStrictEqual([null, "w1011", null, null]);
 	});
 
-	it("skips the deterministic id without an entropy key and still walks names", () => {
-		const deps = setup();
+	it("skips the deterministic id without an entropy key and still walks names when the root is untagged", () => {
+		const deps = setup(undefined, {taggedRoot: false});
 
-		expect([20_261_017, 20_261_001].map((dateId) => findCalendarDay(deps, dateId))).toStrictEqual([null, "d1001"]);
+		expect([20_261_017, 20_261_001].map((dateId) => findCalendarDay(deps, dateId))).toStrictEqual([D1017, "d1001"]);
 	});
 });
 
@@ -133,7 +146,7 @@ describe("findCalendarDays", () => {
 		index < 30 ? 20_260_901 + index : 20_261_001 + index - 30,
 	);
 
-	it("finds each day as findCalendarDay does", () => {
+	it("finds each day as findCalendarDay does, only the upstream-visible ones", () => {
 		const deps = {...setup(), entropyKey: KEY};
 		const expected = new Map(
 			SEPT_OCT.flatMap((dateId) => {
@@ -145,6 +158,17 @@ describe("findCalendarDays", () => {
 		expect(findCalendarDays(deps, SEPT_OCT)).toStrictEqual(expected);
 		expect(expected).toStrictEqual(
 			new Map([
+				[20_260_930, "d0930"],
+				[20_261_017, D1017],
+			]),
+		);
+	});
+
+	it("also dots name-only days when the root is untagged", () => {
+		const deps = {...setup(undefined, {taggedRoot: false}), entropyKey: KEY};
+
+		expect(findCalendarDays(deps, SEPT_OCT)).toStrictEqual(
+			new Map([
 				[20_260_902, "d0902"],
 				[20_260_930, "d0930"],
 				[20_261_001, "d1001"],
@@ -153,7 +177,7 @@ describe("findCalendarDays", () => {
 		);
 	});
 
-	it("scans the metadata table once for the root and once per month, not per day", () => {
+	it("scans the metadata table with LIKE once for the root, not per day", () => {
 		const scans: string[] = [];
 		const deps = {
 			...setup((sql) => {
@@ -165,13 +189,13 @@ describe("findCalendarDays", () => {
 
 		findCalendarDays(deps, SEPT_OCT);
 
-		expect(scans.filter((sql) => sql.includes('"node_internal_metadata"') && sql.includes("like"))).toHaveLength(3);
+		expect(scans.filter((sql) => sql.includes('"node_internal_metadata"') && sql.includes("like"))).toHaveLength(1);
 	});
 });
 
 describe("GET /api/v1/calendar/day/:dateId", () => {
-	function app(entropyKey: string | undefined) {
-		const {db, cache} = setup();
+	function app(entropyKey: string | undefined, taggedRoot = true) {
+		const {db, cache} = setup(undefined, {taggedRoot});
 		const adapter = {
 			getEntropyKey: async () => Promise.resolve(entropyKey),
 			getRootMeta: async () => Promise.resolve(undefined),
@@ -205,12 +229,21 @@ describe("GET /api/v1/calendar/day/:dateId", () => {
 	});
 
 	it("falls back to metadata and names without the internal API", async () => {
-		const get = app(undefined);
+		const get = app(undefined, false);
 
-		await expect(Promise.all([get("20261017"), get("20260930")])).resolves.toStrictEqual([
-			{status: 404, body: {error: "Calendar day not found"}},
+		await expect(Promise.all([get("20261001"), get("20260930")])).resolves.toStrictEqual([
+			{status: 200, body: {id: "d1001", firstChildId: null}},
 			{status: 200, body: {id: "d0930", firstChildId: null}},
 		]);
+	});
+
+	it("answers 404 for a name-only day once the root is tagged", async () => {
+		const get = app(KEY);
+
+		await expect(get("20261001")).resolves.toStrictEqual({
+			status: 404,
+			body: {error: "Calendar day not found"},
+		});
 	});
 
 	it("answers the week, month or year node holding the day for ?level=, and rejects other levels", async () => {

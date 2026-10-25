@@ -1,8 +1,10 @@
 import {Command, Flags} from "@oclif/core";
-import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import {z} from "zod";
+import {createDatabase} from "../../../db/index.js";
+import {CacheService} from "../../../services/cache.js";
+import {loadExistingEntries} from "../../../services/journal-existing-entries.js";
 import {parseStrictNumber} from "../../../utils/parse-strict-number.js";
 
 interface ScannedItem {
@@ -358,76 +360,23 @@ export default class Dedup extends Command {
 	}
 
 	/**
-	 * Load existing calendar entries for the specified dates.
+	 * Load existing calendar entries for the specified dates from the day nodes workflowy.com uses.
 	 */
 	private loadExistingEntries(dbPath: string, dates: string[]): Record<string, string[]> {
-		const existing: Record<string, string[]> = {};
-
 		if (!fs.existsSync(dbPath)) {
-			return existing;
+			return {};
 		}
-
 		try {
-			const db = new Database(dbPath, {readonly: true});
-
-			// Build date conditions for SQL
-			const dateConditions: string[] = [];
-			for (const date of dates) {
-				try {
-					const dt = new Date(date);
-					const monthName = dt.toLocaleString("en-US", {month: "short"});
-					const day = dt.getDate();
-					const year = dt.getFullYear();
-					dateConditions.push(`p.name LIKE '%${monthName} ${day}%${year}%'`);
-				} catch {
-					// Skip invalid dates
-				}
+			const database = createDatabase(dbPath);
+			try {
+				return loadExistingEntries(database, new CacheService(database), dates);
+			} finally {
+				database.$client.close();
 			}
-
-			if (dateConditions.length === 0) {
-				db.close();
-				return existing;
-			}
-
-			const query = `
-				SELECT p.name as date_name, c.name as entry
-				FROM nodes p
-				JOIN nodes c ON c.parent_id = p.id
-				WHERE p.name LIKE '<time%'
-				  AND (${dateConditions.join(" OR ")})
-			`;
-
-			const rows = db.prepare<[], {date_name: string; entry: string | null}>(query).all();
-
-			for (const row of rows) {
-				if (!row.entry) {
-					continue;
-				}
-
-				// Match date to original date string
-				for (const date of dates) {
-					const dt = new Date(date);
-					const monthName = dt.toLocaleString("en-US", {month: "short"});
-					const day = dt.getDate();
-					const year = dt.getFullYear();
-
-					// Check both with and without leading zero
-					const pattern1 = `${monthName} ${day}, ${year}`;
-					const pattern2 = `${monthName} ${day.toString().padStart(2, "0")}, ${year}`;
-
-					if (row.date_name.includes(pattern1) || row.date_name.includes(pattern2)) {
-						(existing[date] ??= []).push(row.entry);
-						break;
-					}
-				}
-			}
-
-			db.close();
 		} catch {
 			// Return empty on error
+			return {};
 		}
-
-		return existing;
 	}
 
 	/**

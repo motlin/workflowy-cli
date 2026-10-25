@@ -69,6 +69,8 @@ export interface CalendarInfo {
 	foundDates: boolean | null;
 	/** Root setting: Friendly day names (Yesterday, Today, Tomorrow); null when unset (on). */
 	dayPrefix: boolean | null;
+	/** True on a level node the app created (upstream `restorableUniqueNode`), which upstream confines to its parent level. */
+	restorableUniqueNode: boolean;
 }
 
 /** One crumb in a backlink source's ancestor path, root first. */

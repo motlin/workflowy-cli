@@ -5,7 +5,7 @@ import {useStableNavigate} from "./use-stable-navigate.js";
 import {caretAnchor, caretBoxes, caretTextOffset, editorElement, rowContent} from "../caret-dom.js";
 import type {AnchorRect} from "../caret-dom.js";
 import {editingAfterMoveOut} from "../caret-navigation.js";
-import {executeMoveTo, viewMovedTarget} from "../move-to.js";
+import {DEFAULT_CALENDAR_LEVELS, canMoveUnderCalendar, executeMoveTo, viewMovedTarget} from "../move-to.js";
 import type {LoadedMoveTarget} from "../move-to.js";
 import {goToNode} from "../navigation.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
@@ -82,6 +82,12 @@ export function useMoveTo(): (itemIds: readonly string[]) => Promise<void> {
 					returnTo,
 				),
 			loadTarget: loadMoveTarget,
+			allowed: (itemId, targetId) =>
+				canMoveUnderCalendar(
+					readNode(queryClient, itemId) ?? {},
+					readNode(queryClient, targetId) ?? {},
+					DEFAULT_CALENDAR_LEVELS,
+				),
 			leaveItem: () => {
 				leaveRow(queryClient, first);
 			},

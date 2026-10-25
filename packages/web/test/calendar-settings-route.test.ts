@@ -66,6 +66,20 @@ function app({rootMetadata = ROOT_METADATA, adapter = true}: SetupOptions = {}) 
 			.values({id, name, note: note ?? null, parentId, systemFrom: "2026-01-01", systemTo: FAR_FUTURE_DATE})
 			.run();
 	}
+	const tag = (id: string, level: string, value: string, dateId: number) => {
+		db.insert(schema.nodeInternalMetadata)
+			.values({
+				nodeId: id,
+				metadataJson: JSON.stringify({calendar: {level, value, timestamp: 0, dateId}}),
+				fetchedAt: 1,
+			})
+			.run();
+	};
+	tag("y2026", "year", "2026", 20_260_000);
+	tag("m09", "month", "9", 20_260_900);
+	for (const day of [10, 11, 12, 13, 14]) {
+		tag(`d09${day}`, "day", String(day), 20_260_900 + day);
+	}
 	const writeRoot = (metadata: Record<string, unknown>) => {
 		const row = {metadataJson: JSON.stringify(metadata), fetchedAt: 1};
 		db.insert(schema.nodeInternalMetadata)
