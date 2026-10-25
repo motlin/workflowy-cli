@@ -1,4 +1,4 @@
-import {findAutoLinks} from "./auto-link.js";
+import {findAutoLinks, findEmails, findPhoneNumbers} from "./auto-link.js";
 import {decodeSegment} from "./tag-render.js";
 
 const ANCHOR_OPEN_PATTERN = /<a(?=[\s>/])[^>]*>/giu;
@@ -34,6 +34,28 @@ export function renderLinks(html: string): string {
 	return autoLink(decorateStoredLinks(html));
 }
 
+const MAILTO_PATTERN = /^\s*mailto:/iu;
+const TEL_PATTERN = /^\s*tel:/iu;
+
+/** The plain text of an anchor's inner html. */
+function anchorText(innerHtml: string): string {
+	return decodeSegment(innerHtml.replaceAll(/<[^>]*>/gu, "")).plain;
+}
+
+/**
+ * The href an anchor with a `mailto:` or `tel:` href renders with, or null when it is plain text: upstream keeps such
+ * an anchor only when its text is itself exactly one email or phone number, and links that text.
+ */
+function contactHref(href: string, text: string): string | null {
+	const trimmed = text.trim();
+	if (MAILTO_PATTERN.test(href)) {
+		const [email] = findEmails(trimmed);
+		return email?.start === 0 && email.end === trimmed.length ? `mailto:${trimmed}` : null;
+	}
+	const [phone] = findPhoneNumbers(trimmed);
+	return phone?.start === 0 && phone.end === trimmed.length ? `tel:${trimmed}` : null;
+}
+
 /** `renderLinks` without the display-only auto-links: the stored anchors alone, in upstream's markup. */
 export function decorateStoredLinks(html: string): string {
 	let out = "";
@@ -47,14 +69,18 @@ export function decorateStoredLinks(html: string): string {
 		}
 		out += html.slice(cursor, match.index);
 		cursor = match.index + match[0].length;
-		const href = anchorHref(match[0]);
-		if (JAVASCRIPT_HREF_PATTERN.test(href)) {
-			const close = ANCHOR_CLOSE_PATTERN.exec(html.slice(cursor));
+		let href = anchorHref(match[0]);
+		const close = ANCHOR_CLOSE_PATTERN.exec(html.slice(cursor));
+		const isContact = MAILTO_PATTERN.test(href) || TEL_PATTERN.test(href);
+		const contact =
+			isContact && close ? contactHref(href, anchorText(html.slice(cursor, cursor + close.index))) : null;
+		if (JAVASCRIPT_HREF_PATTERN.test(href) || (isContact && contact === null)) {
 			droppedClose = close
 				? {start: cursor + close.index, end: cursor + close.index + close[0].length}
 				: undefined;
 			continue;
 		}
+		href = contact ?? href;
 		out += `<a class="contentLink" target="_blank" rel="noreferrer" href="${escapeAttribute(href)}">`;
 	}
 	if (droppedClose !== undefined) {
@@ -71,9 +97,6 @@ export function storeAnchors(html: string): string {
 
 const HTML_TAG_PATTERN = /<[^>]*>/gu;
 const UNLINKABLE_ELEMENT_PATTERN = /^<(\/?)(a|code|time)(?=[\s>/])/iu;
-
-/** Marks a display-only auto-link, which the note codec unwraps so it is never stored. */
-export const AUTO_LINK_ATTRIBUTE = "data-autolink";
 
 interface TextRun {
 	html: string;
@@ -115,11 +138,11 @@ function textRuns(html: string): {runs: TextRun[]; plain: string} {
 }
 
 /**
- * Wrap bare URLs, domains, emails, and phone numbers in display-only `.contentLink` anchors,
- * like upstream's render-time link location. Text inside `<a>`, `<code>`, and `<time>` is
+ * Wrap bare URLs, domains, emails, and phone numbers in `.contentLink` anchors, like upstream's
+ * link location. They carry no marker: the next save stores them as `<a href>`. Text inside `<a>`, `<code>`, and `<time>` is
  * never linked, and a match that crosses a formatting boundary is left as text.
  */
-function autoLink(html: string): string {
+export function autoLink(html: string): string {
 	const {runs, plain} = textRuns(html);
 	const blocked = runs
 		.filter((run) => !run.linkable)
@@ -142,7 +165,7 @@ function autoLink(html: string): string {
 		}
 		const htmlStart = run.htmlStart + (run.htmlOffsets[link.start - run.plainStart] ?? 0);
 		const htmlEnd = run.htmlStart + (run.htmlOffsets[link.end - run.plainStart] ?? 0);
-		out += `${html.slice(cursor, htmlStart)}<a class="contentLink" target="_blank" rel="noreferrer" href="${escapeHref(link.href)}" ${AUTO_LINK_ATTRIBUTE}="true">${html.slice(htmlStart, htmlEnd)}</a>`;
+		out += `${html.slice(cursor, htmlStart)}<a class="contentLink" target="_blank" rel="noreferrer" href="${escapeHref(link.href)}">${html.slice(htmlStart, htmlEnd)}</a>`;
 		cursor = htmlEnd;
 	}
 	return out + html.slice(cursor);

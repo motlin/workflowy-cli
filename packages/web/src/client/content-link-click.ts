@@ -117,3 +117,28 @@ export function installContentLinkContextMenu(doc: Document): () => void {
 		doc.removeEventListener("contextmenu", onContentLinkContextMenu);
 	};
 }
+
+/**
+ * Upstream's Alt+Enter (`In4`): with a collapsed caret inside a link of `editor`, open that link and report it handled.
+ * An internal or `search:` link goes through the document's click routing, anything else through `window.open`. With a
+ * selection, or outside a link, nothing happens and the key falls through.
+ */
+export function openLinkAtCaret(editor: HTMLElement): boolean {
+	const selection = globalThis.getSelection();
+	if (selection === null || selection.rangeCount === 0 || !selection.isCollapsed) {
+		return false;
+	}
+	const node = selection.anchorNode;
+	const element = node instanceof Element ? node : (node?.parentElement ?? null);
+	const anchor = element?.closest("a[href]") ?? null;
+	const href = anchor?.getAttribute("href");
+	if (anchor === null || href === null || href === undefined || !editor.contains(anchor)) {
+		return false;
+	}
+	if (href.startsWith("search:") || internalLinkId(href, globalThis.location.origin) !== null) {
+		anchor.dispatchEvent(new MouseEvent("click", {bubbles: true, cancelable: true, button: 0}));
+	} else {
+		globalThis.open(href);
+	}
+	return true;
+}

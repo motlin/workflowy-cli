@@ -37,6 +37,8 @@ import {
 	selectionTextOffsets,
 	textUnitLength,
 } from "../caret-dom.js";
+import {openLinkAtCaret} from "../content-link-click.js";
+import {toolbarLinkTarget} from "../link-popup-open.js";
 import {classifyEditorKey, classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
 import {nodeKeys, patchCachedNode, readChildren, readDetail, readNode} from "../node-cache.js";
@@ -154,7 +156,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		setItemSelection,
 		holdEditing,
 		openSettings,
-		openLinkInsert,
+		openLinkPopup,
 	} = outlineActions();
 	const updateNodeMutation = useUpdateNode();
 	const createNodeMutation = useCreateNode();
@@ -183,6 +185,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		() => renderEditorHtml(storedEditorHtml, dateSettings, account),
 		[storedEditorHtml, dateSettings, account],
 	);
+	// The saver's baseline is the name as the editor would store it, so auto-links the editor shows (and stores on the
+	// next edit) do not make an untouched row look changed.
+	const renderSettings = useLatest({dateSettings, account});
 
 	// Saves the name after each 500ms pause in typing (upstream `saveLater`): one undo step per pause.
 	// One saver per node, so a pending save flushed after a node change still targets its own node.
@@ -208,7 +213,15 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			if (centers) {
 				scrollToCenter(contentRef.current);
 			}
-			nameSaver.reset(storedEditorHtml);
+			nameSaver.reset(
+				serializeEditorHtml(
+					renderEditorHtml(
+						storedEditorHtml,
+						renderSettings.current.dateSettings,
+						renderSettings.current.account,
+					),
+				),
+			);
 
 			const {editingId, editingCaretOffset, editingCaretEnd, editingCaretReversed} = useOutlineStore.getState();
 			if (editingId === nodeId && editingCaretOffset !== null) {
@@ -242,7 +255,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			selection?.removeAllRanges();
 			selection?.addRange(range);
 		}
-	}, [isEditing, storedEditorHtml, clickPosition, nodeId, nameSaver, queryClient]);
+	}, [isEditing, storedEditorHtml, clickPosition, nodeId, nameSaver, queryClient, renderSettings]);
 
 	/** Save the edited text if it changed, keeping the caret (⌘S); returns false with no editor. */
 	const saveInPlace = useCallback((): boolean => {
@@ -502,20 +515,18 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		(action: SelectionToolbarAction) => {
 			const attr = toolbarFormatAttr(action);
 			const layout = toolbarLayoutCommand(action);
-			const selection = globalThis.getSelection();
 			if (attr !== null) {
 				applyInlineToggle(attr);
 			} else if (layout !== null) {
 				toggleLayoutFromToolbar(layout);
-			} else if (action === "link" && selection !== null && selection.rangeCount > 0) {
-				openLinkInsert({
-					selectedText: selection.toString().trim(),
-					nodeId,
-					range: selection.getRangeAt(0).cloneRange(),
-				});
+			} else if (action === "link") {
+				const target = toolbarLinkTarget(nodeId);
+				if (target !== null) {
+					openLinkPopup(target);
+				}
 			}
 		},
-		[applyInlineToggle, nodeId, openLinkInsert, toggleLayoutFromToolbar],
+		[applyInlineToggle, nodeId, openLinkPopup, toggleLayoutFromToolbar],
 	);
 
 	// Typing a first or standalone "/" opens the slash command menu under a chip; it never schedules a save while open.
@@ -1228,6 +1239,10 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				}
 			} else if (action === "CARRIAGE_RETURN") {
 				event.preventDefault();
+				// Alt+Enter in a link opens it, as upstream.
+				if (event.altKey && contentRef.current !== null) {
+					openLinkAtCaret(contentRef.current);
+				}
 			} else if (action === "RETURN") {
 				event.preventDefault();
 				splitAtSelection();

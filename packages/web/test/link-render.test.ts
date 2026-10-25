@@ -15,9 +15,31 @@ describe("renderLinks", () => {
 	});
 
 	it("keeps formatting nested inside the link", () => {
-		expect(renderLinks('<a href="mailto:a@example.com"><b>mail</b></a>')).toBe(
-			'<a class="contentLink" target="_blank" rel="noreferrer" href="mailto:a@example.com"><b>mail</b></a>',
+		expect(renderLinks('<a href="https://example.com/"><b>site</b></a>')).toBe(
+			'<a class="contentLink" target="_blank" rel="noreferrer" href="https://example.com/"><b>site</b></a>',
 		);
+	});
+
+	it("renders a mailto: or tel: anchor whose text is not an email or phone as plain text", () => {
+		expect({
+			mail: renderLinks('Mail <a href="mailto:a@b.com">mailme</a> tail'),
+			nested: renderLinks('<a href="mailto:a@example.com"><b>mail</b></a>'),
+			tel: renderLinks('Call <a href="tel:2015551234">me</a> now'),
+		}).toStrictEqual({
+			mail: "Mail mailme tail",
+			nested: "<b>mail</b>",
+			tel: "Call me now",
+		});
+	});
+
+	it("keeps a mailto: or tel: anchor whose text is an email or phone, linking the text", () => {
+		expect({
+			mail: renderLinks('<a href="mailto:x@y.com">a@b.com</a>'),
+			tel: renderLinks('<a href="tel:1">201-555-1234</a>'),
+		}).toStrictEqual({
+			mail: '<a class="contentLink" target="_blank" rel="noreferrer" href="mailto:a@b.com">a@b.com</a>',
+			tel: '<a class="contentLink" target="_blank" rel="noreferrer" href="tel:201-555-1234">201-555-1234</a>',
+		});
 	});
 
 	it("renders a javascript: link's text as plain text without the anchor", () => {

@@ -81,6 +81,7 @@ const EMPTY = {
 	notesRootId: null,
 	showCompleted: false,
 	showKeyboardShortcuts: false,
+	sameColorForLinks: false,
 };
 
 describe("GET /api/v1/preferences", () => {
@@ -104,6 +105,7 @@ describe("GET /api/v1/preferences", () => {
 				notesRootId: NOTES,
 				showCompleted: false,
 				showKeyboardShortcuts: false,
+				sameColorForLinks: false,
 			},
 		});
 	});
@@ -114,6 +116,19 @@ describe("GET /api/v1/preferences", () => {
 		await expect(request("GET", "/preferences")).resolves.toStrictEqual({
 			status: 200,
 			body: {...EMPTY, showCompleted: true, showKeyboardShortcuts: false},
+		});
+	});
+
+	it("round-trips same_color_for_links as sameColorForLinks", async () => {
+		const {adapter, request} = setup({}, {same_color_for_links: "yes"});
+
+		const read = await request("GET", "/preferences");
+		const written = await request("PATCH", "/preferences", {sameColorForLinks: false});
+
+		expect({read, written, settings: adapter.setSetting.mock.calls}).toStrictEqual({
+			read: {status: 200, body: {...EMPTY, sameColorForLinks: true}},
+			written: {status: 200, body: EMPTY},
+			settings: [["same_color_for_links", false]],
 		});
 	});
 

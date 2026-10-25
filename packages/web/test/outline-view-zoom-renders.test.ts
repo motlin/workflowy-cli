@@ -92,7 +92,7 @@ const SHELL = {
 	RelatedNodesPanel: 1,
 	JumpMenu: 1,
 	AlertDialog: 1,
-	LinkInsertModal: 1,
+	LinkPopupHost: 1,
 	LocationPickerHost: 1,
 	MirrorsDialogHost: 1,
 	ExportDialog: 1,

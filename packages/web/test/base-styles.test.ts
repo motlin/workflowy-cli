@@ -162,37 +162,22 @@ describe("upstream base styles", () => {
 		});
 	});
 
-	it("colors content links with upstream's .contentLink tint", () => {
-		expect(cssBlock(styles, ".contentLink, .content a")).toStrictEqual({
-			color: "var(--wf-text-tint)",
+	it("styles content links with upstream's .contentLink cursor and underline, leaving color to the injected sheet", () => {
+		expect(cssBlock(styles, ".contentLink")).toStrictEqual({
 			cursor: "pointer",
 			"text-decoration": "underline",
 		});
+		expect(hasSelector(styles, /\.content a\b/u)).toBe(false);
 	});
 
-	it("colors internal workflowy.com and localhost links tertiary gray like upstream", () => {
-		const prefixes = [
-			"https://workflowy.com",
-			"https://dev.workflowy.com",
-			"https://beta.workflowy.com",
-			"http://workflowy.com",
-			"http://dev.workflowy.com",
-			"http://beta.workflowy.com",
-			"http://localhost",
-		];
-		const selector = [".contentLink", ".content a"]
-			.flatMap((base) => prefixes.map((prefix) => `${base}[href^="${prefix}"]`))
-			.join(", ");
-		expect(cssBlock(styles, selector)).toStrictEqual({color: "var(--wf-text-tertiary)"});
+	it("prints content links blue and underlined (LID5)", () => {
+		expect(styles).toContain(
+			"@media print {\n\t.contentLink {\n\t\tcolor: #00f;\n\t\ttext-decoration: underline;\n\t}\n}",
+		);
 	});
 
-	it("colors links in search matches sky like upstream", () => {
-		expect(
-			cssBlock(
-				styles,
-				".fullMatch .contentLink, .project.metaMatches .contentLink, .fullMatch .content a, .project.metaMatches .content a",
-			),
-		).toStrictEqual({color: "var(--wf-text-sky)"});
+	it("tints a tapped content link like upstream (LID4)", () => {
+		expect(cssBlock(styles, ".contentLink.tapped")).toStrictEqual({background: "var(--wf-background-tertiary)"});
 	});
 
 	it("marks the body as a desktop system-font page", () => {

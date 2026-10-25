@@ -19,6 +19,7 @@ export interface Preferences {
 	notesRootId: string | null;
 	showCompleted: boolean;
 	showKeyboardShortcuts: boolean;
+	sameColorForLinks: boolean;
 }
 
 export type PreferencesPatch = Partial<Preferences>;
@@ -41,6 +42,7 @@ export const EMPTY_PREFERENCES: Preferences = {
 	notesRootId: null,
 	showCompleted: false,
 	showKeyboardShortcuts: false,
+	sameColorForLinks: false,
 };
 
 const LOADING: PreferencesState = {preferences: EMPTY_PREFERENCES, available: true, error: null};

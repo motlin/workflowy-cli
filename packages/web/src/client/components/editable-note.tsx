@@ -1,3 +1,5 @@
+import {openLinkAtCaret} from "../content-link-click.js";
+import {toolbarLinkTarget} from "../link-popup-open.js";
 import {routeTypedInput} from "../inline-input-router.js";
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
@@ -451,22 +453,20 @@ export function EditableNote({
 		read: readNote,
 		modalOpen: isModalOpen,
 	});
-	const {openLinkInsert} = outlineActions();
+	const {openLinkPopup} = outlineActions();
 	const handleToolbarAction = useCallback(
 		(action: SelectionToolbarAction) => {
 			const attr = toolbarFormatAttr(action);
-			const selection = globalThis.getSelection();
 			if (attr !== null) {
 				applyInlineToggle(attr);
-			} else if (action === "link" && selection !== null && selection.rangeCount > 0) {
-				openLinkInsert({
-					selectedText: selection.toString().trim(),
-					nodeId,
-					range: selection.getRangeAt(0).cloneRange(),
-				});
+			} else if (action === "link") {
+				const target = toolbarLinkTarget(nodeId);
+				if (target !== null) {
+					openLinkPopup(target);
+				}
 			}
 		},
-		[applyInlineToggle, nodeId, openLinkInsert],
+		[applyInlineToggle, nodeId, openLinkPopup],
 	);
 
 	const handleFocus = useCallback(() => {
@@ -475,7 +475,8 @@ export function EditableNote({
 		}
 		clearSearchHighlights();
 		prefetchPickerMonths(queryClient);
-		noteSaver.reset(initialValue);
+		// As stored on the next edit: auto-links the editor shows do not make an untouched note look changed.
+		noteSaver.reset(planNoteSave(initialValue, restingHtml).note);
 		setFocusedHtml(restingHtml);
 		if (!isFocused) {
 			focusNote(nodeId);
@@ -521,6 +522,10 @@ export function EditableNote({
 			}
 			const element = contentRef.current;
 			if (element === null || handleTagAutocompleteKey(event)) {
+				return;
+			}
+			if (event.key === "Enter" && event.altKey && openLinkAtCaret(element)) {
+				event.preventDefault();
 				return;
 			}
 			const formatAttr = classifyFormatKey(event, isMacPlatform());

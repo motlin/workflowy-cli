@@ -13,9 +13,6 @@ const ladder = readSource("../src/client/ladder.css");
 // The upstream reset zeroes margins and list markers; local-only surfaces keep their old browser-default look.
 describe("local-only surfaces keep their pre-reset spacing", () => {
 	it.each([
-		[".link-insert-status"],
-		[".link-insert-hint"],
-		[".link-insert-section-title"],
 		[".related-nodes-panel-hint, .related-nodes-panel-status, .related-nodes-panel-empty"],
 		[".related-nodes-panel-error"],
 	])("%s has the paragraph margin", (selector) => {

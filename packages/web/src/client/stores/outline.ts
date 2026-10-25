@@ -177,10 +177,21 @@ async function patchPreference(patch: Record<string, boolean>, label: string): P
 	}
 }
 
-interface LinkInsertContext {
-	selectedText: string;
+/** The ⌘K Text/Link popup: a snapshot of the edited field's stored html taken before the editor blurs. */
+export interface LinkPopupState {
 	nodeId: string;
-	range: Range | null;
+	field: "name" | "note";
+	/** The field as stored when the popup opened (name html, or note text). */
+	html: string;
+	/** The link's plain-text units within `html`. */
+	start: number;
+	end: number;
+	text: string;
+	href: string;
+	/** True when `start`..`end` is an existing link being edited. */
+	existing: boolean;
+	/** The span's bottom-left corner in page coordinates. */
+	position: readonly [number, number];
 }
 
 interface ExportContext {
@@ -399,8 +410,7 @@ interface OutlineState {
 	jumpMenuOpen: boolean;
 	/** The edited node and caret when the jump menu opened, restored when it is cancelled. */
 	jumpMenuReturn: SwitcherReturn | null;
-	linkInsertOpen: boolean;
-	linkInsertContext: LinkInsertContext | null;
+	linkPopup: LinkPopupState | null;
 	relatedNodesPanelOpen: boolean;
 	/** Upstream's secondary item-tree panes (New pane ⌃R, Open in Pane), left to right after the main outline. */
 	panes: ItemTreePane[];
@@ -550,8 +560,8 @@ interface OutlineActions {
 	openJumpMenu: () => void;
 	/** Close the jump menu; `cancel` returns the caret to where it was, `navigate` leaves placing it to the caller. */
 	closeJumpMenu: (mode: SwitcherCloseMode) => void;
-	openLinkInsert: (context: LinkInsertContext) => void;
-	closeLinkInsert: () => void;
+	openLinkPopup: (popup: LinkPopupState) => void;
+	closeLinkPopup: () => void;
 	toggleRelatedNodesPanel: () => void;
 	/**
 	 * Upstream's `WF.Panes.open` for an item-tree pane: insert a pane zoomed to `zoomedId` and make it active, ending
@@ -787,7 +797,7 @@ export function paneView(paneId: string): OutlineStore {
 export function isModalOpen(): boolean {
 	const state = useOutlineStore.getState();
 	return (
-		state.linkInsertOpen ||
+		state.linkPopup !== null ||
 		state.jumpMenuOpen ||
 		state.locationPicker !== null ||
 		state.exportDialogOpen ||
@@ -960,8 +970,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	searchExpansion: new Map(),
 	jumpMenuOpen: false,
 	jumpMenuReturn: null,
-	linkInsertOpen: false,
-	linkInsertContext: null,
+	linkPopup: null,
 	relatedNodesPanelOpen: false,
 	panes: [],
 	mainPaneUrlId: null,
@@ -1425,12 +1434,12 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}
 	},
 
-	openLinkInsert: (context) => {
-		set({linkInsertOpen: true, linkInsertContext: context});
+	openLinkPopup: (popup) => {
+		set({linkPopup: popup});
 	},
 
-	closeLinkInsert: () => {
-		set({linkInsertOpen: false, linkInsertContext: null});
+	closeLinkPopup: () => {
+		set({linkPopup: null});
 	},
 
 	toggleRelatedNodesPanel: () => {

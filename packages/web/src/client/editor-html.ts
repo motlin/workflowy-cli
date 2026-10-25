@@ -1,6 +1,6 @@
 import {placeSelectionAtTextOffsets, selectionTextOffsets} from "./caret-dom.js";
 import {renderDatePills, serializeDatePills} from "./date-pills.js";
-import {decorateStoredLinks, storeAnchors} from "./link-render.js";
+import {autoLink, decorateStoredLinks, storeAnchors} from "./link-render.js";
 import type {DateSettings} from "./date-settings.js";
 import {renderMentionPills, serializeMentionPills} from "./mention-pills.js";
 import type {MentionAccount} from "./mention-pills.js";
@@ -10,7 +10,7 @@ import {renderTags, stripTagMarkup} from "./tag-render.js";
 /** Stored name HTML as the name editor shows it: atomic date and mention pills and colored `.contentTag` spans. */
 export function renderEditorHtml(html: string, dateSettings: DateSettings, account: MentionAccount = null): string {
 	return addMonolithGuards(
-		renderTags(renderMentionPills(renderDatePills(decorateStoredLinks(html), dateSettings), account)),
+		renderTags(renderMentionPills(renderDatePills(autoLink(decorateStoredLinks(html)), dateSettings), account)),
 	);
 }
 

@@ -44,9 +44,15 @@ const FRESHNESS_MS = 30_000;
 const FRESH_EXPANSION_THROTTLE_MS = 5000;
 
 /** Settings the server stores; every other setting is client-only upstream. */
-export type ServerSetting = "show_completed" | "show_keyboard_shortcuts" | "theme" | "font" | "saved_views_json_delta";
+export type ServerSetting =
+	| "show_completed"
+	| "show_keyboard_shortcuts"
+	| "same_color_for_links"
+	| "theme"
+	| "font"
+	| "saved_views_json_delta";
 
-const FLAG_SETTINGS = new Set<ServerSetting>(["show_completed", "show_keyboard_shortcuts"]);
+const FLAG_SETTINGS = new Set<ServerSetting>(["show_completed", "show_keyboard_shortcuts", "same_color_for_links"]);
 
 export interface Account {
 	userId: number;

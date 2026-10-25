@@ -189,14 +189,21 @@ export function textRangeBox(element: HTMLElement, start: number, end: number): 
 	return range.getBoundingClientRect();
 }
 
-/** Select plain-text units `start`..`end` of `element` (either order), each clamped to its end. */
-export function placeSelectionAtTextOffsets(element: HTMLElement, start: number, end: number, reversed = false): void {
+/** A range over plain-text units `start`..`end` of `element` (either order), each clamped to its end. */
+export function rangeAtTextOffsets(element: HTMLElement, start: number, end: number): Range {
 	const ordered = orderOffsets(start, end);
 	const range = rangeAtTextOffset(element, ordered.start);
 	if (ordered.end !== ordered.start) {
 		const endBoundary = rangeAtTextOffset(element, ordered.end);
 		range.setEnd(endBoundary.endContainer, endBoundary.endOffset);
 	}
+	return range;
+}
+
+/** Select plain-text units `start`..`end` of `element` (either order), each clamped to its end. */
+export function placeSelectionAtTextOffsets(element: HTMLElement, start: number, end: number, reversed = false): void {
+	const ordered = orderOffsets(start, end);
+	const range = rangeAtTextOffsets(element, ordered.start, ordered.end);
 	const selection = globalThis.getSelection();
 	selection?.removeAllRanges();
 	selection?.addRange(range);

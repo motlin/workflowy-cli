@@ -77,11 +77,7 @@ describe("switcherStepCommand", () => {
 });
 
 describe("switcherCommandAction", () => {
-	it("only opens, and keeps the link-insert branch for a text selection", () => {
-		expect([
-			switcherCommandAction(true, false),
-			switcherCommandAction(false, false),
-			switcherCommandAction(false, true),
-		]).toStrictEqual(["none", "open", "link-insert"]);
+	it("only opens: with the switcher open it changes nothing", () => {
+		expect([switcherCommandAction(true), switcherCommandAction(false)]).toStrictEqual(["none", "open"]);
 	});
 });

@@ -15,7 +15,7 @@ import {AlertDialog} from "./components/alert-dialog.js";
 import {JumpMenu} from "./components/jump-menu.js";
 import {LadderView} from "./components/ladder-view.js";
 import {LeftBar} from "./components/left-sidebar.js";
-import {LinkInsertModal} from "./components/link-insert-modal.js";
+import {LinkPopupHost} from "./components/link-popup-host.js";
 import {LocationPickerHost} from "./components/location-picker-host.js";
 import {SelectionMenu} from "./components/selection-menu.js";
 import {OfflineBanner} from "./components/offline-banner.js";
@@ -44,12 +44,15 @@ import {fetchResolvedId, useHashLocationZoom} from "./hooks/use-hash-location-zo
 import {installContentLinkContextMenu} from "./content-link-click.js";
 import {useContentLinkClicks} from "./hooks/use-content-link-clicks.js";
 import {useSearchEscape} from "./hooks/use-search-escape.js";
+import {usePreferences} from "./hooks/use-preferences.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
 import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
 import {installWindowBlurredClass} from "./window-blurred.js";
 import {installCoalescingTimeoutProvider} from "./coalescing-timers.js";
 import {nodeUrl, useEmptyDayCleanup} from "./navigation.js";
+import {installLinkStatusBar} from "./link-status-bar.js";
+import {linkColorCss} from "./link-color-style.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
 import {useOutlineStore} from "./stores/outline.js";
@@ -199,7 +202,7 @@ export const OutlineView = memo(function OutlineView() {
 			<RelatedNodesPanel />
 			<JumpMenu />
 			<AlertDialog />
-			<LinkInsertModal />
+			<LinkPopupHost />
 			<LocationPickerHost />
 			<SelectionMenu />
 			<ExportDialog />
@@ -235,6 +238,12 @@ function TagColorStyles() {
 	return createPortal(<style id="tags-None">{buildTagColorCss(useTagColors())}</style>, document.head);
 }
 
+/** Upstream's injected `.contentLink` color sheet, rebuilt from the account's External link style setting. */
+function LinkColorStyles() {
+	const {preferences} = usePreferences();
+	return createPortal(<style id="link-colors">{linkColorCss(preferences.sameColorForLinks)}</style>, document.head);
+}
+
 /** Keeps show/hide completed in step with the account's `show_completed` setting. */
 function ShowCompletedSync() {
 	useShowCompletedSync();
@@ -257,6 +266,7 @@ function ExpansionSync() {
 function WindowBlurredClass() {
 	useEffect(() => installWindowBlurredClass(window, document.body), []);
 	useEffect(() => installContentLinkContextMenu(document), []);
+	useEffect(() => installLinkStatusBar(document), []);
 	return null;
 }
 
@@ -265,6 +275,7 @@ export function App() {
 		<ErrorBoundary>
 			<QueryClientProvider client={queryClient}>
 				<TagColorStyles />
+				<LinkColorStyles />
 				<WindowBlurredClass />
 				<ShowCompletedSync />
 				<ShowKeyboardShortcutsSync />

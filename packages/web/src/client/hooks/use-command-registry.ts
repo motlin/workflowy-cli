@@ -83,6 +83,7 @@ import {deleteSelectedItems} from "./use-selection-keymap.js";
 import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
+import {readLinkPopupTarget} from "../link-popup-open.js";
 import {switcherCommandAction, switcherStepCommand} from "../switcher-keys.js";
 import {openInPane, paneCommands, paneNavCommands, paneNumberCommands} from "../pane-commands.js";
 import {captureActivePaneCaret, scrollPaneToTop} from "../components/pane-context.js";
@@ -174,7 +175,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
 	const replaceExpanded = useOutlineStore((state) => state.replaceExpanded);
 	const expandAll = useExpandAll();
-	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
+	const openLinkPopup = useOutlineStore((state) => state.openLinkPopup);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const zoomTo = useZoomTo();
 	const moveTo = useMoveTo();
@@ -727,18 +728,18 @@ export function useCommandRegistry(): CommandRegistry {
 		});
 	};
 
-	/** Open the link-insert modal for a text selection in the edited node, else the jump menu. */
+	/**
+	 * ⌘K: with a selection clear of links or a caret inside a link, upstream's Text/Link popup; otherwise the Jump menu
+	 * (a selection touching a link falls through to it).
+	 */
 	const showSwitcher = (ctx: CommandContext): void => {
 		const [itemId] = ctx.items;
-		const selection = globalThis.getSelection();
-		if (selection && !selection.isCollapsed && itemId !== undefined) {
-			const selectedText = selection.toString().trim();
-			if (selectedText) {
-				openLinkInsert({selectedText, nodeId: itemId, range: selection.getRangeAt(0).cloneRange()});
-				return;
-			}
+		const target = itemId === undefined ? null : readLinkPopupTarget(itemId);
+		if (target !== null) {
+			openLinkPopup(target);
+			return;
 		}
-		if (switcherCommandAction(isJumpMenuOpen(), false) === "open") {
+		if (switcherCommandAction(isJumpMenuOpen()) === "open") {
 			openJumpMenu();
 		}
 	};

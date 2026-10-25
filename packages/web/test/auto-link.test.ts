@@ -4,7 +4,7 @@ import {renderLinks} from "../src/client/link-render.js";
 import {editorHtmlToNote, noteContentHtml} from "../src/client/note-text.js";
 
 function autoLink(href: string, text: string): string {
-	return `<a class="contentLink" target="_blank" rel="noreferrer" href="${href}" data-autolink="true">${text}</a>`;
+	return `<a class="contentLink" target="_blank" rel="noreferrer" href="${href}">${text}</a>`;
 }
 
 describe("findUrls (upstream TT)", () => {
@@ -114,8 +114,14 @@ describe("renderLinks auto-linking", () => {
 		);
 	});
 
-	it("never writes auto-links back into a saved note", () => {
+	it("stores a note's auto-links as real anchors on the next edit, like upstream", () => {
 		const note = 'mail admissions@bergen.org or see <a href="https://example.com/">site</a>';
-		expect(editorHtmlToNote(noteContentHtml(note))).toBe(note);
+		expect(editorHtmlToNote(noteContentHtml(note))).toBe(
+			'mail <a href="mailto:admissions@bergen.org">admissions@bergen.org</a> or see <a href="https://example.com/">site</a>',
+		);
+	});
+
+	it("marks auto-links with no extra attribute", () => {
+		expect(renderLinks("x https://a.com")).not.toContain("data-autolink");
 	});
 });

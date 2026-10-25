@@ -27,14 +27,19 @@ describe("mentions in names", () => {
 });
 
 describe("links in names", () => {
-	it("renders stored anchors with upstream's link markup while editing, without autolinking", () => {
-		expect([
-			renderEditorHtml('Ext <a href="https://e.com/p">example</a> tail', settings),
-			renderEditorHtml("plain https://e.com/q text", settings),
-		]).toStrictEqual([
+	it("renders stored anchors with upstream's link markup while editing", () => {
+		expect(renderEditorHtml('Ext <a href="https://e.com/p">example</a> tail', settings)).toBe(
 			'Ext <a class="contentLink" target="_blank" rel="noreferrer" href="https://e.com/p">example</a> tail',
-			"plain https://e.com/q text",
-		]);
+		);
+	});
+
+	it("shows an auto-link as a real link while editing and stores it on the next save", () => {
+		const rendered = renderEditorHtml("Auto https://example.org/auto here", settings);
+		expect({rendered, stored: serializeEditorHtml(rendered)}).toStrictEqual({
+			rendered:
+				'Auto <a class="contentLink" target="_blank" rel="noreferrer" href="https://example.org/auto">https://example.org/auto</a> here',
+			stored: 'Auto <a href="https://example.org/auto">https://example.org/auto</a> here',
+		});
 	});
 
 	it("stores anchors without class, target or rel", () => {

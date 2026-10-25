@@ -22,6 +22,7 @@ const PreferencesPatchSchema = z
 		notesRootId: z.string().nullable(),
 		showCompleted: z.boolean(),
 		showKeyboardShortcuts: z.boolean(),
+		sameColorForLinks: z.boolean(),
 	})
 	.partial()
 	.strict();
@@ -44,9 +45,10 @@ const PATHS: Record<(typeof KEYS)[number], string[]> = {
 const SETTINGS = {
 	showCompleted: "show_completed",
 	showKeyboardShortcuts: "show_keyboard_shortcuts",
+	sameColorForLinks: "same_color_for_links",
 } as const satisfies Record<string, ServerSetting>;
 
-const SETTING_KEYS = ["showCompleted", "showKeyboardShortcuts"] as const;
+const SETTING_KEYS = ["showCompleted", "showKeyboardShortcuts", "sameColorForLinks"] as const;
 
 /** Upstream sends flags as `"yes"`/`"no"`; the adapter caches a written flag as a boolean. */
 function asFlag(value: unknown): boolean {
@@ -61,7 +63,7 @@ function asString(value: unknown): string | null {
 async function readPreferences(adapter: WorkflowyInternalAdapter): Promise<Preferences> {
 	const [
 		[dateFormat, timeFormat, weekStartDay, slashDiscovered, notesRootId],
-		[showCompleted, showKeyboardShortcuts],
+		[showCompleted, showKeyboardShortcuts, sameColorForLinks],
 	] = await Promise.all([
 		Promise.all(KEYS.map(async (key) => adapter.getRootMeta(PATHS[key]))),
 		Promise.all(SETTING_KEYS.map(async (key) => adapter.getSetting(SETTINGS[key]))),
@@ -74,6 +76,7 @@ async function readPreferences(adapter: WorkflowyInternalAdapter): Promise<Prefe
 		notesRootId: asString(notesRootId),
 		showCompleted: asFlag(showCompleted),
 		showKeyboardShortcuts: asFlag(showKeyboardShortcuts),
+		sameColorForLinks: asFlag(sameColorForLinks),
 	};
 }
 
