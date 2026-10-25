@@ -1,7 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
 import {readdirSync, readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {themeBodyClass} from "../src/client/theme-body-class.js";
 import {cssBlock, cssBlockText} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
@@ -574,9 +573,5 @@ describe("design tokens", () => {
 		[".wf-menu, .wf-header, .wf-helper", {color: "var(--wf-text-primary)"}],
 	])("scopes %s overrides like upstream", (selector, expected) => {
 		expect(cssBlock(styles, selector)).toStrictEqual(expected);
-	});
-
-	it("maps the effective theme to upstream's body theme class", () => {
-		expect([themeBodyClass("dark"), themeBodyClass("light")]).toStrictEqual(["_theme-dark", "_theme-default"]);
 	});
 });

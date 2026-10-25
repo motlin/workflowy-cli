@@ -10,6 +10,21 @@
 		<title>Workflowy</title>
 	</head>
 	<body class="is-desktop font-system">
+		<script>
+			// Paint the saved theme before the bundle loads (cleared once the app is ready).
+			try {
+				var name = localStorage.getItem("wire_theme_current");
+				if (!/^[A-Za-z_]+$/.test(name || "")) {
+					name = globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default";
+				}
+				document.body.classList.add("_theme-" + name);
+				var bg = localStorage.getItem("loadingBackground");
+				var fg = localStorage.getItem("loadingForeground");
+				if (bg && fg) {
+					document.body.style.background = bg;
+				}
+			} catch (e) {}
+		</script>
 		<div id="root"></div>
 		<script type="module" src="/main.tsx"></script>
 	</body>

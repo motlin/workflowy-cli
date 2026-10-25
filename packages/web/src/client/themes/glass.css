@@ -1,0 +1,85 @@
+._theme-glass {
+	--wf-background-primary: #ffffffee;
+	--wf-background-secondary: var(--wf-gray-100);
+	--wf-background-tertiary: var(--wf-gray-300);
+	--wf-background-quaternary: var(--wf-gray-300);
+	--wf-background-tint: var(--wf-blue-300);
+	--wf-background-danger: var(--wf-red-500);
+	--wf-background-warning: var(--wf-yellow-200);
+	--wf-background-success: var(--wf-green-700);
+	--wf-background-info: var(--wf-blue-200);
+	--wf-background-selected: var(--wf-blue-200);
+	--wf-background-shared: var(--wf-blue-200);
+	--wf-background-found: var(--wf-yellow-100);
+	--wf-background-ambient: #ffffff;
+	--wf-background-mentioned: #eefaff;
+	--wf-background-added: #bcf0db;
+	--wf-background-moved: #dcd7fe;
+	--wf-background-completed: #e2e8f0;
+	--wf-background-edited: #fef6bc;
+	--wf-background-red: #fbd5d5;
+	--wf-background-orange: #fcd9bd;
+	--wf-background-yellow: #fce96a;
+	--wf-background-green: #bcf0da;
+	--wf-background-blue: #c3ddfd;
+	--wf-background-purple: #dcd7fe;
+	--wf-background-gray: #e2e8f0;
+	--wf-background-teal: #bcf0f0;
+	--wf-background-sky: #bae6fd;
+	--wf-background-pink: #fbd7fe;
+
+	--wf-text-primary: var(--wf-gray-800);
+	--wf-text-secondary: var(--wf-gray-700);
+	--wf-text-tertiary: var(--wf-gray-700);
+	--wf-text-quaternary: var(--wf-gray-700);
+	--wf-text-quinary: var(--wf-gray-300);
+	--wf-text-on-color: var(--wf-gray-0);
+	--wf-text-tint: var(--wf-blue-300);
+	--wf-text-success: var(--wf-green-700);
+	--wf-text-danger: var(--wf-red-500);
+	--wf-text-warning: var(--wf-yellow-200);
+	--wf-text-spark: var(--wf-yellow-200);
+	--wf-text-mentioned: #38bdf8;
+	--wf-text-added: #31c48d;
+	--wf-text-moved: #ac94fa;
+	--wf-text-completed: #97a6ba;
+	--wf-text-edited: #e3a008;
+	--wf-text-red: #e02424;
+	--wf-text-orange: #d03801;
+	--wf-text-yellow: #9f580a;
+	--wf-text-green: #057a55;
+	--wf-text-blue: #1c64f2;
+	--wf-text-purple: #7e3af2;
+	--wf-text-gray: #64748b;
+	--wf-text-teal: #108190;
+	--wf-text-sky: #007ab8;
+	--wf-text-pink: #d60bc1;
+
+	--wf-border-primary: var(--wf-gray-300);
+	--wf-border-secondary: var(--wf-gray-200);
+	--wf-border-tint: var(--wf-blue-300);
+	--wf-border-danger: var(--wf-red-500);
+	--wf-border-warning: var(--wf-yellow-200);
+	--wf-border-success: var(--wf-green-700);
+
+	--wf-image-ambient:
+		radial-gradient(119.62% 192.08% at 50% -12.01%, #fff 38.75%, rgba(255, 255, 255, 0) 100%),
+		linear-gradient(96deg, #8ec6ff 17.86%, #c9caf1 72.43%, #b5afed 88.47%);
+
+	.wf-header {
+		--wf-background-primary: #ffffff;
+		--wf-text-primary: var(--wf-gray-500);
+		--wf-border-primary: var(--wf-gray-200);
+	}
+
+	.wf-menu {
+		--wf-background-primary: #ffffffee;
+		--wf-text-primary: var(--wf-gray-700);
+		--wf-border-primary: var(--wf-gray-200);
+		--wf-border-secondary: var(--wf-gray-400);
+	}
+
+	.wf-helper {
+		--wf-background-primary: var(--wf-gray-100);
+	}
+}

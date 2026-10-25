@@ -1,6 +1,7 @@
 import {StrictMode} from "react";
 import {createRoot} from "react-dom/client";
 import {App} from "./app.js";
+import {clearPrepaintBackground} from "./theme-apply.js";
 
 const rootElement = document.querySelector("#root");
 if (!rootElement) {
@@ -13,3 +14,8 @@ root.render(
 		<App />
 	</StrictMode>,
 );
+
+// Upstream clears the inline pre-paint background once the app is ready.
+requestAnimationFrame(() => {
+	requestAnimationFrame(clearPrepaintBackground);
+});

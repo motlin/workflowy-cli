@@ -1,0 +1,87 @@
+/* Based on Helix runtime/themes/zed_onedark.toml
+   Original author: EricHenry
+   Source: https://github.com/helix-editor/helix/blob/master/runtime/themes/zed_onedark.toml
+   License: MPL-2.0
+ */
+
+._theme-one_dark {
+	--wf-background-primary: #282c33;
+	--wf-background-secondary: #2f343e;
+	--wf-background-tertiary: #3b4048;
+	--wf-background-quaternary: #2f343e;
+	--wf-background-tint: #73ade9;
+	--wf-background-danger: #d07277;
+	--wf-background-warning: #dfc184;
+	--wf-background-success: #a1c181;
+	--wf-background-info: #293b5b;
+	--wf-background-selected: #293b5b;
+	--wf-background-shared: #293b5b;
+	--wf-background-found: #3b4048;
+	--wf-background-ambient: #282c33;
+	--wf-background-mentioned: #293b5b;
+	--wf-background-added: #a1c18133;
+	--wf-background-moved: #b477cf33;
+	--wf-background-completed: #5d636f33;
+	--wf-background-edited: #dfc18433;
+	--wf-background-red: #d0727799;
+	--wf-background-orange: #bf956a99;
+	--wf-background-yellow: #dfc18499;
+	--wf-background-green: #a1c18199;
+	--wf-background-blue: #73ade999;
+	--wf-background-purple: #b477cf99;
+	--wf-background-gray: #5d636f99;
+	--wf-background-teal: #6eb4bf99;
+	--wf-background-sky: #73ade999;
+	--wf-background-pink: #d0727799;
+
+	--wf-text-primary: #c8ccd4;
+	--wf-text-secondary: #c8ccd4;
+	--wf-text-tertiary: #5d636f;
+	--wf-text-quaternary: #5d636f;
+	--wf-text-quinary: #3b4048;
+	--wf-text-on-color: #282c33;
+	--wf-text-tint: #73ade9;
+	--wf-text-success: #a1c181;
+	--wf-text-danger: #d07277;
+	--wf-text-warning: #dfc184;
+	--wf-text-spark: #dfc184;
+	--wf-text-mentioned: #73ade9;
+	--wf-text-added: #a1c181;
+	--wf-text-moved: #b477cf;
+	--wf-text-completed: #5d636f;
+	--wf-text-edited: #bf956a;
+	--wf-text-red: #d07277;
+	--wf-text-orange: #bf956a;
+	--wf-text-yellow: #dfc184;
+	--wf-text-green: #a1c181;
+	--wf-text-blue: #73ade9;
+	--wf-text-purple: #b477cf;
+	--wf-text-gray: #5d636f;
+	--wf-text-teal: #6eb4bf;
+	--wf-text-sky: #73ade9;
+	--wf-text-pink: #d07277;
+
+	--wf-border-primary: #3b4048;
+	--wf-border-secondary: #2f343e;
+	--wf-border-tint: #73ade9;
+	--wf-border-danger: #d07277;
+	--wf-border-warning: #dfc184;
+	--wf-border-success: #a1c181;
+
+	.wf-header {
+		--wf-background-primary: #282c33;
+		--wf-text-primary: #5d636f;
+		--wf-text-secondary: #c8ccd4;
+		--wf-border-primary: #2f343e;
+	}
+
+	.wf-menu {
+		--wf-text-primary: #c8ccd4;
+		--wf-border-primary: #3b4048;
+		--wf-border-secondary: #5d636f;
+	}
+
+	.wf-helper {
+		--wf-background-primary: #3b4048;
+	}
+}

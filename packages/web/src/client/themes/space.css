@@ -1,0 +1,83 @@
+._theme-space {
+	--wf-background-primary: var(--wf-dark-gray-800);
+	--wf-background-secondary: var(--wf-dark-gray-700);
+	--wf-background-tertiary: var(--wf-dark-gray-600);
+	--wf-background-quaternary: var(--wf-dark-gray-500);
+	--wf-background-tint: var(--wf-dark-blue-400);
+	--wf-background-danger: var(--wf-red-500);
+	--wf-background-warning: var(--wf-yellow-200);
+	--wf-background-success: var(--wf-green-700);
+	--wf-background-info: var(--wf-dark-blue-300);
+	--wf-background-selected: var(--wf-dark-blue-300);
+	--wf-background-shared: var(--wf-dark-blue-300);
+	--wf-background-found: var(--wf-dark-blue-100);
+	--wf-background-ambient: var(--wf-dark-gray-800);
+	--wf-background-mentioned: #28424d;
+	--wf-background-added: #2e6046;
+	--wf-background-moved: #584080;
+	--wf-background-completed: #475569;
+	--wf-background-edited: #534b2f;
+	--wf-background-red: #773b3b;
+	--wf-background-orange: #784c3c;
+	--wf-background-yellow: #8c7146;
+	--wf-background-green: #40806b;
+	--wf-background-blue: #405580;
+	--wf-background-purple: #584080;
+	--wf-background-gray: #475569;
+	--wf-background-teal: #397886;
+	--wf-background-sky: #496b92;
+	--wf-background-pink: #7f4080;
+
+	--wf-text-primary: var(--wf-dark-gray-100);
+	--wf-text-secondary: var(--wf-dark-gray-200);
+	--wf-text-tertiary: var(--wf-dark-gray-300);
+	--wf-text-quaternary: var(--wf-dark-gray-200);
+	--wf-text-quinary: var(--wf-dark-gray-500);
+	--wf-text-on-color: var(--wf-dark-gray-100);
+	--wf-text-tint: var(--wf-dark-blue-400);
+	--wf-text-success: var(--wf-green-700);
+	--wf-text-danger: var(--wf-red-500);
+	--wf-text-warning: var(--wf-yellow-200);
+	--wf-text-spark: var(--wf-yellow-200);
+	--wf-text-mentioned: #007ab8;
+	--wf-text-added: #057a55;
+	--wf-text-moved: #9f580a;
+	--wf-text-completed: #64748b;
+	--wf-text-edited: #9f580a;
+	--wf-text-red: #f98080;
+	--wf-text-orange: #ff8a4c;
+	--wf-text-yellow: #e3a008;
+	--wf-text-green: #31c48d;
+	--wf-text-blue: #76a9fa;
+	--wf-text-purple: #ac94fa;
+	--wf-text-gray: #97a6ba;
+	--wf-text-teal: #2dd4bf;
+	--wf-text-sky: #38bdf8;
+	--wf-text-pink: #f472b6;
+
+	--wf-border-primary: var(--wf-dark-gray-500);
+	--wf-border-secondary: var(--wf-dark-gray-600);
+	--wf-border-tint: var(--wf-dark-blue-400);
+	--wf-border-danger: var(--wf-red-500);
+	--wf-border-warning: var(--wf-yellow-200);
+	--wf-border-success: var(--wf-green-700);
+	--wf-border-ambient: #fff;
+
+	--wf-image-ambient: url("https://workflowy.com/media/i/themes/space_big.5ef562c7a2eb.jpg");
+
+	.wf-header {
+		--wf-background-tertiary: rgba(0, 0, 0, 0.6);
+		--wf-text-primary: var(--wf-dark-gray-300);
+		--wf-border-primary: var(--wf-dark-gray-600);
+	}
+
+	.wf-menu {
+		--wf-text-primary: var(--wf-dark-gray-200);
+		--wf-border-primary: var(--wf-dark-gray-600);
+		--wf-border-secondary: var(--wf-dark-gray-400);
+	}
+
+	.wf-helper {
+		--wf-background-primary: var(--wf-gray-700);
+	}
+}

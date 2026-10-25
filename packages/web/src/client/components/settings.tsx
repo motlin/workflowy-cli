@@ -7,9 +7,8 @@ import {usePreferences} from "../hooks/use-preferences.js";
 import type {Preferences, PreferencesPatch} from "../hooks/use-preferences.js";
 import {currentVersionLabel} from "../app-version.js";
 import {useFlash} from "../hooks/use-flash.js";
-import {themeFromAccount} from "../hooks/use-right-bar-sync.js";
+import {THEMES, currentTheme} from "../themes.js";
 import {useOutlineStore} from "../stores/outline.js";
-import type {Theme} from "../stores/outline.js";
 import {DialogCloseButton, DialogShell} from "./dialog-shell.js";
 import {Dropdown, DropdownOption} from "./flyout/dropdown.js";
 import {ControlRow, ReadOnlyField, SectionBody} from "./settings-rows.js";
@@ -183,18 +182,6 @@ export function DatesSection({now: nowProp}: {now?: Date}) {
 	);
 }
 
-/** The account theme codenames the app has; upstream's other themes arrive with the themes feature. */
-const THEME_OPTIONS = [
-	{name: "default", prettyName: "Light"},
-	{name: "dark", prettyName: "Dark"},
-	{name: "system", prettyName: "System"},
-] as const;
-
-/** The account codename for a store theme. */
-function accountThemeName(theme: Theme): string {
-	return theme === "light" ? "default" : theme;
-}
-
 /** Upstream's `Account`, `Personalization`, ... in order; `Backup` and the cloud-only sections are not cloned. */
 const SETTINGS_SECTION_TITLES = [
 	"Account",
@@ -232,23 +219,20 @@ function AccountSection({preferences}: SectionProps) {
 function PersonalizationSection({preferences, change}: SectionProps) {
 	const theme = useOutlineStore((state) => state.theme);
 	const setTheme = useOutlineStore((state) => state.setTheme);
-	const current = preferences.theme ?? accountThemeName(theme);
+	const current = currentTheme(preferences.theme ?? theme);
 	return (
 		<SettingsSection title="Personalization">
 			<SectionBody>
 				<ControlRow label="Theme">
 					<Dropdown large>
-						{THEME_OPTIONS.map((option) => (
+						{THEMES.map((option) => (
 							<DropdownOption
 								key={option.name}
 								label={option.prettyName}
 								isSelected={current === option.name}
 								onSelect={() => {
 									change({theme: option.name});
-									const next = themeFromAccount(option.name);
-									if (next !== null) {
-										setTheme(next);
-									}
+									setTheme(option.name);
 								}}
 							/>
 						))}

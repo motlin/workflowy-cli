@@ -68,6 +68,19 @@ import {queryClientDefaults} from "./query-retry.js";
 import "./reset.css";
 import "./wf-tailwind.css";
 import "./styles.css";
+import "./themes/hacker.css";
+import "./themes/space.css";
+import "./themes/steel.css";
+import "./themes/vintage.css";
+import "./themes/wood.css";
+import "./themes/neo.css";
+import "./themes/catppuccin.css";
+import "./themes/moon.css";
+import "./themes/robot.css";
+import "./themes/glass.css";
+import "./themes/chocolate.css";
+import "./themes/matcha.css";
+import "./themes/one_dark.css";
 
 // Before any query exists: a navigation mounts hundreds of observers, each arming a stale timer.
 installCoalescingTimeoutProvider();

@@ -1,0 +1,79 @@
+._theme-matcha {
+	--wf-background-primary: #ddeabe;
+	--wf-background-secondary: #b1cf7d;
+	--wf-background-tertiary: #eef6cf;
+	--wf-background-quaternary: #b1cf7d;
+	--wf-background-tint: #85ac41;
+	--wf-background-danger: #c14165;
+	--wf-background-warning: #dfb966;
+	--wf-background-success: #74bc6d;
+	--wf-background-info: #eef6cf;
+	--wf-background-selected: #eef6cf;
+	--wf-background-shared: #eef6cf;
+	--wf-background-found: #fbda8a;
+	--wf-background-ambient: #ddeabe;
+	--wf-background-mentioned: #b1cf7d;
+	--wf-background-added: #244232;
+	--wf-background-moved: #32274a;
+	--wf-background-completed: #2b2e3a;
+	--wf-background-edited: #3e3326;
+	--wf-background-red: #f5d0c8;
+	--wf-background-orange: #f8dcc0;
+	--wf-background-yellow: #f0e4a8;
+	--wf-background-green: #c0e0a0;
+	--wf-background-blue: #c0d8f0;
+	--wf-background-purple: #dcc8f0;
+	--wf-background-gray: #d0d8c8;
+	--wf-background-teal: #b0e0d8;
+	--wf-background-sky: #b8d8e8;
+	--wf-background-pink: #f0d0d8;
+
+	--wf-text-primary: #415915;
+	--wf-text-secondary: #415915;
+	--wf-text-tertiary: #415915;
+	--wf-text-quaternary: #415915;
+	--wf-text-quinary: #85ac41;
+	--wf-text-on-color: #fcfff2;
+	--wf-text-tint: #85ac41;
+	--wf-text-success: #74bc6d;
+	--wf-text-danger: #c14165;
+	--wf-text-warning: #dfb966;
+	--wf-text-spark: #ffad00;
+	--wf-text-mentioned: #89b4fa;
+	--wf-text-added: #a6e3a1;
+	--wf-text-moved: #cba6f7;
+	--wf-text-completed: #7f849c;
+	--wf-text-edited: #fab387;
+	--wf-text-red: #c43838;
+	--wf-text-orange: #d06020;
+	--wf-text-yellow: #a88510;
+	--wf-text-green: #3d8828;
+	--wf-text-blue: #2868a0;
+	--wf-text-purple: #7848a8;
+	--wf-text-gray: #505850;
+	--wf-text-teal: #188878;
+	--wf-text-sky: #1878a0;
+	--wf-text-pink: #c04878;
+
+	--wf-border-primary: #85ac41;
+	--wf-border-subtle: #85ac4179;
+	--wf-border-tint: #85ac41;
+	--wf-border-danger: #c14165;
+	--wf-border-warning: #dfb966;
+	--wf-border-success: #74bc6d;
+
+	.wf-header {
+		--wf-background-primary: #b1cf7d;
+		--wf-background-secondary: #ddeabe;
+		--wf-text-primary: #415915;
+	}
+
+	.wf-menu {
+		--wf-text-primary: #415915;
+	}
+
+	.wf-helper {
+		--wf-background-primary: #eef6cf;
+		--wf-text-primary: #1e1e2e;
+	}
+}

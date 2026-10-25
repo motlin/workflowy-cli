@@ -5,7 +5,8 @@ import type {PickerResult} from "../location-picker-model.js";
 import {MAIN_PANE_ID, canPlacePane, findPane, paneExpandedIds} from "../pane-ids.js";
 import type {ItemTreePane} from "../pane-ids.js";
 import {z} from "zod";
-import {themeBodyClass} from "../theme-body-class.js";
+import {THEME_STORAGE_KEY, applyTheme, storedTheme} from "../theme-apply.js";
+import type {ThemeName} from "../themes.js";
 import {
 	emptyMainPaneHistory,
 	initialNavState,
@@ -33,9 +34,9 @@ import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
 /** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
 const COMPLETED_MODE_STORAGE_KEY = "completedMode";
 const LEGACY_SHOW_COMPLETED_STORAGE_KEY = "workflowy-show-completed";
-const THEME_STORAGE_KEY = "workflowy-theme";
 
-export type Theme = "light" | "dark" | "system";
+/** A registered theme name (`default`, `dark`, `system`, `space`, ...). */
+export type Theme = ThemeName;
 
 /** A router push, e.g. react-router's `navigate`. */
 export type NavigateFn = (to: string, options?: {replace?: boolean; state?: unknown}) => unknown;
@@ -123,26 +124,12 @@ function getInitialLeftBarState(): LeftBarPersistedState {
 	}
 }
 
-function getSystemTheme(): "light" | "dark" {
-	if (typeof globalThis === "undefined") {
-		return "light";
-	}
-	return globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+function systemPrefersDark(): boolean {
+	return globalThis.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 function getInitialTheme(): Theme {
-	const stored = localStorage.getItem(THEME_STORAGE_KEY);
-	if (stored === "light" || stored === "dark" || stored === "system") {
-		return stored;
-	}
-	return "system";
-}
-
-function applyTheme(theme: Theme): void {
-	const effectiveTheme = theme === "system" ? getSystemTheme() : theme;
-	const bodyClass = themeBodyClass(effectiveTheme);
-	document.body.classList.toggle("_theme-dark", bodyClass === "_theme-dark");
-	document.body.classList.toggle("_theme-default", bodyClass === "_theme-default");
+	return storedTheme(localStorage.getItem(THEME_STORAGE_KEY));
 }
 
 function writeCompletedMode(showCompleted: boolean): void {
@@ -1811,7 +1798,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	setTheme(theme) {
 		localStorage.setItem(THEME_STORAGE_KEY, theme);
-		applyTheme(theme);
+		applyTheme(theme, systemPrefersDark());
 		set({theme});
 	},
 
@@ -1926,13 +1913,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 // Apply initial theme on load and set up event listeners
 if (typeof globalThis !== "undefined") {
 	const initialTheme = getInitialTheme();
-	applyTheme(initialTheme);
+	applyTheme(initialTheme, systemPrefersDark());
 
 	// Listen for system theme changes when theme is set to 'system'
 	globalThis.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
 		const currentTheme = useOutlineStore.getState().theme;
 		if (currentTheme === "system") {
-			applyTheme("system");
+			applyTheme("system", systemPrefersDark());
 		}
 	});
 

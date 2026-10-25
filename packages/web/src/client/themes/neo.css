@@ -1,0 +1,80 @@
+._theme-neo {
+	--wf-background-primary: #141414;
+	--wf-background-secondary: #2d2d2d;
+	--wf-background-tertiary: #373737;
+	--wf-background-quaternary: var(--wf-dark-gray-700);
+	--wf-background-tint: var(--wf-blue-300);
+	--wf-background-danger: #923333;
+	--wf-background-warning: var(--wf-yellow-200);
+	--wf-background-success: var(--wf-green-700);
+	--wf-background-info: #286c8e;
+	--wf-background-selected: #286c8e;
+	--wf-background-shared: #286c8e;
+	--wf-background-found: #565656;
+	--wf-background-ambient: #141414;
+	--wf-background-mentioned: #2b2b2b;
+	--wf-background-added: #2e6046;
+	--wf-background-moved: #584080;
+	--wf-background-completed: #475569;
+	--wf-background-edited: #534b2f;
+	--wf-background-red: #cf465499;
+	--wf-background-orange: #e18f5899;
+	--wf-background-yellow: #f1c06899;
+	--wf-background-green: #8dbd6a99;
+	--wf-background-blue: #76a9fa99;
+	--wf-background-purple: #9e8fec99;
+	--wf-background-gray: #81868b99;
+	--wf-background-teal: #65cbc699;
+	--wf-background-sky: #38bdf899;
+	--wf-background-pink: #d466cc99;
+
+	--wf-text-primary: #dcdbdb;
+	--wf-text-secondary: #dcdbdb;
+	--wf-text-tertiary: var(--wf-dark-gray-300);
+	--wf-text-quaternary: #c1c1c1;
+	--wf-text-quinary: #666666;
+	--wf-text-on-color: var(--wf-dark-gray-100);
+	--wf-text-tint: var(--wf-blue-300);
+	--wf-text-success: var(--wf-green-700);
+	--wf-text-danger: #cf4653;
+	--wf-text-warning: var(--wf-yellow-200);
+	--wf-text-spark: var(--wf-yellow-200);
+	--wf-text-mentioned: #4d9cc3;
+	--wf-text-added: #057a55;
+	--wf-text-moved: #9f580a;
+	--wf-text-completed: #64748b;
+	--wf-text-edited: #9f580a;
+	--wf-text-red: #cf4653;
+	--wf-text-orange: #e18f58;
+	--wf-text-yellow: #f1c068;
+	--wf-text-green: #8dbd6a;
+	--wf-text-blue: #76a9fa;
+	--wf-text-purple: #9e8fec;
+	--wf-text-gray: #81868b;
+	--wf-text-teal: #65cbc6;
+	--wf-text-sky: #38bdf8;
+	--wf-text-pink: #d466cc;
+
+	--wf-border-primary: #242424;
+	--wf-border-secondary: #373737;
+	--wf-border-tint: var(--wf-blue-300);
+	--wf-border-danger: #923333;
+	--wf-border-warning: var(--wf-yellow-200);
+	--wf-border-success: var(--wf-green-700);
+
+	.wf-header {
+		--wf-text-primary: #999999;
+		--wf-background-secondary: var(--wf-dark-gray-700);
+		--wf-border-primary: #2d2d2d;
+	}
+
+	.wf-menu {
+		--wf-text-primary: var(--wf-dark-gray-200);
+		--wf-border-primary: #2f2f2f;
+		--wf-border-secondary: #565656;
+	}
+
+	.wf-helper {
+		--wf-background-primary: #373737;
+	}
+}

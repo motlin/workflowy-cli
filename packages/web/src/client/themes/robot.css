@@ -1,0 +1,92 @@
+._theme-robot {
+	--robot-red: #e8393f;
+	--robot-orange: #fea143;
+	--robot-yellow: #dfe361;
+	--robot-lime: #4ed8a3;
+	--robot-teal: #2b8787;
+	--robot-sky: #4ea3d8;
+	--robot-blue: #3580d3;
+	--robot-purple: #8867a1;
+	--robot-pink: #e66993;
+	--robot-gray: #7a8a8a;
+	--robot-magenta: #852041;
+	--robot-black: #000000;
+	--robot-dark: #151413;
+	--robot-grid: #1a2b2b;
+
+	--wf-background-primary: var(--robot-black);
+	--wf-background-secondary: var(--robot-grid);
+	--wf-background-tertiary: #fea14320;
+	--wf-background-quaternary: var(--robot-grid);
+	--wf-background-tint: #4ed8a3a7;
+	--wf-background-danger: var(--robot-red);
+	--wf-background-warning: var(--robot-yellow);
+	--wf-background-success: var(--robot-lime);
+	--wf-background-info: #4ed8a393;
+	--wf-background-selected: #4ed8a393;
+	--wf-background-shared: #4ed8a393;
+	--wf-background-found: #e8393f65;
+	--wf-background-ambient: var(--robot-black);
+	--wf-background-mentioned: rgba(169, 233, 241, 0.15);
+	--wf-background-added: rgba(230, 245, 147, 0.15);
+	--wf-background-moved: rgba(136, 103, 161, 0.15);
+	--wf-background-completed: rgba(254, 195, 67, 0.15);
+	--wf-background-edited: rgba(250, 255, 122, 0.15);
+	--wf-background-red: var(--robot-red);
+	--wf-background-orange: #fea1438c;
+	--wf-background-yellow: var(--robot-yellow);
+	--wf-background-green: var(--robot-lime);
+	--wf-background-blue: var(--robot-blue);
+	--wf-background-purple: var(--robot-purple);
+	--wf-background-gray: var(--robot-gray);
+	--wf-background-teal: var(--robot-teal);
+	--wf-background-sky: var(--robot-sky);
+	--wf-background-pink: var(--robot-pink);
+
+	--wf-text-primary: var(--robot-orange);
+	--wf-text-secondary: var(--robot-red);
+	--wf-text-tertiary: var(--robot-red);
+	--wf-text-quaternary: var(--robot-lime);
+	--wf-text-quinary: var(--robot-lime);
+	--wf-text-on-color: var(--robot-lime);
+	--wf-text-tint: #4ed8a3a7;
+	--wf-text-success: var(--robot-lime);
+	--wf-text-danger: var(--robot-red);
+	--wf-text-warning: var(--robot-yellow);
+	--wf-text-spark: var(--robot-yellow);
+	--wf-text-mentioned: var(--robot-sky);
+	--wf-text-added: var(--robot-lime);
+	--wf-text-moved: var(--robot-purple);
+	--wf-text-completed: var(--robot-orange);
+	--wf-text-edited: var(--robot-yellow);
+	--wf-text-red: var(--robot-red);
+	--wf-text-orange: var(--robot-orange);
+	--wf-text-yellow: var(--robot-yellow);
+	--wf-text-green: var(--robot-lime);
+	--wf-text-blue: var(--robot-blue);
+	--wf-text-purple: var(--robot-purple);
+	--wf-text-gray: var(--robot-gray);
+	--wf-text-teal: var(--robot-teal);
+	--wf-text-sky: var(--robot-sky);
+	--wf-text-pink: var(--robot-pink);
+
+	--wf-border-primary: var(--robot-red);
+	--wf-border-secondary: var(--robot-lime); /* nesting indicator */
+	--wf-border-tint: #4ed8a3a7;
+	--wf-border-danger: var(--robot-red);
+	--wf-border-warning: var(--robot-yellow);
+	--wf-border-success: var(--robot-lime);
+
+	.wf-header {
+		--wf-text-primary: var(--robot-red);
+		--wf-text-secondary: var(--robot-lime);
+	}
+
+	.wf-menu {
+		--wf-text-quaternary: var(--robot-black);
+	}
+
+	.wf-helper {
+		--wf-background-primary: var(--robot-grid);
+	}
+}

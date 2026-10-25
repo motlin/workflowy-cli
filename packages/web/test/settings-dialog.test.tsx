@@ -279,10 +279,42 @@ describe("Settings dialog", () => {
 			setTheme: calls.setTheme.mock.calls,
 		}).toStrictEqual({
 			label: "Dark",
-			options: ["Light", "Dark", "System"],
+			options: [
+				"Light",
+				"Dark",
+				"System",
+				"Vintage",
+				"Catppuccin",
+				"Chocolate",
+				"Glass",
+				"Hacker",
+				"Matcha",
+				"Moon",
+				"Neo",
+				"Robot",
+				"Space",
+				"Steel",
+				"Wood",
+				"One Dark",
+			],
 			patch: [["PATCH", '{"theme":"system"}']],
 			setTheme: [["system"]],
 		});
+	});
+
+	it("saves a non-standard theme such as Space to the account and the app", async () => {
+		await open({theme: "dark"});
+		await pickOption(section("Personalization").querySelector<HTMLElement>(".menu")!, "Space");
+		expect({
+			patch: patches().map(([, init]) => init?.body),
+			setTheme: calls.setTheme.mock.calls,
+		}).toStrictEqual({patch: ['{"theme":"space"}'], setTheme: [["space"]]});
+	});
+
+	it("labels the dropdown with the account's theme name", async () => {
+		await open({theme: "one_dark"});
+		const menu = section("Personalization").querySelector<HTMLElement>(".menu");
+		expect(menu?.firstElementChild?.textContent).toBe("One Dark");
 	});
 
 	it("maps Light to the account's default theme", async () => {
@@ -291,7 +323,7 @@ describe("Settings dialog", () => {
 		expect({
 			patch: patches().map(([, init]) => init?.body),
 			setTheme: calls.setTheme.mock.calls,
-		}).toStrictEqual({patch: ['{"theme":"default"}'], setTheme: [["light"]]});
+		}).toStrictEqual({patch: ['{"theme":"default"}'], setTheme: [["default"]]});
 	});
 
 	it("shows the media rows from the account flags and writes an embed toggle inverted", async () => {

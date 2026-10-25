@@ -2163,45 +2163,6 @@ code {
 	flex: none;
 }
 
-/* Theme selector */
-.theme-selector {
-	display: flex;
-	gap: 4px;
-	padding: 4px 16px;
-}
-
-.theme-selector-button {
-	flex: 1;
-	padding: 6px 10px;
-	font-size: 12px;
-	font-family: inherit;
-	border: 1px solid var(--color-border-light);
-	border-radius: 4px;
-	background-color: var(--color-bg);
-	color: var(--color-text-secondary);
-	cursor: pointer;
-	transition:
-		background-color 0.15s ease,
-		border-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.theme-selector-button:hover {
-	background-color: var(--color-bg-hover);
-	border-color: var(--color-border);
-}
-
-.theme-selector-button.selected {
-	background-color: var(--color-accent-bg);
-	border-color: var(--color-border-focus);
-	color: var(--color-accent);
-}
-
-.theme-selector-button:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
-}
-
 /* Outline container; the pinned left bar offset is body padding set by LeftBar */
 /* Upstream's .pageContainer: the document scrolls, so the page scrollbar sits at the window edge and the
    fixed hotkeys panel (inset by the body's padding-right) scrolls on its own. the
