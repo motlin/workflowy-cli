@@ -35,7 +35,8 @@ function wordRegExp(word: string): RegExp {
 	return new RegExp(`${START_OF_WORD_CHUNK}(${word})`, "giu");
 }
 
-function highlight(text: string, ranges: [number, number][]): string {
+/** `text` HTML-escaped with each `[start, end)` range wrapped in `<b><u>`. */
+export function highlight(text: string, ranges: [number, number][]): string {
 	const marked = Array.from({length: text.length}, () => false);
 	for (const [start, end] of ranges) {
 		marked.fill(true, start, end);

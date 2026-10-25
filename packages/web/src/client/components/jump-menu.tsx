@@ -35,6 +35,7 @@ async function fetchSwitcherPage(body: {
 	offset?: number;
 	limit: number;
 	starredIds: string[];
+	showCompleted: boolean;
 }): Promise<SwitcherResponse> {
 	const response = await fetch("/api/search/switcher", {
 		method: "POST",
@@ -357,10 +358,10 @@ function JumpMenuDialog() {
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	const navigate = useStableNavigate();
 
-	const starredIds = useMemo(
-		() => stars.flatMap((star) => (star.nodeId !== null && !star.query ? [star.nodeId] : [])),
-		[stars],
-	);
+	// Upstream boosts the page of every star, search stars included.
+	const starredIds = useMemo(() => starredNodeIds(stars), [stars]);
+	// With show-completed on, completed rows stay in the results, struck through.
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
 
 	const handleQueryChange = useCallback((value: string) => {
 		setQuery(value);
@@ -380,7 +381,12 @@ function JumpMenuDialog() {
 		let cancelled = false;
 		const runSearch = async () => {
 			try {
-				const data = await fetchSwitcherPage({query: listQuery, limit: SEARCH_LIMIT, starredIds});
+				const data = await fetchSwitcherPage({
+					query: listQuery,
+					limit: SEARCH_LIMIT,
+					starredIds,
+					showCompleted,
+				});
 				if (!cancelled) {
 					answered.current = true;
 					setResults(data.results);
@@ -418,7 +424,7 @@ function JumpMenuDialog() {
 			clearTimeout(searchTimeout);
 			clearTimeout(slowTimeout);
 		};
-	}, [listQuery, starredIds]);
+	}, [listQuery, starredIds, showCompleted]);
 
 	const zoomedNode = zoomedNodeId === null ? undefined : readNode(queryClient, zoomedNodeId);
 	const zoomedName = zoomedNodeId === null ? "Home" : stripHtmlTags(zoomedNode?.name ?? "");
@@ -512,7 +518,13 @@ function JumpMenuDialog() {
 			return;
 		}
 		loadingMore.current = true;
-		const nextPage = fetchSwitcherPage({query: listQuery, offset: results.length, limit: SEARCH_LIMIT, starredIds});
+		const nextPage = fetchSwitcherPage({
+			query: listQuery,
+			offset: results.length,
+			limit: SEARCH_LIMIT,
+			starredIds,
+			showCompleted,
+		});
 		void nextPage
 			.then((data) => {
 				// A page for a query the user has since changed is dropped.
@@ -528,7 +540,7 @@ function JumpMenuDialog() {
 			.finally(() => {
 				loadingMore.current = false;
 			});
-	}, [hasMore, listQuery, results.length, starredIds]);
+	}, [hasMore, listQuery, results.length, starredIds, showCompleted]);
 
 	/** Upstream's infinite scroll: show one more page of rows, fetching server rows only when the buffer runs short. */
 	const loadMore = useCallback(() => {

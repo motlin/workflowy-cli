@@ -8,6 +8,7 @@ import {
 	reducePicker,
 	resolveDefaultLocation,
 	starRowIds,
+	starredPickerIds,
 } from "../src/client/location-picker-model.js";
 import {ensureNotesLocation, notesRootIdFor} from "../src/client/notes-location.js";
 import type {PickerRow, PickerState} from "../src/client/location-picker-model.js";
@@ -351,5 +352,16 @@ describe("ensureNotesLocation", () => {
 		await expect(ensureNotesLocation(new QueryClient())).resolves.toBe("n1");
 		expect(notesRootIdFor(EMPTY_PREFERENCES)).toBe("n1");
 		expect(notesRootIdFor({...EMPTY_PREFERENCES, notesRootId: "acct"})).toBe("acct");
+	});
+});
+
+describe("starredPickerIds", () => {
+	it("lists search stars' pages in mostRecent order, deduplicated", () => {
+		const stars = [
+			{key: "A", nodeId: "A", query: null, name: null, position: 0},
+			{key: "B_q", nodeId: "B", query: "q", name: null, position: 1},
+			{key: "A_z", nodeId: "A", query: "z", name: null, position: 2},
+		];
+		expect(starredPickerIds(stars, {"None/B/q": 9, "None/A/": 5})).toStrictEqual(["B", "A"]);
 	});
 });

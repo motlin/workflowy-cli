@@ -22,6 +22,9 @@ export interface FilterLocationsOptions {
 	limit?: number;
 	joinedSec?: number;
 	nowSec?: number;
+	/** Page ids that get upstream's star boost (search stars' pages included). */
+	starredIds?: readonly string[];
+	showCompleted?: boolean;
 }
 
 /** The query's word-start hits in `text`, each wrapped in `<b><u>`, with the rest HTML-escaped. */
@@ -30,13 +33,28 @@ export function highlightLabel(query: string, text: string): string {
 }
 
 /**
- * Upstream's move-to location search: the switcher's word-start match and ranking without stars, dropping
- * completed nodes, nodes under a completed ancestor and the item being moved.
+ * Upstream's move-to location search: the switcher's word-start match and ranking with the star boost, dropping
+ * completed nodes (unless `showCompleted`), nodes under a completed ancestor and the item being moved.
  */
 export function filterLocations(
 	rows: readonly TreeSearchRow[],
-	{query, excludeId, offset, limit, joinedSec = 0, nowSec = Math.floor(Date.now() / 1000)}: FilterLocationsOptions,
+	{
+		query,
+		excludeId,
+		offset,
+		limit,
+		joinedSec = 0,
+		nowSec = Math.floor(Date.now() / 1000),
+		starredIds = [],
+		showCompleted,
+	}: FilterLocationsOptions,
 ): LocationResponse {
-	const {results, hasMore} = rankSwitcher(rows, query, [], nowSec, {joinedSec, offset, limit, excludeId});
+	const {results, hasMore} = rankSwitcher(rows, query, starredIds, nowSec, {
+		joinedSec,
+		offset,
+		limit,
+		excludeId,
+		showCompleted,
+	});
 	return {results: results.map(({id, labelHtml, ancestors}) => ({id, labelHtml, ancestors})), hasMore};
 }

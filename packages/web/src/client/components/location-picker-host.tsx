@@ -1,16 +1,16 @@
 import {useQueries, useQueryClient} from "@tanstack/react-query";
 import {stripHtmlTags} from "@workflowy/shared/html";
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {usePreferences} from "../hooks/use-preferences.js";
 import {fetchAncestors, useCreateNode} from "../hooks/use-nodes.js";
-import {useStarredLocations} from "../hooks/use-starred.js";
+import {readLastViewed, useStarredLocations} from "../hooks/use-starred.js";
 import {
 	INITIAL_PICKER_STATE,
 	ancestorCrumbs,
 	buildPickerRows,
 	reducePicker,
 	resolveDefaultLocation,
-	starRowIds,
+	starredPickerIds,
 } from "../location-picker-model.js";
 import type {PickerEffect, PickerEvent, PickerResult, PickerState} from "../location-picker-model.js";
 import {nodeKeys, readNode} from "../node-cache.js";
@@ -52,7 +52,11 @@ function plainLabel(name: string): string {
 }
 
 /** Undebounced `/api/search/locations` hits for `query`, empty for an empty query; `pending` until the reply lands. */
-function useSearchHits(query: string): {hits: readonly SearchHit[]; pending: boolean} {
+function useSearchHits(
+	query: string,
+	starredIds: readonly string[],
+	showCompleted: boolean,
+): {hits: readonly SearchHit[]; pending: boolean} {
 	const [found, setFound] = useState<{query: string; hits: readonly SearchHit[]}>({query: "", hits: []});
 	useEffect(() => {
 		if (query.trim() === "") {
@@ -65,7 +69,7 @@ function useSearchHits(query: string): {hits: readonly SearchHit[]; pending: boo
 			const response = await fetch("/api/search/locations", {
 				method: "POST",
 				headers: {"Content-Type": "application/json"},
-				body: JSON.stringify({query, limit: SEARCH_LIMIT}),
+				body: JSON.stringify({query, limit: SEARCH_LIMIT, starredIds, showCompleted}),
 				signal: controller.signal,
 			});
 			if (!response.ok) {
@@ -83,7 +87,7 @@ function useSearchHits(query: string): {hits: readonly SearchHit[]; pending: boo
 		return () => {
 			controller.abort();
 		};
-	}, [query]);
+	}, [query, starredIds, showCompleted]);
 	const landed = found.query === query;
 	return {hits: landed ? found.hits : EMPTY_HITS, pending: !landed && query.trim() !== ""};
 }
@@ -135,18 +139,29 @@ function useRelatedHits(nodeId: string | undefined): readonly RelatedHit[] {
 	return found.nodeId === nodeId ? found.hits : EMPTY_RELATED;
 }
 
+/** The stored view stamps, or none when storage is unavailable. */
+function safeLastViewed(): Record<string, number> {
+	try {
+		return readLastViewed(globalThis.localStorage);
+	} catch {
+		return {};
+	}
+}
+
 /** One open picker: its step machine, rows and the create-and-move sub-action. */
 function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 	const queryClient = useQueryClient();
 	const createNode = useCreateNode();
 	const {preferences} = usePreferences();
 	const stars = useStarredLocations();
-	const closeLocationPicker = useOutlineStore((state) => state.closeLocationPicker);
+	const closeLocationPicker = useOutlineStore((store) => store.closeLocationPicker);
 	const [state, setState] = useState<PickerState>(INITIAL_PICKER_STATE);
 	const {searcher, getFilter} = picker;
 	const filter = getFilter?.() ?? null;
 	const query = filter ?? state.query;
-	const {hits: fetchedHits, pending} = useSearchHits(searcher === undefined ? query : "");
+	const starredIds = useMemo(() => starredPickerIds(stars, safeLastViewed()), [stars]);
+	const showCompleted = useOutlineStore((store) => store.showCompleted);
+	const {hits: fetchedHits, pending} = useSearchHits(searcher === undefined ? query : "", starredIds, showCompleted);
 	const hits: readonly SearchHit[] =
 		searcher === undefined
 			? fetchedHits
@@ -168,7 +183,6 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 		notesRootId: notesRootIdFor(preferences),
 		exists: (id) => (recentIds.includes(id) ? recentExists(id) : exists(id)),
 	});
-	const starredIds = starRowIds(stars);
 	const results: PickerResult[] = hits.map(({id, labelHtml}) => ({id, labelHtml}));
 	const listedIds = [...new Set([...recentIds, ...starredIds])];
 	const chains = useQueries({

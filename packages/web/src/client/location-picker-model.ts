@@ -1,3 +1,5 @@
+import {mostRecent} from "@workflowy/shared";
+import type {Star} from "@workflowy/shared";
 import {stripHtmlTags} from "@workflowy/shared/html";
 
 // Upstream's location-picker row list (results list `KM` + the bottomSticky create footer).
@@ -238,7 +240,15 @@ export function ancestorCrumbs(chain: readonly {id: string; name: string | null}
 	return chain.slice(0, -1).map(({id, name}) => ({id, name: stripHtmlTags(name ?? "")}));
 }
 
-/** Every starred location, search stars included, as its page id: deduplicated, in `mostRecent` order, Home skipped. */
+/** Every starred location, search stars included, as its page id: deduplicated, in the order given (see `starredPickerIds`), Home skipped. */
 export function starRowIds(stars: readonly {nodeId: string | null; query: string | null}[]): string[] {
 	return [...new Set(stars.flatMap((star) => (star.nodeId === null ? [] : [star.nodeId])))];
+}
+
+/**
+ * The page ids of the starred rows, in upstream's `mostRecent` order (last viewed first, then key), search stars
+ * included, deduplicated, Home skipped. `lastViewed` is the stored view stamps by location key.
+ */
+export function starredPickerIds(stars: readonly Star[], lastViewed: Readonly<Record<string, number>>): string[] {
+	return starRowIds(mostRecent(stars, lastViewed));
 }

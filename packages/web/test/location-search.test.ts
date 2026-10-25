@@ -91,3 +91,24 @@ describe("highlightLabel", () => {
 		expect(highlightLabel("qzpick two", "Qzpick Two")).toBe("<b><u>Qzpick</u></b> <b><u>Two</u></b>");
 	});
 });
+
+describe("filterLocations star boost and mirrors", () => {
+	it("multiplies starred pages by 20 and leaves mirrors out (ISR10, ISR2)", () => {
+		const rows = [
+			row("parent", null, 0, "abc parent"),
+			row("a", "parent", 0, "A"),
+			row("b", "a", 0, "B"),
+			row("c", "b", 0, "C"),
+			row("star", "c", 0, "abc star"),
+			row("mirror", "parent", 1, "abc parent", {isMirror: true}),
+		];
+		const ids = (starredIds?: string[]) =>
+			filterLocations(rows, {query: "abc", starredIds, joinedSec: JOINED_SEC, nowSec: NOW_SEC}).results.map(
+				(result) => result.id,
+			);
+		expect({boosted: ids(["star"]), plain: ids()}).toStrictEqual({
+			boosted: ["star", "parent"],
+			plain: ["parent", "star"],
+		});
+	});
+});

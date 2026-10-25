@@ -152,7 +152,154 @@ describe("warmSwitcher", () => {
 			plainNote: "Beta Note",
 			foldedName: "alpha page",
 			foldedNote: "beta note",
+			indexName: "alpha page",
+			indexNote: "beta note",
 			fields: ["alpha page", "<b>alpha</b> page", "beta note"],
 		});
+	});
+});
+
+function rankedIds(rows: TreeSearchRow[], query: string, options: {showCompleted?: boolean} = {}): string[] {
+	return rankSwitcher(rows, query, [], NOW_SEC, {joinedSec: JOINED_SEC, ...options}).results.map(({id}) => id);
+}
+
+describe("rankSwitcher against upstream's worker (inline-search-ranking)", () => {
+	it("ranks a weak name hit above a note-only hit with every static boost (ISR1)", () => {
+		const old = Date.UTC(2020, 0, 1);
+		const rows = [
+			row("hub", null, 0, "Hub"),
+			row("Nstar", "hub", 0, "Unrelated", {note: "zqrk in note", layoutMode: "h1"}),
+			...Array.from({length: 10}, (_, i) => row(`kid${i}`, "Nstar", i, "kid")),
+			row("d1", "hub", 1, "d1"),
+			row("d2", "d1", 0, "d2"),
+			row("d3", "d2", 0, "d3"),
+			row("Lweak", "d3", 0, "zqrk ".padEnd(58, "x"), {modifiedAt: old}),
+		];
+		const ranked = rankSwitcher(rows, "zqrk", ["Nstar"], NOW_SEC, {joinedSec: JOINED_SEC});
+		expect(ranked.results.map(({id}) => id)).toStrictEqual(["Lweak", "Nstar"]);
+	});
+
+	it("keeps a note's tag from lifting a name hit past a bolder sibling (ISR1)", () => {
+		const rows = [
+			row("hub", null, 0, "Hub"),
+			row("leaf", "hub", 0, "zqrk leaf"),
+			row("plain", "hub", 1, "zqrk plain", {note: "has #notetag"}),
+			row("deep", "hub", 2, "zqrk deepest"),
+		];
+		expect(rankedIds(rows, "zqrk")).toStrictEqual(["leaf", "plain", "deep"]);
+	});
+
+	it("leaves mirrors out of the ranking (ISR2)", () => {
+		const rows = [
+			row("hub", null, 0, "Hub"),
+			row("leaf", "hub", 0, "zqrk leaf"),
+			row("m", "hub", 1, "zqrk leaf", {isMirror: true}),
+		];
+		expect(rankedIds(rows, "zqrk")).toStrictEqual(["leaf"]);
+	});
+
+	it("counts a top-level row at depth 2 (ISR4)", () => {
+		const rows = [
+			row("top", null, 0, "abc one", {modifiedAt: MODIFIED_MS}),
+			row("hub", null, 1, "Hub"),
+			row("mid", "hub", 0, "Mid"),
+			row("deep", "mid", 0, "abc one", {modifiedAt: MODIFIED_MS}),
+		];
+		// Both are leaves of equal text: only the depth factor differs, 1/1.2 against 1/1.4.
+		const results = rankSwitcher(rows, "abc", [], NOW_SEC, {joinedSec: JOINED_SEC}).results;
+		expect(results.map(({id}) => id)).toStrictEqual(["top", "deep"]);
+	});
+
+	it("measures lengths on the folded index text (ISR5, ISR11)", () => {
+		const hangul = "abc \uD55C\uAD6D\uC5B4";
+		const rows = [
+			row("hub", null, 0, "Hub"),
+			row("K", "hub", 0, hangul),
+			row("L", "hub", 1, "abc xyz"),
+			row("M", "hub", 2, "abc xyzwvut"),
+			row("V", "hub", 3, "\u2714\uFE0F abc xy"),
+			row("W", "hub", 4, "abc xyzw"),
+			row("H", "hub", 5, "abc   "),
+			row("I", "hub", 6, "abc x"),
+		];
+		expect(rankedIds(rows, "abc")).toStrictEqual(["I", "H", "L", "V", "W", "M", "K"]);
+	});
+
+	it("breaks ties in the trie gather order: exact word, digits first, then insertion order (ISR12)", () => {
+		const rows = [
+			row("hub", null, 0, "Hub"),
+			...["abcz x", "abc9 x", "abca x", "abc1 x", "abc_ x"].map((name, i) => row(`n${i}`, "hub", i, name)),
+		];
+		const byName = new Map(rows.map((r) => [r.id, r.name]));
+		expect(rankedIds(rows, "abc").map((id) => byName.get(id))).toStrictEqual([
+			"abc_ x",
+			"abc1 x",
+			"abc9 x",
+			"abcz x",
+			"abca x",
+		]);
+	});
+
+	it("breaks identical-name ties by tree preorder, not id (ISR12)", () => {
+		const rows = [
+			row("p1", null, 0, "P1"),
+			row("p2", null, 1, "P2"),
+			row("y1", "p2", 0, "abc k"),
+			row("z1", "p1", 0, "abc k"),
+		];
+		expect(rankedIds(rows, "abc")).toStrictEqual(["z1", "y1"]);
+	});
+
+	it("orders note-only hits by tree order and after every name hit (ISR12)", () => {
+		const rows = [
+			row("hub", null, 0, "Hub"),
+			row("one", "hub", 0, "other one", {note: "zqrk in note"}),
+			row("two", "hub", 1, "other two", {note: "zqrk short"}),
+			row("name", "hub", 2, "zqrk name"),
+		];
+		expect(rankedIds(rows, "zqrk")).toStrictEqual(["name", "one", "two"]);
+	});
+
+	it("keeps completed and under-completed rows with show-completed, flagged and scored at factor 1 (ISR8)", () => {
+		const shown = rankSwitcher(ROWS, "qwzx", [], NOW_SEC, {joinedSec: JOINED_SEC, showCompleted: true});
+		expect(shown.results.map(({id, completed}) => [id, completed])).toStrictEqual([
+			["parent", false],
+			["beta", false],
+			["done", true],
+			["alpha", false],
+			["deep", false],
+			["underDone", true],
+			["unrelated", false],
+		]);
+		expect(rankedIds(ROWS, "qwzx")).not.toContain("done");
+	});
+
+	it("answers a quoted phrase in tree order with one phrase highlight, mirrors included (ISR6)", () => {
+		const rows = [
+			row("hub", null, 0, "Hub"),
+			row("lvl1", "hub", 0, "lvl1"),
+			row("leaf", "hub", 1, "zqrk leaf"),
+			row("m", "lvl1", 0, "zqrk leaf", {isMirror: true}),
+			row("other", "hub", 2, "zqrk other"),
+		];
+		const {results} = rankSwitcher(rows, '"zqrk leaf"', [], NOW_SEC, {joinedSec: JOINED_SEC});
+		expect(results.map(({id, labelHtml}) => [id, labelHtml])).toStrictEqual([
+			["m", "<b><u>zqrk leaf</u></b>"],
+			["leaf", "<b><u>zqrk leaf</u></b>"],
+		]);
+	});
+
+	it("answers an emoji query with no rows (ISR6)", () => {
+		expect(rankedIds([row("a", null, 0, "zqrk note")], "zqrk \u{1F600}")).toStrictEqual([]);
+	});
+
+	it("answers a date phrase with the rows whose time pill is that day, in tree order (ISR6)", () => {
+		const rows = [
+			row("hub", null, 0, "Hub"),
+			row("due", "hub", 0, 'due <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>'),
+			row("later", "hub", 1, 'due <time startYear="2026" startMonth="10" startDay="9">Fri, Oct 9, 2026</time>'),
+			row("text", "hub", 2, "today is literal text"),
+		];
+		expect(rankedIds(rows, "Oct 1, 2026")).toStrictEqual(["due"]);
 	});
 });

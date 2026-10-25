@@ -113,6 +113,7 @@ interface SwitcherBody {
 	offset?: number;
 	limit?: number;
 	starredIds?: string[];
+	showCompleted?: boolean;
 }
 
 let joinedSecPromise: Promise<number> | undefined;
@@ -143,10 +144,12 @@ async function loadJoinedSec(c: Context<AppEnv>, rows: TreeSearchRow[]): Promise
 
 // POST /api/search/switcher - Upstream jump-menu search: word-start matches ranked by staticScore x textFactor
 searchRouter.post("/switcher", async (c) => {
-	const {query, offset = 0, limit = 20, starredIds = []} = await c.req.json<SwitcherBody>();
+	const {query, offset = 0, limit = 20, starredIds = [], showCompleted} = await c.req.json<SwitcherBody>();
 	const rows = loadTreeRows(getDatabase(), null);
 	const joinedSec = await loadJoinedSec(c, rows);
-	return c.json(rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {joinedSec, offset, limit}));
+	return c.json(
+		rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {joinedSec, offset, limit, showCompleted}),
+	);
 });
 
 interface LocationsBody {
@@ -154,18 +157,20 @@ interface LocationsBody {
 	offset?: number;
 	limit?: number;
 	excludeId?: string;
+	starredIds?: string[];
+	showCompleted?: boolean;
 }
 
 // POST /api/search/locations - Upstream move-to location picker: switcher matching without completed nodes or excludeId
 searchRouter.post("/locations", async (c) => {
-	const {query, offset = 0, limit = 20, excludeId} = await c.req.json<LocationsBody>();
+	const {query, offset = 0, limit = 20, excludeId, starredIds, showCompleted} = await c.req.json<LocationsBody>();
 	const rows = loadTreeRows(getDatabase(), null);
 	const joinedSec = await loadJoinedSec(c, rows);
 	// Typing supersedes earlier keystrokes; the client aborts them, so skip ranking for a request nobody waits on.
 	if (c.req.raw.signal.aborted) {
 		return new Response(null, {status: 499});
 	}
-	return c.json(filterLocations(rows, {query, excludeId, offset, limit, joinedSec}));
+	return c.json(filterLocations(rows, {query, excludeId, offset, limit, joinedSec, starredIds, showCompleted}));
 });
 
 // POST /api/search - Text-based search with operators

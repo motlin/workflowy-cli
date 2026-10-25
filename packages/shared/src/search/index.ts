@@ -16,6 +16,7 @@ export {
 export {type ParsedQuery, parseSearchQuery} from "./query-parser.js";
 export {
 	type FieldMatch,
+	highlight,
 	matchField,
 	matchSwitcherRow,
 	splitIntoWords,
@@ -23,9 +24,14 @@ export {
 	type SwitcherRowMatch,
 } from "./switcher-match.js";
 export {
+	baseScore,
+	decodeHtmlEntities,
+	indexText,
+	nameBoost,
 	resolveJoinedSec,
 	type ResolveJoinedSecInput,
 	staticScore,
 	type StaticScoreInput,
 	textFactor,
+	withMonthNames,
 } from "./switcher-rank.js";
