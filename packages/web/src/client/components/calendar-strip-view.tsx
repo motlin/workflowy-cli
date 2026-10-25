@@ -93,6 +93,8 @@ export interface CalendarStripViewProps {
 	todayDot?: boolean;
 	onNavigate: (target: CalendarTarget) => void;
 	scrollerRef?: Ref<HTMLDivElement>;
+	/** The strip's outer row, which fades while a zoom runs. */
+	rootRef?: Ref<HTMLDivElement>;
 	/** The calendar-days button; a plain icon button when absent. */
 	calendarButton?: ReactNode;
 	/** An item drag is in progress (month cards darken, upstream `bg-secondary hover:bg-tertiary`). */
@@ -111,6 +113,7 @@ export function CalendarStripView({
 	todayDot = false,
 	onNavigate,
 	scrollerRef,
+	rootRef,
 	calendarButton,
 	dragging = false,
 	dropHoverKey = null,
@@ -119,7 +122,7 @@ export function CalendarStripView({
 	const {prev, next} = stripNav(level, date, now, weekStartDay);
 	const today = new Date(dayTimestamp(now));
 	return (
-		<div className="flex items-center pb-l">
+		<div ref={rootRef} className="flex items-center pb-l">
 			<div className="desktop:-ml-[1px] mobile:-ml-[7px] mr-s">
 				<div className="h-[18px] flex items-center" />
 				<div className="flex items-center mobile:gap-xs">

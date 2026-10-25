@@ -51,6 +51,12 @@ export async function findOrEnsureCalendarNode(
 	const found = await fetch(`${url}${lookupQuery}`);
 	if (found.ok) {
 		const {id, firstChildId} = await readJson<{id: string; firstChildId: string | null}>(found);
+		if (firstChildId === null && createChild) {
+			const filled = await fetch(`${url}/ensure${ensureQuery}`, {method: "POST"});
+			if (filled.ok) {
+				return readJson<{dayId: string; firstChildId: string | null}>(filled);
+			}
+		}
 		return {dayId: id, firstChildId};
 	}
 	const ensured = await fetch(`${url}/ensure${ensureQuery}`, {method: "POST"});

@@ -528,6 +528,26 @@ async function viewExpansionTest(ctx: ServerContext, expandedIds: string[] | nul
 	return adapter === undefined ? () => false : adapter.expansionTest();
 }
 
+/** Fetch a node missing from the cache through the write-through client, cache it with its parent chain, and read it. */
+async function readUncachedNodeLive(ctx: ServerContext, id: string): Promise<NodeResponse | undefined> {
+	const client = getWriteClient(ctx);
+	if (client === undefined) {
+		return undefined;
+	}
+	try {
+		const live = await client.liveNode(id);
+		const parentId = live.parent_id ?? null;
+		if (parentId === null) {
+			ctx.cacheService.insertNode(live, null);
+		} else {
+			await client.refreshChain([parentId]);
+		}
+	} catch {
+		return undefined;
+	}
+	return readNodeDto(ctx, id);
+}
+
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
 nodesRouter.get("/:id", async (c) => {
 	const ctx = c.get("ctx");
@@ -537,7 +557,12 @@ nodesRouter.get("/:id", async (c) => {
 		return c.json({error: "Node not found"}, 404);
 	}
 
-	const nodeResponse = await readNodeDto(ctx, id);
+	let nodeResponse = await readNodeDto(ctx, id);
+	// A full uuid the cache lacks (a pasted link, a backlink to a node made elsewhere) is read live and cached with
+	// its parent chain. The API cannot resolve short ids, so those stay cache-only; a real 404 stays a 404.
+	if (nodeResponse === undefined && id === rawId && !isShortId(rawId)) {
+		nodeResponse = await readUncachedNodeLive(ctx, id);
+	}
 	if (nodeResponse === undefined) {
 		return c.json({error: "Node not found"}, 404);
 	}

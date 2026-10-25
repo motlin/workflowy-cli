@@ -43,16 +43,30 @@ function harness(replies: Reply[]) {
 }
 
 describe("navigateToToday", () => {
-	it("commits the edit, then zooms to a found day node that has no children", async () => {
+	it("fills an existing empty day by ensuring it, then edits the new child", async () => {
 		const {calls, deps} = harness([
-			{status: 200, body: {id: "aaaaaaaa-0000-0000-0000-day000000001", firstChildId: null}},
+			{status: 200, body: {id: "d", firstChildId: null}},
+			{status: 200, body: {dayId: "d", firstChildId: "c", created: ["c"]}},
 		]);
 		await navigateToToday(deps);
 		expect(calls).toStrictEqual([
 			["commitEdit"],
 			["fetch", "/api/v1/calendar/day/20261017", "GET"],
-			["seedResolved", "aaaaaaaa-0000-0000-0000-day000000001"],
-			["zoomTo", "aaaaaaaa-0000-0000-0000-day000000001"],
+			["fetch", "/api/v1/calendar/day/20261017/ensure", "POST"],
+			["seedResolved", "d"],
+			["zoomTo", "d"],
+			["startEditing", "c", 0],
+		]);
+	});
+
+	it("zooms to an existing empty day without ensuring it when createChild is false", async () => {
+		const {calls, deps} = harness([{status: 200, body: {id: "d", firstChildId: null}}]);
+		await navigateToCalendarDate({date: new Date(2026, 9, 17), createChild: false}, deps);
+		expect(calls).toStrictEqual([
+			["commitEdit"],
+			["fetch", "/api/v1/calendar/day/20261017", "GET"],
+			["seedResolved", "d"],
+			["zoomTo", "d"],
 		]);
 	});
 

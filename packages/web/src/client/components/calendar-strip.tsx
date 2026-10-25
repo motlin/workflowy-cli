@@ -33,6 +33,7 @@ import {
 	scrollStripOnMount,
 } from "../calendar-strip-model.js";
 import type {StripDropDetail, StripLevel} from "../calendar-strip-model.js";
+import {attachStripZoomFade} from "../calendar-strip-zoom-fade.js";
 import {CalendarStripView} from "./calendar-strip-view.js";
 import {layoutAppliedMessage, layoutPreviewMessage} from "../calendar-layout-model.js";
 import {CalendarLayoutView} from "./calendar-layout-view.js";
@@ -355,6 +356,8 @@ function StripForPage({level, date}: StripPage) {
 
 	useEffect(() => (scroller === null ? undefined : attachDragScroll(scroller, document)), [scroller]);
 	useStripDrop(scroller, level);
+	const [stripRoot, setStripRoot] = useState<HTMLDivElement | null>(null);
+	useEffect(() => (stripRoot === null ? undefined : attachStripZoomFade(stripRoot, document)), [stripRoot]);
 	const dragging = useOutlineStore((state) => state.draggingIds.length > 0);
 	const dropHoverKey = useOutlineStore((state) => state.stripDropKey);
 
@@ -371,6 +374,7 @@ function StripForPage({level, date}: StripPage) {
 			todayDot={todayId !== null && todayDots.has(todayId)}
 			onNavigate={onNavigate}
 			scrollerRef={setScroller}
+			rootRef={setStripRoot}
 			dragging={dragging}
 			dropHoverKey={dropHoverKey}
 			calendarButton={

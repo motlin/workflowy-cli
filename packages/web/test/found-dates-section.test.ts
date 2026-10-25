@@ -113,7 +113,7 @@ function render(parentId: string, isRoot = true): string {
 const SECTION_OPEN =
 	'<div class="font-custom project open [&amp;_&gt;.name&gt;.itemMenu]:hidden [&amp;_&gt;.name]:text-tertiary">';
 const SECTION_NAME =
-	'<div tabindex="-1" class="name" role="presentation"><span data-handbook="bullet.handle" class="bullet diamond" style="left:calc(var(--name-left-overhang) + 1px);width:18px;opacity:1e-8;--bullet-size:18px" aria-hidden="true"><span class="bulletHalo"><svg width="100%" height="100%" viewBox="0 0 16 16" fill="currentColor" class="mirrorDiamondIcon"><path d="M8 4 L4 8 L8 12 L12 8"></path></svg></span></span><div class="notranslate content whitespace-pre-wrap" role="button" tabindex="0"><span class="innerContentContainer">Found Dates</span></div>';
+	'<div tabindex="-1" class="name" role="presentation"><span data-handbook="bullet.handle" class="bullet diamond" style="left:calc(var(--name-left-overhang) + 1px);width:18px;opacity:1e-8;--bullet-size:18px" aria-hidden="true"><span class="bulletHalo"><svg width="100%" height="100%" viewBox="0 0 16 16" fill="currentColor" class="mirrorDiamondIcon"><path d="M8 4 L4 8 L8 12 L12 8 Z"></path></svg></span></span><div class="notranslate content whitespace-pre-wrap" role="button" tabindex="0"><span class="innerContentContainer">Found Dates</span></div>';
 const CRUMBS_WRAPPER = '<div class="text-xs mobile:text-s text-tertiary mt-m ml-xl mobile:ml-2xl leading-s">';
 
 describe("OutlineChildren Found Dates section", () => {

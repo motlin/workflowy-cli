@@ -601,7 +601,7 @@ function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDa
 							fill="currentColor"
 							className="mirrorDiamondIcon"
 						>
-							<path d="M8 4 L4 8 L8 12 L12 8" />
+							<path d="M8 4 L4 8 L8 12 L12 8 Z" />
 						</svg>
 					</span>
 				</span>
