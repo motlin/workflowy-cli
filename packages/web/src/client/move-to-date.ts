@@ -1,3 +1,4 @@
+import {executeMirrorTo} from "./mirror-commands.js";
 import {runMoveTo} from "./move-to.js";
 import type {LoadedMoveTarget} from "./move-to.js";
 import {findOrEnsureCalendarNode, pageLabel} from "./today.js";
@@ -91,4 +92,41 @@ export async function executeMoveToDate({
 		onMoved?.();
 	}
 	return moved;
+}
+
+/**
+ * Upstream Mirror to Today/Date...: like Move to Date, but the items are mirrored into the day (no `canMoveUnder`
+ * check) and the toast reads `mirrored to '<day>'`. Returns whether any mirror was made.
+ */
+export async function executeMirrorToDate({
+	date,
+	fetch,
+	commitEdit,
+	clearSelection,
+	notify,
+	loadTarget,
+	onMirrored,
+	...mirror
+}: Omit<Parameters<typeof executeMirrorTo>[0], "pick" | "loadTarget"> & {
+	date: Date;
+	fetch: NavigateToCalendarDeps["fetch"];
+	commitEdit: () => void;
+	clearSelection: () => void;
+	notify: (message: string, type: "info") => void;
+	loadTarget: (id: string) => Promise<LoadedMoveTarget>;
+	/** Runs after the mirrors were made (the calendar strip's dots are stale). */
+	onMirrored?: () => void;
+}): Promise<boolean> {
+	commitEdit();
+	clearSelection();
+	const day = await findOrEnsureCalendarNode({date, createChild: false}, fetch);
+	if (day === null) {
+		notify(`No calendar page for ${pageLabel(date, "day")} yet`, "info");
+		return false;
+	}
+	const mirrored = await executeMirrorTo({...mirror, pick: async () => Promise.resolve({id: day.dayId}), loadTarget});
+	if (mirrored) {
+		onMirrored?.();
+	}
+	return mirrored;
 }

@@ -209,6 +209,8 @@ const LOCAL_SLASH_KEYS: ReadonlySet<SlashCommandKey> = new Set<SlashCommandKey>(
 	"mirror_to",
 	"mirror_to_child",
 	"mirror_here",
+	"mirror_to_today",
+	"mirror_to_date",
 	"show_mirror_breadcrumbs",
 	"detach_mirror",
 	"expand_all",

@@ -178,6 +178,8 @@ describe("LOCAL_SLASH_AVAILABLE", () => {
 			"Mirror To...",
 			"Mirror To Child...",
 			"Mirror Here...",
+			"Mirror to Today",
+			"Mirror to Date...",
 			"View mirrors",
 			"Detach Mirror",
 			"Expand all",

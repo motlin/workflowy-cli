@@ -1,5 +1,10 @@
 import {describe, expect, it} from "vite-plus/test";
-import {MOVE_TO_DATE_COMMANDS, executeMoveToDate, moveToDateDestination} from "../src/client/move-to-date.js";
+import {
+	MOVE_TO_DATE_COMMANDS,
+	executeMirrorToDate,
+	executeMoveToDate,
+	moveToDateDestination,
+} from "../src/client/move-to-date.js";
 
 const FRIDAY = new Date(2026, 9, 23, 7, 39);
 const SUNDAY = new Date(2026, 9, 25, 7, 39);
@@ -178,6 +183,73 @@ describe("executeMoveToDate", () => {
 				"GET /api/v1/calendar/day/20261024",
 				"POST /api/v1/calendar/day/20261024/ensure?createChild=false",
 			],
+		});
+	});
+});
+
+describe("executeMirrorToDate", () => {
+	async function run({defaultToBottom = false, mirrored = 1} = {}) {
+		const log: string[] = [];
+		const toasts: {text: string; actions: string[]}[] = [];
+		const result = await executeMirrorToDate({
+			items: ["x"],
+			date: new Date(2026, 9, 23, 7, 39),
+			fetch: async (url) =>
+				Promise.resolve(
+					url.endsWith("/ensure?createChild=false")
+						? Response.json({dayId: "day", firstChildId: null})
+						: new Response("missing", {status: 404}),
+				),
+			commitEdit: () => {
+				log.push("commit");
+			},
+			clearSelection: () => {
+				log.push("clear");
+			},
+			notify: (message) => {
+				log.push(`notify ${message}`);
+			},
+			loadTarget: async (id) =>
+				Promise.resolve({
+					target: {id, name: "Fri, Oct 23, 2026", defaultToBottom},
+					childCount: 3,
+					parentOf: () => null,
+				}),
+			mirrorNodes: async (request) => {
+				log.push(`mirror ${JSON.stringify(request)}`);
+				return Promise.resolve(mirrored);
+			},
+			showToast: ({text, actions}) => {
+				toasts.push({text, actions: actions.map(({label}) => label)});
+			},
+			view: () => {},
+			undo: () => {},
+			onMirrored: () => {
+				log.push("mirrored");
+			},
+		});
+		return {result, log, toasts};
+	}
+
+	it("mirrors the item at the top of the ensured day and toasts View and Undo", async () => {
+		await expect(run()).resolves.toStrictEqual({
+			result: true,
+			log: ["commit", "clear", 'mirror {"item_ids":["x"],"parent_id":"day","index":0}', "mirrored"],
+			toasts: [{text: "mirrored to 'Fri, Oct 23, 2026'", actions: ["View", "Undo"]}],
+		});
+	});
+
+	it("mirrors at the bottom when the day defaults to bottom", async () => {
+		expect((await run({defaultToBottom: true})).log).toContain(
+			'mirror {"item_ids":["x"],"parent_id":"day","index":3}',
+		);
+	});
+
+	it("toasts nothing when no mirror was made", async () => {
+		await expect(run({mirrored: 0})).resolves.toStrictEqual({
+			result: false,
+			log: ["commit", "clear", 'mirror {"item_ids":["x"],"parent_id":"day","index":0}'],
+			toasts: [],
 		});
 	});
 });

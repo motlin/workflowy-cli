@@ -181,7 +181,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const zoomTo = useZoomTo();
 	const moveTo = useMoveTo();
-	const {moveToPreset, moveItemsToDate} = useMoveToDate();
+	const {moveToPreset, moveItemsToDate, mirrorItemsToDate, mirrorToToday} = useMoveToDate();
 	const moveToPresetCommand = (key: Parameters<typeof moveToPreset>[0]): Command => ({
 		available: (ctx) => ctx.items.length > 0,
 		execute(ctx) {
@@ -961,6 +961,28 @@ export function useCommandRegistry(): CommandRegistry {
 						onSelect: ([date]) => {
 							if (date !== undefined) {
 								void moveItemsToDate(ctx.items, date);
+							}
+						},
+					});
+				}
+			},
+		},
+		mirror_to_today: {
+			available: (ctx) => ctx.items.length > 0,
+			execute(ctx) {
+				void mirrorToToday(ctx.items);
+			},
+		},
+		mirror_to_date: {
+			available: (ctx) => ctx.items.length > 0,
+			execute(ctx) {
+				const [first] = ctx.items;
+				if (first !== undefined) {
+					useOutlineStore.getState().requestDatePicker(first, undefined, {
+						headerText: MOVE_TO_DATE_COMMANDS.mirror_to_date.label,
+						onSelect: ([date]) => {
+							if (date !== undefined) {
+								void mirrorItemsToDate(ctx.items, date);
 							}
 						},
 					});
