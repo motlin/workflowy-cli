@@ -1,13 +1,55 @@
+import {useEffect, useRef, useState} from "react";
+import {createPortal} from "react-dom";
 import {useNavigate} from "react-router-dom";
 import {useExpandAll} from "../hooks/use-nodes.js";
 import {movePane} from "../navigation.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
-import {useGearMenuRows} from "./gear-menu.js";
+import type {ButtonMenuHandle} from "./flyout/button-menu.js";
 import {compactHeaderItems, useHeaderActions} from "./header-actions.js";
 import {IconButton} from "./icon-button.js";
+import {useHelpMenuRows, useMainMenuRows} from "./main-menu-rows.js";
 import {movePaneItems} from "./move-pane-items.js";
+
+/** Where the Help submenu hangs: upstream anchors it at the main flyout's top and horizontal centre. */
+interface HelpAnchor {
+	top: number;
+	left: number;
+	width: number;
+}
+
+/** The Help submenu: an empty-button ButtonMenu focused on mount, so it opens at once and closes on blur. */
+function HelpSubmenu({anchor, onClose}: {anchor: HelpAnchor; onClose: () => void}) {
+	const rows = useHelpMenuRows();
+	const menu = useRef<ButtonMenuHandle>(null);
+	useEffect(() => {
+		menu.current?.focus();
+	}, []);
+	return createPortal(
+		<ButtonMenu
+			button={<div />}
+			minWidth={anchor.width - 12}
+			onHide={onClose}
+			ref={menu}
+			style={{position: "absolute", top: anchor.top - 4, left: anchor.left + anchor.width / 2}}
+		>
+			{rows}
+		</ButtonMenu>,
+		document.body,
+	);
+}
+
+/** The open main flyout's page rect: the last portaled `.flyout` in the body. */
+function mainFlyoutAnchor(): HelpAnchor | null {
+	const flyouts = document.body.querySelectorAll(":scope > .flyout.menu");
+	const flyout = flyouts[flyouts.length - 1];
+	if (!flyout) {
+		return null;
+	}
+	const rect = flyout.getBoundingClientRect();
+	return {top: rect.top + window.scrollY, left: rect.left + window.scrollX, width: rect.width};
+}
 
 interface HeaderMoreMenuProps {
 	/** The zoom the menu's actions act on (null is Home). */
@@ -30,7 +72,8 @@ export function HeaderMoreMenu({zoomedId, paneId, compact, onUndo, onRedo}: Head
 	const openSettings = useOutlineStore((state) => state.openSettings);
 	const expandAll = useExpandAll();
 	const actions = useHeaderActions(zoomedId);
-	const rows = useGearMenuRows({
+	const [helpAnchor, setHelpAnchor] = useState<HelpAnchor | null>(null);
+	const rows = useMainMenuRows({
 		headerItems: compact ? compactHeaderItems(actions, zoomedId) : [],
 		paneItems: movePaneItems({panes}, paneId, (id, index) => {
 			movePane(navigate, id, index);
@@ -41,23 +84,36 @@ export function HeaderMoreMenu({zoomedId, paneId, compact, onUndo, onRedo}: Head
 		onExpandAll: () => {
 			expandAll(zoomedId, true);
 		},
+		onOpenHelp: () => {
+			setHelpAnchor(mainFlyoutAnchor());
+		},
 		onOpenSettings: openSettings,
 		onRedo,
 		onUndo,
 	});
 	return (
-		<ButtonMenu
-			button={
-				<IconButton>
-					<FaIcon icon="fal:ellipsis-vertical" size="lg" />
-				</IconButton>
-			}
-			className="gearMenu"
-			maxHeight={700}
-			minWidth={100}
-			offset={[-8, 0]}
-		>
-			{rows}
-		</ButtonMenu>
+		<>
+			<ButtonMenu
+				button={
+					<IconButton>
+						<FaIcon icon="fal:ellipsis-vertical" size="lg" />
+					</IconButton>
+				}
+				className="gearMenu"
+				maxHeight={700}
+				minWidth={100}
+				offset={[-8, 0]}
+			>
+				{rows}
+			</ButtonMenu>
+			{helpAnchor && (
+				<HelpSubmenu
+					anchor={helpAnchor}
+					onClose={() => {
+						setHelpAnchor(null);
+					}}
+				/>
+			)}
+		</>
 	);
 }

@@ -1,6 +1,6 @@
 import {paneMoveIndex} from "../pane-ids.js";
 import {FaIcon} from "./fa-icons.js";
-import type {GearMenuHeaderItem} from "./gear-menu.js";
+import type {GearMenuHeaderItem} from "./main-menu-model.js";
 
 /**
  * Upstream's `more-menu.menu.header.move-pane-left` / `move-pane-right` rows for the kebab of pane `paneId` (`main` for

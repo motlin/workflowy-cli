@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type * as IconButtonModule from "../src/client/components/icon-button.js";
-import type {GearMenuHeaderItem} from "../src/client/components/gear-menu.js";
+import type {GearMenuHeaderItem} from "../src/client/components/main-menu-model.js";
 import {cssBlock, cssBlockText, hasSelector} from "./helpers/css-block.js";
 
 const pickerCalls: unknown[] = [];
@@ -109,8 +109,8 @@ interface CapturedGearMenuProps {
 	onCollapseAll?: () => void;
 }
 const gearMenuProps: CapturedGearMenuProps = {};
-vi.mock("../src/client/components/gear-menu.js", () => ({
-	useGearMenuRows: (props: CapturedGearMenuProps) => {
+vi.mock("../src/client/components/main-menu-rows.js", () => ({
+	useMainMenuRows: (props: CapturedGearMenuProps) => {
 		gearMenuProps.headerItems = props.headerItems;
 		gearMenuProps.onExpandAll = props.onExpandAll;
 		gearMenuProps.onCollapseAll = props.onCollapseAll;

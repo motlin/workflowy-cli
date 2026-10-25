@@ -12,15 +12,15 @@ vi.mock("../src/client/undo-history.js", () => ({
 	useUndoStore: (selector: (state: typeof undoState) => unknown) => selector(undoState),
 }));
 
-const {useGearMenuRows} = await import("../src/client/components/gear-menu.js");
-const {renderGearMenuRows} = await import("./helpers/render-gear-menu-rows.js");
+const {useMainMenuRows} = await import("../src/client/components/main-menu-rows.js");
+const {renderMainMenuRows} = await import("./helpers/render-main-menu-rows.js");
 
 function seed(state: typeof undoState): void {
 	Object.assign(undoState, state);
 }
 
 function render(): string {
-	return renderGearMenuRows(useGearMenuRows);
+	return renderMainMenuRows(useMainMenuRows);
 }
 
 /** The row's `<a>` open tag attributes' disabled look: upstream greys a disabled MenuItem with text-tertiary. */

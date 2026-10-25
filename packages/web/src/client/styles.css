@@ -736,24 +736,6 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 }
 
 /* ================================
-   Main menu footer
-   ================================
-   The kebab's flyout is a ButtonMenu (components/flyout); only the autosave footer row has its own rules.
-*/
-
-.gear-menu-autosave {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	padding: 4px 0;
-	font-size: 12.64px;
-	line-height: 1;
-	text-align: center;
-	color: var(--color-text-muted);
-}
-
-/* ================================
    Icon Button Styles
    ================================
    Upstream `.iconButton` rules verbatim from js_wf-base.css.

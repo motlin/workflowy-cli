@@ -130,6 +130,12 @@ describe("FA_ICONS", () => {
 			"fal:paint-brush",
 			"fal:highlighter",
 			"fal:font",
+			"fal:arrow-rotate-left",
+			"fal:arrow-rotate-right",
+			"fal:print",
+			"fal:download",
+			"fal:circle-question",
+			"fal:arrow-right-from-bracket",
 		]);
 	});
 

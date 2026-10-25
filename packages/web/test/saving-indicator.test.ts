@@ -10,15 +10,17 @@ vi.mock("../src/client/stores/outline.js", () => ({
 }));
 vi.mock("../src/client/hooks/use-saving.js", () => ({useSaving: () => saving.value}));
 
-const {useGearMenuRows} = await import("../src/client/components/gear-menu.js");
-const {renderGearMenuRows} = await import("./helpers/render-gear-menu-rows.js");
+const {useMainMenuRows} = await import("../src/client/components/main-menu-rows.js");
+const {renderMainMenuRows} = await import("./helpers/render-main-menu-rows.js");
 
 function autosaveFooter(inFlight: number): string | undefined {
 	saving.value = inFlight > 0;
 	Object.assign(outlineState, {lastSavedAt: Date.now()});
-	const html = renderGearMenuRows(useGearMenuRows);
+	const html = renderMainMenuRows(useMainMenuRows);
 	// The footer is the menu's last row, so it runs up to the closing scroller div.
-	const start = html.indexOf('<div class="gear-menu-autosave">');
+	const start = html.indexOf(
+		'<div class="flex items-center justify-center text-center leading-none text-tertiary text-xs py-xs">',
+	);
 	return start === -1 ? undefined : html.slice(start, -"</div>".length);
 }
 
@@ -34,11 +36,13 @@ describe("saving indicator", () => {
 
 	it("shows a spinner and Saving... in the main menu footer while writes are in flight", () => {
 		expect(autosaveFooter(2)).toBe(
-			'<div class="gear-menu-autosave"><div class="loading-spinner loading-spinner-small"><div class="loading-spinner-circle"></div></div>Saving...</div>',
+			'<div class="flex items-center justify-center text-center leading-none text-tertiary text-xs py-xs"><div class="loading-spinner loading-spinner-small"><div class="loading-spinner-circle"></div></div>Saving...</div>',
 		);
 	});
 
 	it("shows Autosaved: Just now once writes settle", () => {
-		expect(autosaveFooter(0)).toBe('<div class="gear-menu-autosave">Autosaved: Just now</div>');
+		expect(autosaveFooter(0)).toBe(
+			'<div class="flex items-center justify-center text-center leading-none text-tertiary text-xs py-xs">Autosaved: Just now</div>',
+		);
 	});
 });

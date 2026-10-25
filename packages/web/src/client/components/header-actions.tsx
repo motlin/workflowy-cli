@@ -10,7 +10,7 @@ import {pickerItemTypes} from "../item-type-select.js";
 import {currentTypeIcon} from "../layout-types.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
-import type {GearMenuHeaderItem} from "./gear-menu.js";
+import type {GearMenuHeaderItem} from "./main-menu-model.js";
 import {typeIcon} from "./item-type-icon.js";
 import {StarIcon} from "./star-button.js";
 
