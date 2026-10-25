@@ -21,8 +21,8 @@ export function useAccount(): MentionAccount {
 			if (!response.ok) {
 				return null;
 			}
-			const {userId, fullName} = await readJson<AccountResponse>(response);
-			return {userId, fullName};
+			const {userId, fullName, joinedAt} = await readJson<AccountResponse>(response);
+			return {userId, fullName, joinedAt};
 		},
 	});
 	return data ?? null;

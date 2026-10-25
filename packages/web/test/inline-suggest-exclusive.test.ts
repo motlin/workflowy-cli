@@ -114,6 +114,37 @@ describe.each(["name", "note"] as const)("inline suggest popups in the %s editor
 	});
 });
 
+describe.each(["name", "note"] as const)("mention chip in the %s editor", (field) => {
+	it("keeps only the mention popup when a tag trigger is typed inside the open mention chip", async () => {
+		const editor = mount(field, "");
+		const chipEdit = async (text: string, data: string) => {
+			const chip = editor.querySelector(".mention-input");
+			if (chip === null) {
+				editor.textContent = text;
+				placeCaretAtTextOffset(editor, text.length);
+			} else {
+				chip.textContent = text;
+				globalThis.getSelection()?.collapse(chip.firstChild, text.length);
+			}
+			act(() => {
+				editor.dispatchEvent(new InputEvent("input", {bubbles: true, inputType: "insertText", data}));
+			});
+			await act(async () => {
+				await new Promise((resolve) => {
+					setTimeout(resolve, 20);
+				});
+			});
+		};
+		await chipEdit("x @", "@");
+		await chipEdit("@#", "#");
+		expect({
+			chip: editor.querySelector(".mention-input")?.textContent,
+			mentionPopup: document.querySelector(".mention-popup") !== null,
+			tagPopup: popups().tagPopup,
+		}).toStrictEqual({chip: "@#", mentionPopup: true, tagPopup: false});
+	});
+});
+
 describe("tag retagging in the name editor", () => {
 	it("settles when a name that opens with a slash and a tag is typed into and deleted back", async () => {
 		const editor = mount("name", "/#to");

@@ -1,6 +1,6 @@
 // Stored `<mention id by ts> </mention>` markup as upstream's atomic monolith pill, and back.
 
-export type MentionAccount = {userId: number; fullName: string | null} | null;
+export type MentionAccount = {userId: number; fullName: string | null; joinedAt?: string} | null;
 
 const BOM = "﻿";
 export const MENTION_PATTERN = /<mention\b([^>]*)>[\s\S]*?<\/mention>/giu;

@@ -4133,3 +4133,23 @@ label.toggle > div {
 [data-popper-placement] > .flyout a.menuItem[style*="height: 32px"] {
 	box-sizing: content-box;
 }
+
+/* The @ mention popup (upstream wf-base `.mention-popup` and `.mention-avatar`); content-box so a long label gives upstream's 242px popup. */
+.menu.mention-popup {
+	padding-bottom: 0;
+}
+.flyout.mention-popup {
+	box-sizing: content-box;
+}
+.mention-avatar {
+	border: var(--wf-border-width-s) solid var(--wf-border-primary);
+	display: flex;
+	flex-shrink: 0;
+	border-radius: 50%;
+	width: 18px;
+	height: 18px;
+	font-size: 10px;
+	align-items: center;
+	justify-content: center;
+	box-sizing: content-box;
+}

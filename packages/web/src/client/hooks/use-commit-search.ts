@@ -2,9 +2,10 @@ import {useCallback, useContext} from "react";
 import type {NavigateFn} from "../stores/outline.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {PaneContext} from "../components/pane-context.js";
-import {MAIN_PANE_ID, findPane} from "../pane-ids.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 import {toggleTagInQuery} from "../tag-render.js";
 import {paneSearchState} from "./use-tree-search.js";
+import {setPaneSearch} from "./use-pane-search.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
 
 /**
@@ -13,12 +14,7 @@ import {useStableNavigate} from "./use-stable-navigate.js";
  */
 export function togglePaneTagSearch(paneId: string, tag: string, navigate: NavigateFn): void {
 	const state = useOutlineStore.getState();
-	const query = toggleTagInQuery(paneSearchState(state, paneId).searchQuery, tag);
-	if (findPane(state.panes, paneId) !== undefined) {
-		state.setPaneQuery(paneId, query);
-		return;
-	}
-	state.commitSearch(query, navigate);
+	setPaneSearch(paneId, toggleTagInQuery(paneSearchState(state, paneId).searchQuery, tag), navigate);
 }
 
 /** `togglePaneTagSearch` for the pane the caller renders in. */

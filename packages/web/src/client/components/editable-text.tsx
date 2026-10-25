@@ -83,7 +83,9 @@ import {useAccount} from "../hooks/use-account.js";
 import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
+import {useMentionMenu} from "../hooks/use-mention-menu.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
+import {stripMentionChip} from "../mention-trigger.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
 import {savePaneCaretOnBlur} from "./pane-context.js";
 import {focusCenters, focusScrolls} from "../quiet-focus.js";
@@ -245,7 +247,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			return false;
 		}
 
-		nameSaver.saveNow(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML)));
+		nameSaver.saveNow(stripMentionChip(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML))));
 		return true;
 	}, [nameSaver]);
 
@@ -399,7 +401,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		[holdEditing, openPillPicker, tagPointer],
 	);
 
-	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
+	// Typing a #tag offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
 	const readNamePlain = useCallback(
 		() => (contentRef.current ? plainText(serializeEditorHtml(contentRef.current.innerHTML), PILL_UNIT) : ""),
 		[],
@@ -514,7 +516,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	// Typing a first or standalone "/" opens the slash command menu under a chip; it never schedules a save while open.
 	const changeName = useCallback(() => {
 		if (contentRef.current) {
-			nameSaver.change(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML)));
+			nameSaver.change(stripMentionChip(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML))));
 		}
 	}, [nameSaver]);
 	const saveName = useCallback(() => {
@@ -522,6 +524,21 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	}, [saveInPlace]);
 	const slashMenu = useSlashMenu({editorRef: contentRef, nodeId, onChange: changeName, onSave: saveName});
 	const slashDiscovered = useSlashDiscovered();
+	// Typing a spaced "@" opens the mention popup (people and @tags) under a chip, like the slash menu.
+	const acceptMention = useCallback(() => {
+		const content = contentRef.current;
+		if (content !== null) {
+			retagEditor(content, renderEditorHtml(serializeEditorHtml(content.innerHTML), dateSettings, account));
+		}
+		saveInPlace();
+	}, [account, dateSettings, saveInPlace]);
+	const mentionMenu = useMentionMenu({editorRef: contentRef, onChange: changeName, onAccept: acceptMention});
+	const {
+		handleInput: handleMentionInput,
+		handleKeyDown: handleMentionKey,
+		detach: detachMentionMenu,
+		isOpen: isMentionMenuOpen,
+	} = mentionMenu;
 	const {
 		handleInput: handleSlashInput,
 		handleKeyDown: handleSlashKey,
@@ -610,15 +627,25 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				content !== null &&
 				!isComposingInput(event.nativeEvent) &&
 				!isSlashMenuOpen() &&
+				!isMentionMenuOpen() &&
 				applyBlockPrefix(content)
 			) {
 				return;
 			}
-			if (content !== null && !isComposingInput(event.nativeEvent)) {
+			// The mention chip is handled first: a chip that is still armed keeps its text out of the tag re-render.
+			const mention = isSlashMenuOpen()
+				? {armedBefore: false, armedAfter: false}
+				: handleMentionInput(event.nativeEvent);
+			if (content !== null && !mention.armedAfter && !isComposingInput(event.nativeEvent)) {
 				retagEditor(content, renderEditorHtml(serializeEditorHtml(content.innerHTML), dateSettings, account));
 			}
 			// Upstream's typed-input pipe: an armed chip swallows the input, including the one that disarms it.
-			const {armedBefore, armedAfter} = handleSlashInput(event.nativeEvent);
+			const slash =
+				mention.armedBefore || mention.armedAfter
+					? {armedBefore: false, armedAfter: false}
+					: handleSlashInput(event.nativeEvent);
+			const armedBefore = mention.armedBefore || slash.armedBefore;
+			const armedAfter = mention.armedAfter || slash.armedAfter;
 			const chipRoute = routeTypedInput({
 				chipArmedBefore: armedBefore,
 				chipArmedAfter: armedAfter,
@@ -650,7 +677,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			dateSettings,
 			account,
 			handleSlashInput,
+			handleMentionInput,
 			isSlashMenuOpen,
+			isMentionMenuOpen,
 			isDatePickerOpen,
 			handleDateTrigger,
 			handleDateAutocomplete,
@@ -1046,12 +1075,13 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			savePaneCaretOnBlur(contentRef.current, nodeId, "name");
 		}
 		detachSlashMenu();
+		detachMentionMenu();
 		hideDateAutocomplete();
 		detachTagAutocomplete();
 		if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
 			saveChanges();
 		}
-	}, [nodeId, saveChanges, detachSlashMenu, hideDateAutocomplete, detachTagAutocomplete]);
+	}, [nodeId, saveChanges, detachSlashMenu, detachMentionMenu, hideDateAutocomplete, detachTagAutocomplete]);
 
 	/**
 	 * ⇧↑ at the text start, ⇧↓ at its end, or ⌘A over the already fully selected text: commit the text, stop editing
@@ -1100,6 +1130,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				return;
 			}
 			if (handleSlashKey(event)) {
+				return;
+			}
+			if (handleMentionKey(event)) {
 				return;
 			}
 			if (handleTagAutocompleteKey(event)) {
@@ -1153,6 +1186,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			enterRootNote,
 			focusNote,
 			handleSlashKey,
+			handleMentionKey,
 			handleTagAutocompleteKey,
 			mergeWithSibling,
 			moveToAdjacentNode,
@@ -1201,6 +1235,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			{tagAutocomplete.popup}
 			{tagPointer.popups}
 			{slashMenu.menu}
+			{mentionMenu.menu}
 			{toolbarView && (
 				<SelectionToolbar
 					activeAttrs={toolbarView.activeAttrs}

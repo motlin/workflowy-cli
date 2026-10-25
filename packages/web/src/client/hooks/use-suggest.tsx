@@ -131,6 +131,8 @@ export function useSuggest<G, O>({
 	handleKeyDown: (event: React.KeyboardEvent) => boolean;
 	isOpen: () => boolean;
 	detach: () => void;
+	/** Re-run the client's search for the armed chip (an async result arrived); a strict client with no results abandons. */
+	refresh: () => void;
 	menu: ReactNode;
 } {
 	const clientRef = useRef(client);
@@ -337,6 +339,9 @@ export function useSuggest<G, O>({
 			switch (action) {
 				case "down":
 				case "up": {
+					if (count === 0) {
+						break;
+					}
 					const step = action === "down" ? 1 : -1;
 					setOpen({...current, index: (current.index + step + count) % count, keyboardMode: true});
 					break;
@@ -389,6 +394,24 @@ export function useSuggest<G, O>({
 
 	const isOpen = useCallback(() => chipRef.current !== null, []);
 
+	const refresh = useCallback(() => {
+		const chip = chipRef.current;
+		const current = openRef.current;
+		if (chip === null || current === null || !chip.isConnected) {
+			return;
+		}
+		const owner = clientRef.current;
+		const groups = owner.search(chip.textContent);
+		if (groups === null) {
+			if (owner.opts.strict === true) {
+				disarm({caretAtEnd: false});
+				onChange();
+			}
+			return;
+		}
+		setOpen({...current, groups, index: Math.min(current.index, Math.max(0, owner.count(groups) - 1))});
+	}, [disarm, onChange, setOpen]);
+
 	const hover = useCallback(
 		(index: number) => {
 			const current = openRef.current;
@@ -415,5 +438,5 @@ export function useSuggest<G, O>({
 			: // oxlint-disable-next-line react/refs -- `run` reads the latest client from the ref only in event handlers
 				client.renderMenu({...open, onSelect: run, onHover: hover, onMouseMove: mouseMove});
 
-	return {handleInput, handleKeyDown, isOpen, detach, menu};
+	return {handleInput, handleKeyDown, isOpen, detach, refresh, menu};
 }

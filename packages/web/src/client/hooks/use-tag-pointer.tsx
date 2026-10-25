@@ -12,7 +12,10 @@ import {pop, unpop} from "../popups.js";
 import {isModalOpen} from "../stores/outline.js";
 import {isTagDeleteClick, removeTagFromHtml, renderedTagStarts, tagCaretUnits, teaserPosition} from "../tag-render.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
+import {mentionSearchQuery, removeMentionFromHtml} from "../mention-click.js";
+import {useAccount} from "./use-account.js";
 import {usePaneTagSearch} from "./use-commit-search.js";
+import {usePaneSearch} from "./use-pane-search.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "./use-tag-colors.js";
 
 function teaserStyle(tag: {top: number; right: number; bottom: number}): React.CSSProperties {
@@ -104,6 +107,8 @@ export interface TagPointer {
  */
 export function useTagPointer({getHtml, save}: TagPointerOptions): TagPointer {
 	const toggleTagSearch = usePaneTagSearch();
+	const searchPane = usePaneSearch();
+	const account = useAccount();
 	// Tag color affordances: a caret appears on tag hover; clicking it opens the picker.
 	const [tagHover, setTagHover] = useState<{
 		tag: string;
@@ -135,9 +140,38 @@ export function useTagPointer({getHtml, save}: TagPointerOptions): TagPointer {
 		[getHtml, save],
 	);
 
+	/** Upstream's mention pill click: Meta/Alt deletes the pill, a plain click blurs and searches `mentioned:"Name"`. */
+	const onMentionClick = useCallback(
+		(event: React.MouseEvent<HTMLElement>, pill: Element): void => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (isTagDeleteClick(event, isMacPlatform())) {
+				const ordinal = [...event.currentTarget.querySelectorAll("mention")].indexOf(pill);
+				const removed = removeMentionFromHtml(getHtml(), ordinal);
+				if (removed !== null) {
+					void runInUndoBatch(captureOutlineView, () => {
+						save(removed.html, removed.caret);
+					});
+				}
+				return;
+			}
+			if (document.activeElement instanceof HTMLElement) {
+				document.activeElement.blur();
+			}
+			pill.classList.add("tapped");
+			searchPane(mentionSearchQuery(pill.getAttribute("id") ?? "", account));
+		},
+		[account, getHtml, save, searchPane],
+	);
+
 	const onClick = useCallback(
 		(event: React.MouseEvent<HTMLElement>): boolean => {
 			const target = event.target;
+			const pill = target instanceof Element ? target.closest("mention") : null;
+			if (pill !== null) {
+				onMentionClick(event, pill);
+				return true;
+			}
 			const tagEl = target instanceof Element ? target.closest(".contentTag") : null;
 			if (tagEl === null) {
 				return false;
@@ -160,7 +194,7 @@ export function useTagPointer({getHtml, save}: TagPointerOptions): TagPointer {
 			}
 			return true;
 		},
-		[explodeTag, toggleTagSearch],
+		[explodeTag, onMentionClick, toggleTagSearch],
 	);
 
 	// Show the color teaser when hovering a tag; upstream's 150ms hide delay lets the

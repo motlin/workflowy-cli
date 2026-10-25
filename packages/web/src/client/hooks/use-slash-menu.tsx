@@ -59,6 +59,7 @@ export function useSlashMenu({editorRef, nodeId, onChange, onSave}: SlashMenuOpt
 	handleKeyDown: (event: React.KeyboardEvent) => boolean;
 	isOpen: () => boolean;
 	detach: () => void;
+	refresh: () => void;
 	menu: ReactNode;
 } {
 	const queryClient = useQueryClient();

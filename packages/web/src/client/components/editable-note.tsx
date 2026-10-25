@@ -34,7 +34,9 @@ import {cachedLinkTargetName, linkPasteAnchorHtml, planLinkPaste} from "../link-
 import {usePlainPasteKey} from "../hooks/use-plain-paste-key.js";
 import {notePasteHtml} from "../paste/note.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
+import {useMentionMenu} from "../hooks/use-mention-menu.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
+import {stripMentionChip} from "../mention-trigger.js";
 import {stripSlashChip} from "../slash-trigger.js";
 import {withClasses} from "../search-classes.js";
 import {highlightSearchMatches} from "../highlight-html.js";
@@ -204,7 +206,7 @@ export function EditableNote({
 			noteSaver.flush();
 			return;
 		}
-		noteSaver.saveNow(planNoteSave(noteSaver.saved, stripSlashChip(element.innerHTML)).note);
+		noteSaver.saveNow(planNoteSave(noteSaver.saved, stripMentionChip(stripSlashChip(element.innerHTML))).note);
 	}, [noteSaver]);
 
 	// Flush a pending debounced save if the editor unmounts first.
@@ -313,7 +315,7 @@ export function EditableNote({
 		[openPillPicker, tagPointer],
 	);
 
-	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
+	// Typing a #tag offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
 	const readNotePlain = useCallback(
 		() =>
 			contentRef.current === null
@@ -350,7 +352,7 @@ export function EditableNote({
 	const changeNote = useCallback(() => {
 		const element = contentRef.current;
 		if (element !== null) {
-			noteSaver.change(planNoteSave(noteSaver.saved, stripSlashChip(element.innerHTML)).note);
+			noteSaver.change(planNoteSave(noteSaver.saved, stripMentionChip(stripSlashChip(element.innerHTML))).note);
 		}
 	}, [noteSaver]);
 	const slashMenu = useSlashMenu({editorRef: contentRef, nodeId, onChange: changeNote, onSave: saveNow});
@@ -360,12 +362,29 @@ export function EditableNote({
 		isOpen: isSlashOpen,
 		detach: detachSlashMenu,
 	} = slashMenu;
+	// Typing a spaced "@" opens the mention popup (people and @tags) under a chip, like the slash menu.
+	const acceptMention = useCallback(() => {
+		const element = contentRef.current;
+		if (element !== null) {
+			retagEditor(
+				element,
+				noteContentHtml(editorHtmlToNote(element.innerHTML), dateSettings, undefined, account),
+			);
+		}
+		saveNow();
+	}, [account, dateSettings, saveNow]);
+	const mentionMenu = useMentionMenu({editorRef: contentRef, onChange: changeNote, onAccept: acceptMention});
+	const {handleInput: handleMentionInput, handleKeyDown: handleMentionKey, detach: detachMentionMenu} = mentionMenu;
 
 	const handleInput = useCallback(
 		(event?: React.SyntheticEvent<HTMLDivElement>) => {
 			// The note codec drops the slash chip, so tags wait while the slash menu is open.
 			const element = contentRef.current;
-			if (element !== null && !isSlashOpen() && !isComposingInput(event?.nativeEvent)) {
+			const mention =
+				isSlashOpen() || event === undefined
+					? {armedBefore: false, armedAfter: false}
+					: handleMentionInput(event.nativeEvent);
+			if (element !== null && !isSlashOpen() && !mention.armedAfter && !isComposingInput(event?.nativeEvent)) {
 				wrapBareNoteText(element);
 				retagEditor(
 					element,
@@ -373,7 +392,12 @@ export function EditableNote({
 				);
 			}
 			// Upstream's typed-input pipe: an armed chip swallows the input, including the one that disarms it.
-			const {armedBefore, armedAfter} = handleSlashInput(event?.nativeEvent);
+			const slash =
+				mention.armedBefore || mention.armedAfter
+					? {armedBefore: false, armedAfter: false}
+					: handleSlashInput(event?.nativeEvent);
+			const armedBefore = mention.armedBefore || slash.armedBefore;
+			const armedAfter = mention.armedAfter || slash.armedAfter;
 			const route = routeTypedInput({
 				chipArmedBefore: armedBefore,
 				chipArmedAfter: armedAfter,
@@ -397,6 +421,7 @@ export function EditableNote({
 			dateSettings,
 			account,
 			handleSlashInput,
+			handleMentionInput,
 			isSlashOpen,
 			handleDateTrigger,
 			handleTagAutocomplete,
@@ -463,6 +488,7 @@ export function EditableNote({
 			savePaneCaretOnBlur(element, nodeId, "note", noteTextElement(element));
 		}
 		detachSlashMenu();
+		detachMentionMenu();
 		detachTagAutocomplete();
 		if (datePickerOpen.current) {
 			return;
@@ -470,7 +496,7 @@ export function EditableNote({
 		saveNow();
 		setFocusedHtml(null);
 		blurNote(nodeId);
-	}, [detachSlashMenu, detachTagAutocomplete, saveNow, blurNote, nodeId]);
+	}, [detachSlashMenu, detachMentionMenu, detachTagAutocomplete, saveNow, blurNote, nodeId]);
 
 	const focusNextRowName = useCallback(() => {
 		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
@@ -488,6 +514,9 @@ export function EditableNote({
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLDivElement>) => {
 			if (handleSlashKey(event)) {
+				return;
+			}
+			if (handleMentionKey(event)) {
 				return;
 			}
 			const element = contentRef.current;
@@ -570,6 +599,7 @@ export function EditableNote({
 			focusNextRowName,
 			handleInput,
 			handleSlashKey,
+			handleMentionKey,
 			handleTagAutocompleteKey,
 			nodeId,
 			noteSaver,
@@ -648,6 +678,7 @@ export function EditableNote({
 			{tagAutocomplete.popup}
 			{tagPointer.popups}
 			{slashMenu.menu}
+			{mentionMenu.menu}
 			{toolbarView && (
 				<SelectionToolbar
 					colorActive={toolbarView.colorActive}
