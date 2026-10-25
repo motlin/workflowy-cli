@@ -163,3 +163,17 @@ describe("copying from the model", () => {
 		});
 	});
 });
+
+describe("planItemPaste of a copied Mirror", () => {
+	it("turns each data-wf-mirror div into a mirror step for that original", () => {
+		expect(
+			planItemPaste('<div data-wf-mirror="orig-a">&nbsp;</div><div data-wf-mirror="orig-b">&nbsp;</div>', {
+				cutId: () => {},
+				resolve: () => {},
+			}),
+		).toStrictEqual([
+			{kind: "mirror", shortId: "orig-a", originalId: "orig-a"},
+			{kind: "mirror", shortId: "orig-b", originalId: "orig-b"},
+		]);
+	});
+});

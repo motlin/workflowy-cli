@@ -423,6 +423,8 @@ interface OutlineState {
 	paneCarets: Record<string, PaneCaret>;
 	exportDialogOpen: boolean;
 	exportContext: ExportContext | null;
+	/** The node whose "Mirrors for" dialog is open (an original or any of its mirrors), or null. */
+	mirrorsDialogNodeId: string | null;
 	presentationOpen: boolean;
 	presentationContext: PresentationContext | null;
 	settingsOpen: boolean;
@@ -606,6 +608,8 @@ interface OutlineActions {
 	savePaneCaret: (paneId: string, caret: PaneCaretPosition) => void;
 	openExportDialog: (context: ExportContext) => void;
 	closeExportDialog: () => void;
+	openMirrorsDialog: (nodeId: string) => void;
+	closeMirrorsDialog: () => void;
 	openPresentation: (nodeId: string) => void;
 	closePresentation: () => void;
 	nextSlide: () => void;
@@ -782,6 +786,7 @@ export function isModalOpen(): boolean {
 		state.jumpMenuOpen ||
 		state.locationPicker !== null ||
 		state.exportDialogOpen ||
+		state.mirrorsDialogNodeId !== null ||
 		state.settingsOpen
 	);
 }
@@ -962,6 +967,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	paneCarets: {},
 	exportDialogOpen: false,
 	exportContext: null,
+	mirrorsDialogNodeId: null,
 	presentationOpen: false,
 	presentationContext: null,
 	settingsOpen: false,
@@ -1683,6 +1689,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	closeExportDialog: () => {
 		set({exportDialogOpen: false, exportContext: null});
+	},
+
+	openMirrorsDialog: (nodeId) => {
+		set({mirrorsDialogNodeId: nodeId});
+	},
+
+	closeMirrorsDialog: () => {
+		set({mirrorsDialogNodeId: null});
 	},
 
 	openPresentation: (nodeId) => {

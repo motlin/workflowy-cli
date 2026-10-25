@@ -1215,6 +1215,34 @@ export async function mirrorNodeAt(
 	}
 }
 
+/**
+ * Detach Mirror: the server swaps the mirror root (a mirror, or an original that has mirrors) for a plain copy of the
+ * subtree in the same slot. Undo removes the copy and brings the old row back. Resolves to the copy's id.
+ */
+export async function detachMirrorNode(queryClient: QueryClient, nodeId: string): Promise<string | undefined> {
+	await pendingCreates.settled([nodeId]);
+	const parentId = readNode(queryClient, nodeId)?.parent_id ?? null;
+	const removed = toUndoOps({kind: "delete", nodeId}, queryClient);
+	const slot = holdUndoSlot();
+	try {
+		const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/detach-mirror`, {method: "POST"});
+		if (!response.ok) {
+			throw await toRequestStatusError("Failed to detach mirror", response);
+		}
+		const {node} = await readJson<{node: NodeResponse | null}>(response);
+		const index = removed[0]?.kind === "delete" ? removed[0].index : undefined;
+		slot.settle([
+			...(node === null ? [] : toUndoOps({kind: "create", nodeId: node.id, parentId, index}, queryClient)),
+			...removed,
+		]);
+		await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		return node?.id;
+	} catch (error) {
+		slot.settle([]);
+		throw error;
+	}
+}
+
 const mirrorNodesUndos = new HeldUndos<NodeResponse[], MirrorNodesRequest>();
 
 /** The new mirrors' ids are known only from the reply, so the ops are built then. */
@@ -1228,7 +1256,6 @@ function planMirrorNodes(
 }
 
 /** Mirrors items under `parent_id` (MIR4); ⌘Z deletes the new mirrors. The refetch shows them. */
-// fallow-ignore-next-line unused-export -- callers land with the Mirror To and Mirror paste commands
 export function useMirrorNodes() {
 	const queryClient = useQueryClient();
 	const mutation = useMutation({

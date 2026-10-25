@@ -33,7 +33,7 @@ function menu(layoutMode: string | null, isMirror = false): string {
 describe("buildItemMenu with local availability", () => {
 	it("lists the plain bullet menu in the engine's order with group separators", () => {
 		expect(menu(null)).toBe(
-			"[node_type_picker] | open_in_pane complete add_note add_date present_it move_to duplicate | show_export copy_link make_template | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+			"[node_type_picker] | open_in_pane complete add_note add_date present_it move_to mirror_to mirror duplicate | show_export copy_link make_template | delete | expand_all collapse_all sort_children_asc sort_children_desc",
 		);
 	});
 
@@ -51,13 +51,13 @@ describe("buildItemMenu with local availability", () => {
 
 	it("drops add_date, present_it and make_template for code blocks", () => {
 		expect(menu("code-block")).toBe(
-			"[node_type_picker] | open_in_pane complete add_note move_to duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+			"[node_type_picker] | open_in_pane complete add_note move_to mirror_to mirror duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
 		);
 	});
 
 	it("drops present_it and make_template for quote blocks", () => {
 		expect(menu("quote-block")).toBe(
-			"[node_type_picker] | open_in_pane complete add_note add_date move_to duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+			"[node_type_picker] | open_in_pane complete add_note add_date move_to mirror_to mirror duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
 		);
 	});
 
@@ -219,5 +219,26 @@ describe("itemMenuLeft", () => {
 describe("internalLinkUrl", () => {
 	it("links to the last 12 hex digits of the id", () => {
 		expect(internalLinkUrl("7aed376b-80c8-42c5-8065-ab03ee6d2ae0")).toBe("https://workflowy.com/#/ab03ee6d2ae0");
+	});
+});
+
+describe("Detach Mirror in the bullet menu", () => {
+	it("is listed between Mirror and Duplicate for a mirror and for an original that has mirrors, not for a plain row", () => {
+		const rows = (node: {isMirror: boolean; hasMirrors: boolean}) =>
+			tokens(
+				buildItemMenu({...plain, ...node}, qualifyItemMenu({data: {layoutMode: null}}), localItemMenuAvailable),
+			)
+				.split(" | ")[1]
+				?.split(" ")
+				.filter((id) => ["mirror_to", "mirror", "detach_mirror", "duplicate"].includes(id));
+		expect([
+			rows({isMirror: true, hasMirrors: false}),
+			rows({isMirror: false, hasMirrors: true}),
+			rows({isMirror: false, hasMirrors: false}),
+		]).toStrictEqual([
+			["mirror_to", "mirror", "detach_mirror", "duplicate"],
+			["mirror_to", "mirror", "detach_mirror", "duplicate"],
+			["mirror_to", "mirror", "duplicate"],
+		]);
 	});
 });

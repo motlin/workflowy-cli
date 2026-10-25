@@ -13,7 +13,7 @@ import type {
 	UpdateNodeResponse,
 } from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient, effectiveCompletedAt} from "@workflowy/shared/cache";
-import type {ExactMover} from "@workflowy/shared/cache";
+import type {ExactMover, NodeTree} from "@workflowy/shared/cache";
 import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {RestoreInput, WorkflowyInternalAdapter, NewTree} from "@workflowy/shared/internal";
@@ -1307,6 +1307,56 @@ async function readFoundDates(ctx: ServerContext, node: Node): Promise<FoundDate
 		}),
 	};
 }
+
+/** A deep copy of a read subtree as bulk-create trees: text, layout and children, never completion or mirror links. */
+function copyTreeOf(node: NodeTree): NewTree {
+	const children = (node.children ?? []).map(copyTreeOf);
+	return {
+		name: node.name ?? "",
+		...(node.note === null || node.note === "" ? {} : {note: node.note}),
+		...(node.layoutMode === null ? {} : {metadata: {layoutMode: node.layoutMode}}),
+		...(children.length === 0 ? {} : {children}),
+	};
+}
+
+/** The deepest subtree a detach copies; deeper levels (or a cycle) are cut off. */
+const DETACH_DEPTH = 50;
+
+// POST /api/v1/nodes/:id/detach-mirror - Replace a mirror root (a mirror, or an original that has mirrors) with a copy
+nodesRouter.post("/:id/detach-mirror", async (c) => {
+	const ctx = c.get("ctx");
+	const client = getWriteClient(ctx);
+	const adapter = getAdapter(ctx);
+	if (!client || !adapter) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+	const id = resolveNodeId(ctx, c.req.param("id"));
+	const node = id === null ? undefined : ctx.cacheService.getNode(id);
+	if (id === null || node === undefined) {
+		return c.json({error: "Node not found"}, 404);
+	}
+	const originalId = resolveMirrorToOriginal(ctx, id);
+	if (originalId === id && !originalsWithMirrors(ctx, [id]).has(id)) {
+		return c.json({error: "Node is not a mirror"}, 400);
+	}
+	const [tree] = await new NodeTreeReader(ctx.cacheService).readNodes([originalId], {depth: DETACH_DEPTH});
+	if (tree === undefined) {
+		return c.json({error: "Node not found"}, 404);
+	}
+	const index = Math.max(
+		ctx.cacheService.getChildren(node.parentId).findIndex((sibling) => sibling.id === id),
+		0,
+	);
+	const {ids} = await adapter.createTreesAt({
+		parentId: adapterParent(node.parentId),
+		index,
+		trees: [copyTreeOf(tree)],
+	});
+	await client.deleteNode(id);
+	const [copyId] = ids;
+	const copy = copyId === undefined ? undefined : await readNodeDto(ctx, copyId);
+	return c.json({node: copy ?? null}, 201);
+});
 
 // GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)
 nodesRouter.get("/:id/mirrors", (c) => {

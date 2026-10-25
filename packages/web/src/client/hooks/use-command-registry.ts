@@ -51,6 +51,8 @@ import type {ExpandKey} from "../expansion.js";
 import {useNavigateToToday} from "./use-navigate-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {useMoveTo} from "./use-move-to.js";
+import {inlineMirrorInsertion} from "../inline-mirror.js";
+import {isMirrorRootId, useDetachMirror, useMirrorCopy, useMirrorHere, useMirrorTo} from "./use-mirror-to.js";
 import {scheduleCompletionHide, zoomOutDelayMs} from "../completion-animation.js";
 import {presentCommand, printCommand} from "../keys/dispatch.js";
 import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
@@ -168,6 +170,11 @@ export function useCommandRegistry(): CommandRegistry {
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const zoomTo = useZoomTo();
 	const moveTo = useMoveTo();
+	const mirrorTo = useMirrorTo();
+	const mirrorHere = useMirrorHere();
+	const mirrorCopy = useMirrorCopy();
+	const detachMirror = useDetachMirror();
+	const openMirrorsDialog = useOutlineStore((state) => state.openMirrorsDialog);
 	const zoomPane = useOutlineStore((state) => state.zoomPane);
 	const navigateToToday = useNavigateToToday();
 	// ⌃T in an open pane zooms that pane: the active pane is read when today's page resolves.
@@ -919,6 +926,73 @@ export function useCommandRegistry(): CommandRegistry {
 			available: (ctx) => ctx.items.length > 0 && ctx.items.every((id) => id !== ctx.zoomedId),
 			execute(ctx) {
 				void moveTo(ctx.items);
+			},
+		},
+		mirror: {
+			available: (ctx) => ctx.items.length > 0,
+			execute(ctx) {
+				mirrorCopy(ctx.items);
+			},
+		},
+		mirror_to: {
+			available: (ctx) => ctx.items.length > 0,
+			execute(ctx) {
+				void mirrorTo(ctx.items);
+			},
+		},
+		mirror_to_child: {
+			available: (ctx) => ctx.items.length > 0,
+			execute(ctx) {
+				void mirrorTo(ctx.items);
+			},
+		},
+		mirror_here: {
+			available: (ctx) => ctx.items.length === 1,
+			execute(ctx) {
+				const [itemId] = ctx.items;
+				if (itemId !== undefined) {
+					void mirrorHere(itemId);
+				}
+			},
+		},
+		show_mirror_breadcrumbs: {
+			available: (ctx) => ctx.items.length === 1 && ctx.items.every((id) => isMirrorRootId(queryClient, id)),
+			execute(ctx) {
+				const [itemId] = ctx.items;
+				const node = itemId === undefined ? undefined : readNode(queryClient, itemId);
+				if (node !== undefined) {
+					openMirrorsDialog(node.isMirror === true ? (node.originalNodeId ?? node.id) : node.id);
+				}
+			},
+		},
+		detach_mirror: {
+			available: (ctx) => ctx.items.length === 1 && ctx.items.every((id) => isMirrorRootId(queryClient, id)),
+			execute(ctx) {
+				const [itemId] = ctx.items;
+				if (itemId !== undefined) {
+					void detachMirror(itemId);
+				}
+			},
+		},
+		insert_inline_mirror: {
+			available: () => editingId !== null,
+			execute() {
+				const editor = editingId === null ? null : editorElement(editingId);
+				if (editor === null) {
+					return;
+				}
+				const text = inlineMirrorInsertion(editor.textContent.slice(0, caretTextOffset(editor)));
+				const selection = globalThis.getSelection();
+				if (selection === null || selection.rangeCount === 0) {
+					return;
+				}
+				const range = selection.getRangeAt(0);
+				range.deleteContents();
+				const inserted = document.createTextNode(text);
+				range.insertNode(inserted);
+				selection.collapse(inserted, text.length);
+				// The input event arms the `((` popup like typed characters.
+				editor.dispatchEvent(new InputEvent("input", {bubbles: true, inputType: "insertText", data: text}));
 			},
 		},
 		complete: {

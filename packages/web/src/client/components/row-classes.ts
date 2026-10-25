@@ -1,3 +1,13 @@
+/** Upstream `WF.Mirrors.isMirrorRoot`: a mirror, or an original that has mirrors. Both draw the diamond bullet. */
+export function isMirrorRoot(node: {isMirror?: boolean; hasMirrors?: boolean}): boolean {
+	return node.isMirror === true || node.hasMirrors === true;
+}
+
+/** Upstream gives only an original that has mirrors the `hasMirrors` project class. */
+export function hasMirrorsClass(node: {isMirror?: boolean; hasMirrors?: boolean}): boolean {
+	return node.hasMirrors === true && node.isMirror !== true;
+}
+
 export interface ProjectClassState {
 	hasChildren: boolean;
 	/** The row has children, hidden completed ones included; `open` follows this, `collapsed` needs visible ones. */

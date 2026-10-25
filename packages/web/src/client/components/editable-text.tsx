@@ -84,6 +84,8 @@ import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 import {useMentionMenu} from "../hooks/use-mention-menu.js";
+import {stripMirrorChip, useMirrorMenu} from "../hooks/use-mirror-menu.js";
+import {useInlineMirrorPick} from "../hooks/use-inline-mirror-pick.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripMentionChip} from "../mention-trigger.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
@@ -247,7 +249,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			return false;
 		}
 
-		nameSaver.saveNow(stripMentionChip(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML))));
+		nameSaver.saveNow(
+			stripMirrorChip(stripMentionChip(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML)))),
+		);
 		return true;
 	}, [nameSaver]);
 
@@ -516,7 +520,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	// Typing a first or standalone "/" opens the slash command menu under a chip; it never schedules a save while open.
 	const changeName = useCallback(() => {
 		if (contentRef.current) {
-			nameSaver.change(stripMentionChip(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML))));
+			nameSaver.change(
+				stripMirrorChip(stripMentionChip(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML)))),
+			);
 		}
 	}, [nameSaver]);
 	const saveName = useCallback(() => {
@@ -539,6 +545,21 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		detach: detachMentionMenu,
 		isOpen: isMentionMenuOpen,
 	} = mentionMenu;
+	// Typing "((" opens the mirror popup; choosing a location puts a mirror where the "((...))" was.
+	const resetSavedName = useCallback(
+		(name: string) => {
+			nameSaver.reset(name);
+		},
+		[nameSaver],
+	);
+	const acceptMirrorPick = useInlineMirrorPick({nodeId, parentId, contentRef, resetSaved: resetSavedName});
+	const mirrorMenu = useMirrorMenu({editorRef: contentRef, onChange: changeName, onPick: acceptMirrorPick});
+	const {
+		handleInput: handleMirrorInput,
+		handleKeyDown: handleMirrorKey,
+		detach: detachMirrorMenu,
+		isOpen: isMirrorMenuOpen,
+	} = mirrorMenu;
 	const {
 		handleInput: handleSlashInput,
 		handleKeyDown: handleSlashKey,
@@ -628,6 +649,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				!isComposingInput(event.nativeEvent) &&
 				!isSlashMenuOpen() &&
 				!isMentionMenuOpen() &&
+				!isMirrorMenuOpen() &&
 				applyBlockPrefix(content)
 			) {
 				return;
@@ -644,8 +666,12 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				mention.armedBefore || mention.armedAfter
 					? {armedBefore: false, armedAfter: false}
 					: handleSlashInput(event.nativeEvent);
-			const armedBefore = mention.armedBefore || slash.armedBefore;
-			const armedAfter = mention.armedAfter || slash.armedAfter;
+			const mirror =
+				mention.armedBefore || mention.armedAfter || slash.armedBefore || slash.armedAfter
+					? {armedBefore: false, armedAfter: false}
+					: handleMirrorInput(event.nativeEvent);
+			const armedBefore = mention.armedBefore || slash.armedBefore || mirror.armedBefore;
+			const armedAfter = mention.armedAfter || slash.armedAfter || mirror.armedAfter;
 			const chipRoute = routeTypedInput({
 				chipArmedBefore: armedBefore,
 				chipArmedAfter: armedAfter,
@@ -678,8 +704,10 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			account,
 			handleSlashInput,
 			handleMentionInput,
+			handleMirrorInput,
 			isSlashMenuOpen,
 			isMentionMenuOpen,
+			isMirrorMenuOpen,
 			isDatePickerOpen,
 			handleDateTrigger,
 			handleDateAutocomplete,
@@ -1076,12 +1104,21 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		}
 		detachSlashMenu();
 		detachMentionMenu();
+		detachMirrorMenu();
 		hideDateAutocomplete();
 		detachTagAutocomplete();
 		if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
 			saveChanges();
 		}
-	}, [nodeId, saveChanges, detachSlashMenu, detachMentionMenu, hideDateAutocomplete, detachTagAutocomplete]);
+	}, [
+		nodeId,
+		saveChanges,
+		detachSlashMenu,
+		detachMentionMenu,
+		detachMirrorMenu,
+		hideDateAutocomplete,
+		detachTagAutocomplete,
+	]);
 
 	/**
 	 * ⇧↑ at the text start, ⇧↓ at its end, or ⌘A over the already fully selected text: commit the text, stop editing
@@ -1133,6 +1170,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				return;
 			}
 			if (handleMentionKey(event)) {
+				return;
+			}
+			if (handleMirrorKey(event)) {
 				return;
 			}
 			if (handleTagAutocompleteKey(event)) {
@@ -1187,6 +1227,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			focusNote,
 			handleSlashKey,
 			handleMentionKey,
+			handleMirrorKey,
 			handleTagAutocompleteKey,
 			mergeWithSibling,
 			moveToAdjacentNode,
@@ -1236,6 +1277,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			{tagPointer.popups}
 			{slashMenu.menu}
 			{mentionMenu.menu}
+			{mirrorMenu.menu}
 			{toolbarView && (
 				<SelectionToolbar
 					activeAttrs={toolbarView.activeAttrs}

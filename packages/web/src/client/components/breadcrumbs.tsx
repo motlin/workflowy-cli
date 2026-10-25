@@ -499,8 +499,19 @@ const leftCollapseLayout = createBreadcrumbLayout({minItemWidth: 80, threeDotPos
  * Upstream GuiCrumbs.Widget with hideCurrent and threeDotPosition "left": the ancestors of an item, the widest
  * truncated and the leftmost collapsed into an ellipsis menu to fit the row, with no separator after the last.
  */
-export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
-	const {navigateToNode} = useNodeNavigation();
+export function LeftCollapsingCrumbs({
+	crumbs,
+	currentId = "",
+	onNavigate,
+}: {
+	crumbs: Crumb[];
+	/** The crumb drawn as `current opacity-100`; none by default. */
+	currentId?: string;
+	/** Replaces the default zoom, e.g. to close a dialog first. */
+	onNavigate?: (nodeId: string | null) => void;
+}) {
+	const navigation = useNodeNavigation();
+	const navigateToNode = onNavigate ?? navigation.navigateToNode;
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
 	const windowWidth = useWindowWidth();
@@ -531,7 +542,7 @@ export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
 					<BreadcrumbOverflowMenu
 						items={items}
 						crumbs={crumbsById}
-						currentId=""
+						currentId={currentId}
 						maxWidth={windowWidth - leftOffset - containerLeft - OVERFLOW_MENU_GUTTER}
 						onNavigate={navigateToNode}
 						dateOptions={dateOptions}
@@ -547,7 +558,7 @@ export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
 						<BreadcrumbItem
 							key={crumb.id}
 							crumb={crumb}
-							current={false}
+							current={crumb.id === currentId}
 							truncateWidth={item.truncateWidth}
 							onNavigate={navigateToNode}
 							dateOptions={dateOptions}

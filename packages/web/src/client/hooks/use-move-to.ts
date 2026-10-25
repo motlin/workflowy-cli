@@ -18,13 +18,13 @@ import {currentNavigableIds} from "./use-visible-nodes.js";
 const NO_RECT: AnchorRect = {left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0};
 
 /** The picker anchor in page coordinates: the caret box in `editor` when editing, else the row's `.name`. */
-function moveToAnchor(itemId: string, editor: HTMLElement | null): {x: number; y: number} {
+export function moveToAnchor(itemId: string, editor: HTMLElement | null): {x: number; y: number} {
 	const row = rowContent(itemId)?.closest(".name")?.getBoundingClientRect();
 	const {x, y} = caretAnchor(editor === null ? [] : caretBoxes(editor), row ?? NO_RECT);
 	return {x: x + window.scrollX, y: y + window.scrollY};
 }
 
-async function loadMoveTarget(id: string): Promise<LoadedMoveTarget> {
+export async function loadMoveTarget(id: string): Promise<LoadedMoveTarget> {
 	const node = await fetchNode(id);
 	const [children, ancestors] = await Promise.all([fetchChildren(id), fetchAncestors(id)]);
 	const parents = new Map(ancestors.map((ancestor) => [ancestor.id, ancestor.parent_id]));

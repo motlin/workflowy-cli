@@ -107,7 +107,7 @@ function LocationCrumbItem({item}: {item: LayoutCrumb}) {
  * Upstream GuiCrumbs.Widget with hideCurrent, showLastSeparator and itemsDisabled: plain divs, Home for top level,
  * the widest crumbs truncated and the leftmost collapsed into an ellipsis menu to fit the row.
  */
-function LocationCrumbs({crumbs}: {crumbs: readonly LocationCrumb[]}) {
+export function LocationCrumbs({crumbs}: {crumbs: readonly LocationCrumb[]}) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
 	const windowWidth = useWindowWidth();

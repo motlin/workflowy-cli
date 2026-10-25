@@ -4,6 +4,7 @@ import type {QueryClient} from "@tanstack/react-query";
 import {nodeKeys, readChildren, readNode} from "../node-cache.js";
 import {sortByPriority} from "../tree-position.js";
 import type {NodeResponse} from "../../node-types.js";
+import {parseMirrorPaste} from "../mirror-commands.js";
 import {RequestStatusError} from "../request-error.js";
 import {PASTE_LIMIT_ALERT} from "./apply.js";
 import type {PasteTree} from "./apply.js";
@@ -31,6 +32,10 @@ export interface ItemPasteLookup {
  * Null when the html holds no such row; `{alert}` above upstream's 10000-item limit.
  */
 export function planItemPaste(html: string, lookup: ItemPasteLookup): ItemPasteStep[] | {alert: string} | null {
+	if (html.includes("data-wf-mirror")) {
+		// The Mirror command's clipboard (upstream `Ad4`): each div names the original to mirror.
+		return parseMirrorPaste(html).map((originalId) => ({kind: "mirror", shortId: originalId, originalId}));
+	}
 	if (!html.includes("data-wfid")) {
 		return null;
 	}

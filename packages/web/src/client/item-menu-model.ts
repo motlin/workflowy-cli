@@ -9,6 +9,7 @@ import {assembleMenu} from "./app-menu.js";
 import type {AssembledEntry} from "./app-menu.js";
 import {APP_MENU_CONFIG} from "./app-menu-config.js";
 import {pickerItemTypes} from "./item-type-select.js";
+import {isMirrorRoot} from "./components/row-classes.js";
 
 const NODE_TYPE_PICKER = "node_type_picker";
 
@@ -86,7 +87,7 @@ export interface ItemMenuCommand {
 
 export type ItemMenuEntry = AssembledEntry<ItemMenuCommand>;
 
-export type ItemMenuNode = Pick<NodeResponse, "id" | "completedAt" | "isMirror">;
+export type ItemMenuNode = Pick<NodeResponse, "id" | "completedAt" | "isMirror" | "hasMirrors">;
 
 /** Commands the local app runs; the menu hides the rest. `delete_dates` stays palette-only, like upstream. */
 const LOCAL_ITEM_MENU_KEYS: ReadonlySet<string> = new Set([
@@ -96,6 +97,9 @@ const LOCAL_ITEM_MENU_KEYS: ReadonlySet<string> = new Set([
 	"add_date",
 	"present_it",
 	"move_to",
+	"mirror_to",
+	"mirror",
+	"detach_mirror",
 	"duplicate",
 	"show_export",
 	"copy_link",
@@ -118,10 +122,10 @@ function isItemMenuKey(id: string): id is ItemMenuKey {
 /** Upstream's `WF.Cmd.get` for the bullet menu: null when the command is unknown, unavailable, or not for this node. */
 export function itemMenuCommand(
 	id: string,
-	node: Pick<NodeResponse, "completedAt" | "isMirror">,
+	node: Pick<NodeResponse, "completedAt" | "isMirror" | "hasMirrors">,
 	available: (key: string) => boolean,
 ): ItemMenuCommand | null {
-	if (!isItemMenuKey(id) || !available(id) || (id === "detach_mirror" && node.isMirror !== true)) {
+	if (!isItemMenuKey(id) || !available(id) || (id === "detach_mirror" && !isMirrorRoot(node))) {
 		return null;
 	}
 	const key = id;

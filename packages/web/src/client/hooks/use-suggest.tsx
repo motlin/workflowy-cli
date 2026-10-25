@@ -44,7 +44,7 @@ export interface SuggestClient<G, O> {
 	count: (groups: G) => number;
 	option: (groups: G, index: number) => O | undefined;
 	/** The chip was armed (a new open, not a re-search). */
-	onArm?: () => void;
+	onArm?: (chip: HTMLElement) => void;
 	select: (option: O, context: SuggestSelectContext) => void;
 	/** Called after the chip is replaced or removed and the editor's text changed outside a native input. */
 	onChange: () => void;
@@ -209,7 +209,7 @@ export function useSuggest<G, O>({
 			chipRef.current = chip;
 			pop("suggest", chip);
 			setOpen({groups, index: 0, keyboardMode: true, ...chipAnchor(chip)});
-			current.onArm?.();
+			current.onArm?.(chip);
 			return true;
 		},
 		[setOpen],

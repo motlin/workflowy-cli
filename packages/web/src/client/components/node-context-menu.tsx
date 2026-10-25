@@ -1,7 +1,4 @@
-import {useEffect, useRef, useState} from "react";
-import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
-import {createPortal} from "react-dom";
-import {nodeUrl, useNodeNavigation} from "../navigation.js";
+import {useEffect, useState} from "react";
 import type {NodeResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {buildItemMenu, hasFooter} from "../item-menu-model.js";
@@ -9,112 +6,13 @@ import {qualifyItemMenu} from "../app-menu.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
 import type {ItemMenuKey} from "../item-menu-model.js";
 import {formatMenuTimestamp} from "../menu-timestamp.js";
-import {closeOnEscape} from "../menu-escape.js";
 import {useOutlineStore} from "../stores/outline.js";
 import type {SortDirection} from "../sort-children.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
 import {MenuSeparator} from "./flyout/menu-item.js";
 import {renderAssembledMenu} from "./assembled-menu.js";
 import {usePaneId} from "./pane-context.js";
-
-interface MirrorLocationPath {
-	id: string;
-	name: string;
-}
-
-interface MirrorLocation {
-	id: string;
-	path: MirrorLocationPath[];
-	isOriginal: boolean;
-}
-
-interface MirrorsResponse {
-	mirrors: MirrorLocation[];
-	originalId: string;
-	nodeName: string;
-}
-
-function truncate(text: string, maxLength: number): string {
-	if (text.length <= maxLength) {
-		return text;
-	}
-	return `${text.slice(0, maxLength)}...`;
-}
-
-/**
- * Modal dialog showing all mirror locations for a node.
- * Matches production Workflowy's "Mirrors for..." dialog.
- */
-function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => void}) {
-	const {navigateToNode} = useNodeNavigation();
-	const modalRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		function handleClickOutside(event: MouseEvent) {
-			if (modalRef.current && !modalRef.current.contains(event.target instanceof Node ? event.target : null)) {
-				onClose();
-			}
-		}
-		const handleEscape = closeOnEscape(onClose);
-		document.addEventListener("mousedown", handleClickOutside);
-		document.addEventListener("keydown", handleEscape);
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside);
-			document.removeEventListener("keydown", handleEscape);
-		};
-	}, [onClose]);
-
-	const handleNavigate = (nodeId: string, event: React.MouseEvent) => {
-		event.preventDefault();
-		onClose();
-		navigateToNode(nodeId);
-	};
-
-	const displayName = truncate(stripHtml(data.nodeName), 30);
-
-	return createPortal(
-		<div className="mirrors-modal-overlay">
-			<div className="mirrors-modal" ref={modalRef}>
-				<div className="mirrors-modal-header">
-					<h2 className="mirrors-modal-title">Mirrors for &ldquo;{displayName}&rdquo;</h2>
-					<button className="mirrors-modal-close" onClick={onClose} type="button">
-						&times;
-					</button>
-				</div>
-				<div className="mirrors-modal-body">
-					{data.mirrors.map((loc, index) => {
-						const breadcrumbs = loc.path.map((p) => truncate(stripHtml(p.name), 20));
-						return (
-							<div className={`mirrors-modal-location ${loc.isOriginal ? "original" : ""}`} key={loc.id}>
-								<div className="mirrors-modal-location-label">
-									{loc.isOriginal ? "Original" : "Linked copy"}
-								</div>
-								<a
-									className="mirrors-modal-location-path"
-									href={nodeUrl(loc.id)}
-									onClick={(event) => {
-										handleNavigate(loc.id, event);
-									}}
-								>
-									<span className="mirrors-modal-location-number">{index + 1}.</span>
-									{breadcrumbs.map((crumb, i) => (
-										// Breadcrumb names can repeat; a path segment is identified by its depth.
-										// oxlint-disable-next-line react/no-array-index-key
-										<span key={i}>
-											{i > 0 && <span className="mirrors-modal-breadcrumb-sep"> &gt; </span>}
-											<span>{crumb}</span>
-										</span>
-									))}
-								</a>
-							</div>
-						);
-					})}
-				</div>
-			</div>
-		</div>,
-		document.body,
-	);
-}
+import type {MirrorsResponse} from "./mirrors-dialog.js";
 
 /**
  * Banner shown at the top of context menu for mirror nodes.
@@ -197,6 +95,9 @@ export interface ItemMenuActions {
 	onAddDate: () => void;
 	onPresent: () => void;
 	onMoveTo: () => void;
+	onMirrorTo: () => void;
+	onMirror: () => void;
+	onDetachMirror: () => void;
 	onDuplicate: () => void;
 	onExport: () => void;
 	onCopyLink: () => void;
@@ -258,6 +159,9 @@ export function ItemMenuBody({
 		add_date: closeThen(actions.onAddDate),
 		present_it: closeThen(actions.onPresent),
 		move_to: closeThen(actions.onMoveTo),
+		mirror_to: closeThen(actions.onMirrorTo),
+		mirror: closeThen(actions.onMirror),
+		detach_mirror: thenClose(actions.onDetachMirror),
 		duplicate: thenClose(actions.onDuplicate),
 		show_export: closeThen(actions.onExport),
 		copy_link: thenClose(actions.onCopyLink),
@@ -350,51 +254,39 @@ function blurActiveElement(): void {
  * button. The row mounts it only while hovered or while its menu is open.
  */
 export function ItemMenuTrigger({node, left, actions, onOpenChange, expanded, setExpanded}: ItemMenuTriggerProps) {
-	const [mirrorsModalData, setMirrorsModalData] = useState<MirrorsResponse | null>(null);
-
 	return (
-		<>
-			<ButtonMenu
-				className={ITEM_MENU_TRIGGER_CLASS}
-				expanded={expanded}
-				maxWidth={300}
-				offset={ITEM_MENU_OFFSET}
-				placement="bottom-start"
-				setExpanded={setExpanded}
-				onHide={() => {
-					onOpenChange(false);
+		<ButtonMenu
+			className={ITEM_MENU_TRIGGER_CLASS}
+			expanded={expanded}
+			maxWidth={300}
+			offset={ITEM_MENU_OFFSET}
+			placement="bottom-start"
+			setExpanded={setExpanded}
+			onHide={() => {
+				onOpenChange(false);
+			}}
+			onShow={() => {
+				onOpenChange(true);
+			}}
+			style={left === undefined ? undefined : {["--item-menu-left" as string]: left}}
+			button={
+				<span className={ITEM_MENU_DOTS_CLASS}>
+					<svg viewBox="0 0 24 24" fill="currentColor" className="block size-full">
+						<circle cx="6" cy="12" r="2" />
+						<circle cx="12" cy="12" r="2" />
+						<circle cx="18" cy="12" r="2" />
+					</svg>
+				</span>
+			}
+		>
+			<ItemMenuBody
+				actions={actions}
+				node={node}
+				onClose={blurActiveElement}
+				onShowMirrors={(data) => {
+					useOutlineStore.getState().openMirrorsDialog(data.originalId);
 				}}
-				onShow={() => {
-					onOpenChange(true);
-				}}
-				style={left === undefined ? undefined : {["--item-menu-left" as string]: left}}
-				button={
-					<span className={ITEM_MENU_DOTS_CLASS}>
-						<svg viewBox="0 0 24 24" fill="currentColor" className="block size-full">
-							<circle cx="6" cy="12" r="2" />
-							<circle cx="12" cy="12" r="2" />
-							<circle cx="18" cy="12" r="2" />
-						</svg>
-					</span>
-				}
-			>
-				<ItemMenuBody
-					actions={actions}
-					node={node}
-					onClose={blurActiveElement}
-					onShowMirrors={(data) => {
-						setMirrorsModalData(data);
-					}}
-				/>
-			</ButtonMenu>
-			{mirrorsModalData && (
-				<MirrorsModal
-					data={mirrorsModalData}
-					onClose={() => {
-						setMirrorsModalData(null);
-					}}
-				/>
-			)}
-		</>
+			/>
+		</ButtonMenu>
 	);
 }

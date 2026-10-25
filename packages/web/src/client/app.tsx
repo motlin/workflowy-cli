@@ -10,6 +10,7 @@ import {ChangesView} from "./components/changes-view.js";
 import {ErrorBoundary} from "./components/error-boundary.js";
 import {ErrorNotifications} from "./components/error-notification.js";
 import {ExportDialog} from "./components/export-dialog.js";
+import {MirrorsDialogHost} from "./components/mirrors-dialog.js";
 import {AlertDialog} from "./components/alert-dialog.js";
 import {JumpMenu} from "./components/jump-menu.js";
 import {LadderView} from "./components/ladder-view.js";
@@ -201,6 +202,7 @@ export const OutlineView = memo(function OutlineView() {
 			<LocationPickerHost />
 			<SelectionMenu />
 			<ExportDialog />
+			<MirrorsDialogHost />
 			<Settings />
 			<PresentationMode />
 			<ErrorNotifications />

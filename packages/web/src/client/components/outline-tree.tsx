@@ -45,7 +45,7 @@ import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
 import {renderedNumbers, siblingNumber} from "../numbered-list.js";
 import {useInActivePane, usePaneExpandedIds, usePaneId} from "./pane-context.js";
 import {itemMenuLeft} from "../item-menu-model.js";
-import {nameClassName, projectClassName} from "./row-classes.js";
+import {hasMirrorsClass, nameClassName, projectClassName} from "./row-classes.js";
 import {planBlankSpaceClick} from "../blank-space-click.js";
 import {DOCUMENT_END_HEIGHT} from "../page-style.js";
 import {rowClickResumesEditing} from "./row-click.js";
@@ -244,7 +244,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					hasNote: Boolean(node?.note),
 					noteFocused: isEditingNote,
 					isZoomRoot: true,
-					hasMirrors: false,
+					hasMirrors: node !== undefined && hasMirrorsClass(node),
 					highlighted: false,
 					addedToSelection: isAddedToSelection,
 					layoutClasses: layout.projectClasses,
