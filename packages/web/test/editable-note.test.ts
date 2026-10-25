@@ -144,11 +144,23 @@ describe("note behavior CSS", () => {
 
 	it("contains upstream's note behavior rules", () => {
 		const rules = [
-			".noted>.notes>.content.active,.root>.notes>.content{overflow:visible;display:block;max-height:none;height:auto}",
+			".noted>.notes>.content.active,.noted>.notes>.content.copyOrPasteInProgress,.root>.notes>.content{overflow:visible;display:block;max-height:none;height:auto}",
 			'.content:empty:before{content:" ";width:0;display:block}',
 			".notes>.content>.innerContentContainer::selection,.notes>.content>.innerContentContainer>*::selection{color:var(--wf-text-secondary);background:var(--wf-background-selected)}",
 			".noted>.name>.content{padding-bottom:0}",
 			".notes>.content{outline:none}",
+		];
+		expect(rules.filter((rule) => !css.includes(normalizeCss(rule)))).toStrictEqual([]);
+	});
+
+	it("contains the remaining upstream note rules", () => {
+		const rules = [
+			".children .notes.notes--main{margin-left:-100px;padding-left:100px}",
+			".noted>.notes>.content.active,.noted>.notes>.content.copyOrPasteInProgress,.root>.notes>.content{overflow:visible;display:block;max-height:none;height:auto}",
+			"@media print{.notes>.content{height:auto !important;display:block !important;-webkit-line-clamp:none !important;max-height:none !important}}",
+			".notes .mention .at-sign{font-size:12px}",
+			".root>.notes .mention .at-sign{font-size:inherit}",
+			".notes .bc-red.bc-red,.notes .bc-orange.bc-orange,.notes .bc-yellow.bc-yellow,.notes .bc-green.bc-green,.notes .bc-blue.bc-blue,.notes .bc-purple.bc-purple,.notes .bc-gray.bc-gray,.notes .bc-teal.bc-teal,.notes .bc-sky.bc-sky,.notes .bc-pink.bc-pink{padding:0}",
 		];
 		expect(rules.filter((rule) => !css.includes(normalizeCss(rule)))).toStrictEqual([]);
 	});

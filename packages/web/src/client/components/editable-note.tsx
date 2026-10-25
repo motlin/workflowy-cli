@@ -8,7 +8,7 @@ import {useUpdateNode} from "../hooks/use-nodes.js";
 import {useLatest} from "../hooks/use-latest.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
-import {editorHtmlToNote, noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
+import {editorHtmlToNote, noteContentHtml, planNoteKey, planNoteSave, wrapBareNoteText} from "../note-text.js";
 import {isComposingInput, retagEditor} from "../editor-html.js";
 import {placeCaretAtTextOffset} from "../caret-dom.js";
 import {savePaneCaretOnBlur} from "./pane-context.js";
@@ -342,6 +342,7 @@ export function EditableNote({
 			// The note codec drops the slash chip, so tags wait while the slash menu is open.
 			const element = contentRef.current;
 			if (element !== null && !isSlashOpen() && !isComposingInput(event?.nativeEvent)) {
+				wrapBareNoteText(element);
 				retagEditor(
 					element,
 					noteContentHtml(editorHtmlToNote(element.innerHTML), dateSettings, undefined, account),
@@ -503,6 +504,11 @@ export function EditableNote({
 				onLastLine: !text.slice(offsets.end).includes("\n"),
 			});
 			if (plan.kind === "native") {
+				return;
+			}
+			if (plan.kind === "appendSentinelThenNative") {
+				// A trailing newline node, selection untouched; the native Backspace then runs and handleInput saves.
+				noteTextElement(element).append(document.createTextNode("\n"));
 				return;
 			}
 			event.preventDefault();

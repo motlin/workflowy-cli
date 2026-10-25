@@ -196,8 +196,18 @@ describe("planNoteKey", () => {
 		});
 	});
 
-	it("leaves Backspace native in a note with text", () => {
-		expect(planNoteKey({...base, key: "Backspace", text: "hi", start: 2, end: 2})).toStrictEqual({kind: "native"});
+	it("appends a trailing-newline sentinel before a native Backspace in a note with text", () => {
+		expect([
+			planNoteKey({...base, key: "Backspace", text: "abc\nd\t", start: 6, end: 6}),
+			planNoteKey({...base, key: "Backspace", text: "abc\nd\n", start: 5, end: 5}),
+			planNoteKey({...base, key: "Backspace", text: "abc", start: 1, end: 3}),
+			planNoteKey({...base, key: "Backspace", text: "\n", start: 1, end: 1}),
+		]).toStrictEqual([
+			{kind: "appendSentinelThenNative"},
+			{kind: "native"},
+			{kind: "native"},
+			{kind: "clearAndFocusName"},
+		]);
 	});
 
 	it("moves Up to the start of the name only from offset 0", () => {

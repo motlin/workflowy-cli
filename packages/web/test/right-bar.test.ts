@@ -8,6 +8,7 @@ import {cssBlock} from "./helpers/css-block.js";
 const state = {
 	showKeyboardShortcuts: false,
 	rightBarCollapsed: true,
+	panes: [] as {id: string}[],
 	toggleRightBarCollapsed: () => {},
 };
 
@@ -74,13 +75,13 @@ const UPSTREAM_ROWS: {command: string; name: string; text: string}[] = [
 const UPSTREAM_ZOOM_IN_ROW =
 	'<div title="zoom_in" class="font-system leading-base py-xs cursor-help"><div class="flex items-center"><div class="flex-grow">Zoom in</div><div class="ml-l min-w-[96px] text-right"><span class="inline-flex items-center justify-center rounded-xs bg-quaternary px-2xs py-3xs text-[11px] font-medium tracking-[0.02em] text-secondary">⌘.</span></div></div></div>';
 
-function render(showKeyboardShortcuts: boolean, rightBarCollapsed: boolean): string {
-	Object.assign(state, {showKeyboardShortcuts, rightBarCollapsed});
+function render(showKeyboardShortcuts: boolean, rightBarCollapsed: boolean, panes: {id: string}[] = []): string {
+	Object.assign(state, {showKeyboardShortcuts, rightBarCollapsed, panes});
 	return renderToStaticMarkup(createElement(RightBar));
 }
 
 function panelStyle(html: string): string {
-	return /<div class="fixed top-3xl right-sal[^"]*" style="([^"]*)"/u.exec(html)?.[1] ?? "";
+	return /<div class="fixed top-(?:3xl|0) right-sal[^"]*" style="([^"]*)"/u.exec(html)?.[1] ?? "";
 }
 
 function stripText(html: string): string {
@@ -120,6 +121,17 @@ describe("RightBar", () => {
 			strip: "→",
 			titles: UPSTREAM_ROWS.map((row) => row.command),
 		});
+	});
+
+	it("pins the panel to top-0 while panes are open and top-3xl otherwise", () => {
+		const panelClass = (html: string): string | undefined =>
+			/<div class="(fixed top-[^"]*)" style/u.exec(html)?.[1];
+		const tail =
+			"right-sal bottom-sal\n        text-xs bg-primary text-secondary transition-transform duration-200 ease-base print:hidden";
+		expect([panelClass(render(true, false, [{id: "p1"}])), panelClass(render(true, false, []))]).toStrictEqual([
+			`fixed top-0 ${tail}`,
+			`fixed top-3xl ${tail}`,
+		]);
 	});
 
 	it("renders the zoom_in row byte for byte like upstream", () => {

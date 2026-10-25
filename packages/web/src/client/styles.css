@@ -1810,6 +1810,11 @@ body.moving .expand {
 	padding-top: 0;
 }
 
+.children .notes.notes--main {
+	margin-left: -100px;
+	padding-left: 100px;
+}
+
 .children .notes:not(.notes--main) {
 	margin-left: calc(var(--name-left-overhang) * -1);
 	padding-left: calc(var(--name-left-overhang) + 24px);
@@ -1831,11 +1836,34 @@ body.moving .expand {
 
 /* Note behavior, verbatim from js_wf-base.css (without the .is-desktop prefix): a focused note is unclamped. */
 .noted > .notes > .content.active,
+.noted > .notes > .content.copyOrPasteInProgress,
 .root > .notes > .content {
 	overflow: visible;
 	display: block;
 	max-height: none;
 	height: auto;
+}
+
+@media print {
+	.notes > .content {
+		height: auto !important;
+		display: block !important;
+		-webkit-line-clamp: none !important;
+		max-height: none !important;
+	}
+}
+
+.notes .bc-red.bc-red,
+.notes .bc-orange.bc-orange,
+.notes .bc-yellow.bc-yellow,
+.notes .bc-green.bc-green,
+.notes .bc-blue.bc-blue,
+.notes .bc-purple.bc-purple,
+.notes .bc-gray.bc-gray,
+.notes .bc-teal.bc-teal,
+.notes .bc-sky.bc-sky,
+.notes .bc-pink.bc-pink {
+	padding: 0;
 }
 
 .content:empty:before {

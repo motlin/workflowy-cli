@@ -134,6 +134,7 @@ export function RightBar() {
 	const show = useOutlineStore((s) => s.showKeyboardShortcuts);
 	const collapsed = useOutlineStore((s) => s.rightBarCollapsed);
 	const toggleRightBarCollapsed = useOutlineStore((s) => s.toggleRightBarCollapsed);
+	const anyPane = useOutlineStore((s) => s.panes.length > 0);
 	const width = useRightBarWidth();
 	useBodyPaddingRight(show, collapsed, width);
 
@@ -141,9 +142,7 @@ export function RightBar() {
 		<div className="right-bar inline-flex fixed top-3xl right-0" style={{zIndex: 99}}>
 			{show && (
 				<div
-					className={
-						"fixed top-3xl right-sal bottom-sal\n        text-xs bg-primary text-secondary transition-transform duration-200 ease-base print:hidden"
-					}
+					className={`fixed ${anyPane ? "top-0" : "top-3xl"} right-sal bottom-sal\n        text-xs bg-primary text-secondary transition-transform duration-200 ease-base print:hidden`}
 					style={{
 						width,
 						transform: collapsed ? "translateX(calc(100% - var(--wf-space-l)))" : undefined,

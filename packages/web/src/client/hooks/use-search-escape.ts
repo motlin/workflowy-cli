@@ -70,16 +70,25 @@ function leaveEditor(): SearchReturn | null {
 	const {editingId, editingNoteId} = useOutlineStore.getState();
 	if (editingId !== null) {
 		const editor = editorElement(editingId);
-		const from = {nodeId: editingId, caretOffset: editor === null ? 0 : caretTextOffset(editor)};
+		const from: SearchReturn = {
+			nodeId: editingId,
+			caretOffset: editor === null ? 0 : caretTextOffset(editor),
+			field: "name",
+		};
 		editor?.blur();
 		return from;
 	}
 	if (editingNoteId !== null) {
-		// Search-return resumes the node's name, not the note: a documented local deviation.
-		if (document.activeElement instanceof HTMLElement) {
-			document.activeElement.blur();
+		const active = document.activeElement;
+		const noteEl = active instanceof HTMLElement && active.matches(".notes > .content") ? active : null;
+		const caretOffset =
+			noteEl === null
+				? Number.MAX_SAFE_INTEGER
+				: caretTextOffset(noteEl.querySelector<HTMLElement>(".innerContentContainer") ?? noteEl);
+		if (active instanceof HTMLElement) {
+			active.blur();
 		}
-		return {nodeId: editingNoteId, caretOffset: Number.MAX_SAFE_INTEGER};
+		return {nodeId: editingNoteId, caretOffset, field: "note"};
 	}
 	return null;
 }

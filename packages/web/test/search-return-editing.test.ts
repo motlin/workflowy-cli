@@ -35,7 +35,7 @@ describe("Escape focuses search and returns to the edited node", () => {
 
 	it("remembers the edited node and caret, then resumes editing there when search blurs", () => {
 		useOutlineStore.getState().startEditing("node-a");
-		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 7});
+		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 7, field: "name"});
 		const focused = editingState();
 		useOutlineStore.getState().blurSearch();
 		const blurred = editingState();
@@ -45,7 +45,7 @@ describe("Escape focuses search and returns to the edited node", () => {
 				editingCaretOffset: null,
 				lastEditedId: "node-a",
 				searchFocused: true,
-				searchReturn: {nodeId: "node-a", caretOffset: 7},
+				searchReturn: {nodeId: "node-a", caretOffset: 7, field: "name"},
 				searchInput: "",
 			},
 			blurred: {
@@ -60,9 +60,13 @@ describe("Escape focuses search and returns to the edited node", () => {
 	});
 
 	it("a repeat focusSearch(null) keeps the saved caret", () => {
-		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 15});
+		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 15, field: "name"});
 		useOutlineStore.getState().focusSearch(null);
-		expect(useOutlineStore.getState().searchReturn).toStrictEqual({nodeId: "node-a", caretOffset: 15});
+		expect(useOutlineStore.getState().searchReturn).toStrictEqual({
+			nodeId: "node-a",
+			caretOffset: 15,
+			field: "name",
+		});
 	});
 
 	it("blurring search that was not focused from editing resumes nothing", () => {
@@ -79,7 +83,7 @@ describe("Escape focuses search and returns to the edited node", () => {
 	});
 
 	it("cancelling search clears the input and resumes the saved node and caret", () => {
-		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 3});
+		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 3, field: "name"});
 		useOutlineStore.getState().setSearchInput("draft");
 		useOutlineStore.getState().cancelSearch(() => {});
 		expect(editingState()).toStrictEqual({
@@ -93,7 +97,7 @@ describe("Escape focuses search and returns to the edited node", () => {
 	});
 
 	it("starting a fresh edit clears any restored caret offset", () => {
-		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 4});
+		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 4, field: "name"});
 		useOutlineStore.getState().blurSearch();
 		useOutlineStore.getState().startEditing("node-b");
 		expect(editingState()).toStrictEqual({

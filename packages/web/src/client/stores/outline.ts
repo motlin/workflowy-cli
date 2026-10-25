@@ -250,6 +250,8 @@ export interface ClickPosition {
 export interface SearchReturn {
 	nodeId: string;
 	caretOffset: number;
+	/** Which editor held the caret; a note resumes as a note. */
+	field: "name" | "note";
 }
 
 /** What a menu opened by id acts on: the nodes the "Turn into..." picker would change. */
@@ -1339,7 +1341,11 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		const {searchReturn} = get();
 		set({searchFocused: false, searchReturn: null});
 		if (searchReturn !== null) {
-			get().resumeEditing(searchReturn.nodeId, searchReturn.caretOffset);
+			if (searchReturn.field === "note") {
+				get().focusNote(searchReturn.nodeId, searchReturn.caretOffset);
+			} else {
+				get().resumeEditing(searchReturn.nodeId, searchReturn.caretOffset);
+			}
 		}
 	},
 

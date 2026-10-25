@@ -9,6 +9,7 @@ import type {DateSettings} from "./date-settings.js";
 import {AUTO_LINK_ATTRIBUTE, anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
 import {renderMentionPills, serializeMentionPills} from "./mention-pills.js";
 import type {MentionAccount} from "./mention-pills.js";
+import {placeCaretAtTextOffset} from "./caret-dom.js";
 import {addMonolithGuards} from "./monolith-guards.js";
 import {renderTags} from "./tag-render.js";
 
@@ -137,7 +138,8 @@ export type NoteKeyPlan =
 	| {kind: "insert"; text: string; caret: number}
 	| {kind: "focusName"; caret: 0 | "end"}
 	| {kind: "focusNextRowName"}
-	| {kind: "clearAndFocusName"};
+	| {kind: "clearAndFocusName"}
+	| {kind: "appendSentinelThenNative"};
 
 /**
  * Upstream's in-note key handling: Enter and Tab insert text (never split or indent rows),
@@ -159,7 +161,11 @@ export function planNoteKey({key, shift, text, start, end, onFirstLine, onLastLi
 			return shift ? {kind: "noop"} : {kind: "insert", text: "\t", caret: start + 1};
 		}
 		case "Backspace": {
-			return text.trim() === "" ? {kind: "clearAndFocusName"} : {kind: "native"};
+			if (text.trim() === "") {
+				return {kind: "clearAndFocusName"};
+			}
+			// Upstream appends a trailing "\n" first, so the native delete keeps the last line rendered.
+			return collapsed && !text.endsWith("\n") ? {kind: "appendSentinelThenNative"} : {kind: "native"};
 		}
 		case "ArrowUp": {
 			return !shift && atStart && onFirstLine ? {kind: "focusName", caret: 0} : {kind: "native"};
@@ -176,5 +182,33 @@ export function planNoteKey({key, shift, text, start, end, onFirstLine, onLastLi
 		default: {
 			return {kind: "native"};
 		}
+	}
+}
+
+/**
+ * Wraps text nodes typed directly into the note `.content` in `.innerContentContainer`, like upstream, and
+ * restores the caret to the same text offset.
+ */
+export function wrapBareNoteText(element: HTMLElement): void {
+	if (element.querySelector(".innerContentContainer") !== null || element.firstChild === null) {
+		return;
+	}
+	const selection = globalThis.getSelection();
+	let offset: number | null = null;
+	if (selection !== null && selection.rangeCount > 0) {
+		const range = selection.getRangeAt(0);
+		if (element.contains(range.startContainer)) {
+			const before = document.createRange();
+			before.selectNodeContents(element);
+			before.setEnd(range.startContainer, range.startOffset);
+			offset = before.toString().length;
+		}
+	}
+	const wrapper = document.createElement("span");
+	wrapper.className = "innerContentContainer";
+	wrapper.append(...element.childNodes);
+	element.append(wrapper);
+	if (offset !== null) {
+		placeCaretAtTextOffset(wrapper, offset);
 	}
 }
