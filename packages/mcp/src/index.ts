@@ -1,5 +1,6 @@
 import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
+import {registerCalendarTools} from "./tools/calendar-tools.js";
 import {registerNodeTools} from "./tools/node-tools.js";
 import {registerCacheTools} from "./tools/cache-tools.js";
 import {registerSearchTools} from "./tools/search-tools.js";
@@ -12,6 +13,7 @@ const server = new McpServer({
 });
 
 registerNodeTools(server);
+registerCalendarTools(server);
 registerCacheTools(server);
 registerSearchTools(server);
 

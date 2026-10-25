@@ -7,9 +7,10 @@ import {Command, Flags} from "@oclif/core";
 import fs from "node:fs";
 import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
-import {syncBacklinksIfLinked} from "@workflowy/shared/node";
+import {syncBacklinksIfLinked, internalAdapter} from "@workflowy/shared/node";
 import {logger} from "../../services/logger.js";
 import {resolveOrCreateNodePath, resolveParent} from "@workflowy/shared/utils";
+import {adoptUnderCalendar, calendarMonthPath} from "../../services/calendar-adoption.js";
 
 /**
  * Read all content from stdin as a string
@@ -133,7 +134,7 @@ export default class Create extends Command {
 		// Note: --create-path is ignored with --dry-run to avoid creating real nodes
 		const parentId =
 			flags["create-path"] && flags["parent-path"] && !flags["dry-run"]
-				? await resolveOrCreateNodePath(flags["parent-path"], cacheService, apiClient)
+				? await this.resolveCreatePath(flags["parent-path"], cacheService, apiClient, client, database)
 				: await resolveParent({id: flags["parent-id"], path: flags["parent-path"]}, cacheService, apiClient);
 
 		// Handle JSON input mode
@@ -157,6 +158,47 @@ export default class Create extends Command {
 
 		// Handle single node creation mode (original behavior)
 		await this.runSingleNodeMode({...flags, name}, parentId, client, database);
+	}
+
+	/**
+	 * `--create-path`: create missing parent segments. A missing year or month of the 📆 Calendar is ensured through
+	 * the internal API (upstream-shaped, with `calendar` metadata) so workflowy.com uses it; a name-only one would be
+	 * invisible there. Without internal auth the segments are created by name, with a warning.
+	 */
+	private async resolveCreatePath(
+		parentPath: string,
+		cacheService: CacheService,
+		apiClient: WorkflowyApiClient,
+		client: WorkflowyWriteThroughClient,
+		database: ReturnType<typeof createDatabase>,
+	): Promise<string> {
+		const calendarPath = calendarMonthPath(parentPath);
+		if (calendarPath === undefined) {
+			return resolveOrCreateNodePath(parentPath, cacheService, apiClient);
+		}
+		const adapter = internalAdapter(database, client);
+		if (adapter === undefined) {
+			if (
+				cacheService.findNodeByPath(
+					parentPath
+						.split(",")
+						.slice(0, 3)
+						.map((part) => part.trim()),
+				) === null
+			) {
+				this.logToStderr(
+					`warning: ${parentPath} will be created by name, without 📆 Calendar metadata; workflowy.com will not use those year/month nodes. Set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run ./bin/run.js calendar day --date ${calendarPath.year}-${String(calendarPath.month).padStart(2, "0")}-01 --ensure instead.`,
+				);
+			}
+			return resolveOrCreateNodePath(parentPath, cacheService, apiClient);
+		}
+		const {dayId} = await adapter.ensureCalendarDay(calendarPath.dateId, {stopAt: "month", createChild: false});
+		let current = dayId;
+		for (const segment of calendarPath.rest) {
+			const existing = cacheService.getChildByName(current, segment);
+			current = existing?.id ?? (await client.createNode({parent_id: current, name: segment})).id;
+		}
+		return current;
 	}
 
 	/**
@@ -214,6 +256,16 @@ export default class Create extends Command {
 				position: flags.position,
 			});
 			await syncBacklinksIfLinked([newNode.id], [name, flags.note], database, client);
+			await adoptUnderCalendar({
+				rows: [{id: newNode.id, name}],
+				parentId,
+				database,
+				cache: new CacheService(database),
+				writeThrough: client,
+				warn: (message) => {
+					this.logToStderr(message);
+				},
+			});
 
 			this.log("");
 			this.log("Successfully created node");
@@ -289,6 +341,17 @@ export default class Create extends Command {
 			database,
 			client,
 		);
+
+		await adoptUnderCalendar({
+			rows: [{id: result.id, name: nodeTree.name}],
+			parentId,
+			database,
+			cache: cacheService,
+			writeThrough: client,
+			warn: (message) => {
+				this.logToStderr(message);
+			},
+		});
 
 		// Output results
 		this.log("Successfully created node tree:");

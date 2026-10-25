@@ -311,6 +311,35 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 		});
 	});
 
+	it("creates a v5 day beside a name-only day for the same date and leaves the name-only node alone, as upstream does", async () => {
+		const octMeta = {calendar: {level: "month", value: "10", timestamp: 0, dateId: 20_261_000}};
+		const {adapter, calls, children} = tracked({
+			children: {home: [CAL], [CAL]: [Y2026], [Y2026]: ["oct"], oct: ["name-only"]},
+			metadata: {[CAL]: ROOT_META, [Y2026]: yearMeta, oct: octMeta},
+		});
+
+		const result = await adapter.ensureCalendarDay(20_261_017, {createChild: false});
+
+		expect({
+			result,
+			month: children.get("oct"),
+			bulk: calls.filter((call) => Array.isArray(call) && call[0] === "bulk_create"),
+		}).toStrictEqual({
+			result: {dayId: D1017, firstChildId: null, created: [D1017]},
+			month: ["name-only", D1017],
+			bulk: [
+				[
+					"bulk_create",
+					{
+						parentId: "oct",
+						index: 1,
+						trees: [{id: D1017, nm: D1017_NAME, metadata: d1017Metadata, ch: []}],
+					},
+				],
+			],
+		});
+	});
+
 	it("reads nothing live and creates nothing when the cached day already has children", async () => {
 		const dayMeta = {calendar: {level: "day", value: "17", timestamp: 0, dateId: 20_261_017}};
 		const octMeta = {calendar: {level: "month", value: "10", timestamp: 0, dateId: 20_261_000}};

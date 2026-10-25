@@ -41,7 +41,16 @@ Key observations:
 
 ## Finding Today's Node
 
-To find today's date node, traverse from the Calendar root:
+Let the CLI resolve it. Levels of the 📆 Calendar are recognised by `metadata.calendar`, not by name, so a day created with `node create` (a `<time>` or bracket name) is invisible on workflowy.com. `calendar day --ensure` is the only way to create calendar levels:
+
+```bash
+# Find today's day node; --ensure creates any missing year, month and day with calendar metadata
+./bin/run.js calendar day --ensure -j
+# Another date, without the empty first child
+./bin/run.js calendar day --date 2026-01-04 --ensure --no-child -j
+```
+
+The result is `{id, created, firstChildId}`. Without `--ensure`, a missing day exits 1. To inspect the hierarchy manually, traverse from the Calendar root:
 
 > Run `./bin/run.js node get --help` to verify available flags before constructing commands.
 

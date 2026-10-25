@@ -1,9 +1,10 @@
 import {NodeTreeReader} from "@workflowy/shared/cache";
-import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
+import {calendarParentContext} from "@workflowy/shared/calendar-lookup";
+import {adoptAfterCreate, calendarAdoptWarning, linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import {deleteBacklinksOfDeleted, syncBacklinksIfLinked} from "@workflowy/shared/node";
 import {resolveNodeId, resolveOrCreateNodePath, resolveParent} from "@workflowy/shared/utils";
 import {z} from "zod";
-import {getApiClient, getCacheService, getDatabase, getWriteThroughClient} from "../services.js";
+import {getApiClient, getCacheService, getDatabase, getInternalAdapter, getWriteThroughClient} from "../services.js";
 import type {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerNodeTools(server: McpServer): void {
@@ -100,6 +101,17 @@ export function registerNodeTools(server: McpServer): void {
 				position,
 			});
 			await syncBacklinksIfLinked([newNode.id], [name, note], getDatabase(), writeThroughClient);
+			// Tag a dated row created under a 📆 Calendar month as that day, as upstream's web client does.
+			const context =
+				resolvedParentId === null
+					? undefined
+					: calendarParentContext({db: getDatabase(), cache: cacheService}, resolvedParentId);
+			const adoption = await adoptAfterCreate({
+				id: newNode.id,
+				name,
+				context,
+				adapter: context === undefined ? undefined : getInternalAdapter(),
+			});
 
 			return {
 				content: [
@@ -111,6 +123,7 @@ export function registerNodeTools(server: McpServer): void {
 								name: newNode.name,
 								createdAt: new Date(newNode.createdAt * 1000).toISOString(),
 								url: `https://workflowy.com/#/${newNode.id.replaceAll("-", "")}`,
+								...(adoption.status === "unadoptable" ? {warning: calendarAdoptWarning(name)} : {}),
 							},
 							null,
 							2,

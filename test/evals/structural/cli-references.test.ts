@@ -153,7 +153,8 @@ describe("CLI Reference Validation", () => {
 				if (UNIVERSAL_FLAGS.has(resolvedFlag)) {
 					continue;
 				}
-				if (validFlags.has(resolvedFlag)) {
+				// The parser strips a `--no-` prefix, which may be a real flag name (`--no-child`) or a negation.
+				if (validFlags.has(resolvedFlag) || validFlags.has(`no-${resolvedFlag}`)) {
 					continue;
 				}
 

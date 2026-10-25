@@ -28,6 +28,7 @@ export function seedTaggedCalendar(testDatabase: TestDatabase): void {
 			createTestNode({id: "c1", name: "Dentist", parentId: "d1005", priority: 0}),
 			createTestNode({id: "d1006", name: dayTime(2026, 10, 6), parentId: "m10", priority: 200}),
 			createTestNode({id: "c2", name: "Gym", parentId: "d1006", priority: 0}),
+			createTestNode({id: "stray", name: dayTime(2026, 10, 21), parentId: null, priority: 500}),
 		]),
 	});
 	const metadata: [string, unknown][] = [

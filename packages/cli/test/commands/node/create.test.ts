@@ -12,6 +12,7 @@ import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import Create from "../../../src/commands/node/create.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
+import {seedTaggedCalendar} from "../../helpers/calendar-fixture.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestBody, requestJson} from "../../helpers/request-body.js";
 
@@ -345,6 +346,95 @@ describe("node create command", () => {
 			});
 
 			expect(sync.mock.calls).toStrictEqual([]);
+		});
+	});
+
+	describe("calendar adoption", () => {
+		const day21 = '<time startYear="2026" startMonth="10" startDay="21">Wed, Oct 21, 2026</time>';
+		const useInternalAuth = () => {
+			process.env.WORKFLOWY_USERNAME = "alice@example.com";
+			process.env.WORKFLOWY_PASSWORD = "hunter2";
+			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+		};
+		const noInternalAuth = () => {
+			delete process.env.WORKFLOWY_USERNAME;
+			delete process.env.WORKFLOWY_PASSWORD;
+			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "no-session");
+		};
+
+		it("tags a dated row created under a calendar month as that day", async () => {
+			seedTaggedCalendar(testDatabase);
+			useInternalAuth();
+			fakeCreates("new-id");
+			const setMeta = vi.spyOn(WorkflowyInternalAdapter.prototype, "setNodeMetaValues").mockResolvedValue();
+
+			await captureOutput(async () => {
+				await Create.run(["--parent-id", "m10", "--name", day21]);
+			});
+
+			expect(setMeta.mock.calls).toStrictEqual([
+				[
+					"new-id",
+					[
+						{
+							path: ["calendar"],
+							value: {
+								level: "day",
+								value: "21",
+								timestamp: new Date(2026, 9, 21).getTime(),
+								dateId: 20_261_021,
+							},
+						},
+					],
+				],
+			]);
+		});
+
+		it("makes no metadata call under a non-calendar parent", async () => {
+			seedTaggedCalendar(testDatabase);
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "plain", name: "Plain", parentId: null})]));
+			useInternalAuth();
+			fakeCreates("new-id");
+			const setMeta = vi.spyOn(WorkflowyInternalAdapter.prototype, "setNodeMetaValues").mockResolvedValue();
+
+			await captureOutput(async () => {
+				await Create.run(["--parent-id", "plain", "--name", day21]);
+			});
+
+			expect(setMeta.mock.calls).toStrictEqual([]);
+		});
+
+		it("warns on stderr and exits 0 without internal auth", async () => {
+			seedTaggedCalendar(testDatabase);
+			noInternalAuth();
+			fakeCreates("new-id");
+
+			const {stderr, error} = await captureOutput(async () => {
+				await Create.run(["--parent-id", "m10", "--name", day21]);
+			});
+
+			expect({stderr, error}).toStrictEqual({
+				stderr: `warning: ${day21} was created under a 📆 Calendar month without calendar metadata; workflowy.com will not use it as that day. Run ./bin/run.js calendar day --date YYYY-MM-DD --ensure instead.\n`,
+				error: undefined,
+			});
+		});
+
+		it("ensures a missing calendar month for --create-path instead of creating a name-only one", async () => {
+			seedTaggedCalendar(testDatabase);
+			useInternalAuth();
+			const ensure = vi
+				.spyOn(WorkflowyInternalAdapter.prototype, "ensureCalendarDay")
+				.mockResolvedValue({dayId: "ensured-month", firstChildId: null, created: ["ensured-month"]});
+			const bodies = fakeCreates("new-id");
+
+			await captureOutput(async () => {
+				await Create.run(["--parent-path", "📆 Calendar,2026,11", "--create-path", "--name", "Entry"]);
+			});
+
+			expect({calls: ensure.mock.calls, bodies}).toStrictEqual({
+				calls: [[20_261_101, {stopAt: "month", createChild: false}]],
+				bodies: [{parent_id: "ensured-month", name: "Entry"}],
+			});
 		});
 	});
 

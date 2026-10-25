@@ -116,6 +116,8 @@ The date is rendered as a clickable element. If the match is just plain text men
 
 ## Creating Date Nodes
 
+**System `📆 Calendar` is different.** Its year, month and day levels are recognised by `metadata.calendar`, never by name. A `<time>` or bracket day written through `node create` (or the MCP create tool) under a 📆 Calendar month is invisible on workflowy.com, which then creates a second node for the same date. `./bin/run.js calendar day --date YYYY-MM-DD --ensure --no-child -j` is the only way to create those levels; it returns `{id, created, firstChildId}`, and entries go under `id`. The audit command (`calendar audit`) lists name-only days, and its fix flag adopts the safe ones. Keep the `<time>`-name recipe below for the `Personal > 📅 Calendar` and `Work > 📅 Calendar` journals only, which are ordinary nodes.
+
 **Bracket text vs. immediate date element:** A bracket date (`[YYYY-MM-DD]`) written via the CLI stays literal text until the web UI "Update" migration runs — it does **not** become a clickable date element on write. Use bracket text only for the deferred journal-ingestion flow below (where you later run "Update"). For a date node that must render and be parseable immediately, write an explicit `<time>` element and **compute its weekday with `date` — never type the weekday by hand:**
 
 ```bash

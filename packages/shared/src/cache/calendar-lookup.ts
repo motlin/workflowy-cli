@@ -12,6 +12,8 @@ import type * as schema from "../db/schema.js";
 import {nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {CALENDAR_LEVELS, DEFAULT_CALENDAR_LEVELS, calendarDateId, parseDateId} from "../internal/calendar-day.js";
 import type {CalendarDate, CalendarLevel} from "../internal/calendar-day.js";
+import {auditCalendarMonth, auditCalendarRoot} from "../internal/calendar-adopt.js";
+import type {AuditNode, CalendarAuditFinding, CalendarParentContext, CalendarTag} from "../internal/calendar-adopt.js";
 import {calendarNodeId} from "../internal/calendar-ids.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import type {CacheService} from "./cache-service.js";
@@ -31,7 +33,9 @@ const CalendarSchema = z.object({
 		.object({root: z.boolean().optional(), level: z.string().optional(), dateId: z.number().optional()})
 		.loose(),
 });
-const CalendarTagSchema = z.object({level: z.string().optional(), dateId: z.number().optional()}).loose();
+const CalendarTagSchema = z
+	.object({root: z.boolean().optional(), level: z.string().optional(), dateId: z.number().optional()})
+	.loose();
 const LevelsSchema = z.record(z.string(), z.boolean());
 const DAY_NAME = /^<time\b([^>]*)>[^<]*<\/time>$/iu;
 
@@ -93,11 +97,8 @@ function rootLevels(deps: Pick<CalendarDayDeps, "db">, root: string): Readonly<R
 }
 
 /** The `level` and `dateId` of each id's cached `metadata.calendar`; ids without one are absent. */
-function calendarTags(
-	deps: Pick<CalendarDayDeps, "db">,
-	ids: readonly string[],
-): Map<string, {level: string | undefined; dateId: number | undefined}> {
-	const tags = new Map<string, {level: string | undefined; dateId: number | undefined}>();
+function calendarTags(deps: Pick<CalendarDayDeps, "db">, ids: readonly string[]): Map<string, CalendarTag> {
+	const tags = new Map<string, CalendarTag>();
 	if (ids.length === 0) {
 		return tags;
 	}
@@ -112,7 +113,7 @@ function calendarTags(
 	for (const {nodeId, calendar} of rows) {
 		const parsed = calendar === null ? undefined : CalendarTagSchema.safeParse(JSON.parse(calendar));
 		if (parsed?.success === true) {
-			tags.set(nodeId, {level: parsed.data.level, dateId: parsed.data.dateId});
+			tags.set(nodeId, {root: parsed.data.root, level: parsed.data.level, dateId: parsed.data.dateId});
 		}
 	}
 	return tags;
@@ -413,4 +414,74 @@ export function dayNameDate(name: string | null): CalendarDate | undefined {
 function namesDate(name: string | null, date: CalendarDate): boolean {
 	const named = dayNameDate(name);
 	return named?.year === date.year && named.month === date.month && named.day === date.day;
+}
+
+/**
+ * What upstream's adoption hook (`mb1`) reads about a row inserted under `parentId`: the cached
+ * `metadata.calendar` of the parent chain up to the calendar root, of the parent's children, and the root's
+ * levels. Undefined when the parent is not inside a tagged calendar, so nothing can be adopted there.
+ */
+export function calendarParentContext(
+	deps: Pick<CalendarDayDeps, "db" | "cache">,
+	parentId: string,
+): CalendarParentContext | undefined {
+	const chainIds: string[] = [];
+	const seen = new Set<string>();
+	for (
+		let id: string | null = parentId;
+		id !== null && !seen.has(id);
+		id = deps.cache.getNode(id)?.parentId ?? null
+	) {
+		seen.add(id);
+		chainIds.push(id);
+	}
+	const children = deps.cache.getChildren(parentId).map(({id}) => id);
+	const tags = calendarTags(deps, [...chainIds, ...children]);
+	const rootIndex = chainIds.findIndex((id) => tags.get(id)?.root === true);
+	const rootId = chainIds[rootIndex];
+	if (rootId === undefined || tags.get(parentId) === undefined) {
+		return undefined;
+	}
+	return {
+		parentChain: chainIds.slice(0, rootIndex + 1).map((id) => ({calendar: tags.get(id)})),
+		siblings: children.map((id) => ({calendar: tags.get(id)})),
+		levels: rootLevels(deps, rootId),
+	};
+}
+
+/**
+ * Everything under the tagged calendar root that upstream's strict day lookup cannot use, read from the cache:
+ * name-only years and months at the root, then for each tagged month under a tagged year the name-only and
+ * bracket-text days, tagged days nested under one of those, and duplicate dates. Empty without a tagged root.
+ * `calendarRootId` audits another tagged root instead (a probe calendar in the sandbox).
+ */
+export function auditCalendar(
+	deps: Pick<CalendarDayDeps, "db" | "cache">,
+	calendarRootId?: string,
+): CalendarAuditFinding[] {
+	const rootId = calendarRootId ?? findTaggedCalendarRoot(deps);
+	if (rootId === undefined) {
+		return [];
+	}
+	const levels = rootLevels(deps, rootId);
+	const auditNodes = (parentId: string, withChildren: boolean): AuditNode[] => {
+		const children = deps.cache.getChildren(parentId);
+		const tags = calendarTags(
+			deps,
+			children.map(({id}) => id),
+		);
+		return children.map(({id, name}) => {
+			const calendar = tags.get(id);
+			const node: AuditNode = {id, name, calendar};
+			return withChildren ? {...node, children: auditNodes(id, false)} : node;
+		});
+	};
+	const rootChildren = auditNodes(rootId, false);
+	const findings = auditCalendarRoot({children: rootChildren});
+	for (const year of rootChildren.filter(({calendar}) => calendar?.level === "year")) {
+		for (const month of auditNodes(year.id, false).filter(({calendar}) => calendar?.level === "month")) {
+			findings.push(...auditCalendarMonth({month, levels, children: auditNodes(month.id, true)}));
+		}
+	}
+	return findings;
 }

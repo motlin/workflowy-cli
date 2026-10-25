@@ -1,3 +1,4 @@
+import {adoptUnderCalendar} from "../../services/calendar-adoption.js";
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import {PathBuilder, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import {HOME_TARGET} from "@workflowy/shared/types";
@@ -121,6 +122,16 @@ export default class Move extends Command {
 			}
 
 			await client.moveNode(nodeId, parentId, positionValue);
+			await adoptUnderCalendar({
+				rows: [{id: nodeId, name: cacheService.getNode(nodeId)?.name ?? ""}],
+				parentId,
+				database,
+				cache: cacheService,
+				writeThrough: client,
+				warn: (message) => {
+					this.logToStderr(message);
+				},
+			});
 
 			this.log(`Successfully moved node`);
 		}

@@ -1,5 +1,11 @@
-import {describe, expect, it} from "vite-plus/test";
-import {adoptOnInsert, auditCalendarMonth, auditCalendarRoot} from "../../src/internal/calendar-adopt.js";
+import {describe, expect, it, vi} from "vite-plus/test";
+import {
+	adoptAfterCreate,
+	adoptOnInsert,
+	auditCalendarMonth,
+	auditCalendarRoot,
+	datesInName,
+} from "../../src/internal/calendar-adopt.js";
 import {DEFAULT_CALENDAR_LEVELS} from "../../src/internal/calendar-day.js";
 
 const root = {calendar: {root: true, level: undefined, dateId: undefined}};
@@ -123,5 +129,41 @@ describe("auditCalendarRoot", () => {
 			{kind: "untagged-year", id: "y", dateId: 20_270_000},
 			{kind: "untagged-month", id: "m", dateId: 0},
 		]);
+	});
+});
+
+describe("datesInName", () => {
+	it("reads each <time> element's date and skips text without one", () => {
+		expect([
+			datesInName(
+				'<time startYear="2026" startMonth="10" startDay="21">Wed</time> and <time startYear="2026" startMonth="11" startDay="2">x</time>',
+			),
+			datesInName("[2026-10-21]"),
+			datesInName(null),
+		]).toStrictEqual([[oct21, {year: 2026, month: 11, day: 2}], [], []]);
+	});
+});
+
+describe("adoptAfterCreate", () => {
+	const context = {parentChain: [month, year, root], siblings: [], levels};
+	const name = '<time startYear="2026" startMonth="10" startDay="21">Wed, Oct 21, 2026</time>';
+	const set = {level: "day", value: "21", timestamp: new Date(2026, 9, 21).getTime(), dateId: 20_261_021};
+
+	it("writes the calendar metadata through the adapter", async () => {
+		const setNodeMetaValues = vi.fn<(id: string, changes: unknown[]) => Promise<void>>(async () => {});
+
+		const result = await adoptAfterCreate({id: "new1", name, context, adapter: {setNodeMetaValues}});
+
+		expect({result, calls: setNodeMetaValues.mock.calls}).toStrictEqual({
+			result: {status: "adopted", set},
+			calls: [["new1", [{path: ["calendar"], value: set}]]],
+		});
+	});
+
+	it("reports unadoptable without an adapter, and skips a non-calendar parent", async () => {
+		expect([
+			await adoptAfterCreate({id: "new1", name, context, adapter: undefined}),
+			await adoptAfterCreate({id: "new1", name, context: undefined, adapter: undefined}),
+		]).toStrictEqual([{status: "unadoptable", set}, {status: "skipped"}]);
 	});
 });

@@ -49,7 +49,8 @@ export async function deleteBacklinksOfDeleted(
 	return (await internalAdapter(database, writeThrough)?.deleteBacklinksOf(sourceIds)) ?? [];
 }
 
-function internalAdapter(
+/** An internal-API adapter over the cache, or undefined without configured internal auth. */
+export function internalAdapter(
 	database: Database,
 	writeThrough: WorkflowyWriteThroughClient,
 ): WorkflowyInternalAdapter | undefined {

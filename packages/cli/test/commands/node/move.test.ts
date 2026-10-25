@@ -10,7 +10,9 @@ import type {MockInstance} from "vite-plus/test";
 import Move from "../../../src/commands/node/move.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
+import {seedTaggedCalendar} from "../../helpers/calendar-fixture.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
+import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {requestJson} from "../../helpers/request-body.js";
 
 describe("node:move command", () => {
@@ -228,6 +230,51 @@ describe("node:move command", () => {
 			});
 
 			expect(bodies).toStrictEqual([{parent_id: "target-id", position: "bottom"}]);
+		});
+	});
+
+	describe("calendar adoption", () => {
+		const day21 = '<time startYear="2026" startMonth="10" startDay="21">Wed, Oct 21, 2026</time>';
+
+		it("tags a dated row moved under a calendar month as that day", async () => {
+			seedTaggedCalendar(testDatabase);
+			process.env.WORKFLOWY_USERNAME = "alice@example.com";
+			process.env.WORKFLOWY_PASSWORD = "hunter2";
+			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+			fakeMove({id: "stray", name: day21, parent_id: "m10", priority: 0});
+			const moveApi = fetchStub.getMockImplementation()!;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				if ((url instanceof Request ? url.url : String(url)).endsWith("/nodes/m10")) {
+					const now = Math.floor(Date.now() / 1000);
+					const node = {id: "m10", name: "10", note: null, parent_id: "y2026", priority: 0, completed: false};
+					return Promise.resolve(
+						Response.json({node: {...node, createdAt: now, modifiedAt: now, completedAt: null, data: {}}}),
+					);
+				}
+				return moveApi(url, init) as Promise<Response>;
+			});
+			const setMeta = vi.spyOn(WorkflowyInternalAdapter.prototype, "setNodeMetaValues").mockResolvedValue();
+
+			await captureOutput(async () => {
+				await Move.run(["--node-id", "stray", "--parent-id", "m10"]);
+			});
+
+			expect(setMeta.mock.calls).toStrictEqual([
+				[
+					"stray",
+					[
+						{
+							path: ["calendar"],
+							value: {
+								level: "day",
+								value: "21",
+								timestamp: new Date(2026, 9, 21).getTime(),
+								dateId: 20_261_021,
+							},
+						},
+					],
+				],
+			]);
 		});
 	});
 

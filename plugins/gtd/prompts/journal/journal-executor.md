@@ -24,21 +24,16 @@ Read events from `.llm/gtd/journal/confirmed.json`. Each event has:
 
 Calendar structure: `📆 Calendar` → `2026` → `01` → `<time ...>Sat, Jan 4, 2026</time>`
 
-Try the full path first. If it fails, walk up until you find an existing ancestor, then create missing nodes down.
+Every 📆 Calendar year, month and day needs `metadata.calendar` for workflowy.com to use it. A node created by name through `node create` has none, so workflowy.com ignores it and makes its own duplicate. Never create calendar levels by name. Ask the CLI for the day instead: it returns the existing node, or creates the missing year, month and day with the right metadata.
 
-> Run `./bin/run.js node get --help` to verify available flags before constructing commands.
+> Run `./bin/run.js calendar day --help` to verify available flags before constructing commands.
 
 ```bash
-# Try full path
-./bin/run.js node get --path "📆 Calendar,2026,01" --depth 2 --json
-
-# If month missing, create it
-./bin/run.js node create --parent-path "📆 Calendar,2026" --name "01"
-
-# Create day node with bracket syntax (zero-padded month/day)
-./bin/run.js node create --parent-path "📆 Calendar,2026,01" \
-  --name '[2026-01-04]'
+# Find or create the day (and any missing year/month); no empty first child
+./bin/run.js calendar day --date <eventDate> --ensure --no-child -j
 ```
+
+The JSON result is `{id, created, firstChildId}`. Create the entries under `id`. Without internal API auth (`WORKFLOWY_USERNAME`/`WORKFLOWY_PASSWORD`), `--ensure` errors: report that and stop instead of falling back to name-only nodes.
 
 ## Creating Entries
 
@@ -46,12 +41,12 @@ If `sourceUrl` exists, wrap in link. Otherwise plain text.
 
 ```bash
 # With URL
-./bin/run.js node create --parent-id <DAY_NODE_ID> \
+./bin/run.js node create --parent-id <DAY_ID> \
   --name '<a href="https://...">📧 Order confirmation from EyeBuyDirect</a>' \
   --position bottom
 
 # Without URL
-./bin/run.js node create --parent-id <DAY_NODE_ID> \
+./bin/run.js node create --parent-id <DAY_ID> \
   --name '✅ Bought shinguards' \
   --position bottom
 ```

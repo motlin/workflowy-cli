@@ -169,3 +169,61 @@ export function auditCalendarRoot(input: {children: readonly AuditNode[]}): Cale
 		return /^\d{1,2}$/u.test(name) ? [{kind: "untagged-month", id: child.id, dateId: 0}] : [];
 	});
 }
+
+/** What {@link adoptOnInsert} reads from the cache about the parent a row was inserted under. */
+export interface CalendarParentContext {
+	parentChain: readonly CalendarTagged[];
+	siblings: readonly CalendarTagged[];
+	levels: Readonly<Record<CalendarLevel, boolean>>;
+	weekStartDay?: number;
+}
+
+/** The dates of each `<time>` element in a row's text, in order. */
+export function datesInName(name: string | null | undefined): CalendarDate[] {
+	const dates: CalendarDate[] = [];
+	for (const match of (name ?? "").matchAll(/<time\b([^>]*)>/giu)) {
+		try {
+			const {startYear, startMonth, startDay} = parseTimeAttrs(match[1] ?? "");
+			dates.push({year: startYear, month: startMonth, day: startDay});
+		} catch {
+			// A <time> without start attributes holds no date.
+		}
+	}
+	return dates;
+}
+
+export type AdoptAfterCreateResult =
+	| {status: "skipped"}
+	| {status: "adopted"; set: CalendarLevelMetadata}
+	| {status: "unadoptable"; set: CalendarLevelMetadata};
+
+/** The stderr warning for a dated row written under a calendar month without internal auth. */
+export function calendarAdoptWarning(name: string): string {
+	return `warning: ${name} was created under a 📆 Calendar month without calendar metadata; workflowy.com will not use it as that day. Run ./bin/run.js calendar day --date YYYY-MM-DD --ensure instead.`;
+}
+
+/**
+ * After a public-API create or move of `{id, name}` under a calendar parent, tag it the way upstream's `mb1` hook
+ * does for web edits. "unadoptable" means it needed adopting but there is no internal adapter to write the metadata;
+ * "skipped" means nothing was to be adopted (not a calendar parent, no date, or the day already exists).
+ */
+export async function adoptAfterCreate(input: {
+	id: string;
+	name: string;
+	context: CalendarParentContext | undefined;
+	adapter: {setNodeMetaValues(id: string, changes: {path: string[]; value: unknown}[]): Promise<void>} | undefined;
+}): Promise<AdoptAfterCreateResult> {
+	const {id, name, context, adapter} = input;
+	if (context === undefined) {
+		return {status: "skipped"};
+	}
+	const adoption = adoptOnInsert({...context, dates: datesInName(name)});
+	if (adoption === null) {
+		return {status: "skipped"};
+	}
+	if (adapter === undefined) {
+		return {status: "unadoptable", set: adoption.set};
+	}
+	await adapter.setNodeMetaValues(id, [{path: ["calendar"], value: adoption.set}]);
+	return {status: "adopted", set: adoption.set};
+}
