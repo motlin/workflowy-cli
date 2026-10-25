@@ -20,9 +20,21 @@ export interface Preferences {
 	showCompleted: boolean;
 	showKeyboardShortcuts: boolean;
 	sameColorForLinks: boolean;
+	/** The account's theme codename (`default`, `dark`, `system`, ...), null when unset. */
+	theme: string | null;
+	displayImagePreviewsAsThumbnails: boolean;
+	ignoreYoutube: boolean;
+	ignoreYtShort: boolean;
+	ignoreTwitter: boolean;
+	ignoreLoom: boolean;
+	unsubscribeFromSummaryEmails: boolean;
+	unsubscribeFromCommentsEmails: boolean;
+	weeklyReportOn: boolean;
+	/** Read-only: the signed-in account's name and email, null until both are known. */
+	account: {username: string; email: string} | null;
 }
 
-export type PreferencesPatch = Partial<Preferences>;
+export type PreferencesPatch = Partial<Omit<Preferences, "account">>;
 
 export interface PreferencesState {
 	preferences: Preferences;
@@ -43,6 +55,16 @@ export const EMPTY_PREFERENCES: Preferences = {
 	showCompleted: false,
 	showKeyboardShortcuts: false,
 	sameColorForLinks: false,
+	theme: null,
+	displayImagePreviewsAsThumbnails: false,
+	ignoreYoutube: false,
+	ignoreYtShort: false,
+	ignoreTwitter: false,
+	ignoreLoom: false,
+	unsubscribeFromSummaryEmails: false,
+	unsubscribeFromCommentsEmails: false,
+	weeklyReportOn: false,
+	account: null,
 };
 
 const LOADING: PreferencesState = {preferences: EMPTY_PREFERENCES, available: true, error: null};
@@ -131,4 +153,9 @@ export function serverShowCompleted(state: PreferencesState | undefined): boolea
 /** The account's `showKeyboardShortcuts` once preferences load; null while loading or when the internal API is unavailable. */
 export function serverShowKeyboardShortcuts(state: PreferencesState | undefined): boolean | null {
 	return state?.available === true ? state.preferences.showKeyboardShortcuts : null;
+}
+
+/** The account's `theme` once preferences load; null while loading, unavailable or unset. */
+export function serverTheme(state: PreferencesState | undefined): string | null {
+	return state?.available === true ? state.preferences.theme : null;
 }

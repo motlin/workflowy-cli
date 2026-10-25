@@ -5,7 +5,7 @@ import type {CreateMirrorResult} from "../api/workflowy-client.js";
 import type {InternalSession, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {keptInternalMetadata} from "../cache/importer.js";
-import {accountState, mirrors as mirrorsTable, nodeContent, nodeInternalMetadata} from "../db/schema.js";
+import {accountState, localSettings, mirrors as mirrorsTable, nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {HOME_TARGET} from "../types/targets.js";
 import {hasInternalLink, internalLinkShortIds} from "../workflowy/internal-links.js";
@@ -48,11 +48,29 @@ export type ServerSetting =
 	| "show_completed"
 	| "show_keyboard_shortcuts"
 	| "same_color_for_links"
+	| "display_image_previews_as_thumbnails"
+	| "ignore_youtube"
+	| "ignore_yt_short"
+	| "ignore_twitter"
+	| "ignore_loom"
+	| "unsubscribe_from_summary_emails"
+	| "unsubscribe_from_comments_emails"
 	| "theme"
 	| "font"
 	| "saved_views_json_delta";
 
-const FLAG_SETTINGS = new Set<ServerSetting>(["show_completed", "show_keyboard_shortcuts", "same_color_for_links"]);
+const FLAG_SETTINGS = new Set<ServerSetting>([
+	"show_completed",
+	"show_keyboard_shortcuts",
+	"same_color_for_links",
+	"display_image_previews_as_thumbnails",
+	"ignore_youtube",
+	"ignore_yt_short",
+	"ignore_twitter",
+	"ignore_loom",
+	"unsubscribe_from_summary_emails",
+	"unsubscribe_from_comments_emails",
+]);
 
 export interface Account {
 	userId: number;
@@ -1709,6 +1727,37 @@ export class WorkflowyInternalAdapter {
 		await this.postOk("/change_settings", new URLSearchParams({[name]: wireValue, clientId: session.clientId}));
 		const current = await this.snapshot();
 		this.store({...current, settings: {...current.settings, [name]: value}});
+		this.saveLocalSettings({[`setting:${name}`]: value});
+	}
+
+	/**
+	 * Keep the app's own durable copy of settings written to workflowy.com, in `local_settings`.
+	 * Unlike the account cache this is never refreshed from the server, so the values outlive
+	 * the upstream account. Keys are `setting:<name>` for account settings and `root:<key>`
+	 * for root-metadata preferences.
+	 */
+	saveLocalSettings(values: Record<string, unknown>): void {
+		const updatedAt = this.now();
+		this.db.transaction((tx) => {
+			for (const [key, value] of Object.entries(values)) {
+				const json = JSON.stringify(value ?? null);
+				tx.insert(localSettings)
+					.values({key, json, updatedAt})
+					.onConflictDoUpdate({target: localSettings.key, set: {json, updatedAt}})
+					.run();
+			}
+		});
+	}
+
+	/** Every durable local setting, by key. */
+	localSettings(): Record<string, unknown> {
+		return Object.fromEntries(
+			this.db
+				.select()
+				.from(localSettings)
+				.all()
+				.map((row) => [row.key, JSON.parse(row.json) as unknown]),
+		);
 	}
 
 	/**

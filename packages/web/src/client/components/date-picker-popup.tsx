@@ -9,6 +9,7 @@ import {popoverBox} from "./flyout/popover-box.js";
 import {IconButton} from "./icon-button.js";
 import {CALENDAR_KEYS, nextCalendarFocus} from "./date-picker-keyboard.js";
 import type {CalendarFocusTarget} from "./date-picker-keyboard.js";
+import {Toggle} from "./toggle.js";
 import type {DatePreset} from "@workflowy/shared";
 import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
 import type {CalendarMonth} from "../hooks/use-calendar-event-days.js";
@@ -52,29 +53,6 @@ export interface DatePickerPopupProps {
 	onRemove?: () => void;
 	onEscape?: () => void;
 	onClose?: () => void;
-}
-
-/** Upstream `WF.DomKit.Toggle` (`HY2`) without children or secondary text, byte-for-byte class templates. */
-export function Toggle({on, className = "", disabled = false}: {on: boolean; className?: string; disabled?: boolean}) {
-	return (
-		// oxlint-disable-next-line jsx-a11y/label-has-associated-control -- verbatim upstream Toggle markup; the menu row carries the text
-		<label
-			className={`toggle ${on ? "on" : "off"} inline-flex gap-m mobile:gap-l
-        ${className}
-        ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-		>
-			<div
-				className={`inline-flex w-[20px] h-[10px] p-2xs rounded-m mobile:w-[44px] mobile:h-[22px] mobile:rounded-[16px]
-        ${on ? "bg-tint" : "bg-tertiary"}`}
-			>
-				<div
-					className={`w-[10px] h-[10px] rounded-circle bg-white transition-transform duration-300
-          mobile:w-[22px] mobile:h-[22px] ${on ? "translate-x-[10px] mobile:translate-x-[22px]" : ""}`}
-				/>
-			</div>
-			<div className="inline-flex flex-col gap-xs justify-center flex-1" />
-		</label>
-	);
 }
 
 /** Upstream `Pd4`: the 24x24 day cell's class template. */

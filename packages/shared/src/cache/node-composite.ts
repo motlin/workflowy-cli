@@ -11,6 +11,7 @@ import {
 	calendarMetadata,
 	changesMetadata,
 	config,
+	localSettings,
 	mirrors,
 	nodeContent,
 	nodeEmbeddings,
@@ -81,6 +82,7 @@ export const NON_NODE_TABLES: Readonly<Record<string, string>> = {
 	[getTableName(config)]: "local key-value settings",
 	[getTableName(systemClock)]: "single-row clock for system times",
 	[getTableName(accountState)]: "account-level key-value state",
+	[getTableName(localSettings)]: "durable local copy of settings written to workflowy.com",
 };
 
 /** Columns named like node ids that hold something else, with the reason. */

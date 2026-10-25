@@ -40,7 +40,8 @@ export type Theme = "light" | "dark" | "system";
 /** A router push, e.g. react-router's `navigate`. */
 export type NavigateFn = (to: string, options?: {replace?: boolean; state?: unknown}) => unknown;
 
-type SettingsSection = "Dates";
+/** A Settings section title to scroll to and highlight; a title no section has opens unscrolled. */
+type SettingsSection = string;
 
 const LeftBarModeSchema = z.enum(["drawerClosed", "drawerOpen", "alwaysOpen"]);
 export type LeftBarMode = z.infer<typeof LeftBarModeSchema>;

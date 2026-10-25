@@ -111,12 +111,21 @@ export function DialogTitle({children}: {children?: ReactNode}) {
 }
 
 /** Upstream WF.DomKit.DialogCloseButton: a 20px cross with a 36px hover halo. */
-export function DialogCloseButton({onClose, style}: {onClose: () => void; style?: CSSProperties}) {
+export function DialogCloseButton({
+	onClose,
+	style,
+	inline = false,
+}: {
+	onClose: () => void;
+	style?: CSSProperties;
+	/** Sits in the flow of a header instead of the box's top right corner (no inline style at all). */
+	inline?: boolean;
+}) {
 	return (
 		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain div; Escape closes through the shell
 		<div
 			className="group relative w-[20px] h-[20px] flex flex-col items-center justify-center rounded-[10px] text-[12px] text-tertiary cursor-pointer"
-			style={{position: "absolute", top: 30, right: 30, ...style}}
+			style={inline ? undefined : {position: "absolute", top: 30, right: 30, ...style}}
 			onClick={onClose}
 		>
 			<div className="absolute top-1/2 left-1/2 -mt-[18px] -ml-[18px] w-[36px] h-[36px] rounded-[18px] group-hover:bg-tertiary group-active:bg-tertiary" />

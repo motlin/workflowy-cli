@@ -352,6 +352,19 @@ export const accountState = sqliteTable("account_state", {
 });
 
 /**
+ * local_settings: the app's own durable copy of every setting written to
+ * workflowy.com (account settings and root-metadata preferences). Unlike
+ * `account_state`, which is a cache that a re-import overwrites, this table is
+ * never refreshed from the server, so the values survive when the app later runs
+ * without workflowy.com. `json` is the JSON-encoded value; `updated_at` is Unix ms.
+ */
+export const localSettings = sqliteTable("local_settings", {
+	key: text("key").primaryKey(),
+	json: text("json").notNull(),
+	updatedAt: integer("updated_at").notNull(),
+});
+
+/**
  * node_internal_metadata: item metadata the public API does not return,
  * imported from the internal API's `/get_tree_data/` (see
  * `importInternalMetadata` in `cache/importer.ts`). `metadata_json` holds only

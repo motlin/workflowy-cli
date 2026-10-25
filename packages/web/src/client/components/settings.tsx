@@ -1,13 +1,20 @@
-import {useEffect, useRef, useState} from "react";
-import type {KeyboardEvent} from "react";
-import {useHotkeys} from "react-hotkeys-hook";
+import {useCallback, useEffect, useRef, useState} from "react";
+import type {KeyboardEvent, ReactNode} from "react";
 import {formatPillLabel} from "@workflowy/shared";
 import {dateFormatOptions, timeFormatOptions, weekStartPatch} from "../date-settings.js";
 import type {FormatOption} from "../date-settings.js";
 import {usePreferences} from "../hooks/use-preferences.js";
-import type {PreferencesPatch} from "../hooks/use-preferences.js";
+import type {Preferences, PreferencesPatch} from "../hooks/use-preferences.js";
+import {currentVersionLabel} from "../app-version.js";
+import {useFlash} from "../hooks/use-flash.js";
+import {themeFromAccount} from "../hooks/use-right-bar-sync.js";
 import {useOutlineStore} from "../stores/outline.js";
 import type {Theme} from "../stores/outline.js";
+import {DialogCloseButton, DialogShell} from "./dialog-shell.js";
+import {Dropdown, DropdownOption} from "./flyout/dropdown.js";
+import {ControlRow, ReadOnlyField, SectionBody} from "./settings-rows.js";
+import {SettingsSection, SettingsSectionRegistry} from "./settings-section.js";
+import {Toggle} from "./toggle.js";
 
 const MOMENT_FORMAT_DOCS = "https://momentjscom.readthedocs.io/en/latest/moment/04-displaying/01-format/";
 
@@ -77,8 +84,7 @@ export function DatesSection({now: nowProp}: {now?: Date}) {
 	const timeOptions = withCurrent(timeFormatOptions(now), timeFormat, () => timeFormat);
 
 	return (
-		<section className="settings-section" id="settings-dates">
-			<h3 className="settings-section-title">Dates</h3>
+		<div className="flex flex-col gap-xl" id="settings-dates">
 			{error !== null && (
 				<div className="settings-row">
 					<span className="settings-info">{error}</span>
@@ -173,125 +179,339 @@ export function DatesSection({now: nowProp}: {now?: Date}) {
 					</a>
 				</div>
 			</div>
-		</section>
+		</div>
 	);
 }
 
-/**
- * Settings modal with theme selector and preferences.
- * Accessible from the user avatar button in the top bar.
- */
+/** The account theme codenames the app has; upstream's other themes arrive with the themes feature. */
+const THEME_OPTIONS = [
+	{name: "default", prettyName: "Light"},
+	{name: "dark", prettyName: "Dark"},
+	{name: "system", prettyName: "System"},
+] as const;
+
+/** The account codename for a store theme. */
+function accountThemeName(theme: Theme): string {
+	return theme === "light" ? "default" : theme;
+}
+
+/** Upstream's `Account`, `Personalization`, ... in order; `Backup` and the cloud-only sections are not cloned. */
+const SETTINGS_SECTION_TITLES = [
+	"Account",
+	"Personalization",
+	"Dates",
+	"Media & Previews",
+	"Backup",
+	"Notifications",
+	"Features",
+] as const;
+
+const DAILY_SUMMARY_HINT =
+	"Note: enabling this option means all content you add to WorkFlowy will be emailed to you. You'll receive a breakdown of the number of additions, edits, moves, completions, uncompletions and deletions made the previous day \u2013 both in private and shared lists. If collaborators in shared lists have made any changes, the summary will indicate who has done what.";
+
+interface SectionProps {
+	preferences: Preferences;
+	change: (patch: PreferencesPatch) => void;
+}
+
+function AccountSection({preferences}: SectionProps) {
+	const {account} = preferences;
+	if (account === null) {
+		return null;
+	}
+	return (
+		<SettingsSection title="Account">
+			<SectionBody>
+				<ReadOnlyField label="Name" value={account.username} />
+				<ReadOnlyField label="Email" value={account.email} />
+			</SectionBody>
+		</SettingsSection>
+	);
+}
+
+function PersonalizationSection({preferences, change}: SectionProps) {
+	const theme = useOutlineStore((state) => state.theme);
+	const setTheme = useOutlineStore((state) => state.setTheme);
+	const current = preferences.theme ?? accountThemeName(theme);
+	return (
+		<SettingsSection title="Personalization">
+			<SectionBody>
+				<ControlRow label="Theme">
+					<Dropdown large>
+						{THEME_OPTIONS.map((option) => (
+							<DropdownOption
+								key={option.name}
+								label={option.prettyName}
+								isSelected={current === option.name}
+								onSelect={() => {
+									change({theme: option.name});
+									const next = themeFromAccount(option.name);
+									if (next !== null) {
+										setTheme(next);
+									}
+								}}
+							/>
+						))}
+					</Dropdown>
+				</ControlRow>
+			</SectionBody>
+		</SettingsSection>
+	);
+}
+
+function MediaSection({preferences, change}: SectionProps) {
+	const embeds = [
+		["Embed YouTube videos", "ignoreYoutube"],
+		["Embed YouTube Shorts", "ignoreYtShort"],
+		["Embed Tweets", "ignoreTwitter"],
+		["Embed Loom", "ignoreLoom"],
+	] as const;
+	return (
+		<SettingsSection title="Media & Previews">
+			<SectionBody>
+				<ControlRow label="Image thumbnails size">
+					<Dropdown large>
+						<DropdownOption
+							label="Small"
+							isSelected={preferences.displayImagePreviewsAsThumbnails}
+							onSelect={() => {
+								change({displayImagePreviewsAsThumbnails: true});
+							}}
+						/>
+						<DropdownOption
+							label="Big"
+							isSelected={!preferences.displayImagePreviewsAsThumbnails}
+							onSelect={() => {
+								change({displayImagePreviewsAsThumbnails: false});
+							}}
+						/>
+					</Dropdown>
+				</ControlRow>
+				{embeds.map(([label, key]) => (
+					<ControlRow key={key} label={label}>
+						<Toggle
+							on={!preferences[key]}
+							onClick={() => {
+								change({[key]: !preferences[key]});
+							}}
+						/>
+					</ControlRow>
+				))}
+			</SectionBody>
+		</SettingsSection>
+	);
+}
+
+function NotificationsSection({preferences, change}: SectionProps) {
+	return (
+		<SettingsSection title="Notifications">
+			<SectionBody>
+				<ControlRow label="Show weekly report">
+					<Toggle
+						on={preferences.weeklyReportOn}
+						onClick={() => {
+							change({weeklyReportOn: !preferences.weeklyReportOn});
+						}}
+					/>
+				</ControlRow>
+				<ControlRow label="Daily change email summary" hint={DAILY_SUMMARY_HINT}>
+					<Toggle
+						on={!preferences.unsubscribeFromSummaryEmails}
+						onClick={() => {
+							change({unsubscribeFromSummaryEmails: !preferences.unsubscribeFromSummaryEmails});
+						}}
+					/>
+				</ControlRow>
+			</SectionBody>
+		</SettingsSection>
+	);
+}
+
+function FeaturesSection() {
+	const showKeyboardShortcuts = useOutlineStore((state) => state.showKeyboardShortcuts);
+	const setShowKeyboardShortcuts = useOutlineStore((state) => state.setShowKeyboardShortcuts);
+	return (
+		<SettingsSection title="Features">
+			<SectionBody>
+				<ControlRow label="Keyboard shortcuts helper">
+					<Toggle
+						className="showKeyboardShortcuts"
+						on={showKeyboardShortcuts}
+						onClick={() => {
+							setShowKeyboardShortcuts(!showKeyboardShortcuts);
+						}}
+					/>
+				</ControlRow>
+			</SectionBody>
+		</SettingsSection>
+	);
+}
+
+/** Upstream `ll4`: the version and browser tags, copied on click, with a 2s "copied!" flash. */
+function SettingsVersion({label = currentVersionLabel()}: {label?: string}) {
+	const [flashing, flash] = useFlash(2000);
+	const copy = async () => {
+		try {
+			await navigator.clipboard.writeText(label);
+			flash();
+		} catch {
+			// Clipboard access can be denied; nothing was copied.
+		}
+	};
+	return (
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain div
+		<div
+			className="inline-block text-xs space-x-2xs"
+			onClick={() => {
+				void copy();
+			}}
+		>
+			<span className={`text-tertiary p-2xs ${flashing ? "" : "cursor-pointer"}`}>{label}</span>
+			{flashing ? <span className="text-success">copied!</span> : null}
+		</div>
+	);
+}
+
+/** Scroll `title`'s section to the top of the dialog box without highlighting it. */
+function jumpTo(root: HTMLElement | null, title: string): void {
+	const box = root?.closest<HTMLElement>(".dialog-box");
+	const section = findSection(root, title);
+	if (box && section) {
+		box.scrollTop += section.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientTop;
+	}
+}
+
+function findSection(root: HTMLElement | null, title: string): HTMLElement | undefined {
+	const sections = root?.querySelectorAll<HTMLElement>("[data-section-title]") ?? [];
+	return [...sections].find((section) => section.dataset.sectionTitle === title);
+}
+
+interface SettingsHeaderProps {
+	titles: readonly string[];
+	jump: string;
+	onJump: (title: string) => void;
+	onClose: () => void;
+}
+
+function SettingsHeader({titles, jump, onJump, onClose}: SettingsHeaderProps) {
+	return (
+		<div className="-mx-xl mb-l box-border w-[calc(100%+3rem)] bg-primary px-xl mobile:pb-l">
+			<div className="flex items-center gap-xl">
+				<div className="flex min-w-0 flex-1 flex-col gap-2xs">
+					<h1
+						className="title text-l leading-xs font-bold whitespace-nowrap overflow-hidden text-ellipsis mr-3xl"
+						style={{marginRight: 0}}
+					>
+						Settings
+					</h1>
+					<SettingsVersion />
+				</div>
+				{titles.length > 0 && (
+					<div className="shrink-0">
+						<Dropdown maxHeight={360}>
+							<DropdownOption
+								label="Jump to"
+								disabled
+								isSelected={jump === ""}
+								className="!cursor-default"
+							/>
+							{titles.map((title) => (
+								<DropdownOption
+									key={title}
+									label={title}
+									isSelected={jump === title}
+									onSelect={() => {
+										onJump(title);
+									}}
+								/>
+							))}
+						</Dropdown>
+					</div>
+				)}
+				<DialogCloseButton inline onClose={onClose} />
+			</div>
+		</div>
+	);
+}
+
+/** Registered titles in the order of `SETTINGS_SECTION_TITLES`, so a section that mounts late keeps its place. */
+function orderedTitles(titles: readonly string[]): string[] {
+	const order: readonly string[] = SETTINGS_SECTION_TITLES;
+	return titles.toSorted((a, b) => order.indexOf(a) - order.indexOf(b));
+}
+
+function SettingsBody({initialSection, onClose}: {initialSection: string | null; onClose: () => void}) {
+	const {preferences, setPreferences} = usePreferences();
+	const rootRef = useRef<HTMLDivElement>(null);
+	const [titles, setTitles] = useState<string[]>([]);
+	const [jump, setJump] = useState(initialSection ?? "");
+	const change = (patch: PreferencesPatch) => {
+		setPreferences(patch).catch(() => {});
+	};
+	const register = useCallback((title: string) => {
+		setTitles((current) => [...current, title]);
+		return () => {
+			setTitles((current) => current.filter((existing) => existing !== title));
+		};
+	}, []);
+
+	useEffect(() => {
+		if (initialSection === null) {
+			return () => {};
+		}
+		const timer = window.setTimeout(() => {
+			const section = findSection(rootRef.current, initialSection);
+			if (section) {
+				section.scrollIntoView({block: "center", inline: "nearest"});
+				section.dataset.sectionHighlight = "true";
+			}
+		}, 300);
+		return () => {
+			window.clearTimeout(timer);
+		};
+	}, [initialSection]);
+
+	const sectionProps: SectionProps = {preferences, change};
+	const sections: ReactNode[] = [
+		<AccountSection key="Account" {...sectionProps} />,
+		<PersonalizationSection key="Personalization" {...sectionProps} />,
+		<SettingsSection key="Dates" title="Dates">
+			<DatesSection />
+		</SettingsSection>,
+		<MediaSection key="Media & Previews" {...sectionProps} />,
+		// Backup holds only Trash, which waits on a trash view.
+		<NotificationsSection key="Notifications" {...sectionProps} />,
+		<FeaturesSection key="Features" />,
+	];
+	return (
+		<SettingsSectionRegistry value={register}>
+			<div ref={rootRef} className="contents">
+				<SettingsHeader
+					titles={orderedTitles(titles)}
+					jump={jump}
+					onJump={(title) => {
+						setJump(title);
+						jumpTo(rootRef.current, title);
+					}}
+					onClose={onClose}
+				/>
+				<div className="flex flex-col gap-3xl">{sections}</div>
+			</div>
+		</SettingsSectionRegistry>
+	);
+}
+
+/** Upstream's Settings dialog, opened from the main menu and the date format gears. */
 export function Settings() {
 	const settingsOpen = useOutlineStore((state) => state.settingsOpen);
 	const closeSettings = useOutlineStore((state) => state.closeSettings);
-	const theme = useOutlineStore((state) => state.theme);
-	const setTheme = useOutlineStore((state) => state.setTheme);
 	const settingsSection = useOutlineStore((state) => state.settingsSection);
-	const contentRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		if (settingsOpen && settingsSection === "Dates") {
-			contentRef.current?.querySelector("#settings-dates")?.scrollIntoView({block: "start"});
-		}
-	}, [settingsOpen, settingsSection]);
-
-	useHotkeys(
-		"escape",
-		() => {
-			closeSettings();
-		},
-		{
-			enabled: settingsOpen,
-			enableOnFormTags: true,
-		},
-		[settingsOpen, closeSettings],
-	);
-
 	if (!settingsOpen) {
 		return null;
 	}
-
-	const handleThemeChange = (newTheme: Theme) => {
-		setTheme(newTheme);
-	};
-
 	return (
-		<div
-			className="settings-overlay"
-			onClick={(event) => {
-				if (event.target === event.currentTarget) {
-					closeSettings();
-				}
-			}}
-			role="presentation"
-		>
-			<div className="settings-modal">
-				<div className="settings-header">
-					<h2 className="settings-title">Settings</h2>
-					<button className="settings-close" onClick={closeSettings} type="button">
-						x
-					</button>
-				</div>
-
-				<div className="settings-content" ref={contentRef}>
-					<section className="settings-section">
-						<h3 className="settings-section-title">Appearance</h3>
-
-						<div className="settings-row">
-							<span className="settings-label">Theme</span>
-							<div className="settings-theme-buttons">
-								<button
-									className={`settings-theme-button ${theme === "light" ? "selected" : ""}`}
-									onClick={() => {
-										handleThemeChange("light");
-									}}
-									type="button"
-								>
-									<svg fill="currentColor" height="18" viewBox="0 0 512 512" width="18">
-										<path d="M361.5 1.2c5 2.1 8.6 6.6 9.6 11.9L391 121l107.9 19.8c5.3 1 9.8 4.6 11.9 9.6s1.5 10.7-1.6 15.2L446.9 256l62.3 90.3c3.1 4.5 3.7 10.2 1.6 15.2s-6.6 8.6-11.9 9.6L391 391l-19.9 107.9c-1 5.3-4.6 9.8-9.6 11.9s-10.7 1.5-15.2-1.6L256 446.9l-90.3 62.3c-4.5 3.1-10.2 3.7-15.2 1.6s-8.6-6.6-9.6-11.9L121 391 13.1 371.1c-5.3-1-9.8-4.6-11.9-9.6s-1.5-10.7 1.6-15.2L65.1 256 2.8 165.7c-3.1-4.5-3.7-10.2-1.6-15.2s6.6-8.6 11.9-9.6L121 121 140.9 13.1c1-5.3 4.6-9.8 9.6-11.9s10.7-1.5 15.2 1.6L256 65.1 346.3 2.8c4.5-3.1 10.2-3.7 15.2-1.6zM160 256a96 96 0 1 1 192 0 96 96 0 1 1 -192 0zm224 0a128 128 0 1 0 -256 0 128 128 0 1 0 256 0z" />
-									</svg>
-									<span>Light</span>
-								</button>
-								<button
-									className={`settings-theme-button ${theme === "dark" ? "selected" : ""}`}
-									onClick={() => {
-										handleThemeChange("dark");
-									}}
-									type="button"
-								>
-									<svg fill="currentColor" height="18" viewBox="0 0 384 512" width="18">
-										<path d="M223.5 32C100 32 0 132.3 0 256S100 480 223.5 480c60.6 0 115.5-24.2 155.8-63.4c5-4.9 6.3-12.5 3.1-18.7s-10.1-9.7-17-8.5c-9.8 1.7-19.8 2.6-30.1 2.6c-96.9 0-175.5-78.8-175.5-176c0-65.8 36-123.1 89.3-153.3c6.1-3.5 9.2-10.5 7.7-17.3s-7.3-11.9-14.3-12.5c-6.3-.5-12.6-.8-19-.8z" />
-									</svg>
-									<span>Dark</span>
-								</button>
-								<button
-									className={`settings-theme-button ${theme === "system" ? "selected" : ""}`}
-									onClick={() => {
-										handleThemeChange("system");
-									}}
-									type="button"
-								>
-									<svg fill="currentColor" height="18" viewBox="0 0 576 512" width="18">
-										<path d="M64 0C28.7 0 0 28.7 0 64L0 352c0 35.3 28.7 64 64 64l176 0-10.7 32L160 448c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-69.3 0L336 416l176 0c35.3 0 64-28.7 64-64l0-288c0-35.3-28.7-64-64-64L64 0zM512 64l0 224L64 288 64 64l448 0z" />
-									</svg>
-									<span>System</span>
-								</button>
-							</div>
-						</div>
-					</section>
-
-					<DatesSection />
-
-					<section className="settings-section">
-						<h3 className="settings-section-title">Account</h3>
-						<div className="settings-row">
-							<span className="settings-info">
-								Account settings are managed through your Workflowy account.
-							</span>
-						</div>
-					</section>
-				</div>
-			</div>
-		</div>
+		<DialogShell onClose={closeSettings}>
+			<SettingsBody initialSection={settingsSection} onClose={closeSettings} />
+		</DialogShell>
 	);
 }

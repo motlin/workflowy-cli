@@ -2811,99 +2811,8 @@ body.moving .itemMenu {
 }
 
 /* ================================
-   Settings Modal Styles
+   Settings Dates Rows (the dialog itself is DialogShell + Tailwind)
    ================================ */
-
-.settings-overlay {
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	background-color: var(--color-bg-overlay);
-	display: flex;
-	justify-content: center;
-	align-items: flex-start;
-	padding-top: 80px;
-	z-index: 1001;
-}
-
-.settings-modal {
-	width: 100%;
-	max-width: 480px;
-	background-color: var(--color-bg);
-	border-radius: 8px;
-	box-shadow: var(--shadow-modal);
-	display: flex;
-	flex-direction: column;
-	max-height: 70vh;
-}
-
-.settings-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 16px 20px;
-	border-bottom: 1px solid var(--color-border);
-}
-
-.settings-title {
-	margin: 0;
-	font-size: 16px;
-	font-weight: 600;
-	color: var(--color-text);
-}
-
-.settings-close {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
-	padding: 0;
-	background: transparent;
-	border: none;
-	border-radius: 4px;
-	color: var(--color-text-muted);
-	cursor: pointer;
-	font-size: 16px;
-	transition:
-		background-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.settings-close:hover {
-	background-color: var(--color-bg-hover);
-	color: var(--color-text);
-}
-
-.settings-close:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
-}
-
-.settings-content {
-	flex: 1;
-	padding: 20px;
-	overflow-y: auto;
-}
-
-.settings-section {
-	margin-bottom: 24px;
-}
-
-.settings-section:last-child {
-	margin-bottom: 0;
-}
-
-.settings-section-title {
-	margin: 0 0 12px;
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--color-text-secondary);
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-}
 
 .settings-row {
 	display: flex;
@@ -2949,51 +2858,6 @@ body.moving .itemMenu {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-}
-
-.settings-theme-buttons {
-	display: flex;
-	gap: 8px;
-}
-
-.settings-theme-button {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 6px;
-	padding: 12px 16px;
-	min-width: 80px;
-	background: transparent;
-	border: 1px solid var(--color-border);
-	border-radius: 8px;
-	color: var(--color-text-secondary);
-	cursor: pointer;
-	font-family: inherit;
-	font-size: 12px;
-	transition:
-		background-color 0.15s ease,
-		border-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.settings-theme-button:hover {
-	background-color: var(--color-bg-hover);
-	border-color: var(--color-text-muted);
-}
-
-.settings-theme-button.selected {
-	background-color: var(--color-bg-selected);
-	border-color: var(--color-border-focus);
-	color: var(--color-accent);
-}
-
-._theme-dark .settings-theme-button.selected {
-	color: var(--color-border-focus);
-}
-
-.settings-theme-button:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
 }
 
 /* ================================

@@ -23,7 +23,6 @@ function render(state: PreferencesState): string {
 /** The parts of the Dates section the user sees and acts on. */
 function summarize(html: string) {
 	return {
-		title: /<h3 class="settings-section-title">([^<]*)<\/h3>/u.exec(html)?.[1],
 		labels: [...html.matchAll(/<label class="settings-label"[^>]*>([^<]*)<\/label>/gu)].map((m) => m[1]),
 		selected: [...html.matchAll(/<option value="([^"]*)" selected="">([^<]*)<\/option>/gu)].map((m) => [
 			m[1],
@@ -46,7 +45,6 @@ describe("Settings > Dates", () => {
 			error: null,
 		});
 		expect(summarize(html)).toStrictEqual({
-			title: "Dates",
 			labels: ["Date format", "Time format", "Start of week", "Custom date format"],
 			selected: [
 				["YYYY-MM-DD ddd", "2026-10-01 Thu"],

@@ -45,6 +45,7 @@ function setup(meta: Record<string, unknown> | undefined, settings: Record<strin
 			settings[name] = value;
 			return Promise.resolve();
 		}),
+		saveLocalSettings: vi.fn<WorkflowyInternalAdapter["saveLocalSettings"]>(),
 		getRootMeta: vi.fn<WorkflowyInternalAdapter["getRootMeta"]>(async (path) =>
 			Promise.resolve(path.reduce<unknown>((value, key) => (isRecord(value) ? value[key] : undefined), meta)),
 		),
@@ -93,6 +94,16 @@ const EMPTY = {
 	showCompleted: false,
 	showKeyboardShortcuts: false,
 	sameColorForLinks: false,
+	theme: null,
+	displayImagePreviewsAsThumbnails: false,
+	ignoreYoutube: false,
+	ignoreYtShort: false,
+	ignoreTwitter: false,
+	ignoreLoom: false,
+	unsubscribeFromSummaryEmails: false,
+	unsubscribeFromCommentsEmails: false,
+	weeklyReportOn: false,
+	account: null,
 };
 
 describe("GET /api/v1/preferences", () => {
@@ -109,14 +120,12 @@ describe("GET /api/v1/preferences", () => {
 		await expect(request("GET", "/preferences")).resolves.toStrictEqual({
 			status: 200,
 			body: {
+				...EMPTY,
 				dateFormat: "MMM D, YYYY",
 				timeFormat: "h:mm a",
 				weekStartDay: 1,
 				slashDiscovered: true,
 				notesRootId: NOTES,
-				showCompleted: false,
-				showKeyboardShortcuts: false,
-				sameColorForLinks: false,
 			},
 		});
 	});
@@ -150,6 +159,58 @@ describe("GET /api/v1/preferences", () => {
 			status: 200,
 			body: {...EMPTY, showCompleted: false, showKeyboardShortcuts: true},
 		});
+	});
+
+	it("round-trips the theme as a string", async () => {
+		const {adapter, request} = setup({}, {theme: "dark"});
+
+		const read = await request("GET", "/preferences");
+		const written = await request("PATCH", "/preferences", {theme: "system"});
+
+		expect({read, written, settings: adapter.setSetting.mock.calls}).toStrictEqual({
+			read: {status: 200, body: {...EMPTY, theme: "dark"}},
+			written: {status: 200, body: {...EMPTY, theme: "system"}},
+			settings: [["theme", "system"]],
+		});
+	});
+
+	it("reads the media and notification account flags and the weekly report toggle", async () => {
+		const {request} = setup(
+			{"weekly-report": {on: true}},
+			{
+				display_image_previews_as_thumbnails: "yes",
+				ignore_youtube: "yes",
+				ignore_yt_short: "no",
+				ignore_twitter: true,
+				ignore_loom: false,
+				unsubscribe_from_summary_emails: "yes",
+				unsubscribe_from_comments_emails: "yes",
+			},
+		);
+
+		await expect(request("GET", "/preferences")).resolves.toStrictEqual({
+			status: 200,
+			body: {
+				...EMPTY,
+				displayImagePreviewsAsThumbnails: true,
+				ignoreYoutube: true,
+				ignoreTwitter: true,
+				unsubscribeFromSummaryEmails: true,
+				unsubscribeFromCommentsEmails: true,
+				weeklyReportOn: true,
+			},
+		});
+	});
+
+	it("answers the account's name and email from its settings, and null when either is missing", async () => {
+		const full = setup({}, {username: "Alice", email: "alice@example.com"});
+		const partial = setup({}, {username: "Alice"});
+
+		await expect(full.request("GET", "/preferences")).resolves.toStrictEqual({
+			status: 200,
+			body: {...EMPTY, account: {username: "Alice", email: "alice@example.com"}},
+		});
+		await expect(partial.request("GET", "/preferences")).resolves.toStrictEqual({status: 200, body: EMPTY});
 	});
 
 	it("answers nulls and false for missing or mistyped values", async () => {
@@ -249,6 +310,50 @@ describe("PATCH /api/v1/preferences", () => {
 			],
 			metadata: [[[{path: ["dateFormat"], value: "MMM D"}]]],
 		});
+	});
+
+	it("writes ignoreLoom through the account settings and weeklyReportOn at weekly-report.on", async () => {
+		const {adapter, request} = setup({});
+
+		const response = await request("PATCH", "/preferences", {ignoreLoom: true, weeklyReportOn: true});
+
+		expect({
+			response,
+			settings: adapter.setSetting.mock.calls,
+			metadata: adapter.setRootMetaValues.mock.calls,
+		}).toStrictEqual({
+			response: {status: 200, body: {...EMPTY, ignoreLoom: true, weeklyReportOn: true}},
+			settings: [["ignore_loom", true]],
+			metadata: [[[{path: ["weekly-report", "on"], value: true}]]],
+		});
+	});
+
+	it("keeps a durable local copy of the root metadata preferences it writes, and null for a removed one", async () => {
+		const {adapter, request} = setup({notesRootId: NOTES});
+
+		await request("PATCH", "/preferences", {dateFormat: "MMM D", notesRootId: null, theme: "dark"});
+
+		expect(adapter.saveLocalSettings.mock.calls).toStrictEqual([
+			[{"root:dateFormat": "MMM D", "root:notesRootId": null}],
+		]);
+	});
+
+	it("does not save a local copy when the write to workflowy.com fails", async () => {
+		const {adapter, request} = setup({});
+		adapter.setRootMetaValues.mockRejectedValueOnce(new Error("boom"));
+
+		// The failure answers a non-JSON 500, which the helper cannot parse.
+		await expect(request("PATCH", "/preferences", {dateFormat: "MMM D"})).rejects.toThrow(SyntaxError);
+
+		expect(adapter.saveLocalSettings.mock.calls).toStrictEqual([]);
+	});
+
+	it("rejects the read-only account field", async () => {
+		const {request} = setup({});
+
+		const response = await request("PATCH", "/preferences", {account: null});
+
+		expect(response.status).toBe(400);
 	});
 
 	it("rejects unknown keys and mistyped values without writing", async () => {

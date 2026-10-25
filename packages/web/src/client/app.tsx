@@ -49,7 +49,7 @@ import {useContentLinkClicks} from "./hooks/use-content-link-clicks.js";
 import {useSearchEscape} from "./hooks/use-search-escape.js";
 import {usePreferences} from "./hooks/use-preferences.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
-import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
+import {useShowKeyboardShortcutsSync, useThemeSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
 import {installWindowBlurredClass} from "./window-blurred.js";
 import {installCoalescingTimeoutProvider} from "./coalescing-timers.js";
@@ -257,6 +257,7 @@ function ShowCompletedSync() {
 /** Keeps the right bar's shortcuts help in step with the account's `show_keyboard_shortcuts` setting. */
 function ShowKeyboardShortcutsSync() {
 	useShowKeyboardShortcutsSync();
+	useThemeSync();
 	return null;
 }
 

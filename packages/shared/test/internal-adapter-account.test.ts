@@ -5,7 +5,7 @@ import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import * as schema from "../src/db/schema.js";
-import {accountState} from "../src/db/schema.js";
+import {accountState, localSettings} from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
 import {OperationRejected} from "../src/internal/errors.js";
 import {createFakeInternalApi, FAKE_CLIENT_ID, initializationData, json} from "./helpers/fake-internal-api.js";
@@ -262,5 +262,51 @@ describe("WorkflowyInternalAdapter account state", () => {
 		await expect(adapter.setSetting("theme", "light")).rejects.toThrow("/change_settings returned 500");
 
 		expect(db.select().from(accountState).all()).toStrictEqual(before);
+	});
+	it("keeps a durable local copy of each written setting that a server refresh does not overwrite", async () => {
+		const {api, adapter, db, clock} = tracked();
+		await adapter.setSetting("theme", "dark");
+		await adapter.setSetting("ignore_loom", true);
+		adapter.saveLocalSettings({"root:weekStartDay": 1, "root:dateFormat": null});
+		api.respond("/get_initialization_data", () =>
+			json({...initializationData(), settings: {theme: "light"}}, {headers: {wfclientid: FAKE_CLIENT_ID}}),
+		);
+		clock.ms += 31_000;
+		await adapter.getSetting("theme");
+		await adapter.accountRefreshed();
+
+		expect({
+			cached: await adapter.getSetting("theme"),
+			local: adapter.localSettings(),
+			rows: db
+				.select()
+				.from(localSettings)
+				.all()
+				.map((row) => [row.key, row.json])
+				.toSorted(([a], [b]) => String(a).localeCompare(String(b))),
+		}).toStrictEqual({
+			cached: "light",
+			local: {
+				"setting:theme": "dark",
+				"setting:ignore_loom": true,
+				"root:weekStartDay": 1,
+				"root:dateFormat": null,
+			},
+			rows: [
+				["root:dateFormat", "null"],
+				["root:weekStartDay", "1"],
+				["setting:ignore_loom", "true"],
+				["setting:theme", '"dark"'],
+			],
+		});
+	});
+
+	it("does not touch the local copy when the settings POST fails", async () => {
+		const {api, adapter, db} = tracked();
+		api.respond("/change_settings", () => new Response("boom", {status: 500}));
+
+		await expect(adapter.setSetting("theme", "light")).rejects.toThrow("/change_settings returned 500");
+
+		expect(db.select().from(localSettings).all()).toStrictEqual([]);
 	});
 });
