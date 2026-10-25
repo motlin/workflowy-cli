@@ -1,13 +1,14 @@
 import {useCallback} from "react";
 import type {ClipboardEvent as ReactClipboardEvent, RefObject} from "react";
 import {useQueryClient} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
 import {showAlert} from "../alert.js";
 import {placeCaretAtTextOffset, selectionTextOffsets} from "../caret-dom.js";
 import {resolveLayoutMode} from "../components/layout-mode.js";
 import type {DateSettings} from "../date-settings.js";
 import {renderEditorHtml, serializeEditorHtml} from "../editor-html.js";
 import type {MentionAccount} from "../mention-pills.js";
-import {readChildren, readNode} from "../node-cache.js";
+import {readChildren, readNode, nodeKeys} from "../node-cache.js";
 import {
 	buildItemCopyLines,
 	buildPasteLines,
@@ -20,9 +21,14 @@ import {createTrees} from "../paste/create-trees.js";
 import {plainLength, splitHtml} from "../rich-text.js";
 import {activePaneView, outlineActions} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
-import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
+import {captureOutlineView, holdUndoSlot, runInUndoBatch} from "../undo-batch.js";
 import {usePlainPasteKey} from "./use-plain-paste-key.js";
-import {toggleComplete, useDeleteNode, useUpdateNode} from "./use-nodes.js";
+import {restoreNode, toggleComplete, useDeleteNode, useUpdateNode} from "./use-nodes.js";
+import {cutEntryFor, forgetCut} from "../cut-registry.js";
+import {CUT_PASTE_WARNING, copyTreeFromCache, planItemPaste, resolveShortId, stepsRunnable} from "../paste/items.js";
+import type {ItemPasteStep} from "../paste/items.js";
+import {RequestStatusError} from "../request-error.js";
+import {hideBanner, showBanner} from "../stores/banner.js";
 
 interface NamePasteOptions {
 	nodeId: string;
@@ -34,6 +40,58 @@ interface NamePasteOptions {
 	resetSaved: (name: string) => void;
 	/** The editor's text changed in place; schedule its save. */
 	changed: () => void;
+}
+
+interface ItemPasteTarget {
+	queryClient: QueryClient;
+	parentId: string | null;
+	baseIndex: number;
+}
+
+/**
+ * Run the steps of a paste of copied rows from `baseIndex` under `parentId`: cut rows are restored with their original
+ * ids, the rest duplicated from the model. Resolves to the id of the last pasted row; `unmovable` when the first
+ * restore is refused (409/503), so the caller can fall back to a plain copy.
+ */
+async function pasteItemSteps(
+	steps: readonly ItemPasteStep[],
+	{queryClient, parentId, baseIndex}: ItemPasteTarget,
+): Promise<{unmovable: true} | {unmovable: false; lastId: string | null}> {
+	let at = baseIndex;
+	let lastId: string | null = null;
+	for (const step of steps) {
+		if (step.kind === "restore") {
+			const slot = holdUndoSlot();
+			try {
+				// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
+				await restoreNode(step.id, {parent_id: parentId, index: at});
+			} catch (error) {
+				slot.settle([]);
+				if (
+					at === baseIndex &&
+					error instanceof RequestStatusError &&
+					(error.status === 409 || error.status === 503)
+				) {
+					return {unmovable: true};
+				}
+				throw error;
+			}
+			slot.settle([{kind: "undelete", nodeId: step.id, parentId, index: at}]);
+			forgetCut(step.shortId);
+			hideBanner();
+			lastId = step.id;
+		} else {
+			const tree = step.id === null ? undefined : copyTreeFromCache(queryClient, step.id);
+			if (tree !== undefined) {
+				// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
+				const [created] = await createTrees(queryClient, {parentId, index: at, trees: [tree]});
+				lastId = created ?? lastId;
+			}
+		}
+		at += 1;
+	}
+	await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+	return {unmovable: false, lastId};
 }
 
 function lastTree(trees: readonly PasteTree[]): PasteTree | undefined {
@@ -122,8 +180,21 @@ export function useNamePaste({
 						: "leaf";
 			const {resumeEditing, expand} = outlineActions();
 
+			const itemSteps = plainKey.current
+				? null
+				: planItemPaste(html, {
+						cutId: (shortId) => cutEntryFor(shortId)?.id,
+						resolve: (shortId) => resolveShortId(queryClient, shortId),
+					});
+			if (itemSteps !== null && "alert" in itemSteps) {
+				showAlert(itemSteps.alert, "Error");
+				return;
+			}
 			const copied = plainKey.current ? null : buildItemCopyLines(html);
-			if (copied !== null) {
+			const pasteCopiedLines = (): void => {
+				if (copied === null) {
+					return;
+				}
 				const plan = planItemCopy({
 					lines: copied,
 					rowEmpty: stored.trim() === "" && offsets.start === 0 && offsets.end === 0,
@@ -149,6 +220,43 @@ export function useNamePaste({
 						resumeEditing(last, plainLength(tree.name));
 					}
 				}).catch(() => {});
+			};
+			if (itemSteps !== null && stepsRunnable(itemSteps)) {
+				const placementPlan = planItemCopy({
+					lines: [],
+					rowEmpty: stored.trim() === "" && offsets.start === 0 && offsets.end === 0,
+					rowIndex,
+					rowOpen: view.expandedIds.has(nodeId) && children.length > 0,
+				});
+				void runInUndoBatch(captureOutlineView, async () => {
+					const placed = await pasteItemSteps(itemSteps, {
+						queryClient,
+						parentId: placementPlan.placement.kind === "firstChild" ? nodeId : parentId,
+						baseIndex:
+							placementPlan.placement.kind === "index"
+								? placementPlan.placement.index
+								: placementPlan.placement.kind === "firstChild"
+									? 0
+									: rowIndex + 1,
+					});
+					if (placed.unmovable) {
+						showBanner(CUT_PASTE_WARNING, {kind: "warn"});
+						pasteCopiedLines();
+						return;
+					}
+					if (placementPlan.deleteCurrent) {
+						deleteNode.mutate(nodeId);
+					} else if (placementPlan.placement.kind === "firstChild") {
+						expand(nodeId);
+					}
+					if (placed.lastId !== null) {
+						resumeEditing(placed.lastId, Number.MAX_SAFE_INTEGER);
+					}
+				}).catch(() => {});
+				return;
+			}
+			if (copied !== null) {
+				pasteCopiedLines();
 				return;
 			}
 

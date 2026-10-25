@@ -99,6 +99,7 @@ const SHELL = {
 	PresentationMode: 1,
 	ErrorNotifications: 1,
 	AppMessages: 1,
+	GuiBanner: 1,
 	GlobalCommands: 1,
 };
 

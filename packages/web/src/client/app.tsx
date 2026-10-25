@@ -5,6 +5,7 @@ import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-do
 
 import {MenusHost} from "./components/menus-host.js";
 import {AppMessages} from "./components/app-message.js";
+import {GuiBanner} from "./components/gui-banner.js";
 import {ChangesView} from "./components/changes-view.js";
 import {ErrorBoundary} from "./components/error-boundary.js";
 import {ErrorNotifications} from "./components/error-notification.js";
@@ -34,6 +35,7 @@ import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {StableNavigateProvider} from "./hooks/use-stable-navigate.js";
+import {useCopyCut} from "./hooks/use-copy-cut.js";
 import {activeCommandRegistry, useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {usePaneUrlSync} from "./hooks/use-pane-url-sync.js";
 import {fetchResolvedId, useHashLocationZoom} from "./hooks/use-hash-location-zoom.js";
@@ -70,6 +72,7 @@ installSaveTracking(queryClient, window);
  */
 function GlobalCommands() {
 	useGlobalKeymap(useCommandRegistry());
+	useCopyCut();
 	useSearchEscape();
 	useRowHoverController();
 	return null;
@@ -200,6 +203,7 @@ export const OutlineView = memo(function OutlineView() {
 			<PresentationMode />
 			<ErrorNotifications />
 			<AppMessages />
+			<GuiBanner />
 			{/* Last, so its window keydown listeners register after every other pane's, as when the page shell held them. */}
 			<GlobalCommands />
 		</div>

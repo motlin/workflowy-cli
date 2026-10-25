@@ -121,7 +121,7 @@ function resumeAt(target: CaretTarget | null): void {
 
 /**
  * Delete the selected items (`ordered`, in display order) as one undo step, confirming first when that removes more
- * than upstream's threshold of items. Editing resumes beside them, or, when the selected zoom root itself goes, the
+ * than upstream's threshold of items (a cut passes `confirm: false`, as upstream's cut never asks). Editing resumes beside them, or, when the selected zoom root itself goes, the
  * view zooms out to its parent as upstream's `np` does.
  */
 export function deleteSelectedItems(
@@ -129,8 +129,10 @@ export function deleteSelectedItems(
 	ordered: readonly string[],
 	deleteNode: (id: string) => void,
 	navigate: NavigateFn,
+	{confirm = true}: {confirm?: boolean} = {},
 ): void {
 	if (
+		confirm &&
 		deletedItemCount(queryClient, ordered) > DELETE_CONFIRM_THRESHOLD &&
 		!globalThis.confirm(`Delete ${ordered.length} selected items and everything inside them?`)
 	) {

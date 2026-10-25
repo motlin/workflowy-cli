@@ -70,6 +70,7 @@ describe("FA_ICONS", () => {
 			"fal:down-left-and-up-right-to-center",
 			"fal:arrow-down-a-z",
 			"fal:arrow-down-z-a",
+			"fal:circle-xmark",
 			"fal:xmark",
 			"fas:triangle-exclamation",
 			"fas:circle-exclamation",
