@@ -1,3 +1,4 @@
+import type {UndoBatch} from "../undo-history.js";
 /**
  * Upstream's window keydown dispatcher (`fg4`) and `WF.Hotkeys.process` (`ng4`): every combo in the hotkey table
  * runs its command, and a bound combo is claimed (preventDefault) even when its command is missing or unavailable,
@@ -15,6 +16,8 @@ export interface CommandContext {
 	zoomedId: string | null;
 	/** Where a picker the command opens anchors, e.g. the removed slash chip's rect. */
 	anchorRect?: DOMRect;
+	/** Undo only: pop the newest step this accepts instead of the latest one (the cut Restore link). */
+	undoMatch?: (batch: UndoBatch) => boolean;
 }
 
 export interface Command {

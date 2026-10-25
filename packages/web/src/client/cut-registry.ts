@@ -1,3 +1,5 @@
+import type {UndoBatch} from "./undo-history.js";
+
 /**
  * The rows the last cut removed, by the 12-hex short id the copied html carries (`data-wfid`). A paste whose html
  * names a cut row moves it back with its original id (upstream `Item.pasteUnder` undeleting a deleted item); any
@@ -32,4 +34,16 @@ export function forgetCut(shortId: string): void {
 
 export function clearCutRegistry(): void {
 	cut.clear();
+}
+
+/**
+ * Matches the undo step of the cut that removed exactly `ids` (stored inverted, so every op is an undelete of one of
+ * them and each id is covered), so Restore undoes that cut and never whatever step came last.
+ */
+export function cutUndoMatch(ids: readonly string[]): (batch: UndoBatch) => boolean {
+	const wanted = new Set(ids);
+	return (batch) =>
+		batch.ops.length > 0 &&
+		batch.ops.every((op) => op.kind === "undelete" && wanted.has(op.nodeId)) &&
+		ids.every((id) => batch.ops.some((op) => "nodeId" in op && op.nodeId === id));
 }

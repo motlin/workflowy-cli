@@ -45,7 +45,7 @@ export interface UndoRunner {
 	 * steps still waiting on a reply.
 	 */
 	settled(): Promise<void> | undefined;
-	pop(direction: UndoDirection): UndoBatch | undefined;
+	pop(direction: UndoDirection, match?: (batch: UndoBatch) => boolean): UndoBatch | undefined;
 	/** Leaves the editor so the replay does not write under the caret. */
 	blur(): void;
 	/** Keeps server answers from landing over the preview until the replay is done; returns the release. */
@@ -78,8 +78,12 @@ interface Previewed {
  * restore the view saved with the step (the pre-command view for undo, the post-command view for redo), not
  * the current one, so the outline updates without a round trip.
  */
-function previewStep(direction: UndoDirection, runner: UndoRunner): Previewed | undefined {
-	const batch = runner.pop(direction);
+function previewStep(
+	direction: UndoDirection,
+	runner: UndoRunner,
+	match?: (batch: UndoBatch) => boolean,
+): Previewed | undefined {
+	const batch = runner.pop(direction, match);
 	if (batch === undefined) {
 		return undefined;
 	}
@@ -105,10 +109,13 @@ function previewStep(direction: UndoDirection, runner: UndoRunner): Previewed | 
 function previewUndo(
 	direction: UndoDirection,
 	runner: UndoRunner,
+	match?: (batch: UndoBatch) => boolean,
 ): Previewed | undefined | Promise<Previewed | undefined> {
 	runner.flush();
 	const waiting = runner.settled();
-	return waiting === undefined ? previewStep(direction, runner) : waiting.then(() => previewStep(direction, runner));
+	return waiting === undefined
+		? previewStep(direction, runner, match)
+		: waiting.then(() => previewStep(direction, runner, match));
 }
 
 /** The latest press still waiting to preview; later presses queue behind it so each pops the step after the last. */
@@ -121,11 +128,12 @@ let pendingReplays = 0;
 function startPreview(
 	direction: UndoDirection,
 	runner: UndoRunner,
+	match?: (batch: UndoBatch) => boolean,
 ): Previewed | undefined | Promise<Previewed | undefined> {
 	const previewed =
 		waitingPreview === undefined
-			? previewUndo(direction, runner)
-			: waitingPreview.then(async () => previewUndo(direction, runner));
+			? previewUndo(direction, runner, match)
+			: waitingPreview.then(async () => previewUndo(direction, runner, match));
 	if (previewed instanceof Promise) {
 		waitingPresses++;
 		waitingPreview = (async () => {
@@ -145,8 +153,12 @@ function startPreview(
  * server; only the replays are serialized (in line with text saves, see `serializeWrite`), and the cache
  * refetches once after the last of them so a middle refetch never lands over a later preview.
  */
-export async function queueUndo(direction: UndoDirection, runner: UndoRunner): Promise<void> {
-	const previewed = await startPreview(direction, runner);
+export async function queueUndo(
+	direction: UndoDirection,
+	runner: UndoRunner,
+	match?: (batch: UndoBatch) => boolean,
+): Promise<void> {
+	const previewed = await startPreview(direction, runner, match);
 	if (previewed === undefined) {
 		return;
 	}

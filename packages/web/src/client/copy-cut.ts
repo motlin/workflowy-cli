@@ -18,7 +18,8 @@ export interface CopyCutDeps {
 	deleteRows: (ids: string[]) => void;
 	clearSelection: () => void;
 	showBanner(text: string, restore: () => void): void;
-	restore: () => void;
+	/** Undo the cut of exactly `ids`. */
+	restore: (ids: readonly string[]) => void;
 	schedule(run: () => void): void;
 }
 
@@ -139,7 +140,9 @@ export function handleCut(event: ClipboardLike, deps: CopyCutDeps): boolean {
 		deps.deleteRows(ids);
 		deps.clearSelection();
 		if (big) {
-			deps.showBanner(cutBannerText(ids.length, hasKids), deps.restore);
+			deps.showBanner(cutBannerText(ids.length, hasKids), () => {
+				deps.restore(ids);
+			});
 		}
 	});
 	return true;

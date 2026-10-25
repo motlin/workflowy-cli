@@ -730,7 +730,12 @@ export function useCommandRegistry(): CommandRegistry {
 	const undoRunner: UndoRunner = {
 		flush: flushEditing,
 		settled: settleUndoNow,
-		pop: (direction) => (direction === "undo" ? undoHistory.popUndo() : undoHistory.popRedo()),
+		pop: (direction, match) =>
+			direction === "undo"
+				? match === undefined
+					? undoHistory.popUndo()
+					: undoHistory.popUndoWhere(match)
+				: undoHistory.popRedo(),
 		blur() {
 			// Committed at once, so the editor unmounts: a row edited both before and after the undo would otherwise keep
 			// its held text, since stopping and resuming in one render never leaves editing.
@@ -796,8 +801,8 @@ export function useCommandRegistry(): CommandRegistry {
 
 	/** Upstream ⌘Z / ⇧⌘Z: claimed even with an empty stack, so the browser's native undo never runs. */
 	const undoCommand = (direction: UndoDirection) => ({
-		execute() {
-			queueUndo(direction, undoRunner).catch((error: unknown) => {
+		execute(ctx?: CommandContext) {
+			queueUndo(direction, undoRunner, ctx?.undoMatch).catch((error: unknown) => {
 				useOutlineStore
 					.getState()
 					.addErrorNotification(

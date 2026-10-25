@@ -25,7 +25,14 @@ import {captureOutlineView, holdUndoSlot, runInUndoBatch} from "../undo-batch.js
 import {usePlainPasteKey} from "./use-plain-paste-key.js";
 import {restoreNode, toggleComplete, useDeleteNode, useUpdateNode} from "./use-nodes.js";
 import {cutEntryFor, forgetCut} from "../cut-registry.js";
-import {CUT_PASTE_WARNING, copyTreeFromCache, planItemPaste, resolveShortId, stepsRunnable} from "../paste/items.js";
+import {
+	CUT_PASTE_WARNING,
+	copyTreeFromCache,
+	pasteSteps,
+	planItemPaste,
+	resolveShortId,
+	stepsRunnable,
+} from "../paste/items.js";
 import type {ItemPasteStep} from "../paste/items.js";
 import {RequestStatusError} from "../request-error.js";
 import {hideBanner, showBanner} from "../stores/banner.js";
@@ -49,49 +56,34 @@ interface ItemPasteTarget {
 }
 
 /**
- * Run the steps of a paste of copied rows from `baseIndex` under `parentId`: cut rows are restored with their original
- * ids, the rest duplicated from the model. Resolves to the id of the last pasted row; `unmovable` when the first
- * restore is refused (409/503), so the caller can fall back to a plain copy.
+ * Run the steps of a paste of copied rows from `baseIndex` under `parentId` (see `pasteSteps`). Rows a refused restore
+ * leaves behind are pasted as copies of the html's rows (`copyTrees`).
  */
 async function pasteItemSteps(
 	steps: readonly ItemPasteStep[],
 	{queryClient, parentId, baseIndex}: ItemPasteTarget,
-): Promise<{unmovable: true} | {unmovable: false; lastId: string | null}> {
-	let at = baseIndex;
-	let lastId: string | null = null;
-	for (const step of steps) {
-		if (step.kind === "restore") {
+	copyTrees: readonly PasteTree[],
+): Promise<Awaited<ReturnType<typeof pasteSteps>>> {
+	const createOne = async (tree: PasteTree | undefined, at: number): Promise<string | undefined> =>
+		tree === undefined ? undefined : (await createTrees(queryClient, {parentId, index: at, trees: [tree]}))[0];
+	const result = await pasteSteps(steps, baseIndex, {
+		async restore(step, at) {
 			const slot = holdUndoSlot();
 			try {
-				// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
 				await restoreNode(step.id, {parent_id: parentId, index: at});
 			} catch (error) {
 				slot.settle([]);
-				if (
-					at === baseIndex &&
-					error instanceof RequestStatusError &&
-					(error.status === 409 || error.status === 503)
-				) {
-					return {unmovable: true};
-				}
 				throw error;
 			}
 			slot.settle([{kind: "undelete", nodeId: step.id, parentId, index: at}]);
 			forgetCut(step.shortId);
 			hideBanner();
-			lastId = step.id;
-		} else {
-			const tree = step.id === null ? undefined : copyTreeFromCache(queryClient, step.id);
-			if (tree !== undefined) {
-				// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
-				const [created] = await createTrees(queryClient, {parentId, index: at, trees: [tree]});
-				lastId = created ?? lastId;
-			}
-		}
-		at += 1;
-	}
+		},
+		copyFromCache: async (id, at) => createOne(copyTreeFromCache(queryClient, id), at),
+		fallbackCopy: async (stepIndex, at) => createOne(copyTrees[stepIndex], at),
+	});
 	await queryClient.invalidateQueries({queryKey: nodeKeys.all});
-	return {unmovable: false, lastId};
+	return result;
 }
 
 function lastTree(trees: readonly PasteTree[]): PasteTree | undefined {
@@ -191,6 +183,10 @@ export function useNamePaste({
 				return;
 			}
 			const copied = plainKey.current ? null : buildItemCopyLines(html);
+			const copiedTrees =
+				copied === null
+					? []
+					: planItemCopy({lines: copied, rowEmpty: false, rowIndex: 0, rowOpen: false}).trees;
 			const pasteCopiedLines = (): void => {
 				if (copied === null) {
 					return;
@@ -229,20 +225,27 @@ export function useNamePaste({
 					rowOpen: view.expandedIds.has(nodeId) && children.length > 0,
 				});
 				void runInUndoBatch(captureOutlineView, async () => {
-					const placed = await pasteItemSteps(itemSteps, {
-						queryClient,
-						parentId: placementPlan.placement.kind === "firstChild" ? nodeId : parentId,
-						baseIndex:
-							placementPlan.placement.kind === "index"
-								? placementPlan.placement.index
-								: placementPlan.placement.kind === "firstChild"
-									? 0
-									: rowIndex + 1,
-					});
+					const placed = await pasteItemSteps(
+						itemSteps,
+						{
+							queryClient,
+							parentId: placementPlan.placement.kind === "firstChild" ? nodeId : parentId,
+							baseIndex:
+								placementPlan.placement.kind === "index"
+									? placementPlan.placement.index
+									: placementPlan.placement.kind === "firstChild"
+										? 0
+										: rowIndex + 1,
+						},
+						copiedTrees,
+					);
 					if (placed.unmovable) {
 						showBanner(CUT_PASTE_WARNING, {kind: "warn"});
 						pasteCopiedLines();
 						return;
+					}
+					if (placed.fellBack) {
+						showBanner(CUT_PASTE_WARNING, {kind: "warn"});
 					}
 					if (placementPlan.deleteCurrent) {
 						deleteNode.mutate(nodeId);

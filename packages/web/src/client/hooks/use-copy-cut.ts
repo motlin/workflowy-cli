@@ -7,7 +7,8 @@ import type {CopyCutDeps, TitleSelection} from "../copy-cut.js";
 import {serializeEditorHtml} from "../editor-html.js";
 import {sortedIds} from "../item-selection.js";
 import {readChildren, readNode} from "../node-cache.js";
-import {showBanner} from "../stores/banner.js";
+import {cutUndoMatch} from "../cut-registry.js";
+import {hideBanner, showBanner} from "../stores/banner.js";
 import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import {activeCommandRegistry} from "./use-global-keymap.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
@@ -71,8 +72,13 @@ function depsFor(
 		showBanner: (text, restore) => {
 			showBanner(text, {kind: "info", action: {label: "Restore.", run: restore}});
 		},
-		restore: () => {
-			activeCommandRegistry().undo?.execute({items: [], zoomedId: useOutlineStore.getState().zoomedNodeId});
+		restore: (ids) => {
+			activeCommandRegistry().undo?.execute({
+				items: [],
+				zoomedId: useOutlineStore.getState().zoomedNodeId,
+				undoMatch: cutUndoMatch(ids),
+			});
+			hideBanner();
 		},
 		schedule: (run) => {
 			setTimeout(run, 0);

@@ -133,6 +133,21 @@ export class UndoHistory {
 		return batch;
 	}
 
+	/** Pops the newest undo step `match` accepts, leaving the steps above it; undefined when none is left. */
+	popUndoWhere(match: (batch: UndoBatch) => boolean): UndoBatch | undefined {
+		const at = this.undoStack.findLastIndex(match);
+		if (at === -1) {
+			return undefined;
+		}
+		const [batch] = this.undoStack.splice(at, 1);
+		if (batch === undefined) {
+			return undefined;
+		}
+		this.redoStack.push(invertBatch(batch));
+		this.onChange(this);
+		return batch;
+	}
+
 	popRedo(): UndoBatch | undefined {
 		const batch = this.redoStack.pop();
 		if (batch === undefined) {

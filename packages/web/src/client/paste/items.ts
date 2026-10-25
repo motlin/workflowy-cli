@@ -4,6 +4,7 @@ import type {QueryClient} from "@tanstack/react-query";
 import {nodeKeys, readChildren, readNode} from "../node-cache.js";
 import {sortByPriority} from "../tree-position.js";
 import type {NodeResponse} from "../../node-types.js";
+import {RequestStatusError} from "../request-error.js";
 import {PASTE_LIMIT_ALERT} from "./apply.js";
 import type {PasteTree} from "./apply.js";
 
@@ -83,3 +84,57 @@ export function copyTreeFromCache(queryClient: QueryClient, id: string): PasteTr
 
 export const CUT_PASTE_WARNING =
 	"WARNING: You just pasted deleted (probably cut) item(s) into a place where they can't be moved. Instead of moving them to the new location, they were copied (and if they were shared or embedded or mirrored, the new copies are not). If you didn't intend this, please undo the paste and the cut.";
+
+/** The effects a paste of copied rows needs, injected so the fallback order can be tested. */
+export interface PasteStepsIo {
+	/** Restores a cut row at `index`, recording its undo op; rejects with the server's status when refused. */
+	restore: (step: Extract<ItemPasteStep, {kind: "restore"}>, index: number) => Promise<void>;
+	/** Duplicates a cached row at `index`; resolves to the new id. */
+	copyFromCache: (id: string, index: number) => Promise<string | undefined>;
+	/** Pastes the html's copy of the `stepIndex`th top row at `index`; resolves to the new id. */
+	fallbackCopy: (stepIndex: number, index: number) => Promise<string | undefined>;
+}
+
+/**
+ * Runs the steps of a paste of copied rows from `baseIndex`: cut rows are restored with their original ids, the rest
+ * duplicated from the model. A restore refused (409/503) on the first row is `unmovable` so the caller can paste the
+ * whole html as a copy; refused on a later row, that row and every restore after it fall back to the html copy and the
+ * result is flagged `fellBack` so the caller can show the warning. Rows already restored stay.
+ */
+export async function pasteSteps(
+	steps: readonly ItemPasteStep[],
+	baseIndex: number,
+	io: PasteStepsIo,
+): Promise<{unmovable: true} | {unmovable: false; lastId: string | null; fellBack: boolean}> {
+	let at = baseIndex;
+	let lastId: string | null = null;
+	let fellBack = false;
+	for (const [stepIndex, step] of steps.entries()) {
+		if (step.kind === "restore") {
+			if (!fellBack) {
+				try {
+					// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
+					await io.restore(step, at);
+					lastId = step.id;
+				} catch (error) {
+					if (!(error instanceof RequestStatusError && (error.status === 409 || error.status === 503))) {
+						throw error;
+					}
+					if (at === baseIndex) {
+						return {unmovable: true};
+					}
+					fellBack = true;
+				}
+			}
+			if (fellBack) {
+				// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
+				lastId = (await io.fallbackCopy(stepIndex, at)) ?? lastId;
+			}
+		} else if (step.id !== null) {
+			// oxlint-disable-next-line no-await-in-loop -- each row lands after the previous one
+			lastId = (await io.copyFromCache(step.id, at)) ?? lastId;
+		}
+		at += 1;
+	}
+	return {unmovable: false, lastId, fellBack};
+}
