@@ -78,8 +78,10 @@ afterEach(() => {
 
 async function flush(): Promise<void> {
 	await act(async () => {
-		await Promise.resolve();
-		await Promise.resolve();
+		// A macrotask turn drains every promise chain the stubbed fetch started, however loaded the machine is.
+		await new Promise<void>((resolve) => {
+			setTimeout(resolve, 0);
+		});
 	});
 }
 

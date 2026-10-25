@@ -17,7 +17,7 @@ vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => 
 vi.stubGlobal("document", {body: {}});
 
 const {LocationPicker} = await import("../src/client/components/location-picker.js");
-const {popperTransform} = await import("../src/client/components/flyout/popper-transform.js");
+const {popperTransform} = await import("../src/client/components/flyout/place-popper.js");
 
 // Class strings below are copied from .llm/upstream-sync/dumps/inline-location-picker-upstream-empty-dom.html,
 // inline-location-picker-upstream-more-row.html and move-reorder-upstream-moveto-dom.html (whitespace collapsed).

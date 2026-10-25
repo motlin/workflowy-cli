@@ -4,7 +4,7 @@ import type {QueryClient} from "@tanstack/react-query";
 import {readGrid, treeForPlan} from "./table-cache.js";
 import type {CellLocation, TableGrid} from "./table-cache.js";
 import {
-	planBackspaceAtStart,
+	planTableBackspaceAtStart,
 	planAddColumn,
 	planAddRow,
 	planCellDelete,
@@ -204,7 +204,7 @@ export async function cellBackspace(
 	cell: {name: string; note: string; hasChildren: boolean},
 ): Promise<void> {
 	const {grid, rowIndex, colIndex} = location;
-	const plan = planBackspaceAtStart({
+	const plan = planTableBackspaceAtStart({
 		rows: deleteRows(grid, (id) =>
 			grid.rows.some((entry) => entry.cells.some((c) => c.id === id && c.hasChildren === true)),
 		),

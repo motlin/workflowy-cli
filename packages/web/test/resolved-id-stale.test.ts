@@ -18,9 +18,17 @@ const CCC = "4823cefa-5fc0-478c-88ac-cccccccccccc";
 let root: Root | undefined;
 let requests: string[] = [];
 
-async function settle(): Promise<void> {
-	await new Promise<void>((resolve) => {
-		setTimeout(resolve, 20);
+/** Lets React commit between polls until the condition holds, instead of guessing how long the lookups take. */
+async function settle(done: () => boolean): Promise<void> {
+	await vi.waitFor(async () => {
+		await act(async () => {
+			await new Promise<void>((resolve) => {
+				setTimeout(resolve, 0);
+			});
+		});
+		if (!done()) {
+			throw new Error("not settled");
+		}
 	});
 }
 
@@ -118,16 +126,12 @@ describe("useHashLocationZoom with a 404 that later resolves", () => {
 				),
 			);
 		});
-		await act(async () => {
-			await settle();
-		});
+		await settle(() => seen.length >= 2);
 		const first = {zoomed: useOutlineStore.getState().zoomedNodeId, seen: [...seen]};
 		act(() => {
 			nav.go("/#/cccccccccccc");
 		});
-		await act(async () => {
-			await settle();
-		});
+		await settle(() => seen.length >= 3 && useOutlineStore.getState().zoomedNodeId === CCC);
 		expect({
 			first,
 			zoomed: useOutlineStore.getState().zoomedNodeId,

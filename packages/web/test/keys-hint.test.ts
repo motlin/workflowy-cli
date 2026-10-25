@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {HOTKEYS, hint} from "../src/client/keys/hint.js";
+import {MAC_HOTKEYS, hint} from "../src/client/keys/hint.js";
 
 const COMMANDS = [
 	"zoom_in",
@@ -54,7 +54,7 @@ describe("hint", () => {
 	});
 
 	it("lists the mac table in upstream insertion order", () => {
-		expect(HOTKEYS.slice(0, 3)).toStrictEqual([
+		expect(MAC_HOTKEYS.slice(0, 3)).toStrictEqual([
 			["meta+shift+backspace", "delete"],
 			["meta+shift+8", "star_current_item"],
 			["meta+return", "complete"],

@@ -1,4 +1,3 @@
-// fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and the table renderer is intentional: a cell is an outline row.
 import {useContext, useRef, useState} from "react";
 import type {MouseEvent as ReactMouseEvent} from "react";

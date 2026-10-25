@@ -56,6 +56,9 @@ const responses: Partial<Record<string, () => Response>> = {
 	"/api/v1/nodes/view": () => Response.json(view),
 };
 
+// Loaded once up front so the cold module transform is not charged to the test's own timeout.
+const {App} = await import("../src/client/app.js");
+
 let root: Root | undefined;
 let unexpected: string[] = [];
 
@@ -95,7 +98,6 @@ describe("app console", () => {
 		const warnings = vi.spyOn(console, "warn");
 		const {act, createElement, StrictMode} = await import("react");
 		const {createRoot} = await import("react-dom/client");
-		const {App} = await import("../src/client/app.js");
 		const container = document.createElement("div");
 		document.body.append(container);
 		act(() => {
@@ -103,8 +105,8 @@ describe("app console", () => {
 			root.render(createElement(StrictMode, null, createElement(App)));
 		});
 		await act(async () => {
-			await new Promise((resolve) => {
-				setTimeout(resolve, 50);
+			await vi.waitFor(() => {
+				expect(container.textContent).toContain("bob");
 			});
 		});
 		expect({

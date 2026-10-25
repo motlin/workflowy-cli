@@ -6,7 +6,7 @@ import {buildHotkeys} from "./keymap.js";
 import type {Hotkey} from "./keymap.js";
 
 /** The mac `[combo, command]` table in upstream insertion order, using upstream combo spelling. */
-export const HOTKEYS: readonly Hotkey[] = buildHotkeys({
+export const MAC_HOTKEYS: readonly Hotkey[] = buildHotkeys({
 	mac: true,
 	safari: false,
 	windows: false,
@@ -43,7 +43,7 @@ const OTHER_KEYS: Readonly<Record<string, string>> = {
 };
 
 export function hint(command: string, isMac = true): string | undefined {
-	const combo = HOTKEYS.find(([, bound]) => bound === command)?.[0];
+	const combo = MAC_HOTKEYS.find(([, bound]) => bound === command)?.[0];
 	if (combo === undefined) {
 		return undefined;
 	}

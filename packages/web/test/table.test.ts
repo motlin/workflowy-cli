@@ -8,7 +8,7 @@ import {
 	padPlan,
 	planAddColumn,
 	planAddRow,
-	planBackspaceAtStart,
+	planTableBackspaceAtStart,
 	planCellDelete,
 	planCellEnter,
 	planCellKey,
@@ -227,13 +227,17 @@ describe("structural cell edits", () => {
 	});
 
 	it("Backspace at the start deletes only an empty cell", () => {
-		expect(planBackspaceAtStart({rows, row: 2, col: 1, name: "", note: "", hasChildren: false})).toStrictEqual({
-			kind: "row",
-			deleteIds: ["b"],
-			needsConfirm: false,
-			focus: {row: 1, col: 1, caret: "start"},
-		});
-		expect(planBackspaceAtStart({rows, row: 1, col: 0, name: "x", note: "", hasChildren: false})).toStrictEqual({
+		expect(planTableBackspaceAtStart({rows, row: 2, col: 1, name: "", note: "", hasChildren: false})).toStrictEqual(
+			{
+				kind: "row",
+				deleteIds: ["b"],
+				needsConfirm: false,
+				focus: {row: 1, col: 1, caret: "start"},
+			},
+		);
+		expect(
+			planTableBackspaceAtStart({rows, row: 1, col: 0, name: "x", note: "", hasChildren: false}),
+		).toStrictEqual({
 			claim: true,
 		});
 	});

@@ -255,7 +255,7 @@ export function planCellDelete(input: {
 }
 
 /** Backspace at offset 0 deletes the cell only when it is wholly empty; otherwise the key does nothing. */
-export function planBackspaceAtStart(input: {
+export function planTableBackspaceAtStart(input: {
 	rows: readonly DeleteRow[];
 	row: number;
 	col: number;

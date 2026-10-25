@@ -50,38 +50,4 @@
 		"better-sqlite3",
 		"eslint-plugin-storybook",
 	],
-	"ignoreExports": [
-		{
-			"file": "packages/cli/src/commands/base-list-command.ts",
-			"exports": ["*"],
-		},
-		{
-			"file": "packages/cli/src/services/list-by-id.ts",
-			"exports": ["*"],
-		},
-		{
-			"file": "packages/web/src/client/keys/hint.ts",
-			"exports": ["*"],
-		},
-		{
-			"file": "packages/web/src/client/keys/keymap.ts",
-			"exports": ["*"],
-		},
-		{
-			"file": "packages/web/src/client/components/flyout/place-popper.ts",
-			"exports": ["*"],
-		},
-		{
-			"file": "packages/web/src/client/components/flyout/popper-transform.ts",
-			"exports": ["*"],
-		},
-		{
-			"file": "packages/web/src/client/table.ts",
-			"exports": ["*"],
-		},
-		{
-			"file": "packages/web/src/client/tree-ops.ts",
-			"exports": ["*"],
-		},
-	],
 }

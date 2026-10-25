@@ -159,7 +159,9 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 	const {searcher, getFilter} = picker;
 	const filter = getFilter?.() ?? null;
 	const query = filter ?? state.query;
-	const starredIds = useMemo(() => starredPickerIds(stars, safeLastViewed()), [stars]);
+	// Keyed by content so a stars refetch that changes nothing does not re-issue the open search.
+	const starredKey = starredPickerIds(stars, safeLastViewed()).join(",");
+	const starredIds = useMemo(() => (starredKey === "" ? [] : starredKey.split(",")), [starredKey]);
 	const showCompleted = useOutlineStore((store) => store.showCompleted);
 	const {hits: fetchedHits, pending} = useSearchHits(searcher === undefined ? query : "", starredIds, showCompleted);
 	const hits: readonly SearchHit[] =
