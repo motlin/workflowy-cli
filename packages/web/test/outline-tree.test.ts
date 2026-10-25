@@ -732,13 +732,44 @@ describe("OutlineTree with a mirror inside its own original", () => {
 		nodesById.clear();
 	});
 
-	it("terminates with nine rows, the last mirror collapsed with no children", () => {
+	const rowIds = (html: string) => [...html.matchAll(/data-item-id="([A-Za-z]+)"/gu)].map((match) => match[1]);
+
+	it("renders the rows inside the mirror collapsed until that instance is expanded", () => {
 		const html = renderCyclical();
-		const rows = [...html.matchAll(/data-item-id="([A-Za-z]+)"/gu)].map((match) => match[1]);
-		const lastMirror = html.lastIndexOf('data-item-id="Mmmm"');
-		expect({rows, lastMirrorHasChildren: html.slice(lastMirror).includes('class="children')}).toStrictEqual({
+		expect(rowIds(html)).toStrictEqual(["Oooo", "Kkkk", "Mmmm", "Kkkk"]);
+	});
+
+	it("terminates with the cyclical mirror collapsed, and one more level once its own instance is expanded", () => {
+		const chain = [
+			"virtual_Kkkk_Mmmm_Mmmm",
+			"virtual_Mmmm_Mmmm_MmmmKkkk",
+			"virtual_Kkkk_Mmmm_MmmmKkkkMmmm",
+			"virtual_Mmmm_Mmmm_MmmmKkkkMmmmKkkk",
+			"virtual_Kkkk_Mmmm_MmmmKkkkMmmmKkkkMmmm",
+		];
+		const render3 = (extra: string[]) => {
+			const client = new QueryClient();
+			for (const [parentId, nodes] of CYCLICAL) {
+				childrenByParent.set(parentId, nodes);
+				client.setQueryData(nodeKeys.children(parentId), nodes);
+			}
+			nodesById.set("Pppp", makeNode({id: "Pppp", name: "P"}));
+			outlineState.expandedIds = new Set(["Oooo", "Kkkk", "Mmmm", ...chain, ...extra]);
+			return render("Pppp", client);
+		};
+
+		const shut = render3([]);
+		const lastMirror = shut.lastIndexOf('data-item-id="Mmmm"');
+		const opened = render3(["virtual_Mmmm_Mmmm_MmmmKkkkMmmmKkkkMmmmKkkk"]);
+
+		expect({
+			rows: rowIds(shut),
+			lastMirrorHasChildren: shut.slice(lastMirror).includes('class="children'),
+			openedRows: rowIds(opened),
+		}).toStrictEqual({
 			rows: ["Oooo", "Kkkk", "Mmmm", "Kkkk", "Mmmm", "Kkkk", "Mmmm", "Kkkk", "Mmmm"],
 			lastMirrorHasChildren: false,
+			openedRows: ["Oooo", "Kkkk", "Mmmm", "Kkkk", "Mmmm", "Kkkk", "Mmmm", "Kkkk", "Mmmm", "Kkkk"],
 		});
 	});
 });

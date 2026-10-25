@@ -175,35 +175,36 @@ const cyclicalChildren = new Map<string | null, NodeResponse[]>([
 const cyclicalView: RowView = {...outlineView, expandedIds: new Set(["Oooo", "Kkkk", "Mmmm"])};
 
 describe("a mirror inside its own original", () => {
-	it("stops the budgeted walks at the third repetition, giving each repeated parent its own limit", () => {
+	it("renders the rows inside the mirror collapsed until that instance is expanded, giving each its own limit", () => {
 		const computed = rowLimits((id) => cyclicalChildren.get(id), "Pppp", 60, cyclicalView);
 		expect({limits: Object.fromEntries(computed.limits), remaining: computed.remaining}).toStrictEqual({
-			limits: {
-				Pppp: 1,
-				Oooo: 1,
-				Kkkk: 1,
-				"Mmmm@Mmmm_Mmmm": 1,
-				"Kkkk@Mmmm_MmmmKkkk": 1,
-				"Mmmm@Mmmm_MmmmKkkkMmmm": 1,
-				"Kkkk@Mmmm_MmmmKkkkMmmmKkkk": 1,
-				"Mmmm@Mmmm_MmmmKkkkMmmmKkkkMmmm": 1,
-				"Kkkk@Mmmm_MmmmKkkkMmmmKkkkMmmmKkkk": 1,
-			},
-			remaining: 51,
+			limits: {Pppp: 1, Oooo: 1, Kkkk: 1, "Mmmm@Mmmm_Mmmm": 1},
+			remaining: 56,
 		});
 	});
 
-	it("lists the parents up to the cyclical mirror once", () => {
-		expect(viewParentIds((id) => cyclicalChildren.get(id), "Pppp", 60, cyclicalView)).toStrictEqual([
+	it("goes one level further for each instance the user expands, and no further", () => {
+		const expandedInstances: RowView = {
+			...cyclicalView,
+			expandedIds: new Set([...cyclicalView.expandedIds, "virtual_Kkkk_Mmmm_Mmmm", "virtual_Mmmm_Mmmm_MmmmKkkk"]),
+		};
+
+		expect(viewParentIds((id) => cyclicalChildren.get(id), "Pppp", 60, expandedInstances)).toStrictEqual([
 			"Pppp",
 			"Oooo",
 			"Kkkk",
 			"Mmmm",
 			"Kkkk",
 			"Mmmm",
+		]);
+	});
+
+	it("lists the parents down to the first mirror's children", () => {
+		expect(viewParentIds((id) => cyclicalChildren.get(id), "Pppp", 60, cyclicalView)).toStrictEqual([
+			"Pppp",
+			"Oooo",
 			"Kkkk",
 			"Mmmm",
-			"Kkkk",
 		]);
 	});
 

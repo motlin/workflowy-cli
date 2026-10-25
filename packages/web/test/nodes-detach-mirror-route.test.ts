@@ -46,32 +46,46 @@ function apiNode(
 	};
 }
 
-/** Home holds P and O; O holds C (which holds G). P holds A, M (mirror of O), B. */
-function setup() {
+/**
+ * Home holds P, O and X. O (completed, note "n") holds C (which holds G) and D, an original that has a mirror
+ * under X, and E, a mirror of X. P holds A, M (mirror of O), B.
+ */
+function setup(expanded: string[] = []) {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
 	const cacheService = new CacheService(db);
 	cacheService.insertNode(apiNode("P", null, 0), null);
 	cacheService.insertNode(apiNode("O", null, 1, {note: "n", completed: true, completedAt: 5}), null);
-	cacheService.insertNode(apiNode("C", "O", 0), "O");
-	cacheService.insertNode(apiNode("G", "C", 0), "C");
+	cacheService.insertNode(apiNode("X", null, 2), null);
+	cacheService.insertNode(apiNode("C", "O", 0, {data: {layoutMode: "board"}}), "O");
+	cacheService.insertNode(apiNode("G", "C", 0, {completed: true, completedAt: 6}), "C");
+	cacheService.insertNode(apiNode("D", "O", 1), "O");
+	cacheService.insertNode(apiNode("E", "O", 2), "O");
 	cacheService.insertNode(apiNode("A", "P", 0), "P");
 	cacheService.insertNode(apiNode("M", "P", 1), "P");
 	cacheService.insertNode(apiNode("B", "P", 2), "P");
-	sqlite
-		.prepare("INSERT INTO mirrors (mirror_id, original_id, system_from, system_to) VALUES (?, ?, ?, ?)")
-		.run("M", "O", "2000-01-01T00:00:00.000Z", FAR_FUTURE_DATE);
+	cacheService.insertNode(apiNode("DM", "X", 0), "X");
+	const link = sqlite.prepare(
+		"INSERT INTO mirrors (mirror_id, original_id, system_from, system_to) VALUES (?, ?, ?, ?)",
+	);
+	link.run("M", "O", "2000-01-01T00:00:00.000Z", FAR_FUTURE_DATE);
+	link.run("DM", "D", "2000-01-01T00:00:00.000Z", FAR_FUTURE_DATE);
+	link.run("E", "X", "2000-01-01T00:00:00.000Z", FAR_FUTURE_DATE);
 	const createTreesAt = vi.fn<WorkflowyInternalAdapter["createTreesAt"]>(async (input) => {
 		cacheService.insertNode(apiNode("COPY", input.parentId === "home" ? null : input.parentId, 9), null);
 		return Promise.resolve({ids: ["COPY"]});
 	});
+	const setExpanded = vi.fn<WorkflowyInternalAdapter["setExpanded"]>(async () => Promise.resolve());
+	const expansionTest = vi.fn<WorkflowyInternalAdapter["expansionTest"]>(async () =>
+		Promise.resolve((id: string) => expanded.includes(id)),
+	);
 	const ctx = {
 		db,
 		cacheService,
 		apiKey: "test-key",
 		internalAuth: {},
-		internalAdapter: () => ({createTreesAt}) as unknown as WorkflowyInternalAdapter,
+		internalAdapter: () => ({createTreesAt, setExpanded, expansionTest}) as unknown as WorkflowyInternalAdapter,
 	} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {
@@ -80,7 +94,7 @@ function setup() {
 	});
 	app.route("/api/v1/nodes", nodesRouter);
 	const post = async (path: string) => app.fetch(new Request(`http://x/api/v1/nodes${path}`, {method: "POST"}));
-	return {createTreesAt, post};
+	return {createTreesAt, setExpanded, cacheService, post};
 }
 
 beforeEach(() => {
@@ -88,8 +102,10 @@ beforeEach(() => {
 	deleteNode.mockResolvedValue({mirrorIds: [], promotions: [], nodeId: "x"});
 });
 
+const anyId = expect.any(String) as string;
+
 describe("POST /api/v1/nodes/:id/detach-mirror", () => {
-	it("copies the original's subtree into the mirror's slot, open, then removes the mirror", async () => {
+	it("copies a mirror as an open item at its slot: descendant mirrors and originals-with-mirrors stay mirrors, then removes the mirror", async () => {
 		const {createTreesAt, post} = setup();
 
 		const res = await post("/M/detach-mirror");
@@ -101,7 +117,23 @@ describe("POST /api/v1/nodes/:id/detach-mirror", () => {
 					{
 						parentId: "P",
 						index: 1,
-						trees: [{name: "o", note: "n", children: [{name: "c", children: [{name: "g"}]}]}],
+						trees: [
+							{
+								id: anyId,
+								name: "o",
+								note: "n",
+								children: [
+									{
+										id: anyId,
+										name: "c",
+										metadata: {layoutMode: "board"},
+										children: [{id: anyId, name: "g", completed: true}],
+									},
+									{id: anyId, name: "", metadata: {mirror: {originalId: "D", isMirrorRoot: true}}},
+									{id: anyId, name: "", metadata: {mirror: {originalId: "X", isMirrorRoot: true}}},
+								],
+							},
+						],
 					},
 				],
 			],
@@ -113,7 +145,7 @@ describe("POST /api/v1/nodes/:id/detach-mirror", () => {
 		});
 	});
 
-	it("copies an original with mirrors in place and deletes it", async () => {
+	it("keeps an original's own completion when it detaches in place, and deletes it so its first mirror takes over", async () => {
 		const {createTreesAt, post} = setup();
 
 		const res = await post("/O/detach-mirror");
@@ -121,11 +153,39 @@ describe("POST /api/v1/nodes/:id/detach-mirror", () => {
 		expect({
 			status: res.status,
 			parent: createTreesAt.mock.calls[0]?.[0].parentId,
+			index: createTreesAt.mock.calls[0]?.[0].index,
+			completed: createTreesAt.mock.calls[0]?.[0].trees[0]?.completed,
 			deleted: deleteNode.mock.calls,
+		}).toStrictEqual({status: 201, parent: "home", index: 1, completed: true, deleted: [["O"]]});
+	});
+
+	it("opens the copy like the detached row", async () => {
+		const {createTreesAt, setExpanded, post} = setup(["M", "C"]);
+
+		await post("/M/detach-mirror");
+
+		const [tree] = createTreesAt.mock.calls[0]?.[0].trees ?? [];
+		expect(setExpanded.mock.calls).toStrictEqual([[{[tree.id ?? ""]: true, [tree.children?.[0]?.id ?? ""]: true}]]);
+	});
+
+	it("refuses a subtree of more than 2000 items without writing", async () => {
+		const {createTreesAt, cacheService, post} = setup();
+		for (let i = 0; i < 2000; i += 1) {
+			cacheService.insertNode(apiNode(`bulk${i}`, "G", i), "G");
+		}
+
+		const res = await post("/M/detach-mirror");
+
+		expect({
+			status: res.status,
+			body: await res.json(),
+			created: createTreesAt.mock.calls.length,
+			deleted: deleteNode.mock.calls.length,
 		}).toStrictEqual({
-			status: 201,
-			parent: "home",
-			deleted: [["O"]],
+			status: 400,
+			body: {error: "Detaching mirror subtrees containing more than 2000 items is not supported."},
+			created: 0,
+			deleted: 0,
 		});
 	});
 

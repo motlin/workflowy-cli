@@ -4,6 +4,8 @@
  * the first four characters of each row's id (`Fp.isCyclical`, `mirrorPath`). A mirror whose path repeats one chunk
  * three times is cyclical: it renders collapsed and no walker descends into it.
  */
+import {virtualId} from "@workflowy/shared/workflowy";
+
 const MIRROR_CHUNK = 4;
 const CYCLICAL_REPEATS = 3;
 
@@ -50,6 +52,17 @@ export function isCyclical(node: MirrorLike, instance: MirrorInstance | null): b
 		counts.set(chunk, count);
 	}
 	return false;
+}
+
+/**
+ * The key a row's expansion is stored under: its plain id outside any mirror, and per-instance inside one
+ * (`virtual_<id>_<mirror root>_<path>`), so expanding a row inside a mirror leaves the original and every other
+ * mirror alone (upstream `projectIdIsExpanded("virtual_…")`).
+ */
+export function expansionId(nodeId: string, instance: MirrorInstance | null): string {
+	return instance === null
+		? nodeId
+		: virtualId({childId: nodeId, mirrorRootId: instance.rootId, path: instance.path});
 }
 
 /** The key of a parent's children within an instance: the plain id outside any mirror. */

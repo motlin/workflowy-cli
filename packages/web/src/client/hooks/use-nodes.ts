@@ -50,6 +50,8 @@ import {toRequestStatusError} from "../request-error.js";
 import {trackReplay} from "./use-saving.js";
 import {removeTagColor, setTagColor} from "./use-tag-colors.js";
 import {holdUndoSlot, recordOp} from "../undo-batch.js";
+import {swapMoveOps} from "../../swap-origin.js";
+import {sortByPriority} from "../tree-position.js";
 import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
 import type {UndoOp} from "../undo-history.js";
 
@@ -1202,17 +1204,50 @@ export async function mirrorNodeAt(
 	parentId: string | null,
 	index: number,
 ): Promise<string | undefined> {
+	const [id] = await copyNodesAt(queryClient, "mirror", [originalId], parentId, index);
+	return id;
+}
+
+/**
+ * Duplicates (deep copies, `kind: "duplicate"`) or mirrors rows into `parentId` at consecutive slots from `index`, as
+ * one write and one undo step that deletes every new row. Resolves to the new ids in order.
+ */
+export async function copyNodesAt(
+	queryClient: QueryClient,
+	kind: "duplicate" | "mirror",
+	ids: readonly string[],
+	parentId: string | null,
+	index: number,
+): Promise<string[]> {
 	const slot = holdUndoSlot();
 	try {
-		const [node] = await mirrorNodes({item_ids: [originalId], parent_id: parentId, index});
-		slot.settle(
-			toUndoOps({kind: "mirror", nodeIds: node === undefined ? [] : [node.id], parentId, index}, queryClient),
-		);
-		return node?.id;
+		let created: string[];
+		if (kind === "mirror") {
+			const nodes = await mirrorNodes({item_ids: [...ids], parent_id: parentId, index});
+			created = nodes.map((node) => node.id);
+		} else {
+			created = await duplicateNodes({ids: [...ids], parent_id: parentId, index});
+		}
+		slot.settle(toUndoOps({kind: "mirror", nodeIds: created, parentId, index}, queryClient));
+		return created;
 	} catch (error) {
 		slot.settle([]);
 		throw error;
 	}
+}
+
+async function duplicateNodes(request: {ids: string[]; parent_id: string | null; index: number}): Promise<string[]> {
+	await pendingCreates.settled([...request.ids, request.parent_id]);
+	const response = await fetch("/api/v1/nodes/duplicate", {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify(request),
+	});
+	if (!response.ok) {
+		throw await toRequestStatusError("Failed to duplicate nodes", response);
+	}
+	const data = await readJson<{ids: string[]}>(response);
+	return data.ids;
 }
 
 /**
@@ -1237,6 +1272,48 @@ export async function detachMirrorNode(queryClient: QueryClient, nodeId: string)
 		]);
 		await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		return node?.id;
+	} catch (error) {
+		slot.settle([]);
+		throw error;
+	}
+}
+
+/**
+ * Mirrors: Swap origin. The mirror and its original exchange slots (ids unchanged); a plain original only warns.
+ * Undo moves both back. Resolves to the warning text when there was nothing to swap.
+ */
+export async function swapMirrorOriginNode(queryClient: QueryClient, nodeId: string): Promise<string | undefined> {
+	await pendingCreates.settled([nodeId]);
+	const node = readNode(queryClient, nodeId);
+	const original =
+		node?.isMirror === true && node.originalNodeId != null ? readNode(queryClient, node.originalNodeId) : undefined;
+	const orders = new Map<string | null, string[]>();
+	for (const parentId of new Set([node?.parent_id ?? null, original?.parent_id ?? null])) {
+		orders.set(
+			parentId,
+			sortByPriority(readChildren(queryClient, parentId) ?? []).map((child) => child.id),
+		);
+	}
+	const ops =
+		node === undefined || original === undefined
+			? []
+			: swapMoveOps(
+					orders,
+					{id: node.id, parentId: node.parent_id ?? null},
+					{id: original.id, parentId: original.parent_id ?? null},
+				);
+	const slot = holdUndoSlot();
+	try {
+		const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/swap-mirror-origin`, {
+			method: "POST",
+		});
+		if (!response.ok) {
+			throw await toRequestStatusError("Failed to swap origin", response);
+		}
+		const {warning} = await readJson<{warning?: string}>(response);
+		slot.settle(warning === undefined ? ops : []);
+		await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		return warning;
 	} catch (error) {
 		slot.settle([]);
 		throw error;

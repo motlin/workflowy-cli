@@ -29,13 +29,13 @@ export interface RowState {
  * editor re-renders the two rows it leaves and enters, not every row. Editing and the item selection show only in
  * the active pane, so a row visible in both panes edits in one.
  */
-export function useRowState(nodeId: string, paneId: string): RowState {
+export function useRowState(nodeId: string, paneId: string, expansionKey: string = nodeId): RowState {
 	return useOutlineStore(
 		useShallow((state) => {
 			const inActivePane = state.activePaneId === paneId;
 			const isEditingName = inActivePane && state.editingId === nodeId;
 			return {
-				isPersistentlyExpanded: paneExpandedIds(state, paneId).has(nodeId),
+				isPersistentlyExpanded: paneExpandedIds(state, paneId).has(expansionKey),
 				isEditingNote: inActivePane && state.editingNoteId === nodeId,
 				isEditingName,
 				editingClickPosition: isEditingName ? state.editingClickPosition : null,

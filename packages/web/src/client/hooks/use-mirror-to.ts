@@ -20,7 +20,7 @@ import {sortByPriority} from "../tree-position.js";
 import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import type {CaretReturn} from "../stores/outline.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
-import {detachMirrorNode, fetchNode, useDeleteNode, useMirrorNodes} from "./use-nodes.js";
+import {detachMirrorNode, fetchNode, swapMirrorOriginNode, useDeleteNode, useMirrorNodes} from "./use-nodes.js";
 import {isMirrorRoot} from "../components/row-classes.js";
 import {activeCommandRegistry} from "./use-global-keymap.js";
 import {loadMoveTarget, moveToAnchor} from "./use-move-to.js";
@@ -228,3 +228,23 @@ export function useDetachMirror(): (itemId: string) => Promise<void> {
 		}
 	};
 }
+
+/** Mirrors: Swap origin (palette): the mirror and its original exchange slots; an original warns for 2s. */
+export function useSwapMirrorOrigin(): (itemId: string) => Promise<void> {
+	const queryClient = useQueryClient();
+	return async (itemId) => {
+		const warning = await runInUndoBatch(captureOutlineView, async () =>
+			swapMirrorOriginNode(queryClient, itemId),
+		).catch((error: unknown) => {
+			useOutlineStore
+				.getState()
+				.addErrorNotification(`Failed to swap origin: ${error instanceof Error ? error.message : "error"}`);
+			return;
+		});
+		if (warning !== undefined) {
+			useOutlineStore.getState().showAppMessage(warning, {timeout: SWAP_WARNING_TIMEOUT, type: "warning"});
+		}
+	};
+}
+
+const SWAP_WARNING_TIMEOUT = 2000;

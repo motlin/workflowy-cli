@@ -2,7 +2,7 @@ import type {NodeResponse} from "../../node-types.js";
 import {isPotentiallyVisible, rowHasChildren} from "../tree-ops.js";
 import type {SearchFilter} from "../search-filter.js";
 import type {MirrorInstance} from "../../mirror-path.js";
-import {childInstance, isCyclical} from "../../mirror-path.js";
+import {childInstance, expansionId, isCyclical} from "../../mirror-path.js";
 import {isSearchExpanded, searchShowsCompleted, searchShowsNode} from "../search-filter.js";
 
 /**
@@ -44,7 +44,8 @@ export function flattenTree(
 	const result: FlattenedNode[] = [];
 
 	for (const node of visibleNodes) {
-		const isExpanded = search === null ? expandedIds.has(node.id) : isSearchExpanded(node.id, search);
+		const isExpanded =
+			search === null ? expandedIds.has(expansionId(node.id, instance)) : isSearchExpanded(node.id, search);
 		const children = childrenMap.get(node.id);
 		// Use the server-provided child flags when available, otherwise fall back to checking fetched children
 		const hasChildren =
@@ -60,7 +61,7 @@ export function flattenTree(
 		});
 
 		// Only recurse into expanded nodes that have fetched children
-		if (isExpanded && children && children.length > 0 && !isCyclical(node, instance)) {
+		if (isExpanded && children && children.length > 0 && (search === null || !isCyclical(node, instance))) {
 			const childFlattened = flattenTree(
 				children,
 				expandedIds,

@@ -183,7 +183,7 @@ function pushedOps(request: RecordedRequest): {type: string; data: Record<string
 	return trees.flatMap((tree) => tree.operations ?? []);
 }
 
-function setup() {
+function setup(generateId: () => string = () => "new") {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
@@ -244,7 +244,7 @@ function setup() {
 		db,
 		writeThrough,
 		now: () => START_MS,
-		generateId: () => "new",
+		generateId,
 		pushAndPoll: {randomId: () => "pollid01", timezone: "America/New_York", sleep: async () => {}},
 	});
 	const order = (parentId: string | null) => cacheService.getChildren(parentId).map((node) => node.id);
@@ -260,8 +260,8 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		open = [];
 		vi.unstubAllGlobals();
 	});
-	async function tracked() {
-		const result = setup();
+	async function tracked(generateId?: () => string) {
+		const result = setup(generateId);
 		open.push(result.sqlite);
 		await result.writeThrough.refreshChildren([null, "a"]);
 		return result;
@@ -673,5 +673,85 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		);
 
 		expect({pushes, mirrors: mirrorRows(sqlite)}).toStrictEqual({pushes: [], mirrors: []});
+	});
+
+	it("mirrors several nodes at consecutive slots with one push: N empty mirror roots and one edit per original", async () => {
+		let next = 0;
+		const {api, adapter, pushes, order, sqlite} = await tracked(() => `m${++next}`);
+		serveTreeData(api, [{id: "a"}, {id: "b", metadata: {mirror: {mirrorRootIds: {old: true}}}}, {id: "c"}]);
+
+		const result = await adapter.createMirrorsAt({originalIds: ["b", "a", "b"], parentId: "home", index: 1});
+
+		expect({
+			result,
+			shape: pushes.map((ops) => ops.map((op) => [op.type, op.data.projectid ?? op.data.starting_priority])),
+			edits: pushes.flatMap((ops) => ops.filter((op) => op.type === "edit").map((op) => op.data)),
+			order: order(null),
+			mirrors: mirrorRows(sqlite),
+		}).toStrictEqual({
+			result: {
+				mirrors: [
+					{mirrorId: "m1", originId: "b"},
+					{mirrorId: "m2", originId: "a"},
+					{mirrorId: "m3", originId: "b"},
+				],
+			},
+			shape: [
+				[
+					["bulk_create", 1],
+					["edit", "b"],
+					["edit", "a"],
+				],
+			],
+			edits: [
+				{
+					projectid: "b",
+					metadataPatches: [
+						{op: "add", path: ["mirror", "mirrorRootIds", "m1"], value: true},
+						{op: "add", path: ["mirror", "mirrorRootIds", "m3"], value: true},
+					],
+					metadataInversePatches: [
+						{op: "remove", path: ["mirror", "mirrorRootIds", "m3"]},
+						{op: "remove", path: ["mirror", "mirrorRootIds", "m1"]},
+					],
+				},
+				{
+					projectid: "a",
+					metadataPatches: [{op: "add", path: ["mirror"], value: {mirrorRootIds: {m2: true}}}],
+					metadataInversePatches: [{op: "remove", path: ["mirror"]}],
+				},
+			],
+			order: ["a", "m1", "m2", "m3", "b", "c"],
+			mirrors: [
+				{original_id: "b", mirror_id: "m1"},
+				{original_id: "a", mirror_id: "m2"},
+				{original_id: "b", mirror_id: "m3"},
+			],
+		});
+	});
+
+	it("lists a mirror root created inside a tree on its original in the same push", async () => {
+		let next = 0;
+		const {api, adapter, pushes, sqlite} = await tracked(() => `t${++next}`);
+		serveTreeData(api, [{id: "a"}, {id: "b"}, {id: "c"}]);
+
+		await adapter.createTreesAt({
+			parentId: "home",
+			index: 0,
+			trees: [{name: "copy", children: [{name: "", metadata: {mirror: {originalId: "b", isMirrorRoot: true}}}]}],
+		});
+
+		expect({
+			types: pushes.map((ops) => ops.map((op) => [op.type, op.data.projectid])),
+			mirrors: mirrorRows(sqlite),
+		}).toStrictEqual({
+			types: [
+				[
+					["bulk_create", undefined],
+					["edit", "b"],
+				],
+			],
+			mirrors: [{original_id: "b", mirror_id: "t2"}],
+		});
 	});
 });

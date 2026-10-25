@@ -3,10 +3,10 @@ import {nodeKeys} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {activePaneView} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
-import {rendersChildren, rendersInstanceRow} from "../render-window.js";
+import {rendersInstanceChildren, rendersInstanceRow} from "../render-window.js";
 import type {ExpansionRow} from "../expansion.js";
 import type {MirrorInstance} from "../../mirror-path.js";
-import {childInstance, isCyclical} from "../../mirror-path.js";
+import {childInstance} from "../../mirror-path.js";
 import {navigableIds} from "../caret-navigation.js";
 import type {SearchFilter} from "../search-filter.js";
 import {currentSearchFilter} from "./use-tree-search.js";
@@ -45,7 +45,7 @@ export function collectVisibleNodeIds(
 		for (const node of filteredChildren) {
 			visibleIds.push(node.id);
 
-			if (rendersChildren(node.id, expandedIds, search) && !isCyclical(node, instance)) {
+			if (rendersInstanceChildren(node, instance, expandedIds, search)) {
 				collectVisibleNodes(node.id, childInstance(node, instance));
 			}
 		}
@@ -88,7 +88,7 @@ export function currentExpansionRows(queryClient: QueryClient): ExpansionRow[] {
 					? cached === undefined || cached.length > 0
 					: rowHasChildren(node, showCompleted);
 			rows.push({id: node.id, depth, hasVisibleChildren});
-			if (rendersChildren(node.id, expandedIds, search) && !isCyclical(node, instance)) {
+			if (rendersInstanceChildren(node, instance, expandedIds, search)) {
 				walk(node.id, depth + 1, childInstance(node, instance));
 			}
 		}

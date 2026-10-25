@@ -52,7 +52,14 @@ import {useNavigateToToday} from "./use-navigate-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {useMoveTo} from "./use-move-to.js";
 import {inlineMirrorInsertion} from "../inline-mirror.js";
-import {isMirrorRootId, useDetachMirror, useMirrorCopy, useMirrorHere, useMirrorTo} from "./use-mirror-to.js";
+import {
+	isMirrorRootId,
+	useDetachMirror,
+	useMirrorCopy,
+	useMirrorHere,
+	useMirrorTo,
+	useSwapMirrorOrigin,
+} from "./use-mirror-to.js";
 import {scheduleCompletionHide, zoomOutDelayMs} from "../completion-animation.js";
 import {presentCommand, printCommand} from "../keys/dispatch.js";
 import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
@@ -174,6 +181,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const mirrorHere = useMirrorHere();
 	const mirrorCopy = useMirrorCopy();
 	const detachMirror = useDetachMirror();
+	const swapMirrorOrigin = useSwapMirrorOrigin();
 	const openMirrorsDialog = useOutlineStore((state) => state.openMirrorsDialog);
 	const zoomPane = useOutlineStore((state) => state.zoomPane);
 	const navigateToToday = useNavigateToToday();
@@ -971,6 +979,16 @@ export function useCommandRegistry(): CommandRegistry {
 				const [itemId] = ctx.items;
 				if (itemId !== undefined) {
 					void detachMirror(itemId);
+				}
+			},
+		},
+		swap_mirror_origin: {
+			// Upstream: one mirror whose original is known, or one original that has mirrors.
+			available: (ctx) => ctx.items.length === 1 && ctx.items.every((id) => isMirrorRootId(queryClient, id)),
+			execute(ctx) {
+				const [itemId] = ctx.items;
+				if (itemId !== undefined) {
+					void swapMirrorOrigin(itemId);
 				}
 			},
 		},

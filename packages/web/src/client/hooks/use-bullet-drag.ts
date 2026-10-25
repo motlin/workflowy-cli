@@ -5,21 +5,24 @@ import {
 	IDLE_BULLET_DRAG,
 	buildDropRows,
 	bulletDragReducer,
+	copyDropEffects,
+	dragActionOf,
 	dragItems,
 	dropBulletDrag,
 	dropClearsSelection,
 	dropIndicatorFor,
 	ghostCloneStyle,
+	hidesSourceBullet,
 	hitX,
 	isFoundDateRow,
 	isOutsideViewport,
 	rotateOrigin,
 } from "../bullet-drag-state.js";
-import type {BulletDragAction, BulletDragState, DropPlan, DropTargetFacts} from "../bullet-drag-state.js";
+import type {BulletDragAction, BulletDragState, CopyPlan, DropPlan, DropTargetFacts} from "../bullet-drag-state.js";
 import {STRIP_DROP_EVENT, stripDropCellOf, stripDropKey} from "../calendar-strip-model.js";
 import type {StripDropCell, StripDropDetail} from "../calendar-strip-model.js";
-import {emptySelection} from "../item-selection.js";
-import {readChildren, readNode, removeFoundDates} from "../node-cache.js";
+import {emptySelection, selectionOf} from "../item-selection.js";
+import {readChildren, readNode, removeFoundDates, nodeKeys} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
 import type {DropRows} from "../outline-drop-target.js";
 import {createEdgeAutoscroller, pickScroller, scrollerOf} from "../pointer-drag.js";
@@ -29,7 +32,8 @@ import {paneView, useOutlineStore} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
 import {leaveEditor} from "./use-drag-select.js";
-import {moveNodesNow} from "./use-nodes.js";
+import {copyNodesAt, moveNodesNow} from "./use-nodes.js";
+import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {HOME_ROOT, currentSelectionView} from "./use-selection-keymap.js";
 
 const GHOST_CLONE_LIMIT = 5;
@@ -213,6 +217,47 @@ function runDropEffects(
 	globalThis.dispatchEvent(new CustomEvent("moving.end", {detail: {itemIds: flashIds, parentId}}));
 }
 
+/** Whether a row for `id` is on screen: a copy inside a collapsed parent is not. */
+function isRowRendered(id: string): boolean {
+	const row = document.querySelector(`${ROW_BULLET}[data-item-id="${CSS.escape(id)}"]`)?.closest(".project");
+	if (row === null || row === undefined) {
+		return false;
+	}
+	const rect = row.getBoundingClientRect();
+	return rect.width > 0 && rect.height > 0;
+}
+
+/**
+ * Upstream's duplicate/mirror drop (`RC4`): one undo step writes the copies at the hovered slot, then the copies take
+ * the selection (a selection drag) or the caret (otherwise), and the ORIGINAL rows flash.
+ */
+async function runCopyDrop(queryClient: QueryClient, copy: CopyPlan, releasedParentId: string | null): Promise<void> {
+	const parentId = copy.parentId === HOME_ROOT ? null : copy.parentId;
+	const store = useOutlineStore.getState();
+	const newIds = await runInUndoBatch(captureOutlineView, async () =>
+		copyNodesAt(queryClient, copy.kind, copy.ids, parentId, copy.index),
+	).catch((error: unknown) => {
+		store.addErrorNotification(
+			`Failed to ${copy.kind === "mirror" ? "mirror" : "duplicate"}: ${error instanceof Error ? error.message : "error"}`,
+		);
+		return;
+	});
+	if (newIds === undefined) {
+		return;
+	}
+	await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+	const effects = copyDropEffects(copy, newIds, isRowRendered);
+	if (effects.select !== null) {
+		useOutlineStore.getState().setItemSelection(selectionOf(effects.select));
+	} else if (effects.caretId !== null) {
+		useOutlineStore.getState().focusName(effects.caretId, 0);
+	}
+	useOutlineStore.getState().flashMoving([...effects.flashIds]);
+	globalThis.dispatchEvent(
+		new CustomEvent("moving.end", {detail: {itemIds: effects.flashIds, parentId: releasedParentId}}),
+	);
+}
+
 function scrollerBounds(scroller: Element): {top: number; height: number} {
 	if (scroller === document.scrollingElement || scroller === document.documentElement) {
 		return {top: 0, height: globalThis.innerHeight};
@@ -285,10 +330,8 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			}
 			event.preventDefault();
 			const bullet = event.currentTarget;
-			// Alt (duplicate) and Shift (mirror) drags are not built yet; the press still clicks to zoom.
-			if (event.altKey || event.shiftKey) {
-				return;
-			}
+			// Alt duplicates and Shift mirrors (Alt wins); the calendar strip takes moves only.
+			const dragAction = dragActionOf(event);
 			const sourceRow = bullet.closest(".project");
 			const node = readNode(queryClient, nodeId);
 			if (node === undefined || sourceRow === null) {
@@ -310,6 +353,8 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				y: startY,
 				itemIds: items.ids,
 				home: items.home,
+				action: dragAction,
+				selection: items.selection,
 			});
 			let ghost: HTMLElement | null = null;
 			let rowTop = 0;
@@ -334,8 +379,8 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				document.body.classList.add("moving");
 				ghost = makeGhost(bullet, startX, startY, state.draggingIds.length);
 				document.body.append(ghost);
-				// A selection drag leaves the source bullet visible.
-				if (!items.selection) {
+				// A selection drag, or an Alt (duplicate) drag, leaves the source bullet visible.
+				if (hidesSourceBullet(dragAction, items.selection)) {
 					bullet.style.visibility = "hidden";
 				}
 				setBulletDrag(state.draggingIds, null);
@@ -343,7 +388,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 
 			const hover = (x: number, y: number) => {
 				// Upstream `WF.Moving.target`: a strip card under the pointer itself takes the drop.
-				stripHit = stripCardAt(x, y);
+				stripHit = dragAction === "move" ? stripCardAt(x, y) : null;
 				if (stripHit !== null) {
 					dispatch({type: "hover", target: null, indicator: null});
 					return;
@@ -442,7 +487,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			const onUp = () => {
 				if (state.phase === "dragging") {
 					// The strip may have autoscrolled under a still pointer.
-					stripHit = stripCardAt(pointer.x, pointer.y);
+					stripHit = dragAction === "move" ? stripCardAt(pointer.x, pointer.y) : null;
 				}
 				if (stripHit !== null) {
 					const detail: StripDropDetail = {itemIds: state.draggingIds, cell: stripHit.cell};
@@ -456,13 +501,17 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				}
 				const collapsed = state.target?.ambiguous === true;
 				const releasedParentId = state.target?.parentId ?? null;
-				const {plan} = dropBulletDrag(state, (targetId) => targetFacts(queryClient, targetId, collapsed));
+				const {plan, copy} = dropBulletDrag(state, (targetId) => targetFacts(queryClient, targetId, collapsed));
 				const ghostRect = ghost?.querySelector(ROW_BULLET)?.getBoundingClientRect() ?? null;
 				if (state.phase === "dragging") {
 					swallowNextClick();
 				}
 				state = IDLE_BULLET_DRAG;
 				finish();
+				if (copy !== null) {
+					void runCopyDrop(queryClient, copy, releasedParentId);
+					return;
+				}
 				if (plan.move !== null) {
 					if (fromFoundDates) {
 						removeFoundDates(queryClient, plan.move.ids);

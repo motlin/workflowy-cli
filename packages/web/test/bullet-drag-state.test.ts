@@ -89,6 +89,8 @@ describe("pane-aware drop indicator", () => {
 describe("bulletDragReducer", () => {
 	it("arms on mousedown without dragging anything", () => {
 		expect(armed).toStrictEqual({
+			action: "move",
+			selection: false,
 			phase: "armed",
 			sourceId: "delta",
 			origin: {x: 100, y: 200},
@@ -107,6 +109,8 @@ describe("bulletDragReducer", () => {
 
 	it("starts dragging at 3px and moves the ghost by the pointer delta", () => {
 		expect(dragging).toStrictEqual({
+			action: "move",
+			selection: false,
 			phase: "dragging",
 			sourceId: "delta",
 			origin: {x: 100, y: 200},
@@ -151,6 +155,8 @@ describe("bulletDragReducer", () => {
 
 	it("cancels back to idle", () => {
 		expect(bulletDragReducer(dragging, {type: "cancel"})).toStrictEqual({
+			action: "move",
+			selection: false,
 			phase: "idle",
 			sourceId: null,
 			origin: null,
@@ -255,8 +261,8 @@ describe("dropBulletDrag", () => {
 
 	it("moves nothing when the parent and index are unchanged", () => {
 		expect([dropOn("dnd", 3), dropOn("dnd", 4)]).toStrictEqual([
-			{state: IDLE_BULLET_DRAG, plan: stays},
-			{state: IDLE_BULLET_DRAG, plan: stays},
+			{state: IDLE_BULLET_DRAG, plan: stays, copy: null},
+			{state: IDLE_BULLET_DRAG, plan: stays, copy: null},
 		]);
 	});
 
@@ -264,6 +270,7 @@ describe("dropBulletDrag", () => {
 		expect([dropOn("dnd", 2), dropOn("charlie", 0)]).toStrictEqual([
 			{
 				state: IDLE_BULLET_DRAG,
+				copy: null,
 				plan: {
 					move: {ids: ["delta"], parentId: "dnd", index: 2},
 					expandId: null,
@@ -274,6 +281,7 @@ describe("dropBulletDrag", () => {
 			},
 			{
 				state: IDLE_BULLET_DRAG,
+				copy: null,
 				plan: {
 					move: {ids: ["delta"], parentId: "charlie", index: 0},
 					expandId: "charlie",
@@ -287,8 +295,8 @@ describe("dropBulletDrag", () => {
 
 	it("moves nothing when released before the drag started or with no target", () => {
 		expect([dropBulletDrag(armed, factsOf), dropBulletDrag(dragging, factsOf)]).toStrictEqual([
-			{state: IDLE_BULLET_DRAG, plan: nothing},
-			{state: IDLE_BULLET_DRAG, plan: nothing},
+			{state: IDLE_BULLET_DRAG, plan: nothing, copy: null},
+			{state: IDLE_BULLET_DRAG, plan: nothing, copy: null},
 		]);
 	});
 });

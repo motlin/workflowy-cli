@@ -13,14 +13,16 @@ import type {
 	UpdateNodeResponse,
 } from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient, effectiveCompletedAt} from "@workflowy/shared/cache";
-import type {ExactMover, NodeTree} from "@workflowy/shared/cache";
+import type {ExactMover} from "@workflowy/shared/cache";
+import {MAX_COPY_ITEMS, copySubtree} from "../copy-tree.js";
+import {planSwapOrigin} from "../../swap-origin.js";
 import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {RestoreInput, WorkflowyInternalAdapter, NewTree} from "@workflowy/shared/internal";
 import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {HOME_TARGET} from "@workflowy/shared/types";
-import {hasInternalLink, internalLinkShortIds, isShortId} from "@workflowy/shared/workflowy";
+import {hasInternalLink, internalLinkShortIds, isShortId, parseVirtualShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
 import {z} from "zod";
@@ -30,7 +32,7 @@ import {loadCalendarInfo} from "../calendar-day.js";
 import {findFoundDates, timesDiffer} from "../calendar-found.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import type {MirrorInstance} from "../../mirror-path.js";
-import {childInstance, isCyclical} from "../../mirror-path.js";
+import {childInstance, expansionId} from "../../mirror-path.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
 /**
@@ -38,6 +40,11 @@ import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
  * Returns the full UUID, or null if a short ID couldn't be resolved.
  */
 function resolveNodeId(ctx: ServerContext, id: string): string | null {
+	// A row inside a mirror (`v_<child12>_<mirror12>[_<path>]`) names the original child it shows.
+	const virtual = parseVirtualShortId(id);
+	if (virtual !== null) {
+		return ctx.cacheService.resolveShortIdToUuid(virtual.nodeShortId);
+	}
 	if (!isShortId(id)) {
 		return id;
 	}
@@ -483,7 +490,7 @@ nodesRouter.post("/view", async (c) => {
 				continue;
 			}
 			used += 1;
-			if (isExpanded(node.id) && !isCyclical(node, instance)) {
+			if (isExpanded(expansionId(node.id, instance))) {
 				await visit(node.id, node.id, childInstance(node, instance));
 			}
 		}
@@ -615,6 +622,59 @@ nodesRouter.post("/trees", async (c) => {
 	return c.json({ids}, 201);
 });
 
+// POST /api/v1/nodes/duplicate - Deep-copy items to consecutive slots of a parent, with one bulk_create
+nodesRouter.post("/duplicate", async (c) => {
+	const ctx = c.get("ctx");
+	const body = await c.req.json<{ids?: unknown; parent_id?: unknown; index?: unknown}>();
+	if (!Array.isArray(body.ids) || body.ids.length === 0 || !body.ids.every((id) => typeof id === "string")) {
+		return c.json({error: "ids must be a non-empty array of node ids"}, 400);
+	}
+	const parent = parseParent(ctx, body.parent_id);
+	if (!parent.ok) {
+		return c.json({error: parent.error}, parent.status);
+	}
+	const slot = parseIndex(body.index, undefined);
+	if (!slot.ok) {
+		return c.json({error: slot.error}, 400);
+	}
+	const adapter = getAdapter(ctx);
+	if (!adapter) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+	const trees: NewTree[] = [];
+	const sourceToNew = new Map<string, string>();
+	for (const raw of body.ids) {
+		const resolved = resolveNodeId(ctx, raw);
+		if (resolved === null) {
+			return c.json({error: `Node not found: ${raw}`}, 404);
+		}
+		// A mirror duplicates its original's content, with the mirror's own expansion.
+		const sourceId = resolveMirrorToOriginal(ctx, resolved);
+		const copied = await copySubtree(ctx.cacheService, sourceId, {
+			rootCompleted: (ctx.cacheService.getNode(sourceId)?.completedAt ?? null) !== null,
+			mirrorOriginals: false,
+			originalsWithMirrors: (ids) => originalsWithMirrors(ctx, ids),
+		});
+		if (copied === undefined) {
+			return c.json({error: `Node not found: ${raw}`}, 404);
+		}
+		if (!copied.ok) {
+			return c.json({error: `Too many nodes: ${copied.count} (max ${MAX_COPY_ITEMS})`}, 400);
+		}
+		trees.push(copied.tree);
+		for (const [source, copy] of copied.sourceToNew) {
+			sourceToNew.set(source === sourceId ? resolved : source, copy);
+		}
+	}
+	const {ids} = await adapter.createTreesAt({
+		parentId: adapterParent(parent.parentId),
+		...(slot.index === undefined ? {} : {index: slot.index}),
+		trees,
+	});
+	await openCopies(adapter, sourceToNew);
+	return c.json({ids}, 201);
+});
+
 // POST /api/v1/nodes/mirror - Mirror items under a parent, in order at consecutive indexes
 nodesRouter.post("/mirror", async (c) => {
 	const ctx = c.get("ctx");
@@ -635,6 +695,7 @@ nodesRouter.post("/mirror", async (c) => {
 		return c.json({error: slot.error}, 400);
 	}
 	const originals: string[] = [];
+	const sourceRows: string[] = [];
 	for (const raw of body.item_ids) {
 		if (raw === "None" || raw === "" || raw === HOME_TARGET) {
 			return c.json({error: "Cannot mirror Home"}, 400);
@@ -643,6 +704,7 @@ nodesRouter.post("/mirror", async (c) => {
 		if (resolved === null) {
 			return c.json({error: `Node not found: ${raw}`}, 404);
 		}
+		sourceRows.push(resolved);
 		originals.push(resolveMirrorToOriginal(ctx, resolved));
 	}
 	// A mirror parent writes into its original's child list.
@@ -659,14 +721,21 @@ nodesRouter.post("/mirror", async (c) => {
 	if (!adapter) {
 		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
 	}
-	const mirrorIds: string[] = [];
-	for (const [offset, originalId] of originals.entries()) {
-		const {mirrorId} = await adapter.createMirrorAt({
-			originalId,
-			parentId: adapterParent(parentId),
-			index: (slot.index ?? countChildren(ctx, parentId)) + offset,
-		});
-		mirrorIds.push(mirrorId);
+	const {mirrors} = await adapter.createMirrorsAt({
+		originalIds: originals,
+		parentId: adapterParent(parentId),
+		index: slot.index ?? countChildren(ctx, parentId),
+	});
+	const mirrorIds = mirrors.map((mirror) => mirror.mirrorId);
+	// A new mirror opens like its source row (upstream `mirrorProjectTree`: `expanded: source.isExpanded`).
+	const isExpanded = await adapter.expansionTest();
+	const opened = Object.fromEntries(
+		mirrorIds.flatMap((mirrorId, offset) =>
+			isExpanded(sourceRows[offset] ?? "") ? [[mirrorId, true] as const] : [],
+		),
+	);
+	if (Object.keys(opened).length > 0) {
+		await adapter.setExpanded(opened);
 	}
 	const nodes = (await Promise.all(mirrorIds.map(async (id) => readNodeDto(ctx, id)))).filter(
 		(node): node is NodeResponse => node !== undefined,
@@ -1308,19 +1377,26 @@ async function readFoundDates(ctx: ServerContext, node: Node): Promise<FoundDate
 	};
 }
 
-/** A deep copy of a read subtree as bulk-create trees: text, layout and children, never completion or mirror links. */
-function copyTreeOf(node: NodeTree): NewTree {
-	const children = (node.children ?? []).map(copyTreeOf);
-	return {
-		name: node.name ?? "",
-		...(node.note === null || node.note === "" ? {} : {note: node.note}),
-		...(node.layoutMode === null ? {} : {metadata: {layoutMode: node.layoutMode}}),
-		...(children.length === 0 ? {} : {children}),
-	};
+/** Open each copy whose source row is expanded (upstream `syncWith`); `rootSource` overrides the top copy's source row. */
+async function openCopies(
+	adapter: WorkflowyInternalAdapter,
+	sourceToNew: ReadonlyMap<string, string>,
+	rootSource?: {original: string; row: string},
+): Promise<void> {
+	const isExpanded = await adapter.expansionTest();
+	const opened: Record<string, boolean> = {};
+	for (const [sourceId, copyId] of sourceToNew) {
+		const row = sourceId === rootSource?.original ? rootSource.row : sourceId;
+		if (isExpanded(row)) {
+			opened[copyId] = true;
+		}
+	}
+	if (Object.keys(opened).length > 0) {
+		await adapter.setExpanded(opened);
+	}
 }
 
-/** The deepest subtree a detach copies; deeper levels (or a cycle) are cut off. */
-const DETACH_DEPTH = 50;
+const DETACH_TOO_BIG = `Detaching mirror subtrees containing more than ${MAX_COPY_ITEMS} items is not supported.`;
 
 // POST /api/v1/nodes/:id/detach-mirror - Replace a mirror root (a mirror, or an original that has mirrors) with a copy
 nodesRouter.post("/:id/detach-mirror", async (c) => {
@@ -1336,12 +1412,21 @@ nodesRouter.post("/:id/detach-mirror", async (c) => {
 		return c.json({error: "Node not found"}, 404);
 	}
 	const originalId = resolveMirrorToOriginal(ctx, id);
-	if (originalId === id && !originalsWithMirrors(ctx, [id]).has(id)) {
+	const isOriginal = originalId === id;
+	if (isOriginal && !originalsWithMirrors(ctx, [id]).has(id)) {
 		return c.json({error: "Node is not a mirror"}, 400);
 	}
-	const [tree] = await new NodeTreeReader(ctx.cacheService).readNodes([originalId], {depth: DETACH_DEPTH});
-	if (tree === undefined) {
+	// A mirror has no completion of its own, so its copy is open; an original keeps its own.
+	const copied = await copySubtree(ctx.cacheService, originalId, {
+		rootCompleted: isOriginal && (node.completedAt ?? null) !== null,
+		mirrorOriginals: true,
+		originalsWithMirrors: (ids) => originalsWithMirrors(ctx, ids),
+	});
+	if (copied === undefined) {
 		return c.json({error: "Node not found"}, 404);
+	}
+	if (!copied.ok) {
+		return c.json({error: DETACH_TOO_BIG}, 400);
 	}
 	const index = Math.max(
 		ctx.cacheService.getChildren(node.parentId).findIndex((sibling) => sibling.id === id),
@@ -1350,12 +1435,55 @@ nodesRouter.post("/:id/detach-mirror", async (c) => {
 	const {ids} = await adapter.createTreesAt({
 		parentId: adapterParent(node.parentId),
 		index,
-		trees: [copyTreeOf(tree)],
+		trees: [copied.tree],
 	});
+	await openCopies(adapter, copied.sourceToNew, {original: originalId, row: id});
 	await client.deleteNode(id);
 	const [copyId] = ids;
 	const copy = copyId === undefined ? undefined : await readNodeDto(ctx, copyId);
 	return c.json({node: copy ?? null}, 201);
+});
+
+// POST /api/v1/nodes/:id/swap-mirror-origin - Make a mirror the origin: it and its original exchange slots
+nodesRouter.post("/:id/swap-mirror-origin", async (c) => {
+	const ctx = c.get("ctx");
+	const adapter = getAdapter(ctx);
+	if (!adapter) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+	const id = resolveNodeId(ctx, c.req.param("id"));
+	const node = id === null ? undefined : ctx.cacheService.getNode(id);
+	if (id === null || node === undefined) {
+		return c.json({error: "Node not found"}, 404);
+	}
+	const originalId = resolveMirrorToOriginal(ctx, id);
+	if (originalId === id) {
+		if (originalsWithMirrors(ctx, [id]).has(id)) {
+			return c.json({warning: "This item is already the origin."});
+		}
+		return c.json({error: "Node is not a mirror"}, 400);
+	}
+	const original = ctx.cacheService.getNode(originalId);
+	if (original === undefined) {
+		return c.json({error: "Original not found"}, 404);
+	}
+	// The original would land inside its own subtree.
+	for (let current = node.parentId; current !== null; current = ctx.cacheService.getNode(current)?.parentId ?? null) {
+		if (current === originalId) {
+			return c.json({error: "Cannot swap a mirror that sits inside its own original"}, 400);
+		}
+	}
+	const orders = new Map<string | null, string[]>(
+		[node.parentId, original.parentId].map((parentId) => [
+			parentId,
+			ctx.cacheService.getChildren(parentId).map((child) => child.id),
+		]),
+	);
+	const moves = planSwapOrigin(orders, {id, parentId: node.parentId}, {id: originalId, parentId: original.parentId});
+	for (const move of moves) {
+		await adapter.moveTo({ids: [move.id], parentId: adapterParent(move.parentId), index: move.index});
+	}
+	return c.json({swapped: {mirrorId: id, originalId}});
 });
 
 // GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)

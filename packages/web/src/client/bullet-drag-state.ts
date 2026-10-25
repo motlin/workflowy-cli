@@ -41,7 +41,25 @@ interface Slot {
 	readonly index: number;
 }
 
+/** What a press does: Alt duplicates, Shift mirrors (Alt wins), no modifier moves (upstream `qD4`). */
+export type DragAction = "move" | "duplicate" | "mirror";
+
+export function dragActionOf(modifiers: {readonly altKey: boolean; readonly shiftKey: boolean}): DragAction {
+	if (modifiers.altKey) {
+		return "duplicate";
+	}
+	return modifiers.shiftKey ? "mirror" : "move";
+}
+
+/** Upstream `L = !(isSelection || action === "duplicate")`: the source bullet hides for a single move or mirror. */
+export function hidesSourceBullet(action: DragAction, selection: boolean): boolean {
+	return !(selection || action === "duplicate");
+}
+
 export interface BulletDragState {
+	readonly action: DragAction;
+	/** Whether the press dragged the selection. */
+	readonly selection: boolean;
 	readonly phase: "idle" | "armed" | "dragging";
 	readonly sourceId: string | null;
 	readonly origin: Point | null;
@@ -64,6 +82,8 @@ export type BulletDragAction =
 			readonly y: number;
 			readonly itemIds: readonly string[];
 			readonly home: Slot | null;
+			readonly action?: DragAction;
+			readonly selection?: boolean;
 	  }
 	| {readonly type: "move"; readonly x: number; readonly y: number}
 	| {readonly type: "hover"; readonly target: DropTarget | null; readonly indicator: DropIndicator | null}
@@ -77,6 +97,8 @@ export interface MoveEffect {
 }
 
 export const IDLE_BULLET_DRAG: BulletDragState = {
+	action: "move",
+	selection: false,
 	phase: "idle",
 	sourceId: null,
 	origin: null,
@@ -98,6 +120,8 @@ export function bulletDragReducer(state: BulletDragState, action: BulletDragActi
 				origin: {x: action.x, y: action.y},
 				home: action.home,
 				itemIds: action.itemIds,
+				action: action.action ?? "move",
+				selection: action.selection ?? false,
 			};
 		}
 		case "move": {
@@ -230,18 +254,83 @@ export function planDrop({
 	};
 }
 
+/** A duplicate or mirror drop (upstream `RC4`): copies land at the hovered slot, whatever the row's own slot. */
+export interface CopyPlan {
+	readonly kind: "duplicate" | "mirror";
+	readonly ids: readonly string[];
+	readonly parentId: string;
+	readonly index: number;
+	/** The SOURCE rows flash `.moving`; the copies never do. */
+	readonly flashIds: readonly string[];
+	/** A selection drag selects the copies; otherwise the caret goes to the first copy. */
+	readonly after: {readonly kind: "select"} | {readonly kind: "caret"};
+}
+
+export interface CopyDropInput {
+	readonly action: DragAction;
+	readonly target: DropTarget;
+	readonly draggingIds: readonly string[];
+	readonly selection: boolean;
+}
+
+/**
+ * Plan a copy drop. Unlike a move there is no ambiguous-slot default, no no-op check and no leaf expand: the copy goes
+ * at exactly the hovered index, so dropping on the row's own slot puts the copy before the original.
+ */
+export function planCopyDrop({action, target, draggingIds, selection}: CopyDropInput): CopyPlan | null {
+	if (action === "move" || draggingIds.length === 0) {
+		return null;
+	}
+	return {
+		kind: action,
+		ids: draggingIds,
+		parentId: target.parentId,
+		index: target.index,
+		flashIds: draggingIds,
+		after: selection ? {kind: "select"} : {kind: "caret"},
+	};
+}
+
+export interface CopyDropEffects {
+	/** The new rows to select (a selection drag), or null. */
+	readonly select: readonly string[] | null;
+	/** The new row that gets the caret at offset 0, or null (a copy inside a collapsed parent stays unfocused). */
+	readonly caretId: string | null;
+	/** The SOURCE rows that flash `.moving` for 500ms. */
+	readonly flashIds: readonly string[];
+}
+
+/** What follows a copy drop once the copies exist (upstream `W92`, `AppItemSelect.select`, `Nu1`). */
+export function copyDropEffects(
+	copy: CopyPlan,
+	newIds: readonly string[],
+	isRendered: (id: string) => boolean,
+): CopyDropEffects {
+	const [first] = newIds;
+	if (copy.after.kind === "select") {
+		return {select: newIds, caretId: null, flashIds: copy.flashIds};
+	}
+	return {
+		select: null,
+		caretId: first !== undefined && isRendered(first) ? first : null,
+		flashIds: copy.flashIds,
+	};
+}
+
 /** Release the drag, planning the drop from the facts about the hovered target's parent. */
 export function dropBulletDrag(
 	state: BulletDragState,
 	factsOf: (parentId: string) => DropTargetFacts,
-): {state: BulletDragState; plan: DropPlan} {
-	const {phase, target, home, draggingIds} = state;
+): {state: BulletDragState; plan: DropPlan; copy: CopyPlan | null} {
+	const {phase, target, home, draggingIds, action, selection} = state;
 	if (phase !== "dragging" || target === null) {
-		return {state: IDLE_BULLET_DRAG, plan: NO_DROP};
+		return {state: IDLE_BULLET_DRAG, plan: NO_DROP, copy: null};
 	}
+	const copy = planCopyDrop({action, target, draggingIds, selection});
 	return {
 		state: IDLE_BULLET_DRAG,
-		plan: planDrop({target, draggingIds, home, ...factsOf(target.parentId)}),
+		plan: copy === null ? planDrop({target, draggingIds, home, ...factsOf(target.parentId)}) : NO_DROP,
+		copy,
 	};
 }
 

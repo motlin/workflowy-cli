@@ -10,6 +10,7 @@ import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {HOME_TARGET} from "../types/targets.js";
 import {hasInternalLink, internalLinkShortIds} from "../workflowy/internal-links.js";
 import {uuidToShortId} from "../workflowy/constants.js";
+import {upstreamExpansionKey} from "../workflowy/virtual-id.js";
 import {
 	CALENDAR_LEVELS,
 	DEFAULT_CALENDAR_LEVELS,
@@ -108,10 +109,8 @@ function internalParent(parent: PublicParent): string {
 	return parent ?? ROOT_PROJECT_ID;
 }
 
-/** Upstream's expansion key for a node: the first 8 chars of its id. */
-function expansionKey(id: string): string {
-	return id.slice(0, 8);
-}
+/** Upstream's expansion key for a node: the first 8 chars of its id, or `v_<child4><mirror4><path>` for a mirror instance. */
+const expansionKey = upstreamExpansionKey;
 
 function clampIndex(index: number, length: number): number {
 	return Math.min(Math.max(Math.trunc(index), 0), length);
@@ -147,11 +146,31 @@ export interface CreateAtInput {
 	metadata?: Record<string, unknown>;
 }
 
+/** Every mirror root among `trees` (ids already assigned), with the original it mirrors. */
+function mirrorRootsIn(trees: NewTree[]): {mirrorId: string; originId: string}[] {
+	return trees.flatMap((node) => {
+		const originId = getPath(node.metadata ?? {}, ["mirror", "originalId"]);
+		const isRoot = getPath(node.metadata ?? {}, ["mirror", "isMirrorRoot"]) === true;
+		const own =
+			typeof originId === "string" && isRoot && node.id !== undefined ? [{mirrorId: node.id, originId}] : [];
+		return [...own, ...mirrorRootsIn(node.children ?? [])];
+	});
+}
+
 export interface CreateTreesAtInput {
 	parentId: string;
 	index?: number;
 	afterId?: string | null;
 	trees: NewTree[];
+}
+
+export interface CreateMirrorsAtInput {
+	/** The nodes to mirror, in order; a mirror resolves to its original. */
+	originalIds: string[];
+	/** A node id, or `HOME`. */
+	parentId: string;
+	/** 0-based slot of the first mirror among all siblings; clamped to `[0, siblings]`. */
+	index: number;
 }
 
 export interface CreateMirrorAtInput {
@@ -458,7 +477,8 @@ export class WorkflowyInternalAdapter {
 			now: this.now(),
 			dateJoinedSec: session.dateJoinedSec,
 		});
-		await this.pusher.pushAndPoll({ops: [op]});
+		const linkOps = await this.mirrorLinkOps(trees, session.dateJoinedSec);
+		await this.pusher.pushAndPoll({ops: [op, ...linkOps]});
 		const writeKept = (nodes: NewTree[]) => {
 			for (const node of nodes) {
 				const kept = keptInternalMetadata(node.metadata);
@@ -470,7 +490,35 @@ export class WorkflowyInternalAdapter {
 		};
 		writeKept(trees);
 		await tree.refreshChildren([parent]);
+		for (const {mirrorId, originId} of mirrorRootsIn(trees)) {
+			tree.recordMirror(originId, mirrorId);
+		}
 		return {ids};
+	}
+
+	/** The `edit`s that list each mirror root created inside `trees` on its original's `mirror.mirrorRootIds`. */
+	private async mirrorLinkOps(trees: NewTree[], dateJoinedSec: number): Promise<InternalOp[]> {
+		const roots = mirrorRootsIn(trees);
+		if (roots.length === 0) {
+			return [];
+		}
+		const items = await this.client.getTreeData();
+		return [...new Set(roots.map((root) => root.originId))].map((originId) => {
+			const metadata = items.find((candidate) => candidate.id === originId)?.metadata ?? {};
+			const {patches, inverse} = buildMetadataChanges(
+				metadata,
+				roots
+					.filter((root) => root.originId === originId)
+					.map((root) => ({path: ["mirror", "mirrorRootIds", root.mirrorId], value: true})),
+			);
+			return editOp({
+				id: originId,
+				metadataPatches: patches,
+				metadataInversePatches: inverse,
+				now: this.now(),
+				dateJoinedSec,
+			});
+		});
 	}
 
 	/**
@@ -644,19 +692,38 @@ export class WorkflowyInternalAdapter {
 	 * `/get_tree_data/` so the patch keeps the mirrors it already has.
 	 */
 	async createMirrorAt(input: CreateMirrorAtInput): Promise<CreateMirrorResult> {
+		const {mirrors} = await this.createMirrorsAt({
+			originalIds: [input.originalId],
+			parentId: input.parentId,
+			index: input.index,
+		});
+		const [only] = mirrors;
+		if (only === undefined) {
+			throw new Error("bulk_create produced no id");
+		}
+		return only;
+	}
+
+	/**
+	 * Mirror several nodes at consecutive slots with one push: one `bulk_create` of an empty mirror root per
+	 * source, then one `edit` per distinct original adding its new mirrors to `mirror.mirrorRootIds`. A source
+	 * that is itself a mirror mirrors its original.
+	 */
+	async createMirrorsAt(input: CreateMirrorsAtInput): Promise<{mirrors: CreateMirrorResult[]}> {
 		const tree = this.tree();
 		const items = await this.client.getTreeData();
 		const metadataOf = (id: string): Metadata | undefined => {
 			const item = items.find((candidate) => candidate.id === id);
 			return item === undefined ? undefined : (item.metadata ?? {});
 		};
-		const requested = metadataOf(input.originalId);
-		if (requested === undefined) {
-			throw new Error(`Cannot mirror ${input.originalId}: it is not in the Workflowy tree`);
-		}
-		const mirroredOriginal = getPath(requested, ["mirror", "originalId"]);
-		const originId = typeof mirroredOriginal === "string" ? mirroredOriginal : input.originalId;
-		const originMetadata = metadataOf(originId) ?? {};
+		const originIds = input.originalIds.map((requestedId) => {
+			const requested = metadataOf(requestedId);
+			if (requested === undefined) {
+				throw new Error(`Cannot mirror ${requestedId}: it is not in the Workflowy tree`);
+			}
+			const mirroredOriginal = getPath(requested, ["mirror", "originalId"]);
+			return typeof mirroredOriginal === "string" ? mirroredOriginal : requestedId;
+		});
 
 		const parent = publicParent(input.parentId);
 		const siblings = await tree.liveChildren(parent);
@@ -664,30 +731,37 @@ export class WorkflowyInternalAdapter {
 		const {op: createOp, ids} = bulkCreateOp({
 			parentId: internalParent(parent),
 			index: clampIndex(input.index, siblings.length),
-			trees: [{name: "", metadata: {mirror: {originalId: originId, isMirrorRoot: true}}}],
+			trees: originIds.map((originId) => ({
+				name: "",
+				metadata: {mirror: {originalId: originId, isMirrorRoot: true}},
+			})),
 			userId: session.userId,
 			now: this.now(),
 			dateJoinedSec: session.dateJoinedSec,
 			generateId: this.generateId,
 		});
-		const [mirrorId] = ids;
-		if (mirrorId === undefined) {
-			throw new Error("bulk_create produced no id");
-		}
-		const {patches, inverse} = buildMetadataChanges(originMetadata, [
-			{path: ["mirror", "mirrorRootIds", mirrorId], value: true},
-		]);
-		const linkOp = editOp({
-			id: originId,
-			metadataPatches: patches,
-			metadataInversePatches: inverse,
-			now: this.now(),
-			dateJoinedSec: session.dateJoinedSec,
+		const mirrors = ids.map((mirrorId, offset) => ({mirrorId, originId: originIds[offset] ?? ""}));
+		const linkOps = [...new Set(originIds)].map((originId) => {
+			const {patches, inverse} = buildMetadataChanges(
+				metadataOf(originId) ?? {},
+				mirrors
+					.filter((mirror) => mirror.originId === originId)
+					.map((mirror) => ({path: ["mirror", "mirrorRootIds", mirror.mirrorId], value: true})),
+			);
+			return editOp({
+				id: originId,
+				metadataPatches: patches,
+				metadataInversePatches: inverse,
+				now: this.now(),
+				dateJoinedSec: session.dateJoinedSec,
+			});
 		});
-		await this.pusher.pushAndPoll({ops: [createOp, linkOp]});
+		await this.pusher.pushAndPoll({ops: [createOp, ...linkOps]});
 		await tree.refreshChildren([parent]);
-		tree.recordMirror(originId, mirrorId);
-		return {mirrorId, originId};
+		for (const mirror of mirrors) {
+			tree.recordMirror(mirror.originId, mirror.mirrorId);
+		}
+		return {mirrors};
 	}
 
 	/**

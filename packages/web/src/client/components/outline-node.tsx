@@ -5,7 +5,7 @@ import {getHoveredRowId, setHoveredRowId} from "../hovered-row.js";
 import {useIsRowHovered} from "../hooks/use-row-hover.js";
 import type {ReactNode} from "react";
 import {memo, useContext, useMemo, useEffect, useLayoutEffect, useState} from "react";
-import {childInstance, isCyclical} from "../../mirror-path.js";
+import {childInstance, expansionId, isCyclical} from "../../mirror-path.js";
 import {MirrorInstanceContext} from "../mirror-instance-context.js";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {useNodeNavigation} from "../navigation.js";
@@ -202,7 +202,9 @@ function NodeName({
 	const isHovered = useIsRowHovered(node.id);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const {setItemMenuOpen, toggleExpand, toggleSearchExpansion, resumeEditing} = outlineActions();
-	const cyclical = isCyclical(node, useContext(MirrorInstanceContext));
+	const rowInstance = useContext(MirrorInstanceContext);
+	const cyclical = isCyclical(node, rowInstance);
+	const rowExpansionId = expansionId(node.id, rowInstance);
 	// A row unmounted with its menu open (collapsed parent, deleted row) must not leave a stale highlight.
 	useEffect(
 		() => () => {
@@ -281,6 +283,7 @@ function NodeName({
 		>
 			{nodeBullet({
 				nodeId: node.id,
+				instance: rowInstance,
 				isMirror: isMirrorRoot(node),
 				showHalo:
 					hasChildren &&
@@ -323,13 +326,14 @@ function NodeName({
 				alwaysVisible: alwaysVisibleControls,
 				onFocusRow: focusRowStart,
 				onExpandAll: searching || cyclical ? undefined : expandAll,
-				onToggle: cyclical
-					? () => {}
-					: searching
-						? (id) => {
-								toggleSearchExpansion(id, isExpanded);
-							}
-						: toggleExpand,
+				onToggle: searching
+					? (id) => {
+							toggleSearchExpansion(id, isExpanded);
+						}
+					: () => {
+							// Expansion is per mirror instance, so a toggle inside a mirror leaves the original alone.
+							toggleExpand(rowExpansionId);
+						},
 			})}
 			{isHovered || isMenuOpen ? (
 				<NodeItemMenu
@@ -423,6 +427,7 @@ export const OutlineRow = memo(function OutlineRow({
 }) {
 	const search = useOutlineSearchFilter();
 	const paneId = usePaneId();
+	const instance = useContext(MirrorInstanceContext);
 	const {
 		isPersistentlyExpanded,
 		isEditingNote,
@@ -436,13 +441,11 @@ export const OutlineRow = memo(function OutlineRow({
 		dragHover,
 		showCompleted,
 		alwaysVisibleControls,
-	} = useRowState(node.id, paneId);
-	// A cyclical mirror instance renders collapsed whatever its id's expansion says (upstream's default-state
-	// pipe); until instances have their own expansion keys, a plain-id toggle would reopen it at every depth.
-	const instance = useContext(MirrorInstanceContext);
-	const cyclical = isCyclical(node, instance);
+	} = useRowState(node.id, paneId, expansionId(node.id, instance));
+	// A row inside a mirror is an instance with its own expansion key, collapsed until that instance is expanded; a
+	// cyclical instance has no saved state of its own, so it starts collapsed too (upstream's default-state pipe).
 	const nestedInstance = useMemo(() => childInstance(node, instance), [node, instance]);
-	const isExpanded = cyclical ? false : search === null ? isPersistentlyExpanded : isSearchExpanded(node.id, search);
+	const isExpanded = search === null ? isPersistentlyExpanded : isSearchExpanded(node.id, search);
 	const rowSearchClasses = searchClasses({id: node.id, parentId: node.parent_id}, search);
 	const {endCompletionAnimation} = outlineActions();
 	const hasChildren = rowHasChildren(node, showCompleted);

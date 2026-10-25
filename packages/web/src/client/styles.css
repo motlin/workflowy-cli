@@ -1434,15 +1434,11 @@ body.moving .expand {
 	background-color: var(--wf-background-quaternary);
 }
 
-.bullet:hover > .bulletHalo {
-	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
-}
-
+.is-desktop .bullet:hover > .bulletHalo,
 .is-desktop .dragging > .bullet > .bulletHalo {
 	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
 }
 
-.bullet.diamond > .bulletHalo,
 .bullet.noHalo > .bulletHalo {
 	background-color: transparent;
 }

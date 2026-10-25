@@ -398,7 +398,7 @@ describe("drop indicator styles guard", () => {
 					".project.drag-hovered-at:after",
 					"body.moving *",
 					"body:not(.moving) .mainTreeRoot > .name, body:not(.moving) .mainTreeRoot > .notes",
-					".is-desktop .dragging > .bullet > .bulletHalo",
+					".is-desktop .bullet:hover > .bulletHalo, .is-desktop .dragging > .bullet > .bulletHalo",
 				].map((selector) => [selector, cssBlock(styles, selector)]),
 			),
 		).toStrictEqual({
@@ -433,7 +433,7 @@ describe("drop indicator styles guard", () => {
 			"body:not(.moving) .mainTreeRoot > .name, body:not(.moving) .mainTreeRoot > .notes": {
 				"pointer-events": "none",
 			},
-			".is-desktop .dragging > .bullet > .bulletHalo": {
+			".is-desktop .bullet:hover > .bulletHalo, .is-desktop .dragging > .bullet > .bulletHalo": {
 				"background-color": "color-mix(in srgb, var(--wf-background-quaternary) 85%, black)",
 			},
 		});

@@ -248,6 +248,19 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		]);
 	});
 
+	it("keys a mirror instance's expansion as v_<child4><mirror4><path>", async () => {
+		const {api, adapter} = tracked();
+
+		await adapter.setExpanded({[`virtual_${ALPHA}_${BRAVO}_9c9c`]: true});
+
+		expect(pushedTrees(api.requests[2])).toStrictEqual([
+			{
+				most_recent_operation_transaction_id: "4567",
+				project_expansions_delta: {[`v_${ALPHA.slice(0, 4)}${BRAVO.slice(0, 4)}9c9c`]: true},
+			},
+		]);
+	});
+
 	it("sends nothing for no changes", async () => {
 		const {api, adapter} = tracked();
 

@@ -1,4 +1,5 @@
-import {isShortId} from "@workflowy/shared/workflowy";
+import {isShortId, virtualShortId} from "@workflowy/shared/workflowy";
+import type {MirrorInstance} from "../mirror-path.js";
 import {useQueryClient} from "@tanstack/react-query";
 import {useEffect, useRef} from "react";
 import {NavigationType, useLocation, useNavigationType} from "react-router-dom";
@@ -26,7 +27,10 @@ import {dropViewRestore, oweViewRestore} from "./view-state.js";
  * `zoomedNodeId` always holds a full id. Every node link must go through this
  * helper so the form stays consistent.
  */
-export function nodeUrl(nodeId: string): string {
+export function nodeUrl(nodeId: string, instance: MirrorInstance | null = null): string {
+	if (instance !== null) {
+		return `/#/${virtualShortId({childId: nodeId, mirrorRootId: instance.rootId, path: instance.path})}`;
+	}
 	return locationUrl({id: nodeId});
 }
 

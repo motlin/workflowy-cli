@@ -3,7 +3,7 @@ import {isPotentiallyVisible} from "./tree-ops.js";
 import {sortByPriority} from "./tree-position.js";
 import type {SearchFilter} from "./search-filter.js";
 import type {MirrorInstance} from "../mirror-path.js";
-import {childInstance, instanceKey, isCyclical} from "../mirror-path.js";
+import {childInstance, expansionId, instanceKey, isCyclical} from "../mirror-path.js";
 import {isSearchExpanded, searchShowsCompleted, searchShowsNode} from "./search-filter.js";
 
 /**
@@ -85,9 +85,17 @@ export function rendersInstanceRow(
 	);
 }
 
-/** Whether `id`'s children render: the search's expansion during a search, else `expandedIds`. */
-export function rendersChildren(id: string, expandedIds: ReadonlySet<string>, search: SearchFilter | null): boolean {
-	return search === null ? expandedIds.has(id) : isSearchExpanded(id, search);
+/**
+ * Whether `node`'s children render in `instance`: the search's expansion during a search, else the row's own expansion,
+ * which is per mirror instance (a row inside a mirror is collapsed until that instance is expanded).
+ */
+export function rendersInstanceChildren(
+	node: NodeResponse,
+	instance: MirrorInstance | null,
+	expandedIds: ReadonlySet<string>,
+	search: SearchFilter | null,
+): boolean {
+	return search === null ? expandedIds.has(expansionId(node.id, instance)) : isSearchExpanded(node.id, search);
 }
 
 export interface RowLimits {
@@ -121,7 +129,7 @@ export function rowLimits(
 			}
 			used += 1;
 			count += 1;
-			if (rendersChildren(node.id, expandedIds, search) && !isCyclical(node, instance)) {
+			if (rendersInstanceChildren(node, instance, expandedIds, search)) {
 				visit(node.id, childInstance(node, instance));
 			}
 		}
@@ -158,8 +166,7 @@ export function viewParentIds(
 			}
 			used += 1;
 			if (
-				rendersChildren(node.id, expandedIds, search) &&
-				!isCyclical(node, instance) &&
+				rendersInstanceChildren(node, instance, expandedIds, search) &&
 				!visit(node.id, childInstance(node, instance))
 			) {
 				return false;
@@ -192,8 +199,7 @@ export function rowBudgetToShow(
 			position += 1;
 			if (
 				node.id === targetId ||
-				(rendersChildren(node.id, expandedIds, search) &&
-					!isCyclical(node, instance) &&
+				(rendersInstanceChildren(node, instance, expandedIds, search) &&
 					find(node.id, childInstance(node, instance)))
 			) {
 				return true;

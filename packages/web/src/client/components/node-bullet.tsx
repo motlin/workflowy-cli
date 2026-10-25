@@ -1,7 +1,10 @@
+import type {MirrorInstance} from "../../mirror-path.js";
 import {bulletClickAction, nodeUrl} from "../navigation.js";
 
 interface NodeBulletProps {
 	nodeId: string;
+	/** Where the row sits inside a mirror: its link is the virtual `v_…` location. */
+	instance?: MirrorInstance | null;
 	isMirror: boolean;
 	showHalo: boolean;
 	keepBullet: boolean;
@@ -19,6 +22,7 @@ interface NodeBulletProps {
  */
 export function nodeBullet({
 	nodeId,
+	instance = null,
 	isMirror,
 	showHalo,
 	keepBullet,
@@ -32,7 +36,7 @@ export function nodeBullet({
 		.join(" ");
 	return (
 		<a
-			href={nodeUrl(nodeId)}
+			href={nodeUrl(nodeId, instance)}
 			data-handbook="bullet.handle"
 			data-item-id={nodeId}
 			className={className}

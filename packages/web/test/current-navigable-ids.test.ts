@@ -69,24 +69,11 @@ describe("a mirror inside its own original", () => {
 		return queryClient;
 	}
 
-	it("lists the navigable rows up to the cyclical mirror instead of overflowing the stack", () => {
-		expect(currentNavigableIds(cyclicalClient())).toStrictEqual([
-			"Pppp",
-			"Oooo",
-			"Kkkk",
-			"Mmmm",
-			"Kkkk",
-			"Mmmm",
-			"Kkkk",
-			"Mmmm",
-			"Kkkk",
-			"Mmmm",
-		]);
+	it("lists the rows down to the first mirror's collapsed children instead of overflowing the stack", () => {
+		expect(currentNavigableIds(cyclicalClient())).toStrictEqual(["Pppp", "Oooo", "Kkkk", "Mmmm", "Kkkk"]);
 	});
 
-	it("lists the expansion rows one level deeper each, up to the cyclical mirror", () => {
-		expect(currentExpansionRows(cyclicalClient()).map((row) => row.depth)).toStrictEqual([
-			0, 1, 2, 3, 4, 5, 6, 7, 8,
-		]);
+	it("lists the expansion rows one level deeper each", () => {
+		expect(currentExpansionRows(cyclicalClient()).map((row) => row.depth)).toStrictEqual([0, 1, 2, 3]);
 	});
 });
