@@ -49,6 +49,9 @@ import {NodeItemMenu, OutlineRow} from "./outline-node.js";
 import {BoardChildren} from "./board-view.js";
 import {BOARD_ROOT_ZOOMED_SUFFIX} from "./board-classes.js";
 import {isBoard} from "../board.js";
+import {TableChildren} from "./table-view.js";
+import {TABLE_ROOT_ZOOMED_SUFFIX, TABLE_TITLE_CLASS} from "./table-classes.js";
+import {isTable} from "../table.js";
 import {DividerLine} from "./divider-line.js";
 import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
 import {renderedNumbers, siblingNumber} from "../numbered-list.js";
@@ -274,7 +277,12 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					...searchRootClasses,
 				]
 					.filter(Boolean)
-					.join(" ") + (isBoard(node?.data.layoutMode) ? BOARD_ROOT_ZOOMED_SUFFIX : "")
+					.join(" ") +
+				(isBoard(node?.data.layoutMode)
+					? BOARD_ROOT_ZOOMED_SUFFIX
+					: isTable(node?.data.layoutMode)
+						? TABLE_ROOT_ZOOMED_SUFFIX
+						: "")
 			}
 		>
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- hover mounts the bullet-menu trigger; click is a mouse shortcut for editing the title, which keyboard users reach with the arrow keys */}
@@ -285,6 +293,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					isZoomRoot: !isMainTreeRoot,
 					isMainRoot: isMainTreeRoot,
 					empty: !isMainTreeRoot && nameHtml === "",
+					tail: !isMainTreeRoot && isTable(node?.data.layoutMode) ? TABLE_TITLE_CLASS : undefined,
 				})}
 				onClick={isMainTreeRoot ? undefined : handleTitleClick}
 				onMouseEnter={() => {
@@ -819,6 +828,10 @@ export function RootOutlineChildren({parentId, addChild}: {parentId: string | nu
 	// A zoomed board is its columns; upstream never draws the add-child button on one.
 	if (parentId !== null && isBoard(zoomed?.data.layoutMode)) {
 		return <BoardChildren boardId={parentId} zoomed />;
+	}
+	// A zoomed table is its rows; the add-row button replaces the add-child button.
+	if (zoomed !== undefined && isTable(zoomed.data.layoutMode)) {
+		return <TableChildren table={zoomed} zoomed />;
 	}
 	return (
 		<OutlineChildren

@@ -11,7 +11,10 @@ vi.mock(import("react-dom"), async (importOriginal) => ({
 	createPortal: (node: ReactNode): ReactPortal => node as ReactPortal,
 }));
 const showMenuById = vi.fn<(menuId: string, target: {top: number; left: number}) => void>();
-vi.mock("../src/client/stores/outline.js", () => ({useOutlineStore: {getState: () => ({showMenuById})}}));
+vi.mock("../src/client/stores/outline.js", () => ({
+	activePaneView: () => ({zoomedNodeId: null}),
+	useOutlineStore: {getState: () => ({showMenuById})},
+}));
 vi.stubGlobal("document", {body: {}});
 
 const {ItemMenuTrigger} = await import("../src/client/components/node-context-menu.js");

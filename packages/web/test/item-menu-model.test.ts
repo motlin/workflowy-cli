@@ -43,6 +43,22 @@ describe("buildItemMenu with local availability", () => {
 		);
 	});
 
+	it("narrows a table cell to upstream's cell menu, with Delete column on the header row", () => {
+		const cellMenu = (role: string) =>
+			tokens(buildItemMenu(plain, qualifyItemMenu({data: {layoutMode: null}}, [role]), localItemMenuAvailable));
+		expect({header: cellMenu("is_table_header_cell"), body: cellMenu("is_table_body_cell")}).toStrictEqual({
+			header: "[node_type_picker] | complete add_note add_date duplicate_table_column | delete_table_column",
+			body: "[node_type_picker] | complete add_note add_date duplicate_table_column | delete",
+		});
+	});
+
+	it("labels the column commands as upstream does", () => {
+		expect([
+			itemMenuCommand("duplicate_table_column", plain, everything)?.label,
+			itemMenuCommand("delete_table_column", plain, everything)?.label,
+		]).toStrictEqual(["Duplicate column", "Delete column"]);
+	});
+
 	it("narrows a divider to its active set", () => {
 		expect(menu("divider")).toBe(
 			"[node_type_picker] | move_to duplicate | copy_link | delete | expand_all collapse_all",

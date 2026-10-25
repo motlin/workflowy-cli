@@ -18,7 +18,14 @@ import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useMoveTo} from "../hooks/use-move-to.js";
 import {useDetachMirror, useMirrorCopy, useMirrorTo} from "../hooks/use-mirror-to.js";
 import {useQueryClient} from "@tanstack/react-query";
-import {toggleComplete, useCreateNode, useDeleteNode, useExpandAll, useUpdateNode} from "../hooks/use-nodes.js";
+import {
+	toggleComplete,
+	useCreateNode,
+	useDeleteNode,
+	useExpandAll,
+	useMoveNode,
+	useUpdateNode,
+} from "../hooks/use-nodes.js";
 import {useCopyLink, useSortChildren} from "../hooks/use-item-actions.js";
 import {outlineActions, useOutlineStore} from "../stores/outline.js";
 import {useOutlineSearchFilter} from "../search-filter-context.js";
@@ -52,6 +59,14 @@ import {
 	boardColumnClass,
 	boardColumnNameClass,
 } from "./board-classes.js";
+import {TableChildren, TableColumnResizeHandle, TableRowMenuSlot} from "./table-view.js";
+import type {TableCellInfo} from "./table-view.js";
+import {InComplexLayoutContext} from "./complex-layout-context.js";
+import {TABLE_CELL_EXPAND_CLASS, tableCellClass, tableCellNameClass} from "./table-classes.js";
+import {isTable} from "../table.js";
+import {cellDelete, duplicateColumn} from "../table-actions.js";
+import {locateCell} from "../table-cache.js";
+import {makeTableDeps} from "../hooks/use-table-actions.js";
 import {columnWidth, isBoard} from "../board.js";
 import type {ColumnSearchMode} from "../board.js";
 import {PaneContext, usePaneId} from "./pane-context.js";
@@ -100,6 +115,14 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 	const detachMirror = useDetachMirror();
 	const copyLink = useCopyLink();
 	const sortChildren = useSortChildren();
+	const moveNode = useMoveNode();
+	const tableDeps = () =>
+		makeTableDeps(queryClient, {
+			create: createNode.mutate,
+			remove: deleteNode.mutate,
+			move: moveNode.mutate,
+			update: updateNode.mutate,
+		});
 	return (
 		<ItemMenuTrigger
 			actions={{
@@ -137,6 +160,18 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 				onDuplicate: () => {
 					// Same mutation as ⇧⌘D, without moving focus into the copy.
 					createNode.mutate(planDuplicate(queryClient, node));
+				},
+				onDuplicateColumn: () => {
+					const cell = locateCell(queryClient, node.id);
+					if (cell !== null) {
+						void duplicateColumn(tableDeps(), cell);
+					}
+				},
+				onDeleteColumn: () => {
+					const cell = locateCell(queryClient, node.id);
+					if (cell !== null) {
+						void cellDelete(tableDeps(), cell, []);
+					}
 				},
 				onExport: () => {
 					openExportDialog({nodeIds: [node.id]});
@@ -189,6 +224,8 @@ interface NodeNameProps {
 	number?: number;
 	/** The row is a board column or card: upstream's ring bullet, hover-only arrow and name classes. */
 	boardRole?: BoardRowRole;
+	/** The row is a table cell: upstream's hover-only ring bullet, hidden arrow and name classes. */
+	tableCell?: TableCellInfo;
 }
 
 /**
@@ -217,6 +254,7 @@ function NodeName({
 	searchNameClasses,
 	number,
 	boardRole,
+	tableCell,
 }: NodeNameProps) {
 	const boardZoomed = useContext(BoardZoomedContext);
 	const search = useOutlineSearchFilter();
@@ -290,12 +328,15 @@ function NodeName({
 			empty: name === "",
 			withEmbedder,
 			isZoomRoot: boardRole === "column",
+			tailBeforeEmpty: tableCell !== undefined,
 			tail:
-				boardRole === "column"
-					? boardColumnNameClass(boardZoomed)
-					: boardRole === "card"
-						? BOARD_CARD_NAME_CLASS
-						: undefined,
+				tableCell === undefined
+					? boardRole === "column"
+						? boardColumnNameClass(boardZoomed)
+						: boardRole === "card"
+							? BOARD_CARD_NAME_CLASS
+							: undefined
+					: tableCellNameClass(tableCell.header),
 		}),
 		searchNameClasses,
 	);
@@ -323,6 +364,8 @@ function NodeName({
 			) : null}
 			{nodeBullet({
 				board: boardRole,
+				tableCell: tableCell !== undefined,
+				shared: tableCell !== undefined && isMirrorRoot(node),
 				nodeId: node.id,
 				instance: rowInstance,
 				isMirror: isMirrorRoot(node),
@@ -368,11 +411,13 @@ function NodeName({
 				nodeId: node.id,
 				alwaysVisible: boardRole === undefined ? alwaysVisibleControls : true,
 				extraClassName:
-					boardRole === "column"
-						? BOARD_COLUMN_EXPAND_CLASS
-						: boardRole === "card"
-							? BOARD_CARD_EXPAND_CLASS
-							: undefined,
+					tableCell === undefined
+						? boardRole === "column"
+							? BOARD_COLUMN_EXPAND_CLASS
+							: boardRole === "card"
+								? BOARD_CARD_EXPAND_CLASS
+								: undefined
+						: TABLE_CELL_EXPAND_CLASS,
 				onFocusRow: focusRowStart,
 				onExpandAll: searching || cyclical ? undefined : expandAll,
 				onToggle: searching
@@ -414,27 +459,38 @@ function rowProjectClassName(
 	dragHover: DropHover,
 	boardRole?: BoardRowRole,
 	boardZoomed = true,
+	tableCell?: TableCellInfo,
+	tableRenders = false,
 ): string {
 	return projectClassName({
 		selectedColumn: boardRole === "column" && boardZoomed,
 		hasChildren,
 		hasAnyChildren: node.hasChildren === true,
 		collapsingChildren,
-		expanded: isExpanded,
+		// A cell never shows its children, so it is never open.
+		expanded: tableCell === undefined && isExpanded,
 		completed: node.completedAt !== null,
 		hasNote: Boolean(node.note),
 		noteFocused: isEditingNote,
 		isZoomRoot: false,
 		hasMirrors: hasMirrorsClass(node),
 		highlighted,
-		addedToSelection,
+		addedToSelection: addedToSelection || tableCell?.rowSelected === true,
 		layoutClasses: [
-			...resolveLayoutMode(node.data.layoutMode).projectClasses,
-			...(boardRole === "column"
-				? [boardColumnClass(boardZoomed)]
-				: boardRole === "card"
-					? [BOARD_CARD_CLASS]
-					: []),
+			...resolveLayoutMode(node.data.layoutMode).projectClasses.flatMap((layoutClass) =>
+				layoutClass === "tableItem"
+					? tableRenders
+						? [isExpanded ? "tableItem " : "tableItem"]
+						: []
+					: [layoutClass],
+			),
+			...(tableCell === undefined
+				? boardRole === "column"
+					? [boardColumnClass(boardZoomed)]
+					: boardRole === "card"
+						? [BOARD_CARD_CLASS]
+						: []
+				: [tableCellClass({header: tableCell.header, nested: hasChildren, bg: node.table?.bg})]),
 		],
 		slidingUp,
 		slidingDown,
@@ -476,6 +532,7 @@ export const OutlineRow = memo(function OutlineRow({
 	number,
 	boardRole,
 	columnMode,
+	tableCell,
 }: {
 	node: NodeResponse;
 	/** The row's list number when it is a numbered row. */
@@ -489,8 +546,13 @@ export const OutlineRow = memo(function OutlineRow({
 	boardRole?: BoardRowRole;
 	/** A column's search mode: unmatched columns render collapsed (see `boardColumnsVisibleInSearch`). */
 	columnMode?: ColumnSearchMode;
+	/** The row is a cell of a table. */
+	tableCell?: TableCellInfo;
 }) {
 	const boardZoomed = useContext(BoardZoomedContext);
+	const inComplexLayout = useContext(InComplexLayoutContext);
+	// Upstream `WF.Table.isRenderable`: a table inside a board, a table or a cell is a plain list.
+	const tableRenders = isTable(node.data.layoutMode) && !inComplexLayout && boardRole === undefined;
 	const search = useOutlineSearchFilter();
 	const paneId = usePaneId();
 	const instance = useContext(MirrorInstanceContext);
@@ -589,11 +651,19 @@ export const OutlineRow = memo(function OutlineRow({
 					dragHover,
 					boardRole,
 					boardZoomed,
+					tableCell,
+					tableRenders,
 				),
 				rowSearchClasses.project,
 			)}
 			onTransitionEnd={handleTransitionEnd}
-			style={boardRole === "column" ? {width: columnWidth(node.id, safeStorage())} : undefined}
+			style={
+				boardRole === "column"
+					? {width: columnWidth(node.id, safeStorage())}
+					: tableCell?.width === undefined
+						? undefined
+						: {width: tableCell.width}
+			}
 		>
 			{backlinkCrumbs ? <BacklinkCrumbs crumbs={backlinkCrumbs} fitted={fitCrumbs} /> : null}
 			<NodeName
@@ -601,7 +671,7 @@ export const OutlineRow = memo(function OutlineRow({
 				editingClickPosition={editingClickPosition}
 				isEditing={isEditingName}
 				hasChildren={hasChildren}
-				isExpanded={isExpanded}
+				isExpanded={tableCell === undefined && isExpanded}
 				collapsing={childrenSlide === "up"}
 				alwaysVisibleControls={alwaysVisibleControls}
 				node={node}
@@ -610,6 +680,7 @@ export const OutlineRow = memo(function OutlineRow({
 				withEmbedder={backlinkCrumbs !== undefined}
 				number={number}
 				boardRole={boardRole}
+				tableCell={tableCell}
 			/>
 			{noteMounted || shouldMountNote ? (
 				<EditableNote
@@ -622,26 +693,45 @@ export const OutlineRow = memo(function OutlineRow({
 			<div className="drop-line">
 				<div className="line" />
 			</div>
-			{boardRole === "column" ? (
-				<MirrorInstanceContext.Provider value={nestedInstance}>
-					<BoardColumnBody columnId={node.id} expanded={isExpanded} hasChildren={hasChildren} />
-					<ColumnResizeHandle columnId={node.id} />
-				</MirrorInstanceContext.Provider>
-			) : isExpanded && isBoard(node.data.layoutMode) && boardRole === undefined && search === null ? (
-				<MirrorInstanceContext.Provider value={nestedInstance}>
-					<BoardChildren boardId={node.id} zoomed={false} depth={depth} />
-				</MirrorInstanceContext.Provider>
-			) : isExpanded || childrenSlide === "up" ? (
-				<MirrorInstanceContext.Provider value={nestedInstance}>
-					<OutlineChildren
-						className={boardRole === "card" ? BOARD_CARD_CHILDREN_CLASS : undefined}
-						containerRef={setChildrenEl}
-						depth={depth + 1}
-						owner={node}
-						parentId={node.id}
-					/>
-				</MirrorInstanceContext.Provider>
-			) : null}
+			{tableCell === undefined ? (
+				boardRole === "column" ? (
+					<MirrorInstanceContext.Provider value={nestedInstance}>
+						<BoardColumnBody columnId={node.id} expanded={isExpanded} hasChildren={hasChildren} />
+						<ColumnResizeHandle columnId={node.id} />
+					</MirrorInstanceContext.Provider>
+				) : isExpanded && isBoard(node.data.layoutMode) && boardRole === undefined && search === null ? (
+					<MirrorInstanceContext.Provider value={nestedInstance}>
+						<BoardChildren boardId={node.id} zoomed={false} depth={depth} />
+					</MirrorInstanceContext.Provider>
+				) : isExpanded && tableRenders ? (
+					<MirrorInstanceContext.Provider value={nestedInstance}>
+						<TableChildren table={node} zoomed={false} depth={depth} />
+					</MirrorInstanceContext.Provider>
+				) : isExpanded || childrenSlide === "up" ? (
+					<MirrorInstanceContext.Provider value={nestedInstance}>
+						<OutlineChildren
+							className={boardRole === "card" ? BOARD_CARD_CHILDREN_CLASS : undefined}
+							containerRef={setChildrenEl}
+							depth={depth + 1}
+							owner={node}
+							parentId={node.id}
+						/>
+					</MirrorInstanceContext.Provider>
+				) : null
+			) : (
+				<>
+					{tableCell.header ? <TableColumnResizeHandle cellId={node.id} tableId={tableCell.tableId} /> : null}
+					{tableCell.firstBody ? (
+						<TableRowMenuSlot
+							onToggle={tableCell.onToggleRow}
+							rowId={node.parent_id ?? ""}
+							rowIndex={tableCell.rowIndex}
+							selected={tableCell.rowSelected}
+							tableId={tableCell.tableId}
+						/>
+					) : null}
+				</>
+			)}
 		</div>
 	);
 });

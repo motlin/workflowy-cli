@@ -75,5 +75,13 @@
 			"file": "packages/web/src/client/components/flyout/popper-transform.ts",
 			"exports": ["*"],
 		},
+		{
+			"file": "packages/web/src/client/table.ts",
+			"exports": ["*"],
+		},
+		{
+			"file": "packages/web/src/client/tree-ops.ts",
+			"exports": ["*"],
+		},
 	],
 }

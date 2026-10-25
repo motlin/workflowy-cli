@@ -21,13 +21,27 @@ export interface ItemTypeSelectDeps {
 	mirrorIds?: (nodeId: string) => readonly string[];
 	/** Put the caret in the row. */
 	startEditing?: (nodeId: string) => void;
+	/** Table on or off: add or drop the Headers row, pad the rows and expand them (see `structureTable`). */
+	structureTable?: (nodeId: string, on: boolean) => void;
 	layoutMode: (nodeId: string) => string | null;
+}
+
+let tableCellProbe: (nodeId: string) => boolean = () => false;
+
+/** Tells the picker which nodes are table cells (the app installs one over its query cache). */
+export function setTableCellProbe(probe: (nodeId: string) => boolean): void {
+	tableCellProbe = probe;
 }
 
 /** The types the picker offers for `nodeIds`: Home is both the root and the main document root. */
 export function pickerItemTypes(nodeIds: readonly string[]): ItemType[] {
 	const atHome = nodeIds.includes(HOME_TARGET);
-	return availableItemTypes({isRoot: atHome, isMainDocumentRoot: atHome, readOnly: false, isTableCell: false});
+	return availableItemTypes({
+		isRoot: atHome,
+		isMainDocumentRoot: atHome,
+		readOnly: false,
+		isTableCell: nodeIds.some((id) => tableCellProbe(id)),
+	});
 }
 
 /**
@@ -55,9 +69,13 @@ export function selectItemType(type: ItemType, nodeIds: readonly string[], deps:
 			type.layoutModeKey,
 		);
 		if (change.update.name === undefined) {
+			const wasTable = deps.layoutMode(id) === "table";
 			deps.update(id, type.layoutModeKey);
 			if (type.layoutModeKey === "board") {
 				createFirstColumn(id, deps);
+			}
+			if (type.layoutModeKey === "table" && !wasTable) {
+				deps.structureTable?.(id, true);
 			}
 			continue;
 		}
@@ -96,11 +114,14 @@ export function toggleBoardOrTable(
 ): void {
 	if (command === "toggle_table" && deps.layoutMode(nodeId) === "table") {
 		deps.update(nodeId, "bullets");
+		deps.structureTable?.(nodeId, false);
 		return;
 	}
 	deps.expandAll(expandTargets(nodeId, deps, command === "toggle_board"));
 	deps.update(nodeId, command === "toggle_board" ? "board" : "table");
 	if (command === "toggle_board") {
 		createFirstColumn(nodeId, deps);
+	} else {
+		deps.structureTable?.(nodeId, true);
 	}
 }

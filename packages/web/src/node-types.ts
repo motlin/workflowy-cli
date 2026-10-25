@@ -54,6 +54,8 @@ export interface NodeResponse {
 /** The `metadata.table` fields the app reads and writes. */
 export interface TableMetadata {
 	headers?: boolean;
+	/** Set by table paste: toggling the table on adds no Headers row. */
+	skipHeaders?: boolean;
 	sizes?: Record<string, number>;
 	bg?: string;
 }

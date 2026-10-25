@@ -1,4 +1,6 @@
 import {useEffect, useState} from "react";
+import {useQueryClient} from "@tanstack/react-query";
+import {locateCell} from "../table-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {readJson} from "../read-json.js";
@@ -100,6 +102,8 @@ export interface ItemMenuActions {
 	onMirror: () => void;
 	onDetachMirror: () => void;
 	onDuplicate: () => void;
+	onDuplicateColumn?: () => void;
+	onDeleteColumn?: () => void;
 	onExport: () => void;
 	onCopyLink: () => void;
 	onMakeTemplate: () => void;
@@ -143,7 +147,12 @@ export function ItemMenuBody({
 	const [now] = useState(() => new Date());
 	const dateSettings = useDateSettings();
 	const paneId = usePaneId();
-	const qualifiers = qualifyItemMenu(node, paneId === MAIN_PANE_ID ? [] : ["is_inside_side_pane"]);
+	const queryClient = useQueryClient();
+	const cell = locateCell(queryClient, node.id);
+	const qualifiers = qualifyItemMenu(node, [
+		...(paneId === MAIN_PANE_ID ? [] : ["is_inside_side_pane"]),
+		...(cell === null ? [] : [cell.rowIndex === 0 ? "is_table_header_cell" : "is_table_body_cell"]),
+	]);
 	const entries = buildItemMenu(node, qualifiers);
 	const mirrorOriginalId = mirrorBannerOriginalId(node);
 	/** Runs the action, then closes the menu (returning false so MenuItem does not keep it open). */
@@ -170,6 +179,12 @@ export function ItemMenuBody({
 		mirror: closeThen(actions.onMirror),
 		detach_mirror: thenClose(actions.onDetachMirror),
 		duplicate: thenClose(actions.onDuplicate),
+		duplicate_table_column: thenClose(() => {
+			actions.onDuplicateColumn?.();
+		}),
+		delete_table_column: thenClose(() => {
+			actions.onDeleteColumn?.();
+		}),
 		show_export: closeThen(actions.onExport),
 		copy_link: thenClose(actions.onCopyLink),
 		make_template: thenClose(actions.onMakeTemplate),

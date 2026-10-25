@@ -13,6 +13,8 @@ import {ErrorNotifications} from "./components/error-notification.js";
 import {ExportDialog} from "./components/export-dialog.js";
 import {MirrorsDialogHost} from "./components/mirrors-dialog.js";
 import {AlertDialog} from "./components/alert-dialog.js";
+import {setTableCellProbe} from "./item-type-select.js";
+import {cachedTableRole} from "./table-cache.js";
 import {JumpMenu} from "./components/jump-menu.js";
 import {LadderView} from "./components/ladder-view.js";
 import {LeftBar} from "./components/left-sidebar.js";
@@ -71,6 +73,7 @@ import "./styles.css";
 installCoalescingTimeoutProvider();
 
 const queryClient = new QueryClient({defaultOptions: queryClientDefaults});
+setTableCellProbe((nodeId) => cachedTableRole(queryClient, nodeId) === "cell");
 installSaveTracking(queryClient, window);
 
 /**

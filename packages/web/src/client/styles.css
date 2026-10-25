@@ -4054,3 +4054,119 @@ label.toggle > div {
 	left: 98%;
 	z-index: var(--wf-drop-line-z-index);
 }
+
+/* Table layout (upstream wf-base table rules, verbatim, plus the utilities the cell colors need). */
+.project.tableItem.drag-hovered-in > .drop-line {
+	display: none;
+}
+.project.tableItem.drag-hovered-in > .children > .tableColumn:first-child:before {
+	content: "";
+	z-index: var(--wf-drop-line-z-index);
+	position: absolute;
+	background: #ccc;
+	border-radius: 2px;
+	pointer-events: none;
+	height: 100%;
+	width: 4px;
+	top: 0%;
+	left: 0%;
+}
+.project.tableColumn.drag-hovered-at:after {
+	content: "";
+	position: absolute;
+	background: #ccc;
+	border-radius: 2px;
+	pointer-events: none;
+	height: 100%;
+	width: 4px;
+	top: 0%;
+	left: 98%;
+	z-index: var(--wf-drop-line-z-index);
+}
+.project.tableCell.drag-hovered-in > .drop-line {
+	margin-left: -8px;
+}
+.project.table-row.moving:before,
+.project.table-row.highlighted:before {
+	display: none;
+}
+.project.table-row.highlighted .project,
+.project.table-row.moving .project {
+	background: var(--wf-background-tertiary);
+}
+.project.table-row.drag-hovered-at:after {
+	content: "";
+	position: absolute;
+	background: #ccc;
+	border-radius: 2px;
+	pointer-events: none;
+	width: 100%;
+	height: 4px;
+	bottom: 0;
+	left: 0;
+	z-index: var(--wf-drop-line-z-index);
+}
+.project.tableCell.column-dnd-drop-right > .drop-line,
+.project.tableCell.column-dnd-drop-left > .drop-line {
+	display: block;
+	position: absolute;
+	top: 0;
+	height: 100%;
+	width: 4px;
+	margin: 0;
+	z-index: var(--wf-drop-line-z-index);
+}
+.project.tableCell.column-dnd-drop-right > .drop-line {
+	right: -2px;
+}
+.project.tableCell.column-dnd-drop-left > .drop-line {
+	left: -2px;
+}
+.project.tableCell.column-dnd-drop-right > .drop-line > .line,
+.project.tableCell.column-dnd-drop-left > .drop-line > .line {
+	height: 100%;
+	width: 4px;
+}
+.cell-dnd-overlay {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	pointer-events: none;
+	z-index: var(--wf-drop-line-z-index);
+	border: 0 dashed #ccc;
+}
+.cell-dnd-overlay-t {
+	border-top-width: 2px;
+}
+.cell-dnd-overlay-b {
+	border-bottom-width: 2px;
+}
+.cell-dnd-overlay-l {
+	border-left-width: 2px;
+}
+.cell-dnd-overlay-r {
+	border-right-width: 2px;
+}
+.bg-\[var\(--wf-background-red\)\] {
+	background-color: var(--wf-background-red);
+}
+.bg-\[var\(--wf-background-orange\)\] {
+	background-color: var(--wf-background-orange);
+}
+.bg-\[var\(--wf-background-yellow\)\] {
+	background-color: var(--wf-background-yellow);
+}
+.bg-\[var\(--wf-background-green\)\] {
+	background-color: var(--wf-background-green);
+}
+.bg-\[var\(--wf-background-blue\)\] {
+	background-color: var(--wf-background-blue);
+}
+.bg-\[var\(--wf-background-purple\)\] {
+	background-color: var(--wf-background-purple);
+}
+.bg-\[var\(--wf-background-gray\)\] {
+	background-color: var(--wf-background-gray);
+}

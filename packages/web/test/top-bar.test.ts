@@ -79,6 +79,8 @@ vi.mock("../src/client/hooks/use-nodes.js", async () => {
 		},
 		useUpdateNode: () => noopMutation,
 		useCreateNode: () => noopMutation,
+		useDeleteNode: () => noopMutation,
+		useMoveNode: () => noopMutation,
 		useNode: (nodeId: string | null) => ({
 			data:
 				nodeId === null

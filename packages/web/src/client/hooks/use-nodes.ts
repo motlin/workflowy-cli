@@ -56,6 +56,7 @@ import {removeTagColor, setTagColor} from "./use-tag-colors.js";
 import {holdUndoSlot, recordOp} from "../undo-batch.js";
 import {swapMoveOps} from "../../swap-origin.js";
 import {sortByPriority} from "../tree-position.js";
+import {applyTableSet} from "../table.js";
 import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
 import type {UndoOp} from "../undo-history.js";
 
@@ -78,6 +79,8 @@ interface UpdateNodeRequest {
 	layoutMode?: string;
 	/** The first number of a numbered list; null clears it. */
 	numberedStart?: number | null;
+	/** Metadata changes under `table` (header flag, column widths, cell color); needs the internal API. */
+	tableSet?: {path: string[]; value: unknown}[];
 }
 
 const loadChildren = createChildrenBatcher(async (parentIds) => {
@@ -678,6 +681,7 @@ function patchOptimisticUpdate(queryClient: QueryClient, variables: UpdateNodeRe
 		note: updates.note ?? node.note,
 		data: {...node.data, layoutMode: updates.layoutMode ?? node.data.layoutMode},
 		...(updates.numberedStart === undefined ? {} : {numberedStart: updates.numberedStart}),
+		...(updates.tableSet === undefined ? {} : {table: applyTableSet(node.table, updates.tableSet)}),
 		modifiedAt: Math.floor(Date.now() / 1000),
 	}));
 	// A mirror's row shows its original's text.

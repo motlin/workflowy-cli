@@ -9,6 +9,10 @@ import {
 	useOutlineStore,
 } from "../stores/outline.js";
 import {isBoard} from "../board.js";
+import {cellBackspace, cellEnter} from "../table-actions.js";
+import {locateCell} from "../table-cache.js";
+import {planCellKey} from "../table.js";
+import {makeTableDeps} from "../hooks/use-table-actions.js";
 import {
 	applySplitPlan,
 	isEmptyForReturn,
@@ -1270,6 +1274,91 @@ function EditingText({
 		[nodeId, queryClient, saveChanges, setItemSelection, stopEditing],
 	);
 
+	/**
+	 * Keys that mean something else in a table cell: Tab and the arrows move between cells, Enter adds a row,
+	 * Backspace at the start of an empty cell deletes it. Returns true when the key was handled or swallowed.
+	 */
+	const handleTableCellKey = useCallback(
+		(event: React.KeyboardEvent<HTMLSpanElement>, action: ReturnType<typeof classifyEditorKey>): boolean => {
+			const content = contentRef.current;
+			const location = content === null ? null : locateCell(queryClient, nodeId);
+			if (content === null || location === null || event.nativeEvent.isComposing) {
+				return false;
+			}
+			const deps = makeTableDeps(queryClient, {
+				create: createNodeMutation.mutate,
+				remove: deleteNodeMutation.mutate,
+				move: moveNodeMutation.mutate,
+				update: updateNodeMutation.mutate,
+			});
+			const collapsed = globalThis.getSelection()?.isCollapsed === true;
+			const offset = caretTextOffset(content);
+			if (action === "RETURN") {
+				event.preventDefault();
+				saveChanges();
+				void cellEnter(deps, location);
+				return true;
+			}
+			if (action === "DELETE_BACKWARD") {
+				if (!collapsed || offset !== 0) {
+					return false;
+				}
+				event.preventDefault();
+				saveChanges();
+				const node = readNode(queryClient, nodeId);
+				void cellBackspace(deps, location, {
+					name: content.textContent,
+					note: node?.note ?? "",
+					hasChildren: node?.hasChildren === true,
+				});
+				return true;
+			}
+			const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
+			const vertical = event.key === "ArrowUp" || event.key === "ArrowDown";
+			const name =
+				event.key === "Tab"
+					? event.shiftKey
+						? "shift+Tab"
+						: "Tab"
+					: event.key.startsWith("Arrow") && (!event.shiftKey || vertical)
+						? `${event.shiftKey ? "shift+" : ""}${event.key}`
+						: null;
+			if (!plain || name === null) {
+				return false;
+			}
+			const plan = planCellKey(name, {
+				row: location.rowIndex,
+				col: location.colIndex,
+				rowCount: location.grid.rows.length,
+				rowLens: location.grid.rows.map((entry) => entry.cells.length),
+				caretAtStart: collapsed && offset === 0,
+				caretAtEnd: collapsed && offset === textUnitLength(content),
+			});
+			if (plan === null) {
+				return false;
+			}
+			event.preventDefault();
+			if ("focus" in plan) {
+				const target = location.grid.rows[plan.focus.row]?.cells[plan.focus.col];
+				if (target !== undefined) {
+					saveChanges();
+					resumeEditing(target.id, plan.focus.caret === "end" ? Number.MAX_SAFE_INTEGER : 0);
+				}
+			}
+			return true;
+		},
+		[
+			queryClient,
+			nodeId,
+			createNodeMutation.mutate,
+			deleteNodeMutation.mutate,
+			moveNodeMutation.mutate,
+			updateNodeMutation.mutate,
+			saveChanges,
+			resumeEditing,
+		],
+	);
+
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
 			// A capture-phase listener (the app message's action shortcut) already claimed this key.
@@ -1292,6 +1381,9 @@ function EditingText({
 				return;
 			}
 			const action = classifyEditorKey(event, isMacPlatform());
+			if (handleTableCellKey(event, action)) {
+				return;
+			}
 			const composing = event.nativeEvent.isComposing;
 			const formatAttr = classifyFormatKey(event, isMacPlatform());
 			const highlight = isHighlightKey(event, isMacPlatform());
@@ -1344,6 +1436,7 @@ function EditingText({
 			}
 		},
 		[
+			handleTableCellKey,
 			deleteAdjacentPill,
 			deleteIfEmpty,
 			enterRootNote,

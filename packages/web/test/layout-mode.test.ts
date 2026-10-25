@@ -16,7 +16,7 @@ describe("resolveLayoutMode", () => {
 		["check", {projectClasses: ["checkmark"], isTodo: true}],
 		["numbered", {projectClasses: [], isTodo: false}],
 		["board", {projectClasses: ["board"], isTodo: false}],
-		["table", {projectClasses: [], isTodo: false}],
+		["table", {projectClasses: ["tableItem"], isTodo: false}],
 		["quote-block", {projectClasses: ["quote-block", "multiline"], isTodo: false}],
 		["quote", {projectClasses: ["quote-block", "multiline"], isTodo: false}],
 		["code-block", {projectClasses: ["code-block", "multiline"], isTodo: false}],

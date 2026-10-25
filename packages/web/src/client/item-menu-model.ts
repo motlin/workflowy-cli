@@ -33,6 +33,8 @@ export type ItemMenuKey =
 	| "mirror"
 	| "detach_mirror"
 	| "duplicate"
+	| "duplicate_table_column"
+	| "delete_table_column"
 	| "share"
 	| "show_export"
 	| "copy_link"
@@ -66,6 +68,8 @@ const ITEM_MENU_DEFS: Record<ItemMenuKey, ItemMenuDef> = {
 	mirror: {label: "Mirror", icon: "diamond", shortcut: "⇧⌘M"},
 	detach_mirror: {label: "Detach Mirror", icon: "xmark"},
 	duplicate: {label: "Duplicate", icon: "copy", shortcut: "⇧⌘D"},
+	duplicate_table_column: {label: "Duplicate column", icon: "copy", shortcut: "⇧⌘D"},
+	delete_table_column: {label: "Delete column", icon: "trash-can", shortcut: "⇧⌘⌫"},
 	share: {label: "Share", icon: "user-group"},
 	show_export: {label: "Export", icon: "file-export"},
 	copy_link: {label: "Copy internal link", icon: "link", shortcut: "⇧⌘L"},
@@ -105,6 +109,8 @@ const LOCAL_ITEM_MENU_KEYS: ReadonlySet<string> = new Set([
 	"mirror",
 	"detach_mirror",
 	"duplicate",
+	"duplicate_table_column",
+	"delete_table_column",
 	"show_export",
 	"copy_link",
 	"make_template",

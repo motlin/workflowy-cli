@@ -1,5 +1,6 @@
 import type {MirrorInstance} from "../../mirror-path.js";
 import {BOARD_CARD_BULLET_CLASS, BOARD_COLUMN_BULLET_CLASS} from "./board-classes.js";
+import {TABLE_CELL_BULLET_CLASS} from "./table-classes.js";
 import {bulletClickAction, nodeUrl} from "../navigation.js";
 
 interface NodeBulletProps {
@@ -16,6 +17,10 @@ interface NodeBulletProps {
 	onClearSelection: () => void;
 	/** A board column or card draws upstream's right-side ring bullet instead of the halo span. */
 	board?: "column" | "card";
+	/** A table cell draws upstream's hover-only ring bullet (a mirror root keeps a diamond always visible). */
+	tableCell?: boolean;
+	/** The cell is shared (a mirror root's original), so the bullet gains `text-shared`. */
+	shared?: boolean;
 }
 
 /**
@@ -34,9 +39,25 @@ export function nodeBullet({
 	isInSelection,
 	onClearSelection,
 	board,
+	tableCell = false,
+	shared = false,
 }: NodeBulletProps) {
-	const className =
-		board === undefined
+	const className = tableCell
+		? [
+				"bullet",
+				isMirror && "diamond",
+				showHalo && "bullet--show-halo",
+				"keep-bullet",
+				keepBullet && "keep-bullet",
+				shared && "text-shared",
+				TABLE_CELL_BULLET_CLASS.replace(
+					"!opacity-0 group-hover/cell:!opacity-100",
+					isMirror ? "!opacity-100" : "!opacity-0 group-hover/cell:!opacity-100",
+				),
+			]
+				.filter(Boolean)
+				.join(" ")
+		: board === undefined
 			? ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo", keepBullet && "keep-bullet"]
 					.filter(Boolean)
 					.join(" ")
@@ -81,7 +102,27 @@ export function nodeBullet({
 				}
 			}}
 		>
-			{board === undefined ? (
+			{tableCell ? (
+				<>
+					<div className="absolute w-[24px] h-[24px] rounded-full -z-1 translate-x-[-3px] box-border bg-primary group-hover/bullet:bg-tertiary transition-colors" />
+					<div
+						className={`circleBorder absolute w-[18px] h-[18px] z-1 rounded-full box-border border border-solid ${isMirror ? "border-transparent group-hover/cell:border-current" : "border-current"}`}
+					/>
+					{isMirror ? (
+						<svg
+							viewBox="0 0 16 16"
+							fill="currentColor"
+							className="mirrorDiamondIcon relative z-[2] !bg-transparent"
+						>
+							<path d="M8 4 L4 8 L8 12 L12 8 Z" />
+						</svg>
+					) : (
+						<svg viewBox="0 0 18 18" fill="currentColor" className="relative z-[2] !bg-transparent">
+							<circle cx="9" cy="9" r="3.5" />
+						</svg>
+					)}
+				</>
+			) : board === undefined ? (
 				<span className="bulletHalo">
 					{isMirror ? (
 						<svg

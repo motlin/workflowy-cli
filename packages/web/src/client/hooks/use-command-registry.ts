@@ -1,3 +1,7 @@
+import {makeTableDeps} from "./use-table-actions.js";
+import {cellDelete, duplicateColumn, moveCell, structureTable} from "../table-actions.js";
+import type {TableDeps} from "../table-actions.js";
+import {locateCell} from "../table-cache.js";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import {useCallback} from "react";
 import {flushSync} from "react-dom";
@@ -435,7 +439,27 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 	});
 
+	/** The table commands' effects over this registry's mutations. */
+	const tableDeps = (): TableDeps =>
+		makeTableDeps(queryClient, {
+			create: createNodeMutation.mutate,
+			remove: deleteNodeMutation.mutate,
+			move: moveNodeMutation.mutate,
+			update: updateNodeMutation.mutate,
+		});
+
+	/** The table cell a keyboard command acts on: the single caret item, when no item selection is up. */
+	const tableCellOf = (ctx: CommandContext) => {
+		const [nodeId] = ctx.items;
+		return hasItemSelection() || ctx.items.length !== 1 || nodeId === undefined
+			? null
+			: locateCell(queryClient, nodeId);
+	};
+
 	const itemTypeDeps: ItemTypeSelectDeps = {
+		structureTable: (nodeId, on) => {
+			void structureTable(tableDeps(), nodeId, on);
+		},
 		update: (nodeId, layoutMode, extra) => {
 			updateNodeMutation.mutate({nodeId, layoutMode, ...extra});
 		},
@@ -710,13 +734,22 @@ export function useCommandRegistry(): CommandRegistry {
 			left: box.left,
 			top: box.bottom,
 			onPick: (kind, color) => {
+				// Upstream `ItemSelectColor` on a table cell writes the cell's `table.bg` instead of a text color.
+				const cells = ctx.items.filter((id) => locateCell(queryClient, id) !== null);
+				for (const nodeId of cells) {
+					updateNodeMutation.mutate({nodeId, tableSet: [{path: ["table", "bg"], value: color ?? undefined}]});
+				}
+				const rest: CommandContext = {...ctx, items: ctx.items.filter((id) => !cells.includes(id))};
+				if (rest.items.length === 0) {
+					return;
+				}
 				if (color === null) {
 					// "remove color" leaves the latest color alone and strips both kinds from every item.
-					editSelectionFields(ctx, planItemsColorClear);
+					editSelectionFields(rest, planItemsColorClear);
 					return;
 				}
 				latestColor.change(kind, color);
-				colorSelection(ctx, {kind, color});
+				colorSelection(rest, {kind, color});
 			},
 		});
 	};
@@ -1061,12 +1094,44 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		move_up: {
 			execute(ctx) {
+				const cell = tableCellOf(ctx);
+				if (cell !== null) {
+					flushEditing();
+					void moveCell(tableDeps(), cell, "up");
+					return;
+				}
 				moveEditedNodeVertically(ctx, "up");
 			},
 		},
 		move_down: {
 			execute(ctx) {
+				const cell = tableCellOf(ctx);
+				if (cell !== null) {
+					flushEditing();
+					void moveCell(tableDeps(), cell, "down");
+					return;
+				}
 				moveEditedNodeVertically(ctx, "down");
+			},
+		},
+		duplicate_table_column: {
+			available: (ctx) => tableCellOf(ctx) !== null,
+			execute(ctx) {
+				const cell = tableCellOf(ctx);
+				if (cell !== null) {
+					flushEditing();
+					void duplicateColumn(tableDeps(), cell);
+				}
+			},
+		},
+		delete_table_column: {
+			available: (ctx) => tableCellOf(ctx)?.rowIndex === 0,
+			execute(ctx) {
+				const cell = tableCellOf(ctx);
+				if (cell !== null) {
+					flushEditing();
+					void cellDelete(tableDeps(), cell, []);
+				}
 			},
 		},
 		move_to: {
@@ -1223,6 +1288,12 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		duplicate: {
 			execute(ctx) {
+				const cell = tableCellOf(ctx);
+				if (cell !== null) {
+					flushEditing();
+					void duplicateColumn(tableDeps(), cell);
+					return;
+				}
 				if (hasItemSelection()) {
 					void runInUndoBatch(captureOutlineView, () => {
 						for (const id of ctx.items) {
@@ -1254,6 +1325,12 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		delete: {
 			execute(ctx) {
+				const cell = tableCellOf(ctx);
+				if (cell !== null) {
+					flushEditing();
+					void cellDelete(tableDeps(), cell, []);
+					return;
+				}
 				if (hasItemSelection()) {
 					deleteSelectedItems(queryClient, ctx.items, deleteNodeMutation.mutate, navigate);
 					return;

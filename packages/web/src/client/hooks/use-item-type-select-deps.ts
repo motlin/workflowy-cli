@@ -5,6 +5,8 @@ import {HOME_TARGET} from "@workflowy/shared/types";
 import {readChildren, readNode} from "../node-cache.js";
 import type {ItemTypeSelectDeps} from "../item-type-select.js";
 import {activePaneView, useOutlineStore} from "../stores/outline.js";
+import {structureTable} from "../table-actions.js";
+import {useTableDeps} from "./use-table-actions.js";
 import {useCreateNode, useUpdateNode} from "./use-nodes.js";
 
 /** What choosing a "Turn into" type needs from the outline: layout writes, expansion and the cached tree. */
@@ -12,7 +14,11 @@ export function useItemTypeSelectDeps(): ItemTypeSelectDeps {
 	const queryClient = useQueryClient();
 	const updateNode = useUpdateNode();
 	const createNode = useCreateNode();
+	const tableDeps = useTableDeps();
 	return {
+		structureTable: (nodeId, on) => {
+			void structureTable(tableDeps, nodeId, on);
+		},
 		update: (nodeId, layoutMode, extra) => {
 			updateNode.mutate({nodeId, layoutMode, ...extra});
 		},

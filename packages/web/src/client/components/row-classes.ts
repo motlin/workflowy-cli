@@ -45,6 +45,8 @@ export interface NameClassState {
 	focused?: boolean;
 	/** A trailing run of classes (a board column or card's), appended after the base ones. */
 	tail?: string;
+	/** Put `tail` before `empty` (a table cell's name lists `empty` last). */
+	tailBeforeEmpty?: boolean;
 	isZoomRoot?: boolean;
 	isMainRoot?: boolean;
 	empty?: boolean;
@@ -93,8 +95,9 @@ export function nameClassName(state: NameClassState): string {
 		state.focused && "name--focused",
 		state.isZoomRoot && "name--main",
 		state.isMainRoot && "name--root",
+		state.tailBeforeEmpty && state.tail,
 		state.empty && "empty",
-		state.tail,
+		!state.tailBeforeEmpty && state.tail,
 	]
 		.filter(Boolean)
 		.join(" ");

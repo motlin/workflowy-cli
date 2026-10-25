@@ -1,5 +1,6 @@
 // Planning a paste (upstream `pD4` / `LD4`): which source the lines come from, and what the row, its children and its
 // following siblings become. Pure: the editor runs the plan.
+import {parseHtmlTable, parseMarkdownTable, parseTsvTable} from "./table.js";
 import {findAutoLinks} from "../auto-link.js";
 import {concatHtml, plainLength} from "../rich-text.js";
 import {applyMarkdown} from "./markdown.js";
@@ -53,6 +54,11 @@ export function buildPasteLines({
 }): PasteLine[] {
 	if (isOpml(text)) {
 		return buildOpmlLines(text);
+	}
+	const table =
+		(!plain && html !== undefined ? parseHtmlTable(html) : null) ?? parseTsvTable(text) ?? parseMarkdownTable(text);
+	if (table !== null) {
+		return [table];
 	}
 	const lines = !plain && html !== undefined && hasRichContent(html) ? buildHtmlLines(html) : buildPlainLines(text);
 	return applyMarkdown(lines);

@@ -21,6 +21,7 @@ import {
 	RESIZE_HANDLE_CLASS,
 } from "./board-classes.js";
 import {BoardZoomedContext} from "./board-context.js";
+import {InComplexLayoutContext} from "./complex-layout-context.js";
 import {FaIcon} from "./fa-icons.js";
 import {OutlineRow} from "./outline-node.js";
 
@@ -182,7 +183,7 @@ export function ColumnResizeHandle({columnId}: {columnId: string}) {
 }
 
 /** Zoomed: the board spans the page edge to edge; `.page` gets upstream's full-width boundary while it is mounted. */
-function useZoomedFullBleed(ref: {current: HTMLDivElement | null}, active: boolean): void {
+export function useZoomedFullBleed(ref: {current: HTMLDivElement | null}, active: boolean): void {
 	useLayoutEffect(() => {
 		const element = ref.current;
 		const page = element?.closest(".page");
@@ -289,23 +290,25 @@ export function BoardChildren({boardId, zoomed, depth = 1}: {boardId: string; zo
 				).map((entry) => [entry.id, entry.mode] as const),
 	);
 	return (
-		<BoardZoomedContext.Provider value={zoomed}>
-			<div
-				ref={ref}
-				className={boardChildrenClass(zoomed, zoomed || bleed !== null)}
-				style={zoomed ? undefined : (bleed ?? undefined)}
-			>
-				{columns.map((column) => (
-					<OutlineRow
-						key={column.id}
-						boardRole="column"
-						columnMode={modes.get(column.id)}
-						depth={depth + 1}
-						node={column}
-					/>
-				))}
-				<AddColumnTile boardId={boardId} scroller={ref} />
-			</div>
-		</BoardZoomedContext.Provider>
+		<InComplexLayoutContext.Provider value>
+			<BoardZoomedContext.Provider value={zoomed}>
+				<div
+					ref={ref}
+					className={boardChildrenClass(zoomed, zoomed || bleed !== null)}
+					style={zoomed ? undefined : (bleed ?? undefined)}
+				>
+					{columns.map((column) => (
+						<OutlineRow
+							key={column.id}
+							boardRole="column"
+							columnMode={modes.get(column.id)}
+							depth={depth + 1}
+							node={column}
+						/>
+					))}
+					<AddColumnTile boardId={boardId} scroller={ref} />
+				</div>
+			</BoardZoomedContext.Provider>
+		</InComplexLayoutContext.Provider>
 	);
 }
