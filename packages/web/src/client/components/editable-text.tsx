@@ -8,6 +8,7 @@ import {
 	shouldCommitOnBlur,
 	useOutlineStore,
 } from "../stores/outline.js";
+import {isBoard} from "../board.js";
 import {
 	applySplitPlan,
 	isEmptyForReturn,
@@ -975,6 +976,10 @@ function EditingText({
 				hasNextSibling: visibleSiblings.at(-1)?.id !== nodeId,
 				canOutdent: outdent !== null,
 				layoutMode: listed?.data.layoutMode,
+				role:
+					parentId !== null && isBoard(readNode(queryClient, parentId)?.data.layoutMode ?? null)
+						? "column"
+						: null,
 			},
 			html,
 			selection: selectionTextOffsets(content),
@@ -1006,6 +1011,9 @@ function EditingText({
 		// The new row carries a client-generated id, so the caret moves into it now,
 		// before the create round-trip; writes to it wait for the create (pendingCreates).
 		const newId = crypto.randomUUID();
+		if (plan.expand !== undefined) {
+			activePaneView().replaceExpanded(new Set([...expandedIds, plan.expand]));
+		}
 		// The rename and the create are one user command: one undo step.
 		void runInUndoBatch(captureOutlineView, () => {
 			for (const step of applySplitPlan(plan, nodeId, nameSaver.saved)) {

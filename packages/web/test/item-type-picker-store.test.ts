@@ -170,6 +170,57 @@ describe("selectItemType", () => {
 	});
 });
 
+describe("turning into a board", () => {
+	function orderedDeps(children: Record<string, string[]>, mirrors: Record<string, string[]> = {}) {
+		const log: unknown[] = [];
+		const deps: ItemTypeSelectDeps = {
+			update: (nodeId, layoutMode) => void log.push(["update", nodeId, layoutMode]),
+			expandAll: (ids) => void log.push(["expandAll", [...ids]]),
+			childIds: (nodeId) => children[nodeId] ?? [],
+			mirrorIds: (nodeId) => mirrors[nodeId] ?? [],
+			createChild: (parentId) => {
+				log.push(["create", parentId]);
+				return "new1";
+			},
+			startEditing: (nodeId) => void log.push(["startEditing", nodeId]),
+			layoutMode: () => null,
+		};
+		return {log, deps};
+	}
+
+	it("creates, expands and edits one empty column on a childless node", () => {
+		const picker = orderedDeps({alice: []});
+		selectItemType(itemType("board"), ["alice"], picker.deps);
+		const toggle = orderedDeps({alice: []});
+		toggleBoardOrTable("toggle_board", "alice", toggle.deps);
+		expect([picker.log, toggle.log]).toStrictEqual([
+			[
+				["expandAll", []],
+				["update", "alice", "board"],
+				["create", "alice"],
+				["expandAll", ["alice"]],
+				["startEditing", "new1"],
+			],
+			[
+				["expandAll", []],
+				["update", "alice", "board"],
+				["create", "alice"],
+				["expandAll", ["alice"]],
+				["startEditing", "new1"],
+			],
+		]);
+	});
+
+	it("creates nothing when the node has columns, and expands its mirrors' children", () => {
+		const {log, deps} = orderedDeps({alice: ["bob", "carol"], alice2: ["dan"]}, {alice: ["alice2"]});
+		selectItemType(itemType("board"), ["alice"], deps);
+		expect(log).toStrictEqual([
+			["expandAll", ["bob", "carol", "dan"]],
+			["update", "alice", "board"],
+		]);
+	});
+});
+
 describe("toggleBoardOrTable", () => {
 	it("sets Board without toggling off and expands the children", () => {
 		const on = recordingDeps({alice: ["bob", "carol"]});

@@ -1,4 +1,5 @@
 import type {MirrorInstance} from "../../mirror-path.js";
+import {BOARD_CARD_BULLET_CLASS, BOARD_COLUMN_BULLET_CLASS} from "./board-classes.js";
 import {bulletClickAction, nodeUrl} from "../navigation.js";
 
 interface NodeBulletProps {
@@ -13,6 +14,8 @@ interface NodeBulletProps {
 	onZoom: () => void;
 	isInSelection: () => boolean;
 	onClearSelection: () => void;
+	/** A board column or card draws upstream's right-side ring bullet instead of the halo span. */
+	board?: "column" | "card";
 }
 
 /**
@@ -30,10 +33,23 @@ export function nodeBullet({
 	onZoom,
 	isInSelection,
 	onClearSelection,
+	board,
 }: NodeBulletProps) {
-	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo", keepBullet && "keep-bullet"]
-		.filter(Boolean)
-		.join(" ");
+	const className =
+		board === undefined
+			? ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo", keepBullet && "keep-bullet"]
+					.filter(Boolean)
+					.join(" ")
+			: [
+					"bullet",
+					isMirror && "diamond",
+					showHalo && "bullet--show-halo",
+					"keep-bullet",
+					keepBullet && "keep-bullet",
+					board === "column" ? BOARD_COLUMN_BULLET_CLASS : BOARD_CARD_BULLET_CLASS,
+				]
+					.filter(Boolean)
+					.join(" ");
 	return (
 		<a
 			href={nodeUrl(nodeId, instance)}
@@ -65,23 +81,43 @@ export function nodeBullet({
 				}
 			}}
 		>
-			<span className="bulletHalo">
-				{isMirror ? (
-					<svg
-						width="100%"
-						height="100%"
-						viewBox="0 0 16 16"
-						fill="currentColor"
-						className="mirrorDiamondIcon"
-					>
-						<path d="M8 4 L4 8 L8 12 L12 8 Z" />
-					</svg>
-				) : (
-					<svg width="100%" height="100%" viewBox="0 0 18 18" fill="currentColor" className="zoomBulletIcon">
+			{board === undefined ? (
+				<span className="bulletHalo">
+					{isMirror ? (
+						<svg
+							width="100%"
+							height="100%"
+							viewBox="0 0 16 16"
+							fill="currentColor"
+							className="mirrorDiamondIcon"
+						>
+							<path d="M8 4 L4 8 L8 12 L12 8 Z" />
+						</svg>
+					) : (
+						<svg
+							width="100%"
+							height="100%"
+							viewBox="0 0 18 18"
+							fill="currentColor"
+							className="zoomBulletIcon"
+						>
+							<circle cx="9" cy="9" r="3.5" />
+						</svg>
+					)}
+				</span>
+			) : (
+				<>
+					<div
+						className={`absolute w-[24px] h-[24px] ${board === "column" ? "rounded-full" : "rounded-circle"} -z-1 translate-x-[-3px] box-border bg-tertiary opacity-0 group-hover/bullet:opacity-100 transition-opacity`}
+					/>
+					<div
+						className={`${board === "card" ? "circleBorder " : ""}absolute w-[18px] h-[18px] z-1 rounded-full box-border border border-solid border-current`}
+					/>
+					<svg viewBox="0 0 18 18" fill="currentColor" className="relative z-[2] !bg-transparent">
 						<circle cx="9" cy="9" r="3.5" />
 					</svg>
-				)}
-			</span>
+				</>
+			)}
 		</a>
 	);
 }

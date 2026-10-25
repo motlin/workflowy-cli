@@ -3974,3 +3974,83 @@ label.toggle > div {
 	justify-content: center;
 	box-sizing: content-box;
 }
+
+/* Board layout (upstream wf-base `.boardCard`, `.boardColumn` and board drop indicators). */
+.boardCard {
+	--item-selection-x-offset: 0;
+	--item-selection-border-radius: 0;
+	border: var(--wf-border-width-s) solid var(--wf-border-primary);
+}
+.boardCard > .file-preview {
+	margin-left: var(--wf-space-xs);
+	max-width: 100%;
+}
+.boardCard .children .file-preview {
+	max-width: calc(100% - var(--space-for-bullet));
+}
+.boardCard:hover,
+.boardCard:focus-within {
+	border-color: var(--wf-border-primary);
+}
+.boardCard:not(.task) {
+	border-left-width: var(--wf-border-width-l);
+	border-left-color: var(--wf-border-primary);
+}
+.boardCard.shared {
+	border-left-width: var(--wf-border-width-l);
+	border-left-color: var(--wf-border-tint);
+}
+.boardCard.shared:hover,
+.boardCard.shared:focus-within {
+	border-left-color: var(--wf-border-tint);
+}
+.boardColumn > .name .contentEditablePlaceholderWrapper {
+	position: static;
+	padding-top: var(--wf-content-padding-top);
+	line-height: var(--line-height);
+}
+.boardColumn > .name .contentEditablePlaceholder {
+	position: absolute;
+	color: var(--wf-text-tertiary);
+	line-height: var(--line-height);
+	font-size: inherit;
+}
+.boardColumn.item--with-image > .name > .content {
+	padding-top: var(--wf-content-padding-top);
+	min-height: var(--line-height);
+}
+.boardCard.item--with-image > .name > .content {
+	flex: 1 1 auto;
+	min-height: var(--line-height);
+	line-height: var(--line-height);
+}
+.boardColumn {
+	overflow: initial !important;
+}
+.project.board.drag-hovered-in > .drop-line {
+	display: none;
+}
+.project.board.drag-hovered-in > .children > .boardColumn:first-child:before {
+	content: "";
+	z-index: var(--wf-drop-line-z-index);
+	position: absolute;
+	background: #ccc;
+	border-radius: 2px;
+	pointer-events: none;
+	height: 100%;
+	width: 4px;
+	top: 0%;
+	left: 0%;
+}
+.project.boardColumn.drag-hovered-at:after {
+	content: "";
+	position: absolute;
+	background: #ccc;
+	border-radius: 2px;
+	pointer-events: none;
+	height: 100%;
+	width: 4px;
+	top: 0%;
+	left: 98%;
+	z-index: var(--wf-drop-line-z-index);
+}

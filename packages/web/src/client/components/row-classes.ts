@@ -19,6 +19,8 @@ export interface ProjectClassState {
 	hasNote: boolean;
 	noteFocused: boolean;
 	isZoomRoot: boolean;
+	/** A board column: upstream treats it as a main container, so it carries `selected` like a zoom root. */
+	selectedColumn?: boolean;
 	hasMirrors: boolean;
 	highlighted: boolean;
 	addedToSelection: boolean;
@@ -41,6 +43,8 @@ export interface ProjectClassState {
 
 export interface NameClassState {
 	focused?: boolean;
+	/** A trailing run of classes (a board column or card's), appended after the base ones. */
+	tail?: string;
 	isZoomRoot?: boolean;
 	isMainRoot?: boolean;
 	empty?: boolean;
@@ -67,6 +71,7 @@ export function projectClassName(state: ProjectClassState): string {
 		open && state.animatingShowChildren && "animatingShowChildren",
 		branch && !state.expanded && "collapsed",
 		state.isZoomRoot && "selected root",
+		state.selectedColumn && "selected",
 		state.highlighted && "highlighted",
 		state.addedToSelection && "addedToSelection",
 		state.moving && "moving",
@@ -89,6 +94,7 @@ export function nameClassName(state: NameClassState): string {
 		state.isZoomRoot && "name--main",
 		state.isMainRoot && "name--root",
 		state.empty && "empty",
+		state.tail,
 	]
 		.filter(Boolean)
 		.join(" ");

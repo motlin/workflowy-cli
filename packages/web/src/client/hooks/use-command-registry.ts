@@ -1,3 +1,4 @@
+import {HOME_TARGET} from "@workflowy/shared/types";
 import {useCallback} from "react";
 import {flushSync} from "react-dom";
 import {notifyManager, useQueryClient} from "@tanstack/react-query";
@@ -72,6 +73,8 @@ import {planLayoutHotkey, todoModeAvailable} from "../layout-hotkeys.js";
 import {lineSplitRequests} from "../line-split.js";
 import {canHaveNote} from "../layout-types.js";
 import type {LayoutToggleCommand} from "../layout-types.js";
+import {insertColumnSubject, isBoard, insertColumnTarget} from "../board.js";
+import type {BoardTreeReader} from "../board.js";
 import {toggleBoardOrTable} from "../item-type-select.js";
 import type {ItemTypeSelectDeps} from "../item-type-select.js";
 import {useCopyLink, useSortChildren} from "./use-item-actions.js";
@@ -450,6 +453,19 @@ export function useCommandRegistry(): CommandRegistry {
 			replaceExpanded(new Set([...activePaneView().expandedIds, ...ids]));
 		},
 		childIds: (nodeId) => (readChildren(queryClient, nodeId) ?? []).map((child) => child.id),
+		createChild: (parentId) => {
+			const id = crypto.randomUUID();
+			createNodeMutation.mutate({
+				id,
+				parent_id: parentId === HOME_TARGET ? undefined : parentId,
+				name: "",
+				index: 0,
+			});
+			return id;
+		},
+		startEditing: (nodeId) => {
+			useOutlineStore.getState().resumeEditing(nodeId, 0);
+		},
 		layoutMode: (nodeId) => readNode(queryClient, nodeId)?.data.layoutMode ?? null,
 	};
 
@@ -460,6 +476,36 @@ export function useCommandRegistry(): CommandRegistry {
 				toggleBoardOrTable(command, nodeId, itemTypeDeps);
 			});
 		});
+
+	/** Upstream `insert_board_column_left/right`: a new empty column beside the board, column or card. */
+	const insertColumnCommand = (kind: "left" | "right"): Command => {
+		const tree: BoardTreeReader = {
+			node: (id) => {
+				const node = readNode(queryClient, id);
+				return node === undefined
+					? undefined
+					: {parent_id: node.parent_id, layoutMode: node.data.layoutMode ?? null};
+			},
+			childIds: (parentId) => (readChildren(queryClient, parentId) ?? []).map((child) => child.id),
+		};
+		return {
+			available: (ctx) =>
+				ctx.items.length === 1 && ctx.items.every((id) => insertColumnSubject(id, tree) !== null),
+			execute(ctx) {
+				const [nodeId] = ctx.items;
+				const subject = nodeId === undefined ? null : insertColumnSubject(nodeId, tree);
+				if (subject === null) {
+					return;
+				}
+				const target = insertColumnTarget(kind, subject);
+				const id = crypto.randomUUID();
+				void runInUndoBatch(captureOutlineView, () => {
+					createNodeMutation.mutate({id, parent_id: target.parentId, name: "", index: target.index});
+				});
+				useOutlineStore.getState().resumeEditing(id, 0);
+			},
+		};
+	};
 
 	/**
 	 * Upstream `navigate_to_next_item` / `prev_item`: zoom to the zoomed page's potentially visible sibling `step`
@@ -556,6 +602,12 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
+	/** `"column"` when the node's parent is a board. */
+	const columnRole = (node: NodeResponse): "column" | null => {
+		const parent = node.parent_id === null ? undefined : readNode(queryClient, node.parent_id);
+		return parent !== undefined && isBoard(parent.data.layoutMode ?? null) ? "column" : null;
+	};
+
 	/**
 	 * Upstream ⌘↓ / ⌘↑ / ⌃Space: act on the edited row, or on the zoom root when its title is edited or nothing is.
 	 * The caret stays where it is.
@@ -576,6 +628,7 @@ export function useCommandRegistry(): CommandRegistry {
 			detector: toggleDetector,
 			rows: isRoot ? currentExpansionRows(queryClient) : [],
 			expanded: expandedIds,
+			role: node === undefined ? null : columnRole(node),
 		});
 		switch (plan.type) {
 			case "none":
@@ -1233,6 +1286,8 @@ export function useCommandRegistry(): CommandRegistry {
 		toggle_numbered: layoutCommand("toggle_numbered"),
 		toggle_divider: layoutCommand("toggle_divider"),
 		toggle_board: boardOrTableCommand("toggle_board"),
+		insert_board_column_left: insertColumnCommand("left"),
+		insert_board_column_right: insertColumnCommand("right"),
 		toggle_table: boardOrTableCommand("toggle_table"),
 		// Upstream: "Add note" from inside the note moves the caret to the end of the name.
 		add_note: singleItemCommand((nodeId) => {

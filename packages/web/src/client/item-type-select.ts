@@ -15,6 +15,12 @@ export interface ItemTypeSelectDeps {
 	/** Expand each of `ids`. */
 	expandAll: (ids: readonly string[]) => void;
 	childIds: (nodeId: string) => readonly string[];
+	/** Create an empty last child of `parentId` and return its id (Board turns a childless node into one empty column). */
+	createChild?: (parentId: string) => string;
+	/** The ids of the mirrors of `nodeId`, whose children Board also expands. */
+	mirrorIds?: (nodeId: string) => readonly string[];
+	/** Put the caret in the row. */
+	startEditing?: (nodeId: string) => void;
 	layoutMode: (nodeId: string) => string | null;
 }
 
@@ -41,7 +47,7 @@ export function selectItemType(type: ItemType, nodeIds: readonly string[], deps:
 		return;
 	}
 	if (type.layoutModeKey === "board" || type.layoutModeKey === "table") {
-		deps.expandAll(targets.flatMap((id) => deps.childIds(id)));
+		deps.expandAll(targets.flatMap((id) => expandTargets(id, deps, type.layoutModeKey === "board")));
 	}
 	for (const id of targets) {
 		const change = planBlockTypeChange(
@@ -50,6 +56,9 @@ export function selectItemType(type: ItemType, nodeIds: readonly string[], deps:
 		);
 		if (change.update.name === undefined) {
 			deps.update(id, type.layoutModeKey);
+			if (type.layoutModeKey === "board") {
+				createFirstColumn(id, deps);
+			}
 			continue;
 		}
 		deps.update(id, type.layoutModeKey, {name: escapeBlockText(change.update.name)});
@@ -58,6 +67,22 @@ export function selectItemType(type: ItemType, nodeIds: readonly string[], deps:
 			change.creates.map((line) => ({...line, name: escapeBlockText(line.name)})),
 		);
 	}
+}
+
+/** Children of the node, plus (Board) those of each mirror of it, which show the same columns. */
+function expandTargets(nodeId: string, deps: ItemTypeSelectDeps, includeMirrors: boolean): string[] {
+	const mirrors = includeMirrors ? (deps.mirrorIds?.(nodeId) ?? []) : [];
+	return [nodeId, ...mirrors].flatMap((id) => deps.childIds(id));
+}
+
+/** Upstream `turn-item-into-board`: a childless node gets one empty column, expanded and focused. */
+function createFirstColumn(nodeId: string, deps: ItemTypeSelectDeps): void {
+	if (deps.createChild === undefined || deps.childIds(nodeId).length > 0) {
+		return;
+	}
+	const columnId = deps.createChild(nodeId);
+	deps.expandAll([nodeId]);
+	deps.startEditing?.(columnId);
 }
 
 /**
@@ -73,6 +98,9 @@ export function toggleBoardOrTable(
 		deps.update(nodeId, "bullets");
 		return;
 	}
-	deps.expandAll(deps.childIds(nodeId));
+	deps.expandAll(expandTargets(nodeId, deps, command === "toggle_board"));
 	deps.update(nodeId, command === "toggle_board" ? "board" : "table");
+	if (command === "toggle_board") {
+		createFirstColumn(nodeId, deps);
+	}
 }

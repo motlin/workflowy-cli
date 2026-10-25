@@ -151,6 +151,8 @@ export interface ExpandKeyInput {
 	/** The rendered rows under the zoom root, for the root's level and page-wide behavior. */
 	rows: readonly ExpansionRow[];
 	expanded: ReadonlySet<string>;
+	/** The row's board role: a column zoomed into still acts on itself, never the progressive zoom-root path. */
+	role?: "column" | "card" | "inner" | null;
 }
 
 export type ExpandKeyPlan =
@@ -174,7 +176,7 @@ function levelIds(expanded: ReadonlySet<string>, next: ReadonlySet<string>, rows
  */
 export function planExpandKey(input: ExpandKeyInput): ExpandKeyPlan {
 	const {key, id, expanded, rows} = input;
-	if (input.target === "root") {
+	if (input.target === "root" && input.role !== "column") {
 		if (key === "toggle") {
 			return {type: "all", id, open: pageHasCollapsed(expanded, rows)};
 		}

@@ -187,6 +187,8 @@ describe("LOCAL_SLASH_AVAILABLE", () => {
 			"Sort A-Z",
 			"Sort Z-A",
 			"Copy internal link",
+			"Insert column left",
+			"Insert column right",
 			"Delete",
 		]);
 	});

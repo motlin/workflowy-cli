@@ -46,6 +46,9 @@ import {EditableNote} from "./editable-note.js";
 import {editableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeItemMenu, OutlineRow} from "./outline-node.js";
+import {BoardChildren} from "./board-view.js";
+import {BOARD_ROOT_ZOOMED_SUFFIX} from "./board-classes.js";
+import {isBoard} from "../board.js";
 import {DividerLine} from "./divider-line.js";
 import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
 import {renderedNumbers, siblingNumber} from "../numbered-list.js";
@@ -251,26 +254,28 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	return (
 		<div
 			projectid={node?.id}
-			className={[
-				projectClassName({
-					hasChildren: node === undefined || rowHasChildren(node, showCompleted),
-					expanded: true,
-					completed: node !== undefined && node.completedAt !== null,
-					hasNote: Boolean(node?.note),
-					noteFocused: isEditingNote,
-					isZoomRoot: true,
-					hasMirrors: node !== undefined && hasMirrorsClass(node),
-					highlighted: false,
-					addedToSelection: isAddedToSelection,
-					layoutClasses: layout.projectClasses,
-					dragHoveredIn: isDragHoveredIn,
-				}),
-				isMainTreeRoot && "mainTreeRoot",
-				isReferencesRoot && "references",
-				...searchRootClasses,
-			]
-				.filter(Boolean)
-				.join(" ")}
+			className={
+				[
+					projectClassName({
+						hasChildren: node === undefined || rowHasChildren(node, showCompleted),
+						expanded: true,
+						completed: node !== undefined && node.completedAt !== null,
+						hasNote: Boolean(node?.note),
+						noteFocused: isEditingNote,
+						isZoomRoot: true,
+						hasMirrors: node !== undefined && hasMirrorsClass(node),
+						highlighted: false,
+						addedToSelection: isAddedToSelection,
+						layoutClasses: layout.projectClasses,
+						dragHoveredIn: isDragHoveredIn,
+					}),
+					isMainTreeRoot && "mainTreeRoot",
+					isReferencesRoot && "references",
+					...searchRootClasses,
+				]
+					.filter(Boolean)
+					.join(" ") + (isBoard(node?.data.layoutMode) ? BOARD_ROOT_ZOOMED_SUFFIX : "")
+			}
 		>
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- hover mounts the bullet-menu trigger; click is a mouse shortcut for editing the title, which keyboard users reach with the arrow keys */}
 			<div
@@ -710,8 +715,11 @@ export function OutlineChildren({
 	found = null,
 	containerRef,
 	addChild,
+	className,
 }: {
 	parentId: string | null;
+	/** Replaces the nested `.children` class (a board card's nested rows). */
+	className?: string;
 	/** The root's add-child wrapper: inside `.children` after the rows, or alone when no `.children` renders. */
 	addChild?: ReactNode;
 	/** The `.children` element, for the expand/collapse slide. */
@@ -763,7 +771,7 @@ export function OutlineChildren({
 
 	const numbers = childNumbers(nodes ?? [], visibleNodes, search !== null, showCompleted, animatingCompletionIds);
 	return (
-		<div ref={containerRef} className={isRoot ? ROOT_CHILDREN_CLASS : NESTED_CHILDREN_CLASS}>
+		<div ref={containerRef} className={isRoot ? ROOT_CHILDREN_CLASS : (className ?? NESTED_CHILDREN_CLASS)}>
 			{visibleNodes.slice(0, limit).map((node) => (
 				<OutlineRow key={node.id} depth={depth} node={node} number={numbers.get(node.id)} />
 			))}
@@ -807,6 +815,10 @@ export function RootOutlineChildren({parentId, addChild}: {parentId: string | nu
 	const {data: response} = useFoundDates(dayId);
 	if (zoomed?.isReferencesRoot === true && zoomed.parent_id !== null) {
 		return <ReferencesRootChildren targetId={zoomed.parent_id} addChild={addChild} />;
+	}
+	// A zoomed board is its columns; upstream never draws the add-child button on one.
+	if (parentId !== null && isBoard(zoomed?.data.layoutMode)) {
+		return <BoardChildren boardId={parentId} zoomed />;
 	}
 	return (
 		<OutlineChildren

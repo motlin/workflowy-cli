@@ -647,6 +647,26 @@ describe("planSplit", () => {
 		canOutdent: true,
 	};
 
+	it("creates the first card, expanding the column, on Enter at the end of a column title", () => {
+		expect(
+			planSplit({
+				node: {...base, id: "bob", role: "column"},
+				html: "Doing",
+				selection: {start: 5, end: 5},
+				shapeLayout: null,
+			}),
+		).toStrictEqual({
+			kind: "create",
+			parentId: "bob",
+			index: 0,
+			newName: "",
+			currentName: "Doing",
+			focus: "new",
+			layoutMode: null,
+			expand: "bob",
+		});
+	});
+
 	it("puts the text before a mid caret in a new row above and keeps the rest in the current row", () => {
 		expect(
 			planSplit({node: base, html: "Bravo text", selection: {start: 5, end: 5}, shapeLayout: null}),

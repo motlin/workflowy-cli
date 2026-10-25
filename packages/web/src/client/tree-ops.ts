@@ -198,6 +198,8 @@ export interface SplitNode {
 	canOutdent: boolean;
 	/** The row's layout mode: Enter in a code or quote block inserts a newline. */
 	layoutMode?: string | null | undefined;
+	/** `"column"` when the parent is a board: Enter at the end creates the column's first card. */
+	role?: "column" | null;
 }
 
 /** What Enter does: outdent the empty row, insert a newline in a code or quote block, or create a row and rename the current one. */
@@ -212,6 +214,8 @@ export type SplitPlan =
 			currentName: string;
 			focus: "new" | "current";
 			layoutMode: string | null;
+			/** A row to expand once the new row exists (the board column that gained a first card). */
+			expand?: string;
 	  };
 
 /** The newline run that exits a multi-line block with Enter: a code block ends after a blank line, a quote after one. */
@@ -281,7 +285,15 @@ export function planSplit({
 		newName: string,
 		currentName: string,
 		focus: "new" | "current",
-	): SplitPlan => ({kind: "create", parentId, index, newName, currentName, focus, layoutMode: shapeLayout});
+	): Extract<SplitPlan, {kind: "create"}> => ({
+		kind: "create",
+		parentId,
+		index,
+		newName,
+		currentName,
+		focus,
+		layoutMode: shapeLayout,
+	});
 
 	if (node.isZoomRoot) {
 		return create(node.id, 0, "", html, "new");
@@ -289,6 +301,9 @@ export function planSplit({
 	const {start, end} = selection;
 	if (start === end && start >= trimmedPlainLength(html)) {
 		const {before, after} = splitHtml(html, start, end);
+		if (node.role === "column") {
+			return {...create(node.id, 0, after, before, "new"), expand: node.id};
+		}
 		if (node.hasVisibleChildren && node.isExpanded) {
 			return create(node.id, 0, after, before, "new");
 		}

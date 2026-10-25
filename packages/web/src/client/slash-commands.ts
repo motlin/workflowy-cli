@@ -120,6 +120,8 @@ export const SLASH_COMMANDS: Partial<Record<SlashCommandKey, SlashCommand>> = {
 	sort_children_desc: {label: "Sort Z-A", icon: "fal:arrow-down-z-a"},
 	copy_link: {label: "Copy internal link", icon: "fal:link"},
 	add_from_template: {label: "Add from template", icon: "fal:puzzle-piece"},
+	insert_board_column_left: {label: "Insert column left", icon: "fal:table-columns"},
+	insert_board_column_right: {label: "Insert column right", icon: "fal:table-columns"},
 	delete: {label: "Delete", icon: "fal:trash-can"},
 	count: {label: "Count", icon: "fal:abacus"},
 	set_priority_default_bottom: {label: "Priority: Default to Bottom", icon: "fal:arrow-down"},
@@ -218,6 +220,8 @@ const LOCAL_SLASH_KEYS: ReadonlySet<SlashCommandKey> = new Set<SlashCommandKey>(
 	"sort_children_asc",
 	"sort_children_desc",
 	"copy_link",
+	"insert_board_column_left",
+	"insert_board_column_right",
 	"delete",
 ]);
 

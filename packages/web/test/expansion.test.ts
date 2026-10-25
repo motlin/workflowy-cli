@@ -158,6 +158,20 @@ describe("planExpandKey", () => {
 		expect(plan).toStrictEqual({type: "level", ids: ["Beta"], open: true});
 	});
 
+	it("acts on a zoomed-in board column itself, not the progressive zoom-root path", () => {
+		const detector = createDoublePressDetector();
+		const column = {...base, id: "bob", target: "root" as const, role: "column" as const, detector};
+		expect([
+			planExpandKey({...column, key: "expand"}),
+			planExpandKey({...column, key: "toggle"}),
+			planExpandKey({...column, key: "collapse", isOpen: true}),
+		]).toStrictEqual([
+			{type: "expand", id: "bob"},
+			{type: "toggle", id: "bob"},
+			{type: "collapse", id: "bob"},
+		]);
+	});
+
 	it("collapses the deepest open level on the zoom root", () => {
 		const expanded = new Set(["Alpha", "A1", "Beta"]);
 		const plan = planExpandKey({

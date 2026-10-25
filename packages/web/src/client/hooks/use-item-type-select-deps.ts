@@ -4,7 +4,7 @@ import {plainText} from "../rich-text.js";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import {readChildren, readNode} from "../node-cache.js";
 import type {ItemTypeSelectDeps} from "../item-type-select.js";
-import {activePaneView} from "../stores/outline.js";
+import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import {useCreateNode, useUpdateNode} from "./use-nodes.js";
 
 /** What choosing a "Turn into" type needs from the outline: layout writes, expansion and the cached tree. */
@@ -32,6 +32,14 @@ export function useItemTypeSelectDeps(): ItemTypeSelectDeps {
 		},
 		childIds: (nodeId) =>
 			(readChildren(queryClient, nodeId === HOME_TARGET ? null : nodeId) ?? []).map((child) => child.id),
+		createChild: (parentId) => {
+			const id = crypto.randomUUID();
+			createNode.mutate({id, parent_id: parentId === HOME_TARGET ? undefined : parentId, name: "", index: 0});
+			return id;
+		},
+		startEditing: (nodeId) => {
+			useOutlineStore.getState().resumeEditing(nodeId, 0);
+		},
 		layoutMode: (nodeId) => readNode(queryClient, nodeId)?.data.layoutMode ?? null,
 	};
 }

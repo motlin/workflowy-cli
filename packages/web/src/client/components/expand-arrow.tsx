@@ -14,6 +14,8 @@ interface ExpandArrowProps {
 	alwaysVisible?: boolean;
 	/** Called after a toggle: upstream puts the caret at the start of the row's text. */
 	onFocusRow?: (nodeId: string) => void;
+	/** Classes appended after the base ones (a board column or card's hover-only arrow). */
+	extraClassName?: string;
 }
 
 const EXPAND_CLASS =
@@ -32,6 +34,7 @@ export function expandArrow({
 	onExpandAll,
 	alwaysVisible = true,
 	onFocusRow,
+	extraClassName,
 }: ExpandArrowProps) {
 	const handleClick = (event: Pick<React.MouseEvent, "preventDefault" | "stopPropagation" | "timeStamp">) => {
 		event.preventDefault();
@@ -59,7 +62,7 @@ export function expandArrow({
 	};
 	const shared = {
 		"data-handbook": "expand.toggle",
-		className: EXPAND_CLASS,
+		className: extraClassName === undefined ? EXPAND_CLASS : `${EXPAND_CLASS} ${extraClassName}`,
 		style: {color: alwaysVisible ? "var(--wf-text-quinary)" : "transparent"},
 		onClick: handleClick,
 	};

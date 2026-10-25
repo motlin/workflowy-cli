@@ -40,6 +40,20 @@ import {openInPane} from "../pane-commands.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
 import type {DropHover} from "../bullet-drag-state.js";
 import {OutlineChildren} from "./outline-tree.js";
+import {BoardChildren, BoardColumnBody, ColumnResizeHandle, safeStorage} from "./board-view.js";
+import {BoardZoomedContext} from "./board-context.js";
+import type {BoardRowRole} from "./board-context.js";
+import {
+	BOARD_CARD_CHILDREN_CLASS,
+	BOARD_CARD_CLASS,
+	BOARD_CARD_EXPAND_CLASS,
+	BOARD_CARD_NAME_CLASS,
+	BOARD_COLUMN_EXPAND_CLASS,
+	boardColumnClass,
+	boardColumnNameClass,
+} from "./board-classes.js";
+import {columnWidth, isBoard} from "../board.js";
+import type {ColumnSearchMode} from "../board.js";
 import {PaneContext, usePaneId} from "./pane-context.js";
 import {nodeBullet} from "./node-bullet.js";
 import {hasMirrorsClass, isMirrorRoot, nameClassName, projectClassName} from "./row-classes.js";
@@ -173,6 +187,8 @@ interface NodeNameProps {
 	searchNameClasses: readonly string[];
 	/** The row's list number when it is a numbered row. */
 	number?: number;
+	/** The row is a board column or card: upstream's ring bullet, hover-only arrow and name classes. */
+	boardRole?: BoardRowRole;
 }
 
 /**
@@ -200,7 +216,9 @@ function NodeName({
 	searching,
 	searchNameClasses,
 	number,
+	boardRole,
 }: NodeNameProps) {
+	const boardZoomed = useContext(BoardZoomedContext);
 	const search = useOutlineSearchFilter();
 	const isHovered = useIsRowHovered(node.id);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -267,7 +285,18 @@ function NodeName({
 		node.data.layoutMode === "code-block" ? <CopyCodeButton plainText={plainText(name, "")} /> : null;
 
 	const nameClasses = withClasses(
-		nameClassName({focused: isEditing, empty: name === "", withEmbedder}),
+		nameClassName({
+			focused: isEditing,
+			empty: name === "",
+			withEmbedder,
+			isZoomRoot: boardRole === "column",
+			tail:
+				boardRole === "column"
+					? boardColumnNameClass(boardZoomed)
+					: boardRole === "card"
+						? BOARD_CARD_NAME_CLASS
+						: undefined,
+		}),
 		searchNameClasses,
 	);
 
@@ -287,7 +316,13 @@ function NodeName({
 			}}
 			role="presentation"
 		>
+			{boardRole === "column" && name === "" ? (
+				<div className="contentEditablePlaceholderWrapper">
+					<div className="contentEditablePlaceholder">Untitled</div>
+				</div>
+			) : null}
 			{nodeBullet({
+				board: boardRole,
 				nodeId: node.id,
 				instance: rowInstance,
 				isMirror: isMirrorRoot(node),
@@ -331,7 +366,13 @@ function NodeName({
 				hasChildren,
 				isExpanded,
 				nodeId: node.id,
-				alwaysVisible: alwaysVisibleControls,
+				alwaysVisible: boardRole === undefined ? alwaysVisibleControls : true,
+				extraClassName:
+					boardRole === "column"
+						? BOARD_COLUMN_EXPAND_CLASS
+						: boardRole === "card"
+							? BOARD_CARD_EXPAND_CLASS
+							: undefined,
 				onFocusRow: focusRowStart,
 				onExpandAll: searching || cyclical ? undefined : expandAll,
 				onToggle: searching
@@ -371,8 +412,11 @@ function rowProjectClassName(
 	addedToSelection: boolean,
 	highlighted: boolean,
 	dragHover: DropHover,
+	boardRole?: BoardRowRole,
+	boardZoomed = true,
 ): string {
 	return projectClassName({
+		selectedColumn: boardRole === "column" && boardZoomed,
 		hasChildren,
 		hasAnyChildren: node.hasChildren === true,
 		collapsingChildren,
@@ -384,7 +428,14 @@ function rowProjectClassName(
 		hasMirrors: hasMirrorsClass(node),
 		highlighted,
 		addedToSelection,
-		layoutClasses: resolveLayoutMode(node.data.layoutMode).projectClasses,
+		layoutClasses: [
+			...resolveLayoutMode(node.data.layoutMode).projectClasses,
+			...(boardRole === "column"
+				? [boardColumnClass(boardZoomed)]
+				: boardRole === "card"
+					? [BOARD_CARD_CLASS]
+					: []),
+		],
 		slidingUp,
 		slidingDown,
 		moving,
@@ -423,6 +474,8 @@ export const OutlineRow = memo(function OutlineRow({
 	backlinkCrumbs,
 	fitCrumbs = false,
 	number,
+	boardRole,
+	columnMode,
 }: {
 	node: NodeResponse;
 	/** The row's list number when it is a numbered row. */
@@ -432,7 +485,12 @@ export const OutlineRow = memo(function OutlineRow({
 	backlinkCrumbs?: BacklinkCrumb[];
 	/** Collapse the crumbs from the left to fit the row, as Found Dates rows do. */
 	fitCrumbs?: boolean;
+	/** The row is a column or card of a board. */
+	boardRole?: BoardRowRole;
+	/** A column's search mode: unmatched columns render collapsed (see `boardColumnsVisibleInSearch`). */
+	columnMode?: ColumnSearchMode;
 }) {
+	const boardZoomed = useContext(BoardZoomedContext);
 	const search = useOutlineSearchFilter();
 	const paneId = usePaneId();
 	const instance = useContext(MirrorInstanceContext);
@@ -453,7 +511,12 @@ export const OutlineRow = memo(function OutlineRow({
 	// A row inside a mirror is an instance with its own expansion key, collapsed until that instance is expanded; a
 	// cyclical instance has no saved state of its own, so it starts collapsed too (upstream's default-state pipe).
 	const nestedInstance = useMemo(() => childInstance(node, instance), [node, instance]);
-	const isExpanded = search === null ? isPersistentlyExpanded : isSearchExpanded(node.id, search);
+	const isExpanded =
+		columnMode !== undefined && search !== null
+			? columnMode === "matches"
+			: search === null
+				? isPersistentlyExpanded
+				: isSearchExpanded(node.id, search);
 	const rowSearchClasses = searchClasses({id: node.id, parentId: node.parent_id}, search);
 	const {endCompletionAnimation} = outlineActions();
 	const hasChildren = rowHasChildren(node, showCompleted);
@@ -524,10 +587,13 @@ export const OutlineRow = memo(function OutlineRow({
 					isAddedToSelection,
 					isHighlighted,
 					dragHover,
+					boardRole,
+					boardZoomed,
 				),
 				rowSearchClasses.project,
 			)}
 			onTransitionEnd={handleTransitionEnd}
+			style={boardRole === "column" ? {width: columnWidth(node.id, safeStorage())} : undefined}
 		>
 			{backlinkCrumbs ? <BacklinkCrumbs crumbs={backlinkCrumbs} fitted={fitCrumbs} /> : null}
 			<NodeName
@@ -543,6 +609,7 @@ export const OutlineRow = memo(function OutlineRow({
 				searching={search !== null}
 				withEmbedder={backlinkCrumbs !== undefined}
 				number={number}
+				boardRole={boardRole}
 			/>
 			{noteMounted || shouldMountNote ? (
 				<EditableNote
@@ -555,9 +622,24 @@ export const OutlineRow = memo(function OutlineRow({
 			<div className="drop-line">
 				<div className="line" />
 			</div>
-			{isExpanded || childrenSlide === "up" ? (
+			{boardRole === "column" ? (
 				<MirrorInstanceContext.Provider value={nestedInstance}>
-					<OutlineChildren containerRef={setChildrenEl} depth={depth + 1} owner={node} parentId={node.id} />
+					<BoardColumnBody columnId={node.id} expanded={isExpanded} hasChildren={hasChildren} />
+					<ColumnResizeHandle columnId={node.id} />
+				</MirrorInstanceContext.Provider>
+			) : isExpanded && isBoard(node.data.layoutMode) && boardRole === undefined && search === null ? (
+				<MirrorInstanceContext.Provider value={nestedInstance}>
+					<BoardChildren boardId={node.id} zoomed={false} depth={depth} />
+				</MirrorInstanceContext.Provider>
+			) : isExpanded || childrenSlide === "up" ? (
+				<MirrorInstanceContext.Provider value={nestedInstance}>
+					<OutlineChildren
+						className={boardRole === "card" ? BOARD_CARD_CHILDREN_CLASS : undefined}
+						containerRef={setChildrenEl}
+						depth={depth + 1}
+						owner={node}
+						parentId={node.id}
+					/>
 				</MirrorInstanceContext.Provider>
 			) : null}
 		</div>
