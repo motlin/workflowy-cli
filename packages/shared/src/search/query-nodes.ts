@@ -41,11 +41,18 @@ export interface QueryNode {
 export interface ParseQueryOptions {
 	now?: number;
 	dateFormat?: string;
+	/** 0 = Sunday (default), 1 = Monday. */
+	weekStartDay?: 0 | 1;
 }
 
-export interface OperatorContext {
+/** What tokenizing a query depends on besides its text. */
+export interface TokenContext {
 	now: number;
 	dateFormat: string;
+	weekStartDay: 0 | 1;
+}
+
+export interface OperatorContext extends TokenContext {
 	/** True when this token is the last one and the query has no trailing whitespace. */
 	isLast: boolean;
 }
@@ -54,9 +61,9 @@ export interface OperatorContext {
 export interface SearchOperator {
 	name: string;
 	/** Optionally claim a token longer than a whitespace-delimited word, starting at `start`. Returns its end offset. */
-	parseToken?(query: string, start: number): number | null;
+	parseToken?(query: string, start: number, context: TokenContext): number | null;
 	/** Called with the lowercased token (without a leading "-"). */
-	matchesToken(token: string): boolean;
+	matchesToken(token: string, context: TokenContext): boolean;
 	create(token: string, rawToken: string, context: OperatorContext): QueryNode;
 }
 

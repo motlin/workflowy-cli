@@ -186,11 +186,16 @@ export function datePhraseText(html: string): string {
  * the end of, searching only the text between the pills (U+FFFC in `text`) around the caret.
  * Offsets are plain-text units, a pill counting one.
  */
-export function findDatePhraseAtCaret(text: string, caret: number, now: Date = new Date()): DatePhrase | undefined {
+export function findDatePhraseAtCaret(
+	text: string,
+	caret: number,
+	now: Date = new Date(),
+	options: {dateFormat?: string; weekStartDay?: number} = {},
+): DatePhrase | undefined {
 	const segmentStart = text.lastIndexOf(PILL_CHAR, caret - 1) + 1;
 	const nextPill = text.indexOf(PILL_CHAR, caret);
 	const segment = text.slice(segmentStart, nextPill === -1 ? undefined : nextPill);
-	const found = findDatePhrase(segment, caret - segmentStart, now);
+	const found = findDatePhrase(segment, caret - segmentStart, now, options);
 	return found && {start: found.start + segmentStart, end: found.end + segmentStart, attrs: found.attrs};
 }
 

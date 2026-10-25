@@ -1,9 +1,10 @@
-import * as chrono from "chrono-node";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
+import {searchChrono} from "../../dates/chrono-v1.js";
+import type {ChronoV1Components} from "../../dates/chrono-v1.js";
 import {DATE_FORMATS_SHORT, parseTimeAttrs} from "../../dates/date-markup.js";
 import type {TimeAttrs} from "../../dates/date-markup.js";
-import type {SearchItem, SearchOperator} from "../query-nodes.js";
+import type {SearchItem, SearchOperator, TokenContext} from "../query-nodes.js";
 import {MetaNode} from "./meta.js";
 
 dayjs.extend(customParseFormat);
@@ -212,38 +213,36 @@ const overlaps = (search: DateRange, row: DateRange): boolean =>
 		pointInRange(search.end, row) ||
 		pointInRange(row.end, search));
 
-const PINNED_BY_WEEKDAY: ReadonlySet<Unit> = new Set<Unit>(["year", "month", "day"]);
-
-/** Upstream pins a bare weekday to the day chrono resolved it to, making year, month and day certain. */
-function pinWeekday(components: chrono.ParsedComponents): Components {
-	const pinned = components.isCertain("weekday") && !components.isCertain("day");
-	return {
-		isCertain: (unit) => components.isCertain(unit) || (pinned && PINNED_BY_WEEKDAY.has(unit)),
-		get: (unit) => components.get(unit),
-	};
+function chronoComponents(components: ChronoV1Components): Components {
+	return {isCertain: (unit) => components.isCertain(unit), get: (unit) => components.get(unit) ?? null};
 }
 
-/** The search range of the chrono result at offset 0 of `text` (casual English, forward dates), if any. */
-function leadingDate(text: string, now: number): {text: string; range: DateRange} | null {
-	const result = chrono.casual
-		.parse(text, new Date(now), {forwardDate: true})
-		.find((candidate) => candidate.index === 0 && !/a[0-9]{1,2}/u.test(candidate.text));
+/**
+ * The search range of the upstream chrono v1 search instance's result at offset 0 of `text`, if any. That instance
+ * already pins relative phrases to whole days and weeks (`G02`, `q02`, `K02`), so no extra pinning is needed here.
+ */
+function leadingDate(text: string, context: TokenContext): {text: string; range: DateRange} | null {
+	const result = searchChrono({
+		now: new Date(context.now),
+		weekStartDay: context.weekStartDay,
+		dateFormat: context.dateFormat,
+	})(text).find((candidate) => candidate.index === 0 && !/a[0-9]{1,2}/u.test(candidate.text));
 	if (result === undefined) {
 		return null;
 	}
-	const start = pinWeekday(result.start);
-	return {text: result.text, range: {start, end: result.end ? pinWeekday(result.end) : start}};
+	const start = chronoComponents(result.start);
+	return {text: result.text, range: {start, end: result.end ? chronoComponents(result.end) : start}};
 }
 
 export const bareDate: SearchOperator = {
 	name: "bare-date",
-	parseToken(query, start) {
-		const result = leadingDate(query.slice(start), Date.now());
+	parseToken(query, start, context) {
+		const result = leadingDate(query.slice(start), context);
 		return result === null ? null : start + result.text.length;
 	},
-	matchesToken: (token) => leadingDate(token, Date.now()) !== null,
+	matchesToken: (token, context) => leadingDate(token, context) !== null,
 	create(token, _rawToken, context) {
-		const search = leadingDate(token, context.now)?.range ?? null;
+		const search = leadingDate(token, context)?.range ?? null;
 		return new MetaNode(
 			(item) => search !== null && rowDates(item).some((attrs) => overlaps(search, rowRange(attrs))),
 			{

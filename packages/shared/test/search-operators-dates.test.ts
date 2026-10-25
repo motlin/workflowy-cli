@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vite-plus/test";
+import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {parseQuery} from "../src/search/index.js";
 import {searchItem, SO_ROWS} from "./helpers/search-so-fixture.js";
 
@@ -92,5 +92,101 @@ describe("explicit date operators", () => {
 			["Past", "Future"],
 			[],
 		]);
+	});
+});
+
+describe("bare dates use the upstream chrono v1 search instance", () => {
+	const FRIDAY = new Date(2026, 9, 23, 20, 30);
+
+	function row(month: number, day: number, time?: string): ReturnType<typeof searchItem> {
+		const [hour, minute] = time === undefined ? [] : time.split(":");
+		const timeAttrs = time === undefined ? "" : ` startHour="${hour}" startMinute="${minute}"`;
+		const label = `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}${time === undefined ? "" : `@${time}`}`;
+		return searchItem(
+			`${label} <time startYear="2026" startMonth="${month}" startDay="${day}"${timeAttrs}>x</time>`,
+		);
+	}
+
+	const rows = [
+		...Array.from({length: 33}, (_unused, offset) => new Date(2026, 9, 7 + offset)).map((date) =>
+			row(date.getMonth() + 1, date.getDate()),
+		),
+		row(11, 23),
+		row(10, 23, "15:00"),
+		row(10, 24, "15:00"),
+		row(10, 23, "22:00"),
+	];
+
+	function matched(query: string, options: {now?: Date; weekStartDay?: 0 | 1} = {}): string[] {
+		const node = parseQuery(query, {
+			now: (options.now ?? FRIDAY).getTime(),
+			...(options.weekStartDay === undefined ? {} : {weekStartDay: options.weekStartDay}),
+		});
+		return rows.filter((each) => node.matches(each).matches).map((each) => each.nameHtml.split(" ")[0] ?? "");
+	}
+
+	const week = (from: number, to: number) =>
+		Array.from({length: to - from + 1}, (_unused, offset) => `10-${from + offset}`);
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("resolves a bare weekday matching today to today", () => {
+		expect(matched("friday")).toStrictEqual(["10-23", "10-23@15:00", "10-23@22:00"]);
+	});
+
+	it("resolves last friday to the previous week", () => {
+		expect(matched("last friday")).toStrictEqual(["10-16"]);
+	});
+
+	it("matches every row in a bare month name", () => {
+		expect(matched("oct")).toStrictEqual(
+			rows.map((each) => each.nameHtml.split(" ")[0] ?? "").filter((label) => label.startsWith("10-")),
+		);
+	});
+
+	it("pins in 1 month to the single day", () => {
+		expect(matched("in 1 month")).toStrictEqual(["11-23"]);
+	});
+
+	it("collapses a weekday range to its start", () => {
+		expect(matched("fri - mon")).toStrictEqual(["10-23", "10-23@15:00", "10-23@22:00"]);
+	});
+
+	it("matches the whole week, starting on the configured day", () => {
+		expect([
+			matched("this week").filter((label) => !label.includes("@")),
+			matched("this week", {weekStartDay: 1}).filter((label) => !label.includes("@")),
+		]).toStrictEqual([week(18, 24), week(19, 25)]);
+	});
+
+	it("understands French and Japanese casual words", () => {
+		expect([matched("demain"), matched("明日")]).toStrictEqual([
+			["10-24", "10-24@15:00"],
+			["10-24", "10-24@15:00"],
+		]);
+	});
+
+	it("has no weekend parser", () => {
+		expect(matched("weekend")).toStrictEqual([]);
+	});
+
+	it("keeps tomorrow as today in the first two hours of the day", () => {
+		expect(matched("tomorrow", {now: new Date(2026, 9, 23, 0, 30)})).toStrictEqual([
+			"10-23",
+			"10-23@15:00",
+			"10-23@22:00",
+		]);
+	});
+
+	it("pins the hour but not the minute for in 2 hours, so a date-only row and a 22:xx row match", () => {
+		expect(matched("in 2 hours")).toStrictEqual(["10-23", "10-23@22:00"]);
+	});
+
+	it("uses the query's now, not the system clock", () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 10, 2, 12));
+		expect(matched("friday")).toStrictEqual(["10-23", "10-23@15:00", "10-23@22:00"]);
 	});
 });

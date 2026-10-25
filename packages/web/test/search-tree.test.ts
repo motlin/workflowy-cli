@@ -174,4 +174,15 @@ describe("computeTreeSearch", () => {
 			withoutFormat: computeTreeSearch(dated, null, "date:10/23/2026", NOW).matchIds,
 		}).toStrictEqual({withFormat: ["d"], withoutFormat: []});
 	});
+
+	it("places a bare week phrase by the account's week start day", () => {
+		const friday = new Date(2026, 9, 23, 12).getTime();
+		const sunday = (day: number) =>
+			row(`d${day}`, null, 0, `Day <time startYear="2026" startMonth="10" startDay="${day}">Sun</time>`);
+		const dated = [sunday(18), sunday(25)];
+		expect({
+			sundayStart: computeTreeSearch(dated, null, "this week", friday).matchIds,
+			mondayStart: computeTreeSearch(dated, null, "this week", friday, {weekStartDay: 1}).matchIds,
+		}).toStrictEqual({sundayStart: ["d18"], mondayStart: ["d25"]});
+	});
 });

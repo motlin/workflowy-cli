@@ -85,7 +85,10 @@ export function usePillDatePicker({dateSettings, onChange, onDismiss}: PillDateP
 		if (picker === null) {
 			return null;
 		}
-		const guess = guessDates(picker.term, {dateFormat: dateSettings.dateFormat});
+		const guess = guessDates(picker.term, {
+			dateFormat: dateSettings.dateFormat,
+			weekStartDay: dateSettings.weekStartDay,
+		});
 		const apply = (dates: Date[]) => {
 			close();
 			onChange(picker.pillIndex, timeAttrsFromDates(dates));

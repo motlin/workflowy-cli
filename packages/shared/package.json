@@ -101,7 +101,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"chrono-node": "^2.10.3",
+		"chrono-node-v1": "npm:chrono-node@1.4.4",
 		"dayjs": "^1.11.23",
 		"drizzle-orm": "^0.45.3",
 		"zod": "^4.6.7"

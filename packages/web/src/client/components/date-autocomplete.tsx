@@ -143,10 +143,13 @@ export function useDateAutocomplete({
 			return;
 		}
 		const caret = caretTextOffset(editor);
-		const phrase = findDatePhraseAtCaret(datePhraseText(serializeDatePills(editor.innerHTML)), caret);
+		const phrase = findDatePhraseAtCaret(datePhraseText(serializeDatePills(editor.innerHTML)), caret, new Date(), {
+			dateFormat: dateSettings.dateFormat,
+			weekStartDay: dateSettings.weekStartDay,
+		});
 		const position = phrase && phrasePosition(caret - phrase.start);
 		show(phrase && position ? {phrase, position} : null);
-	}, [editorRef, isBlocked, hide, show]);
+	}, [editorRef, isBlocked, hide, show, dateSettings.dateFormat, dateSettings.weekStartDay]);
 
 	const apply = useCallback(() => {
 		const current = shownRef.current;

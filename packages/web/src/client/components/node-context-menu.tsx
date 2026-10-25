@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react";
 import type {NodeResponse} from "../../node-types.js";
+import {useDateSettings} from "../hooks/use-preferences.js";
 import {readJson} from "../read-json.js";
 import {buildItemMenu, hasFooter} from "../item-menu-model.js";
 import {qualifyItemMenu} from "../app-menu.js";
@@ -108,11 +109,16 @@ export interface ItemMenuActions {
 	onSort: (direction: SortDirection) => void;
 }
 
-function footerTimestamp(label: string, unixSeconds: number | null, now: Date) {
+function footerTimestamp(
+	label: string,
+	unixSeconds: number | null,
+	now: Date,
+	formats: {dateFormat: string; timeFormat: string},
+) {
 	return (
 		<div className="flex flex-col gap-s">
 			<div>
-				<b>{label}</b> {unixSeconds === null ? "Unknown" : formatMenuTimestamp(unixSeconds, now)}
+				<b>{label}</b> {unixSeconds === null ? "Unknown" : formatMenuTimestamp(unixSeconds, now, formats)}
 			</div>
 		</div>
 	);
@@ -135,6 +141,7 @@ export function ItemMenuBody({
 }) {
 	// The body mounts each time the menu opens, so "now" is the moment it opened.
 	const [now] = useState(() => new Date());
+	const dateSettings = useDateSettings();
 	const paneId = usePaneId();
 	const qualifiers = qualifyItemMenu(node, paneId === MAIN_PANE_ID ? [] : ["is_inside_side_pane"]);
 	const entries = buildItemMenu(node, qualifiers);
@@ -213,8 +220,8 @@ export function ItemMenuBody({
 						className={`flex flex-col gap-m text-tertiary text-xs px-l pt-s pb-ml whitespace-nowrap
             mobile:text-base  mobile:py-ml mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right`}
 					>
-						{footerTimestamp("Changed:", node.modifiedAt, now)}
-						{footerTimestamp("Created:", node.createdAt, now)}
+						{footerTimestamp("Changed:", node.modifiedAt, now, dateSettings)}
+						{footerTimestamp("Created:", node.createdAt, now, dateSettings)}
 					</div>
 				</>
 			)}

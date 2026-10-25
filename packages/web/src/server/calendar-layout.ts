@@ -8,11 +8,17 @@
 
 import {eq} from "drizzle-orm";
 import {nodeInternalMetadata} from "@workflowy/shared/db";
-import type {CalendarLayoutLevels, CalendarLayoutSnapshot, LayoutNode} from "@workflowy/shared/internal";
+import type {
+	CalendarLayoutLevels,
+	CalendarLayoutSnapshot,
+	LayoutNode,
+	WorkflowyInternalAdapter,
+} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {z} from "zod";
 import {findTaggedCalendarRoot, loadCalendarInfo} from "./calendar-day.js";
 import type {CalendarDayDeps} from "./calendar-day.js";
+import type {ServerContext} from "./context.js";
 
 const RootLevelsSchema = z.object({
 	calendar: z.object({levels: z.record(z.string(), z.boolean()).optional()}).loose(),
@@ -72,4 +78,22 @@ export function loadCalendarLayout(
 		},
 		levels: rootLevels(deps, rootId),
 	};
+}
+
+/**
+ * Re-applies the tagged calendar root's current levels so week nodes move to the new week start: upstream does this
+ * when Start of week changes under a week-level calendar. Does nothing when layouts are disabled, no cached root is
+ * tagged, or the root has no week level.
+ */
+export async function reapplyWeekLayout(ctx: ServerContext, adapter: WorkflowyInternalAdapter): Promise<void> {
+	if (ctx.calendarLayoutEnabled === false) {
+		return;
+	}
+	const deps = {db: ctx.db, cache: ctx.cacheService};
+	const rootId = findTaggedCalendarRoot(deps);
+	const levels = rootId === undefined ? undefined : loadCalendarLayout(deps, rootId)?.levels;
+	if (rootId === undefined || levels?.week !== true) {
+		return;
+	}
+	await adapter.applyCalendarLayout(levels, {rootId, loadSnapshot: () => loadCalendarLayout(deps, rootId)});
 }

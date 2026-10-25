@@ -122,9 +122,13 @@ export function computeTreeSearch(
 	rootId: string | null,
 	query: string,
 	now: number,
-	opts: {dateFormat?: string} = {},
+	opts: {dateFormat?: string; weekStartDay?: 0 | 1} = {},
 ): TreeSearchResult {
-	const parseOpts = {now, ...(opts.dateFormat === undefined ? {} : {dateFormat: opts.dateFormat})};
+	const parseOpts = {
+		now,
+		...(opts.dateFormat === undefined ? {} : {dateFormat: opts.dateFormat}),
+		...(opts.weekStartDay === undefined ? {} : {weekStartDay: opts.weekStartDay}),
+	};
 	const nested = parseNestedQuery(query, parseOpts);
 	const parsed = nested?.highlight ?? parseQuery(query, parseOpts);
 	if (parsed.isEmpty()) {

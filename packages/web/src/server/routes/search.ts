@@ -78,6 +78,20 @@ async function loadDateFormat(c: Context<AppEnv>): Promise<string | null> {
 	}
 }
 
+/** The account's week start (Monday = 1), or null for Sunday, unset or unavailable. */
+async function loadWeekStartDay(c: Context<AppEnv>): Promise<0 | 1 | null> {
+	const adapter = c.get("ctx").internalAdapter?.();
+	if (!adapter) {
+		return null;
+	}
+	try {
+		const value = await adapter.getRootMeta(["weekStartDay"]);
+		return value === 1 ? 1 : value === 0 ? 0 : null;
+	} catch {
+		return null;
+	}
+}
+
 // POST /api/search/tree - In-place search of the zoomed subtree, driven by the upstream query AST
 searchRouter.post("/tree", async (c) => {
 	const {query, rootId} = await c.req.json<TreeSearchBody>();
@@ -85,7 +99,13 @@ searchRouter.post("/tree", async (c) => {
 		? loadTreeRowsWithBacklinks(getDatabase(), rootId)
 		: loadTreeRows(getDatabase(), rootId);
 	const dateFormat = await loadDateFormat(c);
-	return c.json(computeTreeSearch(rows, rootId, query, Date.now(), dateFormat === null ? {} : {dateFormat}));
+	const weekStartDay = await loadWeekStartDay(c);
+	return c.json(
+		computeTreeSearch(rows, rootId, query, Date.now(), {
+			...(dateFormat === null ? {} : {dateFormat}),
+			...(weekStartDay === null ? {} : {weekStartDay}),
+		}),
+	);
 });
 
 interface SwitcherBody {

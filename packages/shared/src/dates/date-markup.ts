@@ -130,6 +130,23 @@ function dateFormatFor(dateFormat: string, year: number, currentYear: number): s
 	return /[yY]/u.test(dateFormat) ? dateFormat : `${dateFormat}, YYYY`;
 }
 
+/**
+ * Upstream's item-menu footer stamp: `Today at <time>` for the current day, else `<date> at <time>`, the date format
+ * gaining a year when `date` is in another year than `now`.
+ */
+export function formatAccountTimestamp(
+	date: Date,
+	now: Date,
+	formats: {dateFormat: string; timeFormat: string},
+): string {
+	const moment = dayjs(date);
+	const time = moment.format(formats.timeFormat);
+	if (moment.isSame(now, "day")) {
+		return `Today at ${time}`;
+	}
+	return `${moment.format(dateFormatFor(formats.dateFormat, date.getFullYear(), now.getFullYear()))} at ${time}`;
+}
+
 /** Display label for a date pill, built from the attributes (inner text is ignored). */
 export function formatPillLabel(attrs: TimeAttrs, options: PillLabelOptions = {}): string {
 	const dateFormat = options.dateFormat ?? DATE_FORMATS_SHORT[0];

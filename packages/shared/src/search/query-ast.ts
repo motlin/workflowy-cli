@@ -1,7 +1,15 @@
 import {normalizeForSearch} from "./normalize.js";
 import {SEARCH_OPERATORS} from "./operators/index.js";
 import {mergeRanges, NO_MATCH, QUOTE_PAIRS, SubstringNode, TermNode} from "./query-nodes.js";
-import type {MatchResult, OperatorContext, ParseQueryOptions, QueryNode, Range, SearchItem} from "./query-nodes.js";
+import type {
+	MatchResult,
+	OperatorContext,
+	ParseQueryOptions,
+	QueryNode,
+	Range,
+	SearchItem,
+	TokenContext,
+} from "./query-nodes.js";
 
 export {SEARCH_OPERATORS} from "./operators/index.js";
 export type {
@@ -124,7 +132,7 @@ function wordEnd(query: string, start: number): number {
 	return end;
 }
 
-function tokenize(query: string): Token[] {
+function tokenize(query: string, context: TokenContext): Token[] {
 	const tokens: Token[] = [];
 	let pos = 0;
 	while (pos < query.length) {
@@ -137,7 +145,7 @@ function tokenize(query: string): Token[] {
 		let end: number | null = null;
 		let phrase: string | null = null;
 		for (const operator of SEARCH_OPERATORS) {
-			end = operator.parseToken?.(query, start) ?? null;
+			end = operator.parseToken?.(query, start, context) ?? null;
 			if (end !== null) {
 				break;
 			}
@@ -166,7 +174,7 @@ function buildToken(token: Token, context: OperatorContext): QueryNode | null {
 		return null;
 	}
 	const lowered = token.text.toLowerCase();
-	const operator = SEARCH_OPERATORS.find((op) => op.matchesToken(lowered));
+	const operator = SEARCH_OPERATORS.find((op) => op.matchesToken(lowered, context));
 	if (operator) {
 		return operator.create(lowered, token.text, context);
 	}
@@ -177,9 +185,18 @@ function buildToken(token: Token, context: OperatorContext): QueryNode | null {
 	return CJK_ONLY.test(term) ? new SubstringNode(term) : new TermNode(term, context.isLast);
 }
 
+function tokenContext(opts: ParseQueryOptions): TokenContext {
+	return {
+		now: opts.now ?? Date.now(),
+		dateFormat: opts.dateFormat ?? "YYYY-MM-DD",
+		weekStartDay: opts.weekStartDay ?? 0,
+	};
+}
+
 /** Parse a search query into an AST that matches SearchItems the way upstream Workflowy does. */
 export function parseQuery(q: string, opts: ParseQueryOptions = {}): QueryNode {
-	const tokens = tokenize(q);
+	const context = tokenContext(opts);
+	const tokens = tokenize(q, context);
 	const prefixLast = !isWhitespace(q.at(-1));
 	let current: QueryNode[] = [];
 	const groups: QueryNode[][] = [current];
@@ -190,8 +207,7 @@ export function parseQuery(q: string, opts: ParseQueryOptions = {}): QueryNode {
 			return;
 		}
 		const node = buildToken(token, {
-			now: opts.now ?? Date.now(),
-			dateFormat: opts.dateFormat ?? "YYYY-MM-DD",
+			...context,
 			isLast: prefixLast && index === tokens.length - 1,
 		});
 		if (node) {
@@ -225,7 +241,7 @@ export function parseNestedQuery(q: string, opts: ParseQueryOptions = {}): Neste
 	if (!q.includes(" > ")) {
 		return null;
 	}
-	const tokens = tokenize(q);
+	const tokens = tokenize(q, tokenContext(opts));
 	if (!tokens.some(isNest)) {
 		return null;
 	}

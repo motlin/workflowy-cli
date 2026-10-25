@@ -1,4 +1,5 @@
 import {afterAll, beforeAll, describe, expect, it, vi} from "vite-plus/test";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {createElement} from "react";
 import type {ReactNode, ReactPortal} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
@@ -52,12 +53,16 @@ const node: NodeResponse = {
 
 function render(target: NodeResponse): string {
 	return renderToStaticMarkup(
-		createElement(ItemMenuTrigger, {
-			node: target,
-			expanded: true,
-			actions: NOOP_ACTIONS,
-			onOpenChange: () => {},
-		}),
+		createElement(
+			QueryClientProvider,
+			{client: new QueryClient()},
+			createElement(ItemMenuTrigger, {
+				node: target,
+				expanded: true,
+				actions: NOOP_ACTIONS,
+				onOpenChange: () => {},
+			}),
+		),
 	);
 }
 
@@ -267,7 +272,7 @@ describe("item menu surface", () => {
 	it("renders the Changed / Created footer in upstream's format", () => {
 		const footer = scrollerChildren(render(node)).at(-1);
 		expect(footer?.replace(/^<div[^>]*>/u, "")).toBe(
-			'<div class="flex flex-col gap-s"><div><b>Changed:</b> Today at 09:13</div></div><div class="flex flex-col gap-s"><div><b>Created:</b> Today at 09:13</div></div></div>',
+			'<div class="flex flex-col gap-s"><div><b>Changed:</b> Today at 9:13am</div></div><div class="flex flex-col gap-s"><div><b>Created:</b> Today at 9:13am</div></div></div>',
 		);
 	});
 

@@ -1,5 +1,11 @@
+import DatabaseConstructor from "better-sqlite3";
+import {drizzle} from "drizzle-orm/better-sqlite3";
+import {migrate} from "drizzle-orm/better-sqlite3/migrator";
+import {join} from "node:path";
 import {describe, expect, it, vi} from "vite-plus/test";
 import {Hono} from "hono";
+import {CacheService} from "@workflowy/shared/cache";
+import * as schema from "@workflowy/shared/db";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {createAccountRouter} from "../src/server/routes/account.js";
@@ -50,7 +56,12 @@ function setup(meta: Record<string, unknown> | undefined, settings: Record<strin
 			Promise.resolve({userId: 42, joinedAt: new Date(1_500_000_000 * 1000), fullName: null}),
 		),
 	};
+	// A week-start change looks for a calendar root to re-layout, so the context needs a (calendar-less) cache.
+	const db = drizzle(new DatabaseConstructor(":memory:"), {schema});
+	migrate(db, {migrationsFolder: join(import.meta.dirname, "../../shared/src/db/migrations")});
 	const ctx = {
+		db,
+		cacheService: new CacheService(db),
 		internalAdapter: () => (meta ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();

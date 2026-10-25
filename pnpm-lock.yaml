@@ -336,9 +336,9 @@ importers:
 
   packages/shared:
     dependencies:
-      chrono-node:
-        specifier: ^2.10.3
-        version: 2.10.3
+      chrono-node-v1:
+        specifier: npm:chrono-node@1.4.4
+        version: chrono-node@1.4.4
       dayjs:
         specifier: ^1.11.23
         version: 1.11.23
@@ -3137,9 +3137,8 @@ packages:
     resolution: {integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==}
     engines: {node: '>=18'}
 
-  chrono-node@2.10.3:
-    resolution: {integrity: sha512-MOfrzXgSMZTH4SZ5gyRKQCVwiCrCKY+uYkSJiWoRLXS88DA6WGJm8UjgS+VVEuUQeew/UUXaxrO+SeDn/WCisg==}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+  chrono-node@1.4.4:
+    resolution: {integrity: sha512-vwsQ2Z6RhkfIsFYvcZtifa0eSQC6pl08fgXkcZXkfGAJk/OkdYAuGqM2yLhPzsuK3N+BmaKFBie/jGvLsiYMbA==}
 
   ci-info@4.4.0:
     resolution: {integrity: sha512-77PSwercCZU2Fc4sX94eF8k8Pxte6JAwL4/ICZLFjJLqegs7kCuAsqqj/70NQF6TvDpgFjkubQB2FW2ZZddvQg==}
@@ -7993,7 +7992,9 @@ snapshots:
 
   chownr@3.0.0: {}
 
-  chrono-node@2.10.3: {}
+  chrono-node@1.4.4:
+    dependencies:
+      dayjs: 1.11.23
 
   ci-info@4.4.0: {}
 

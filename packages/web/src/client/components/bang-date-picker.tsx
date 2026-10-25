@@ -204,7 +204,10 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 		}
 	}, []);
 
-	const guess = picker === null ? [] : guessDates(picker.term, {dateFormat: dateSettings.dateFormat});
+	const guess =
+		picker === null
+			? []
+			: guessDates(picker.term, {dateFormat: dateSettings.dateFormat, weekStartDay: dateSettings.weekStartDay});
 	const popup =
 		picker === null
 			? null

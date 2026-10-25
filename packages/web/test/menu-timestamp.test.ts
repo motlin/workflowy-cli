@@ -5,22 +5,34 @@ function localSeconds(year: number, month: number, day: number, hour: number, mi
 	return new Date(year, month - 1, day, hour, minute).getTime() / 1000;
 }
 
-const now = new Date(2026, 9, 1, 10, 5);
+const now = new Date(2026, 9, 23, 3, 44);
+const defaults = {dateFormat: "ddd, MMM D", timeFormat: "h:mma"};
+const isoStyle = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm"};
+
+const stamps = (formats: {dateFormat: string; timeFormat: string}) => [
+	formatMenuTimestamp(localSeconds(2026, 10, 23, 3, 44), now, formats),
+	formatMenuTimestamp(localSeconds(2026, 10, 21, 21, 25), now, formats),
+	formatMenuTimestamp(localSeconds(2025, 3, 5, 9, 7), now, formats),
+];
 
 describe("formatMenuTimestamp", () => {
-	it("formats the same calendar day as Today at HH:mm", () => {
-		expect(formatMenuTimestamp(localSeconds(2026, 10, 1, 9, 13), now)).toBe("Today at 09:13");
+	it("formats today, an earlier day this year and a day in another year with the account formats", () => {
+		expect(stamps(isoStyle)).toStrictEqual([
+			"Today at 03:44",
+			"2026-10-21 Wed at 21:25",
+			"2025-03-05 Wed at 09:07",
+		]);
 	});
 
-	it("formats an earlier day of the same year with weekday, month and day", () => {
-		expect(formatMenuTimestamp(localSeconds(2026, 9, 30, 22, 4), now)).toBe("Wed, Sep 30 at 22:04");
+	it("uses the default formats, adding the year only for another year", () => {
+		expect(stamps(defaults)).toStrictEqual([
+			"Today at 3:44am",
+			"Wed, Oct 21 at 9:25pm",
+			"Wed, Mar 5, 2025 at 9:07am",
+		]);
 	});
 
-	it("adds the year when it differs from now", () => {
-		expect(formatMenuTimestamp(localSeconds(2025, 12, 31, 8, 0), now)).toBe("Wed, Dec 31, 2025 at 08:00");
-	});
-
-	it("uses 24-hour time for midnight", () => {
-		expect(formatMenuTimestamp(localSeconds(2026, 10, 1, 0, 0), now)).toBe("Today at 00:00");
+	it("keeps midnight on the same day as Today", () => {
+		expect(formatMenuTimestamp(localSeconds(2026, 10, 23, 0, 0), now, isoStyle)).toBe("Today at 00:00");
 	});
 });

@@ -1,0 +1,2010 @@
+[
+	{
+		"phrase": "today",
+		"guess": [
+			{
+				"index": 0,
+				"text": "today",
+				"start": "2026-10-23 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 12:00",
+			"end": "2026-10-23 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "tomorrow",
+		"guess": [
+			{
+				"index": 0,
+				"text": "tomorrow",
+				"start": "2026-10-24 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "tmr",
+		"guess": [],
+		"search": {
+			"start": "2026-10-24 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "yesterday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "yesterday",
+				"start": "2026-10-22 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-22 12:00",
+			"end": "2026-10-22 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "now",
+		"guess": [
+			{
+				"index": 0,
+				"text": "now",
+				"start": "2026-10-23 20:30",
+				"end": null,
+				"known": ["year", "month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 20:30",
+			"end": "2026-10-23 20:30",
+			"known": ["year", "month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "tonight",
+		"guess": [
+			{
+				"index": 0,
+				"text": "tonight",
+				"start": "2026-10-23 22:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 22:00",
+			"end": "2026-10-23 22:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "last night",
+		"guess": [
+			{
+				"index": 0,
+				"text": "last night",
+				"start": "2026-10-22 00:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-22 00:00",
+			"end": "2026-10-22 00:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "this morning",
+		"guess": [
+			{
+				"index": 0,
+				"text": "this morning",
+				"start": "2026-10-23 06:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-23 06:00",
+			"end": "2026-10-23 06:00",
+			"known": []
+		}
+	},
+	{
+		"phrase": "this evening",
+		"guess": [
+			{
+				"index": 0,
+				"text": "this evening",
+				"start": "2026-10-23 20:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-23 20:00",
+			"end": "2026-10-23 20:00",
+			"known": []
+		}
+	},
+	{
+		"phrase": "noon",
+		"guess": [
+			{
+				"index": 0,
+				"text": "noon",
+				"start": "2026-10-23 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-23 12:00",
+			"end": "2026-10-23 12:00",
+			"known": []
+		}
+	},
+	{
+		"phrase": "midnight",
+		"guess": [
+			{
+				"index": 0,
+				"text": "midnight",
+				"start": "2026-10-23 00:00",
+				"end": null,
+				"known": ["hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 00:00",
+			"end": "2026-10-23 00:00",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "this week",
+		"guess": [
+			{
+				"index": 0,
+				"text": "this week",
+				"start": "2026-10-18 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-18 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "next week",
+		"guess": [
+			{
+				"index": 0,
+				"text": "next week",
+				"start": "2026-10-25 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-25 12:00",
+			"end": "2026-10-31 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "last week",
+		"guess": [
+			{
+				"index": 0,
+				"text": "last week",
+				"start": "2026-10-11 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-11 12:00",
+			"end": "2026-10-17 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "this month",
+		"guess": [
+			{
+				"index": 0,
+				"text": "this month",
+				"start": "2026-10-01 12:00",
+				"end": null,
+				"known": ["year", "month"]
+			}
+		],
+		"search": {
+			"start": "2026-10-01 12:00",
+			"end": "2026-10-01 12:00",
+			"known": ["year", "month"]
+		}
+	},
+	{
+		"phrase": "next month",
+		"guess": [
+			{
+				"index": 0,
+				"text": "next month",
+				"start": "2026-11-23 12:00",
+				"end": null,
+				"known": ["year", "month"]
+			}
+		],
+		"search": {
+			"start": "2026-11-23 12:00",
+			"end": "2026-11-23 12:00",
+			"known": ["year", "month"]
+		}
+	},
+	{
+		"phrase": "last month",
+		"guess": [
+			{
+				"index": 0,
+				"text": "last month",
+				"start": "2026-09-23 12:00",
+				"end": null,
+				"known": ["year", "month"]
+			}
+		],
+		"search": {
+			"start": "2026-09-23 12:00",
+			"end": "2026-09-23 12:00",
+			"known": ["year", "month"]
+		}
+	},
+	{
+		"phrase": "this year",
+		"guess": [
+			{
+				"index": 0,
+				"text": "this year",
+				"start": "2026-01-01 12:00",
+				"end": null,
+				"known": ["year"]
+			}
+		],
+		"search": {
+			"start": "2026-01-01 12:00",
+			"end": "2026-01-01 12:00",
+			"known": ["year"]
+		}
+	},
+	{
+		"phrase": "next year",
+		"guess": [
+			{
+				"index": 0,
+				"text": "next year",
+				"start": "2027-10-23 12:00",
+				"end": null,
+				"known": ["year"]
+			}
+		],
+		"search": {
+			"start": "2027-10-23 12:00",
+			"end": "2027-10-23 12:00",
+			"known": ["year"]
+		}
+	},
+	{
+		"phrase": "last year",
+		"guess": [
+			{
+				"index": 0,
+				"text": "last year",
+				"start": "2025-10-23 12:00",
+				"end": null,
+				"known": ["year"]
+			}
+		],
+		"search": {
+			"start": "2025-10-23 12:00",
+			"end": "2025-10-23 12:00",
+			"known": ["year"]
+		}
+	},
+	{
+		"phrase": "in 3 days",
+		"guess": [
+			{
+				"index": 0,
+				"text": "in 3 days",
+				"start": "2026-10-26 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "3 days ago",
+		"guess": [
+			{
+				"index": 0,
+				"text": "3 days ago",
+				"start": "2026-10-20 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-20 12:00",
+			"end": "2026-10-20 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "in 2 weeks",
+		"guess": [
+			{
+				"index": 0,
+				"text": "in 2 weeks",
+				"start": "2026-11-06 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-11-06 12:00",
+			"end": "2026-11-06 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "2 weeks ago",
+		"guess": [
+			{
+				"index": 0,
+				"text": "2 weeks ago",
+				"start": "2026-10-09 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-09 12:00",
+			"end": "2026-10-09 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "in a week",
+		"guess": [
+			{
+				"index": 0,
+				"text": "in a week",
+				"start": "2026-10-30 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-30 12:00",
+			"end": "2026-10-30 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "a week from now",
+		"guess": [
+			{
+				"index": 0,
+				"text": "a week from now",
+				"start": "2026-10-30 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-30 12:00",
+			"end": "2026-10-30 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "in 1 month",
+		"guess": [
+			{
+				"index": 0,
+				"text": "in 1 month",
+				"start": "2026-11-23 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-11-23 12:00",
+			"end": "2026-11-23 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "in 2 hours",
+		"guess": [
+			{
+				"index": 0,
+				"text": "in 2 hours",
+				"start": "2026-10-23 22:30",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-23 22:30",
+			"end": "2026-10-23 22:30",
+			"known": ["year", "month", "day", "hour"]
+		}
+	},
+	{
+		"phrase": "5 days from now",
+		"guess": [
+			{
+				"index": 0,
+				"text": "5 days from now",
+				"start": "2026-10-28 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-28 12:00",
+			"end": "2026-10-28 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "within 3 days",
+		"guess": [
+			{
+				"index": 0,
+				"text": "within 3 days",
+				"start": "2026-10-26 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "two days ago",
+		"guess": [
+			{
+				"index": 0,
+				"text": "two days ago",
+				"start": "2026-10-21 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-21 12:00",
+			"end": "2026-10-21 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "monday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "monday",
+				"start": "2026-10-26 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "mon",
+		"guess": [],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "fri",
+		"guess": [],
+		"search": {
+			"start": "2026-10-23 12:00",
+			"end": "2026-10-23 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "friday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "friday",
+				"start": "2026-10-23 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 12:00",
+			"end": "2026-10-23 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "next monday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "next monday",
+				"start": "2026-10-26 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "last friday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "last friday",
+				"start": "2026-10-16 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-16 12:00",
+			"end": "2026-10-16 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "this friday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "this friday",
+				"start": "2026-10-23 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 12:00",
+			"end": "2026-10-23 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "sat",
+		"guess": [],
+		"search": {
+			"start": "2026-10-24 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "sunday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "sunday",
+				"start": "2026-10-25 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-25 12:00",
+			"end": "2026-10-25 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "oct",
+		"guess": [],
+		"search": {
+			"start": "2026-10-01 12:00",
+			"end": "2026-10-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "dec",
+		"guess": [],
+		"search": {
+			"start": "2026-12-01 12:00",
+			"end": "2026-12-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "may",
+		"guess": [],
+		"search": {
+			"start": "2026-05-01 12:00",
+			"end": "2026-05-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "october",
+		"guess": [
+			{
+				"index": 0,
+				"text": "october",
+				"start": "2026-10-01 12:00",
+				"end": null,
+				"known": ["month"]
+			}
+		],
+		"search": {
+			"start": "2026-10-01 12:00",
+			"end": "2026-10-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "oct 15",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 15",
+				"start": "2027-10-15 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-15 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "15 oct",
+		"guess": [
+			{
+				"index": 0,
+				"text": "15 oct",
+				"start": "2027-10-15 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-15 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "october 15th",
+		"guess": [
+			{
+				"index": 0,
+				"text": "october 15th",
+				"start": "2027-10-15 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-15 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "the 15th",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "15th",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "jan 5",
+		"guess": [
+			{
+				"index": 0,
+				"text": "jan 5",
+				"start": "2027-01-05 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-01-05 12:00",
+			"end": "2027-01-05 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "jan 5 2027",
+		"guess": [
+			{
+				"index": 0,
+				"text": "jan 5 2027",
+				"start": "2027-01-05 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-01-05 12:00",
+			"end": "2027-01-05 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "dec 31",
+		"guess": [
+			{
+				"index": 0,
+				"text": "dec 31",
+				"start": "2026-12-31 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-12-31 12:00",
+			"end": "2026-12-31 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "10/15",
+		"guess": [
+			{
+				"index": 0,
+				"text": "10/15",
+				"start": "2027-10-15 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-15 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "10/15/2026",
+		"guess": [
+			{
+				"index": 0,
+				"text": "10/15/2026",
+				"start": "2026-10-15 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-15 12:00",
+			"end": "2026-10-15 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "2026-10-15",
+		"guess": [
+			{
+				"index": 0,
+				"text": "2026-10-15",
+				"start": "2026-10-15 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-15 12:00",
+			"end": "2026-10-15 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "15.10.2026",
+		"guess": [
+			{
+				"index": 0,
+				"text": "15.10.2026",
+				"start": "2026-10-15 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-15 12:00",
+			"end": "2026-10-15 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 15 - oct 20",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 15 - oct 20",
+				"start": "2027-10-15 12:00",
+				"end": "2027-10-20 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-20 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 15 to 20",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 15 to 20",
+				"start": "2027-10-15 12:00",
+				"end": "2027-10-20 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-20 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 15-20",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 15-20",
+				"start": "2027-10-15 12:00",
+				"end": "2027-10-20 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-20 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 30 - nov 2",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 30 - nov 2",
+				"start": "2026-10-30 12:00",
+				"end": "2026-11-02 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-30 12:00",
+			"end": "2026-11-02 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "dec 30 - jan 2",
+		"guess": [
+			{
+				"index": 0,
+				"text": "dec 30 - jan 2",
+				"start": "2026-12-30 12:00",
+				"end": "2027-01-02 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-12-30 12:00",
+			"end": "2027-01-02 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "fri - mon",
+		"guess": [
+			{
+				"index": 0,
+				"text": "fri - mon",
+				"start": "2026-10-23 12:00",
+				"end": "2026-10-26 12:00",
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 12:00",
+			"end": "2026-10-23 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "from oct 1 to oct 5",
+		"guess": [
+			{
+				"index": 5,
+				"text": "oct 1 to oct 5",
+				"start": "2027-10-01 12:00",
+				"end": "2027-10-05 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-01 12:00",
+			"end": "2027-10-05 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "3pm",
+		"guess": [],
+		"search": {
+			"start": "2026-10-23 15:00",
+			"end": "2026-10-23 15:00",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "at 3pm",
+		"guess": [
+			{
+				"index": 0,
+				"text": "at 3pm",
+				"start": "2026-10-23 15:00",
+				"end": null,
+				"known": ["hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 15:00",
+			"end": "2026-10-23 15:00",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "tomorrow at 3pm",
+		"guess": [
+			{
+				"index": 0,
+				"text": "tomorrow at 3pm",
+				"start": "2026-10-24 15:00",
+				"end": null,
+				"known": ["year", "month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 15:00",
+			"end": "2026-10-24 15:00",
+			"known": ["year", "month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "tomorrow 3pm",
+		"guess": [
+			{
+				"index": 0,
+				"text": "tomorrow 3pm",
+				"start": "2026-10-24 15:00",
+				"end": null,
+				"known": ["year", "month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 15:00",
+			"end": "2026-10-24 15:00",
+			"known": ["year", "month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "3pm tomorrow",
+		"guess": [
+			{
+				"index": 0,
+				"text": "3pm tomorrow",
+				"start": "2026-10-24 15:00",
+				"end": null,
+				"known": ["year", "month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 15:00",
+			"end": "2026-10-24 15:00",
+			"known": ["year", "month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "10am - 11am tomorrow",
+		"guess": [
+			{
+				"index": 0,
+				"text": "10am - 11am tomorrow",
+				"start": "2026-10-24 10:00",
+				"end": "2026-10-24 11:00",
+				"known": ["year", "month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 10:00",
+			"end": "2026-10-24 11:00",
+			"known": ["year", "month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "5pm-6pm",
+		"guess": [
+			{
+				"index": 0,
+				"text": "5pm-6pm",
+				"start": "2026-10-23 17:00",
+				"end": "2026-10-23 18:00",
+				"known": ["hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 17:00",
+			"end": "2026-10-23 18:00",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "9:30",
+		"guess": [
+			{
+				"index": 0,
+				"text": "9:30",
+				"start": "2026-10-23 09:30",
+				"end": null,
+				"known": ["hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 09:30",
+			"end": "2026-10-23 09:30",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "oct 15 at 9:30",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 15 at 9:30",
+				"start": "2027-10-15 09:30",
+				"end": null,
+				"known": ["month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 09:30",
+			"end": "2027-10-15 09:30",
+			"known": ["month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "oct 15 9am",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 15 9am",
+				"start": "2027-10-15 09:00",
+				"end": null,
+				"known": ["month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 09:00",
+			"end": "2027-10-15 09:00",
+			"known": ["month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "demain",
+		"guess": [
+			{
+				"index": 0,
+				"text": "demain",
+				"start": "2026-10-24 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "mañana",
+		"guess": [
+			{
+				"index": 0,
+				"text": "mañana",
+				"start": "2026-10-24 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": null
+	},
+	{
+		"phrase": "morgen",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "明日",
+		"guess": [],
+		"search": {
+			"start": "2026-10-24 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "lundi",
+		"guess": [
+			{
+				"index": 0,
+				"text": "lundi",
+				"start": "2026-10-26 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "lunes",
+		"guess": [
+			{
+				"index": 0,
+				"text": "lunes",
+				"start": "2026-10-26 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "hier",
+		"guess": [
+			{
+				"index": 0,
+				"text": "hier",
+				"start": "2026-10-22 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-22 12:00",
+			"end": "2026-10-22 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "heute",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "weekend",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "this weekend",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "next weekend",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "end of month",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "by friday",
+		"guess": [
+			{
+				"index": 3,
+				"text": "friday",
+				"start": "2026-10-23 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 12:00",
+			"end": "2026-10-23 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "(oct 15)",
+		"guess": [
+			{
+				"index": 1,
+				"text": "oct 15",
+				"start": "2027-10-15 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": null
+	},
+	{
+		"phrase": "nov",
+		"guess": [],
+		"search": {
+			"start": "2026-11-01 12:00",
+			"end": "2026-11-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "n",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "1",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "12",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "2026",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "q4",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "a1",
+		"guess": [],
+		"search": null
+	},
+	{
+		"phrase": "3 days",
+		"guess": [
+			{
+				"index": 0,
+				"text": "3 days",
+				"start": "2026-10-26 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 23",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 23",
+				"start": "2027-10-23 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-23 12:00",
+			"end": "2027-10-23 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "10/23",
+		"guess": [
+			{
+				"index": 0,
+				"text": "10/23",
+				"start": "2027-10-23 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-23 12:00",
+			"end": "2027-10-23 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "23 oct",
+		"guess": [
+			{
+				"index": 0,
+				"text": "23 oct",
+				"start": "2027-10-23 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-23 12:00",
+			"end": "2027-10-23 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 22",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 22",
+				"start": "2027-10-22 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-22 12:00",
+			"end": "2027-10-22 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 24",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 24",
+				"start": "2026-10-24 12:00",
+				"end": null,
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "tuesday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "tuesday",
+				"start": "2026-10-27 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-27 12:00",
+			"end": "2026-10-27 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "this tuesday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "this tuesday",
+				"start": "2026-10-27 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-27 12:00",
+			"end": "2026-10-27 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "last tuesday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "last tuesday",
+				"start": "2026-10-13 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-13 12:00",
+			"end": "2026-10-13 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "last saturday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "last saturday",
+				"start": "2026-10-17 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-17 12:00",
+			"end": "2026-10-17 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "next sunday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "next sunday",
+				"start": "2026-10-25 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-25 12:00",
+			"end": "2026-10-25 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "next friday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "next friday",
+				"start": "2026-10-30 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-30 12:00",
+			"end": "2026-10-30 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "next saturday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "next saturday",
+				"start": "2026-10-31 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-31 12:00",
+			"end": "2026-10-31 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "saturday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "saturday",
+				"start": "2026-10-24 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "thursday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "thursday",
+				"start": "2026-10-29 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-29 12:00",
+			"end": "2026-10-29 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "march",
+		"guess": [
+			{
+				"index": 0,
+				"text": "march",
+				"start": "2027-03-01 12:00",
+				"end": null,
+				"known": ["month"]
+			}
+		],
+		"search": {
+			"start": "2027-03-01 12:00",
+			"end": "2027-03-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "april",
+		"guess": [
+			{
+				"index": 0,
+				"text": "april",
+				"start": "2027-04-01 12:00",
+				"end": null,
+				"known": ["month"]
+			}
+		],
+		"search": {
+			"start": "2027-04-01 12:00",
+			"end": "2027-04-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "january",
+		"guess": [
+			{
+				"index": 0,
+				"text": "january",
+				"start": "2027-01-01 12:00",
+				"end": null,
+				"known": ["month"]
+			}
+		],
+		"search": {
+			"start": "2027-01-01 12:00",
+			"end": "2027-01-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "november",
+		"guess": [
+			{
+				"index": 0,
+				"text": "november",
+				"start": "2026-11-01 12:00",
+				"end": null,
+				"known": ["month"]
+			}
+		],
+		"search": {
+			"start": "2026-11-01 12:00",
+			"end": "2026-11-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "sep",
+		"guess": [],
+		"search": {
+			"start": "2026-09-01 12:00",
+			"end": "2026-09-01 12:00",
+			"known": ["month"]
+		}
+	},
+	{
+		"phrase": "this sunday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "this sunday",
+				"start": "2026-10-25 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-25 12:00",
+			"end": "2026-10-25 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "tue",
+		"guess": [],
+		"search": {
+			"start": "2026-10-27 12:00",
+			"end": "2026-10-27 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "wed",
+		"guess": [],
+		"search": {
+			"start": "2026-10-28 12:00",
+			"end": "2026-10-28 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "thu",
+		"guess": [],
+		"search": {
+			"start": "2026-10-29 12:00",
+			"end": "2026-10-29 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "4pm",
+		"guess": [],
+		"search": {
+			"start": "2026-10-23 16:00",
+			"end": "2026-10-23 16:00",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "at 9am",
+		"guess": [
+			{
+				"index": 0,
+				"text": "at 9am",
+				"start": "2026-10-23 09:00",
+				"end": null,
+				"known": ["hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 09:00",
+			"end": "2026-10-23 09:00",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "9am",
+		"guess": [],
+		"search": {
+			"start": "2026-10-23 09:00",
+			"end": "2026-10-23 09:00",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "tomorrow 1am",
+		"guess": [
+			{
+				"index": 0,
+				"text": "tomorrow 1am",
+				"start": "2026-10-24 01:00",
+				"end": null,
+				"known": ["year", "month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 01:00",
+			"end": "2026-10-24 01:00",
+			"known": ["year", "month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "in 0 days",
+		"guess": [
+			{
+				"index": 0,
+				"text": "in 0 days",
+				"start": "2026-10-23 12:00",
+				"end": null,
+				"known": []
+			}
+		],
+		"search": {
+			"start": "2026-10-23 12:00",
+			"end": "2026-10-23 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "2 days",
+		"guess": [
+			{
+				"index": 0,
+				"text": "2 days",
+				"start": "2026-10-25 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-25 12:00",
+			"end": "2026-10-25 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "10 days",
+		"guess": [
+			{
+				"index": 0,
+				"text": "10 days",
+				"start": "2026-11-02 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-11-02 12:00",
+			"end": "2026-11-02 12:00",
+			"known": ["year", "month", "day"]
+		}
+	},
+	{
+		"phrase": "past friday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "past friday",
+				"start": "2026-10-16 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-16 12:00",
+			"end": "2026-10-16 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "friday this week",
+		"guess": [
+			{
+				"index": 0,
+				"text": "friday this week",
+				"start": "2026-10-18 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-18 12:00",
+			"end": "2026-10-18 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "monday next week",
+		"guess": [
+			{
+				"index": 0,
+				"text": "monday next week",
+				"start": "2026-10-25 12:00",
+				"end": null,
+				"known": ["year", "month", "day", "weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-25 12:00",
+			"end": "2026-10-25 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "on monday",
+		"guess": [
+			{
+				"index": 0,
+				"text": "on monday",
+				"start": "2026-10-26 12:00",
+				"end": null,
+				"known": ["weekday"]
+			}
+		],
+		"search": {
+			"start": "2026-10-26 12:00",
+			"end": "2026-10-26 12:00",
+			"known": ["year", "month", "day", "weekday"]
+		}
+	},
+	{
+		"phrase": "oct 15 - 20",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 15 - 20",
+				"start": "2027-10-15 12:00",
+				"end": "2027-10-20 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-20 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 20 - oct 15",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 20 - oct 15",
+				"start": "2027-10-15 12:00",
+				"end": "2027-10-20 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 12:00",
+			"end": "2027-10-20 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "nov 2 - oct 30",
+		"guess": [
+			{
+				"index": 0,
+				"text": "nov 2 - oct 30",
+				"start": "2026-11-02 12:00",
+				"end": "2027-10-30 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-11-02 12:00",
+			"end": "2027-10-30 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "dec 30 to jan 2",
+		"guess": [
+			{
+				"index": 0,
+				"text": "dec 30 to jan 2",
+				"start": "2026-12-30 12:00",
+				"end": "2027-01-02 12:00",
+				"known": ["month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-12-30 12:00",
+			"end": "2027-01-02 12:00",
+			"known": ["month", "day"]
+		}
+	},
+	{
+		"phrase": "oct 15 3pm - 5pm",
+		"guess": [
+			{
+				"index": 0,
+				"text": "oct 15 3pm - 5pm",
+				"start": "2027-10-15 15:00",
+				"end": "2027-10-15 17:00",
+				"known": ["month", "day", "hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2027-10-15 15:00",
+			"end": "2027-10-15 17:00",
+			"known": ["month", "day", "hour", "minute"]
+		}
+	},
+	{
+		"phrase": "3pm - 5pm",
+		"guess": [
+			{
+				"index": 0,
+				"text": "3pm - 5pm",
+				"start": "2026-10-23 15:00",
+				"end": "2026-10-23 17:00",
+				"known": ["hour", "minute"]
+			}
+		],
+		"search": {
+			"start": "2026-10-23 15:00",
+			"end": "2026-10-23 17:00",
+			"known": ["hour", "minute"]
+		}
+	},
+	{
+		"phrase": "noon tomorrow",
+		"guess": [
+			{
+				"index": 0,
+				"text": "noon tomorrow",
+				"start": "2026-10-24 12:00",
+				"end": null,
+				"known": ["year", "month", "day"]
+			}
+		],
+		"search": {
+			"start": "2026-10-24 12:00",
+			"end": "2026-10-24 12:00",
+			"known": ["year", "month", "day"]
+		}
+	}
+]

@@ -11,6 +11,7 @@ import {Hono} from "hono";
 import {z} from "zod";
 import type {ServerSetting, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv} from "../context.js";
+import {reapplyWeekLayout} from "../calendar-layout.js";
 import {withAdapter} from "../internal-api.js";
 
 const PreferencesPatchSchema = z
@@ -96,6 +97,8 @@ export function createPreferencesRouter(): Hono<AppEnv> {
 				return c.json({error: body.error.message}, 400);
 			}
 			const patch = body.data;
+			const previousWeekStartDay =
+				patch.weekStartDay === undefined ? undefined : await adapter.getRootMeta(PATHS.weekStartDay);
 			const changes = KEYS.filter((key) => key in patch).map((key) => ({
 				path: PATHS[key],
 				value: patch[key] ?? undefined,
@@ -108,6 +111,12 @@ export function createPreferencesRouter(): Hono<AppEnv> {
 				if (value !== undefined) {
 					await adapter.setSetting(SETTINGS[key], value);
 				}
+			}
+			if (
+				patch.weekStartDay !== undefined &&
+				(patch.weekStartDay ?? undefined) !== (previousWeekStartDay ?? undefined)
+			) {
+				await reapplyWeekLayout(c.get("ctx"), adapter);
 			}
 			return c.json(await readPreferences(adapter));
 		}),

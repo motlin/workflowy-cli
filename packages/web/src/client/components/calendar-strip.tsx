@@ -185,7 +185,11 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 				: createPortal(
 						<div ref={popup} className="contents">
 							<DatePickerPopup
-								selected={stripPickerSelection(term, date, guessDates(term, {dateFormat}))}
+								selected={stripPickerSelection(
+									term,
+									date,
+									guessDates(term, {dateFormat, weekStartDay}),
+								)}
 								weekStartDay={weekStartDay}
 								showControls={false}
 								renderDayContent={calendarDayContent(eventDays.hasEvent)}
@@ -237,7 +241,7 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 								position={open}
 								onTermChange={setTerm}
 								onEnter={() => {
-									select(guessDates(term, {dateFormat})[0]);
+									select(guessDates(term, {dateFormat, weekStartDay})[0]);
 								}}
 								onApply={(dates) => {
 									select(dates[0]);
