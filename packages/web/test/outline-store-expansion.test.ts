@@ -239,3 +239,123 @@ describe("refreshExpansion", () => {
 		expect(calls()).toStrictEqual([]);
 	});
 });
+
+describe("expansion refresh follow-ups", () => {
+	const GET = {url: "/api/v1/expansion", method: undefined, body: undefined};
+	const WAIT = {url: "/api/v1/expansion?wait=1", method: undefined, body: undefined};
+
+	it("collects a background refresh with one ?wait=1 follow-up when the page-load answer is refreshing", async () => {
+		const {store, loadExpansion} = await loadModules();
+		fetchMock
+			.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a"], refreshing: true})))
+			.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a", "b"]})));
+		await loadExpansion();
+		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
+			expandedIds: new Set(["a", "b"]),
+			calls: [GET, WAIT],
+		});
+	});
+
+	it("does not apply the follow-up when a local change landed between the two GETs", async () => {
+		const {store, loadExpansion} = await loadModules();
+		fetchMock
+			.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a"], refreshing: true})))
+			.mockImplementationOnce(async () => {
+				store.getState().expand("z");
+				return Promise.resolve(Response.json({expandedIds: ["a", "b"]}));
+			});
+		await loadExpansion();
+		const afterLoad = store.getState().expandedIds;
+		expect(afterLoad).toStrictEqual(new Set(["a", "z"]));
+	});
+
+	it("sends the last ETag on refresh GETs and treats a 304 as a no-op", async () => {
+		const {store, loadExpansion} = await loadModules();
+		const {refreshExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
+		fetchMock.mockImplementationOnce(async () =>
+			Promise.resolve(Response.json({expandedIds: ["a"]}, {headers: {etag: '"f1"'}})),
+		);
+		await loadExpansion(0);
+		fetchMock.mockClear();
+		fetchMock.mockImplementationOnce(async () => Promise.resolve(new Response(null, {status: 304})));
+		await refreshExpansion(30_000);
+		const [[, init]] = fetchMock.mock.calls;
+		expect({
+			expandedIds: store.getState().expandedIds,
+			ifNoneMatch: new Headers(init?.headers).get("if-none-match"),
+			count: fetchMock.mock.calls.length,
+		}).toStrictEqual({expandedIds: new Set(["a"]), ifNoneMatch: '"f1"', count: 1});
+	});
+
+	it("aborts a GET that has not answered in 30s and keeps the expanded set", async () => {
+		const {store, loadExpansion} = await loadModules();
+		const {refreshExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
+		fetchMock.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a"]})));
+		await loadExpansion(0);
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.useFakeTimers();
+		fetchMock.mockImplementationOnce(
+			async (_url, init) =>
+				new Promise<Response>((_resolve, reject) => {
+					init?.signal?.addEventListener("abort", () => {
+						reject(new DOMException("aborted", "AbortError"));
+					});
+				}),
+		);
+		let settled = false;
+		const refreshing = refreshExpansion(30_000).then(() => {
+			settled = true;
+			return settled;
+		});
+		await vi.advanceTimersByTimeAsync(29_999);
+		const early = settled;
+		await vi.advanceTimersByTimeAsync(1);
+		await refreshing;
+		vi.useRealTimers();
+		const logged = errors.mock.calls.length;
+		errors.mockRestore();
+		expect({early, settled, expandedIds: store.getState().expandedIds, logged}).toStrictEqual({
+			early: false,
+			settled: true,
+			expandedIds: new Set(["a"]),
+			logged: 1,
+		});
+	});
+});
+
+describe("expansion polling", () => {
+	async function polling(hasFocus: boolean) {
+		const modules = await loadModules();
+		const {startExpansionPolling, EXPANSION_POLL_MS} = await import("../src/client/hooks/use-expansion-sync.js");
+		vi.stubGlobal("document", {visibilityState: "visible", hasFocus: () => hasFocus});
+		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ["a"]})));
+		await modules.loadExpansion(0);
+		fetchMock.mockClear();
+		return {startExpansionPolling, EXPANSION_POLL_MS};
+	}
+
+	it("refreshes with ?fresh=1 every 120s while the tab is visible and focused", async () => {
+		const {startExpansionPolling, EXPANSION_POLL_MS} = await polling(true);
+		vi.useFakeTimers();
+		vi.setSystemTime(1_000_000);
+		const stop = startExpansionPolling();
+		await vi.advanceTimersByTimeAsync(EXPANSION_POLL_MS);
+		stop();
+		vi.useRealTimers();
+		expect({period: EXPANSION_POLL_MS, calls: calls().map((c) => c.url)}).toStrictEqual({
+			period: 120_000,
+			calls: ["/api/v1/expansion?fresh=1"],
+		});
+	});
+
+	it("does not refresh while the tab lacks focus", async () => {
+		const {startExpansionPolling, EXPANSION_POLL_MS} = await polling(false);
+		vi.useFakeTimers();
+		vi.setSystemTime(1_000_000);
+		const stop = startExpansionPolling();
+		await vi.advanceTimersByTimeAsync(EXPANSION_POLL_MS * 2);
+		stop();
+		vi.useRealTimers();
+		expect(calls()).toStrictEqual([]);
+	});
+});

@@ -2,7 +2,7 @@ import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
-import {afterEach, describe, expect, it} from "vite-plus/test";
+import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
 import * as schema from "../src/db/schema.js";
@@ -282,6 +282,96 @@ describe("WorkflowyInternalAdapter expansion", () => {
 				project_expansions_delta: {[`v_${ALPHA.slice(0, 4)}${BRAVO.slice(0, 4)}9c9c`]: true},
 			},
 		]);
+	});
+
+	it("answers a stale read with the old keys and refreshing, then the new keys once the refresh resolves", async () => {
+		const {api, adapter, clock} = tracked();
+		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+		await adapter.getExpandedIds();
+		clock.ms += 31_000;
+		let release: () => void = () => {};
+		api.respond("/get_tree_data/", async () => {
+			await new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			return treeData(["9c9c9c9c"]);
+		});
+
+		const stale = await adapter.getExpansionState();
+		const waiting = adapter.getExpansionState({wait: true});
+		await vi.waitFor(() => {
+			expect(api.requests.filter((r) => r.path === "/get_tree_data/")).toHaveLength(2);
+		});
+		release();
+		const settled = await waiting;
+
+		expect({
+			stale: {expandedIds: stale.expandedIds, refreshing: stale.refreshing, fetchedAt: stale.fetchedAt},
+			settled: {expandedIds: settled.expandedIds, refreshing: settled.refreshing, fetchedAt: settled.fetchedAt},
+		}).toStrictEqual({
+			stale: {expandedIds: [ALPHA, ALPHA_TWIN], refreshing: true, fetchedAt: START_MS},
+			settled: {expandedIds: [CHARLIE], refreshing: false, fetchedAt: START_MS + 31_000},
+		});
+	});
+
+	it("fingerprints the keys: stable while unchanged, different once they change", async () => {
+		const {api, adapter} = tracked();
+		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+		const first = await adapter.getExpansionState();
+		const again = await adapter.getExpansionState();
+		await adapter.setExpanded({[BRAVO]: true});
+		const changed = await adapter.getExpansionState();
+
+		expect({
+			stable: first.fingerprint === again.fingerprint,
+			changed: first.fingerprint !== changed.fingerprint,
+			shape: /^[0-9a-f]{40}$/u.test(first.fingerprint),
+		}).toStrictEqual({stable: true, changed: true, shape: true});
+	});
+
+	it("bounds a fresh read at 15s, answering the cached keys while the refresh keeps running", async () => {
+		vi.useFakeTimers();
+		try {
+			const {api, adapter, clock} = tracked();
+			api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+			await adapter.getExpandedIds();
+			clock.ms += 60_000;
+			api.respond("/get_tree_data/", async () => new Promise<Response>(() => {}));
+
+			let settled: Awaited<ReturnType<typeof adapter.getExpansionState>> | undefined;
+			void adapter.getExpansionState({fresh: true}).then((state) => {
+				settled = state;
+				return state;
+			});
+			await vi.advanceTimersByTimeAsync(14_999);
+			const early = settled;
+			await vi.advanceTimersByTimeAsync(1);
+
+			expect({early, expandedIds: settled?.expandedIds, refreshing: settled?.refreshing}).toStrictEqual({
+				early: undefined,
+				expandedIds: [ALPHA, ALPHA_TWIN],
+				refreshing: true,
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("keeps a durable local copy of every pushed expansion key, never refreshed from the server", async () => {
+		const {api, adapter, clock} = tracked();
+		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+
+		await adapter.setExpanded({[ALPHA]: true, [BRAVO]: false});
+		await adapter.setRawExpansionKeys({"leftbar__home__None/x/__abcdefgh": true});
+		await adapter.setExpanded({[BRAVO]: true});
+		clock.ms += 60_000;
+		await adapter.getExpandedIds({fresh: true});
+
+		expect(adapter.localSettings()).toStrictEqual({
+			"expansion:1a2b3c4d": true,
+			"expansion:5e6f7a8b": true,
+			"expansion:leftbar__home__None/x/__abcdefgh": true,
+		});
 	});
 
 	it("sends nothing for no changes", async () => {

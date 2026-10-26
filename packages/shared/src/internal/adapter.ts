@@ -1,3 +1,4 @@
+import {createHash} from "node:crypto";
 import {and, eq, inArray, like} from "drizzle-orm";
 import type {BaseSQLiteDatabase} from "drizzle-orm/sqlite-core";
 import {z} from "zod";
@@ -42,6 +43,9 @@ type AdapterDatabase = BaseSQLiteDatabase<"sync", any, any>;
 const FRESHNESS_MS = 30_000;
 /** A `fresh` expanded-ids read waits on `/get_tree_data/` at most this often. */
 const FRESH_EXPANSION_THROTTLE_MS = 5000;
+
+/** A fresh or waiting expansion read waits on `/get_tree_data/` at most this long, then answers the cached keys. */
+const FRESH_WAIT_MS = 15_000;
 
 /** Settings the server stores; every other setting is client-only upstream. */
 export type ServerSetting =
@@ -116,6 +120,14 @@ const LayoutUndoSchema = z.object({
 	writes: z.array(z.custom<LayoutWrite>()),
 	metadata: z.record(z.string(), MetadataSchema),
 });
+
+/** What `getExpansionState` reports besides the ids; see there. */
+export interface ExpansionState {
+	expandedIds: string[];
+	fetchedAt: number;
+	refreshing: boolean;
+	fingerprint: string;
+}
 
 const ExpandedKeysSchema = z.array(z.string());
 
@@ -1472,7 +1484,32 @@ export class WorkflowyInternalAdapter {
 	 * 5s old, so a change made on workflowy.com shows on that read.
 	 */
 	async getExpandedIds({fresh = false}: {fresh?: boolean} = {}): Promise<string[]> {
-		const keys = await this.expandedKeys(fresh);
+		return (await this.getExpansionState({fresh})).expandedIds;
+	}
+
+	/**
+	 * {@link getExpandedIds} plus what a client needs to judge it: when the keys were fetched, whether a refresh is
+	 * still running, and a fingerprint of the keys for ETags. With `wait`, a running refresh is awaited (at most
+	 * {@link FRESH_WAIT_MS}) before the cache is read, so a client that got `refreshing: true` can collect the result.
+	 * A `fresh` read waits the same bounded time and otherwise falls back to the cached keys.
+	 */
+	async getExpansionState({
+		fresh = false,
+		wait = false,
+	}: {fresh?: boolean; wait?: boolean} = {}): Promise<ExpansionState> {
+		const keys = await this.expandedKeys(fresh, wait);
+		const fetchedAt = this.loadExpandedKeys()?.fetchedAt ?? this.now();
+		return {
+			expandedIds: this.resolveExpandedIds(keys),
+			fetchedAt,
+			refreshing: this.expandedKeysRefresh !== undefined,
+			fingerprint: createHash("sha1")
+				.update(JSON.stringify([...keys].toSorted()))
+				.digest("hex"),
+		};
+	}
+
+	private resolveExpandedIds(keys: Set<string>): string[] {
 		const plain = this.db
 			.select({id: nodeContent.id})
 			.from(nodeContent)
@@ -1554,22 +1591,46 @@ export class WorkflowyInternalAdapter {
 		return (id) => keys.has(expansionKey(id));
 	}
 
-	private async expandedKeys(fresh: boolean): Promise<Set<string>> {
+	private async expandedKeys(fresh: boolean, wait = false): Promise<Set<string>> {
 		const cached = this.loadExpandedKeys();
-		let keys: Set<string>;
-		if (cached && fresh && cached.fetchedAt <= this.now() - FRESH_EXPANSION_THROTTLE_MS) {
-			keys = await this.refreshExpandedKeys();
-		} else if (cached) {
-			keys = cached.keys;
-			if (cached.fetchedAt < this.now() - FRESHNESS_MS) {
-				void this.refreshExpandedKeys().catch((error: unknown) => {
+		if (!cached) {
+			return this.refreshExpandedKeys();
+		}
+		if (wait && this.expandedKeysRefresh !== undefined) {
+			await this.boundedRefresh(this.expandedKeysRefresh);
+			return this.loadExpandedKeys()?.keys ?? cached.keys;
+		}
+		if (fresh && cached.fetchedAt <= this.now() - FRESH_EXPANSION_THROTTLE_MS) {
+			const keys = await this.boundedRefresh(this.refreshExpandedKeys());
+			return keys ?? cached.keys;
+		}
+		if (cached.fetchedAt < this.now() - FRESHNESS_MS) {
+			void this.refreshExpandedKeys().catch((error: unknown) => {
+				console.error("Failed to refresh expanded keys", error);
+			});
+		}
+		return cached.keys;
+	}
+
+	/** Await `refresh` for at most {@link FRESH_WAIT_MS}; undefined on a timeout, with the refresh left running. */
+	private async boundedRefresh(refresh: Promise<Set<string>>): Promise<Set<string> | undefined> {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const timeout = new Promise<undefined>((resolve) => {
+			timer = setTimeout(() => {
+				resolve(undefined);
+			}, FRESH_WAIT_MS);
+		});
+		try {
+			const keys = await Promise.race([refresh, timeout]);
+			if (keys === undefined) {
+				refresh.catch((error: unknown) => {
 					console.error("Failed to refresh expanded keys", error);
 				});
 			}
-		} else {
-			keys = await this.refreshExpandedKeys();
+			return keys;
+		} finally {
+			clearTimeout(timer);
 		}
-		return keys;
 	}
 
 	/** Settles once the in-flight expanded-keys refresh, if any, has finished. */
@@ -1606,6 +1667,11 @@ export class WorkflowyInternalAdapter {
 
 	private async pushExpansionsDelta(expansionsDelta: Record<string, boolean>): Promise<void> {
 		await this.pusher.pushAndPoll({expansionsDelta});
+		this.saveLocalSettings(
+			Object.fromEntries(
+				Object.entries(expansionsDelta).map(([key, expanded]) => [`expansion:${key}`, expanded]),
+			),
+		);
 		this.pushedDuringRefresh?.push(expansionsDelta);
 		const cached = this.loadExpandedKeys();
 		if (cached) {
