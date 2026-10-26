@@ -12,8 +12,14 @@ import type {
 	TableMetadata,
 	UpdateNodeResponse,
 } from "../../node-types.js";
-import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient, effectiveCompletedAt} from "@workflowy/shared/cache";
-import type {ExactMover} from "@workflowy/shared/cache";
+import {
+	NodeReader,
+	NodeTreeReader,
+	WorkflowyWriteThroughClient,
+	effectiveCompletedAt,
+	planBlockSlot,
+} from "@workflowy/shared/cache";
+import type {ExactMover, SlotPlan} from "@workflowy/shared/cache";
 import {MAX_COPY_ITEMS, copySubtree} from "../copy-tree.js";
 import {planSwapOrigin} from "../../swap-origin.js";
 import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
@@ -404,6 +410,10 @@ function publicEnd(index: number | undefined, childCount: number): "top" | "bott
 /** The public API's move position for an end: negative is top, anything else bottom. */
 function publicMovePosition(end: "top" | "bottom"): number {
 	return end === "top" ? -1 : 0;
+}
+
+function childIds(ctx: ServerContext, parentId: string | null): string[] {
+	return ctx.cacheService.getChildren(parentId).map((child) => child.id);
 }
 
 function countChildren(ctx: ServerContext, parentId: string | null): number {
@@ -918,18 +928,22 @@ nodesRouter.post("/", async (c) => {
 		return c.json({node}, 201);
 	}
 
+	// Without the internal API a middle slot is the nearer end plus a rotation of the siblings on the shorter side.
 	const end = publicEnd(slot.index, count);
-	if (end === undefined) {
-		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
-	}
-
+	const rotation: SlotPlan =
+		end === undefined
+			? planBlockSlot(childIds(ctx, parentId), [], slot.index ?? count)
+			: {position: end, siblingIds: []};
 	const createdNode = await client.createNode({
 		parent_id: parentId ?? HOME_TARGET,
 		name,
 		note,
 		layoutMode,
-		position: end,
+		position: rotation.position,
 	});
+	for (const siblingId of rotation.siblingIds) {
+		await client.moveNode(siblingId, parentId, publicMovePosition(rotation.position));
+	}
 
 	// Return in Workflowy response format
 	const nodeResponse: NodeResponse = {
@@ -1832,10 +1846,18 @@ async function moveNodes(
 	} else {
 		const end = publicEnd(slot.index, count);
 		if (end === undefined) {
-			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
-		}
-		for (const id of end === "top" ? ids.toReversed() : ids) {
-			await client.moveNode(id, parentId, publicMovePosition(end));
+			// A middle slot counts every child before removal; the rotation counts the others.
+			const order = childIds(ctx, parentId);
+			const moving = new Set(ids);
+			const slotIndex = order.slice(0, slot.index ?? order.length).filter((id) => !moving.has(id)).length;
+			const {position, siblingIds} = planBlockSlot(order, ids, slotIndex);
+			for (const id of [...(position === "top" ? ids.toReversed() : ids), ...siblingIds]) {
+				await client.moveNode(id, parentId, publicMovePosition(position));
+			}
+		} else {
+			for (const id of end === "top" ? ids.toReversed() : ids) {
+				await client.moveNode(id, parentId, publicMovePosition(end));
+			}
 		}
 	}
 

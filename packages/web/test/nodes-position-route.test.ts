@@ -340,17 +340,21 @@ describe("public-API fallback when the internal API is not configured", () => {
 		await expect(top.json()).resolves.toStrictEqual({node: publicShape});
 	});
 
-	it("answers 503 for a create at a middle index", async () => {
+	it("creates at a middle index by rotating the shorter side of the siblings", async () => {
 		const {post} = setup(false);
+		createNode.mockResolvedValue(created);
+		moveNode.mockResolvedValue(apiNode("a", null, 0));
 
 		const res = await post("", {parent_id: "home", name: "x", index: 1});
 
-		expect(res.status).toBe(503);
-		await expect(res.json()).resolves.toStrictEqual({error: NOT_CONFIGURED});
-		expect(createNode.mock.calls).toStrictEqual([]);
+		expect(res.status).toBe(201);
+		expect(createNode.mock.calls).toStrictEqual([
+			[{parent_id: "home", name: "x", note: undefined, layoutMode: undefined, position: "top"}],
+		]);
+		expect(moveNode.mock.calls).toStrictEqual([["a", null, -1]]);
 	});
 
-	it("maps move index 0 to top and the child count to bottom, and a middle index to 503", async () => {
+	it("maps move index 0 to top and the child count to bottom, and rotates a middle index", async () => {
 		const {post} = setup(false);
 		moveNode.mockResolvedValue(apiNode("c", null, 0));
 
@@ -358,10 +362,12 @@ describe("public-API fallback when the internal API is not configured", () => {
 		const bottom = await post("/c/move", {parent_id: "home", index: 3});
 		const middle = await post("/c/move", {parent_id: "home", index: 1});
 
-		expect([top.status, bottom.status, middle.status]).toStrictEqual([200, 200, 503]);
+		expect([top.status, bottom.status, middle.status]).toStrictEqual([200, 200, 200]);
 		expect(moveNode.mock.calls).toStrictEqual([
 			["c", null, -1],
 			["c", null, 0],
+			["c", null, -1],
+			["a", null, -1],
 		]);
 	});
 

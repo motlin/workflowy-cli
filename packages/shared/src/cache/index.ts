@@ -69,6 +69,7 @@ export {
 	type MirrorPromotion,
 	planSubtreeDelete,
 } from "./delete-plan.js";
+export {planBlockSlot, planSlot, type SlotPlan} from "./slot-plan.js";
 export {
 	type CompositeEntry,
 	type CompositePart,

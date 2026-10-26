@@ -154,8 +154,8 @@ describe("exact placement using top/bottom writes", () => {
 		});
 		await service.move({root: "work", nodeId: "alice", toTier: "1st", beforeNodeId: "charlie"});
 		expect(moveNode.mock.calls).toStrictEqual([
-			["alice", "first", 0],
-			["charlie", "first", 0],
+			["alice", "first", -1],
+			["bob", "first", -1],
 		]);
 		expect(seen).toStrictEqual([
 			{
@@ -169,8 +169,8 @@ describe("exact placement using top/bottom writes", () => {
 			},
 			{
 				verb: "move",
-				nodeId: "charlie",
-				name: "Charlie",
+				nodeId: "bob",
+				name: "Bob",
 				fromTier: "1st",
 				toTier: "1st",
 				beforeNodeId: "",

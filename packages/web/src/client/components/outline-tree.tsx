@@ -118,6 +118,7 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
 			parent_id: plan.parent_id,
 			name: plan.name,
 			index: plan.index,
+			at_end: plan.at_end,
 			...(plan.layoutMode === null ? {} : {layoutMode: plan.layoutMode}),
 		});
 		resumeEditing(id, 0);
@@ -617,6 +618,7 @@ function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDa
 			parent_id: plan.parent_id,
 			name: plan.name,
 			index: plan.index,
+			at_end: plan.at_end,
 			...(plan.layoutMode === null ? {} : {layoutMode: plan.layoutMode}),
 		});
 		resumeEditing(id, 0);

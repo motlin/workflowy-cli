@@ -8,6 +8,7 @@
  */
 
 import type {LadderEvent, LadderEventBus} from "./ladder-events.js";
+import {planSlot} from "@workflowy/shared/cache";
 import {planTierMove, toLadder} from "./ladder-model.js";
 import type {Ladder, RawNode} from "./ladder-model.js";
 
@@ -91,18 +92,34 @@ export class LadderService {
 			await moveTo(nodeId, plan.parentId, beforeNodeId ? ids.indexOf(beforeNodeId) : ids.length);
 			return this.#landed(plan.parentId, {...event, beforeNodeId: beforeNodeId ?? ""});
 		}
-		await this.#options.moveNode(nodeId, plan.parentId, index === 0 ? -1 : 0);
-		if (index === 0) {
-			return this.#landed(plan.parentId, {...event, beforeNodeId: remaining[0]?.id ?? ""});
+		const slot = planSlot(
+			destination.items.map((item) => item.id),
+			nodeId,
+			index,
+		);
+		if (slot === null) {
+			return this.#landed(plan.parentId, {...event, beforeNodeId: beforeNodeId ?? ""});
 		}
-		if (index === remaining.length) {
-			return this.#landed(plan.parentId, {...event, beforeNodeId: ""});
+		const position = slot.position === "top" ? -1 : 0;
+		await this.#options.moveNode(nodeId, plan.parentId, position);
+		if (slot.siblingIds.length === 0) {
+			return this.#landed(plan.parentId, {
+				...event,
+				beforeNodeId: slot.position === "top" ? (remaining[0]?.id ?? "") : "",
+			});
 		}
 		this.#publish({...event, beforeNodeId: ""});
-		// Workflowy's API supports only top/bottom. Rotate the suffix to preserve exact placement.
-		for (const item of remaining.slice(index)) {
-			await this.#options.moveNode(item.id, plan.parentId, 0);
-			this.#publish({verb: "move", nodeId: item.id, name: item.name, fromTier: toTier, toTier, beforeNodeId: ""});
+		// Workflowy's API supports only top/bottom. Rotate the shorter side to preserve exact placement.
+		for (const siblingId of slot.siblingIds) {
+			await this.#options.moveNode(siblingId, plan.parentId, position);
+			this.#publish({
+				verb: "move",
+				nodeId: siblingId,
+				name: remaining.find((item) => item.id === siblingId)?.name ?? null,
+				fromTier: toTier,
+				toTier,
+				beforeNodeId: "",
+			});
 		}
 		return this.#landed(plan.parentId, {...event, beforeNodeId: beforeNodeId ?? ""});
 	}

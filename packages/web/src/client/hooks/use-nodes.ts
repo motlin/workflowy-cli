@@ -71,6 +71,8 @@ interface CreateNodeRequest {
 	index?: number;
 	/** Legacy priority hint: negative = top, else bottom. */
 	position?: number;
+	/** Append after the server's live last child: the POST sends no `index` and no `after_id`. The optimistic row still splices at `index`. */
+	at_end?: boolean;
 }
 
 interface UpdateNodeRequest {
@@ -141,13 +143,22 @@ export async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
 	return data.ancestors;
 }
 
-async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
-	await pendingCreates.prior(request.id);
+/** The POST body for a create: an at-end request names no slot, so the server resolves its live bottom. */
+function createBody(request: CreateNodeRequest): string {
+	if (request.at_end === true) {
+		const {index: _index, at_end: _atEnd, ...rest} = request;
+		return JSON.stringify(rest);
+	}
 	const afterId = createAnchors.get(request);
+	return JSON.stringify(afterId === undefined ? request : {...request, after_id: afterId});
+}
+
+export async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
+	await pendingCreates.prior(request.id);
 	const response = await fetch("/api/v1/nodes", {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
-		body: JSON.stringify(afterId === undefined ? request : {...request, after_id: afterId}),
+		body: createBody(request),
 	});
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to create node", response);
@@ -625,7 +636,7 @@ export function insertOptimisticCreate(queryClient: QueryClient, newNode: Create
 	}
 	// One notification for the row and its parent's flags, so the outline never renders one without the other.
 	const children = spliceChildren(siblings, optimisticNode, index);
-	if (exactIndex(newNode) !== undefined) {
+	if (exactIndex(newNode) !== undefined && newNode.at_end !== true) {
 		createAnchors.set(
 			newNode,
 			children[children.findIndex((child) => child.id === optimisticNode.id) - 1]?.id ?? null,

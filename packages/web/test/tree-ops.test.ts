@@ -528,6 +528,7 @@ describe("planAddChild", () => {
 			index: 3,
 			name: "",
 			layoutMode: "numbered",
+			at_end: true,
 		});
 	});
 
@@ -537,6 +538,7 @@ describe("planAddChild", () => {
 			index: 3,
 			name: "",
 			layoutMode: null,
+			at_end: true,
 		});
 	});
 });

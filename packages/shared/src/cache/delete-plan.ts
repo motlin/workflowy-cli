@@ -1,4 +1,5 @@
 import type {CacheService, SubtreeMirrors} from "./cache-service.js";
+import {planBlockSlot} from "./slot-plan.js";
 
 /** A parent's children ids in their current Workflowy order (roots for null). */
 export type ChildOrder = (parentId: string | null) => Promise<string[]>;
@@ -112,10 +113,8 @@ export async function planSubtreeDelete(
 			(id) => id === mirrorId || (id !== originalId && !deleted(id) && !pendingMirrors.has(id)),
 		);
 		const slot = siblings.indexOf(mirrorId);
-		const before = siblings.slice(0, Math.max(slot, 0));
-		const after = slot === -1 ? [] : siblings.slice(slot + 1);
-		const position = slot !== -1 && before.length <= after.length ? "top" : "bottom";
-		const siblingIds = position === "top" ? before.toReversed() : after;
+		const others = siblings.filter((id) => id !== mirrorId);
+		const {position, siblingIds} = planBlockSlot(others, [originalId], slot === -1 ? others.length : slot);
 		const live = await outline.children(parentId);
 		const index = live.slice(0, Math.max(live.indexOf(mirrorId), 0)).filter((id) => !removedFirst.has(id)).length;
 

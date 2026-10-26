@@ -73,6 +73,8 @@ export interface AddChildPlan {
 	index: number;
 	name: string;
 	layoutMode: string | null;
+	/** Append after the server's LIVE last child, not after the last row this client has cached. */
+	at_end: true;
 }
 
 /**
@@ -148,6 +150,7 @@ export function planAddChild({
 		index: childCount,
 		name: "",
 		layoutMode: shapeLayout,
+		at_end: true,
 	};
 }
 

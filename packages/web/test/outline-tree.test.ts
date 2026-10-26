@@ -544,7 +544,7 @@ describe("OutlineTree add-child button", () => {
 			resumed: outlineState.resumeEditing.mock.calls,
 			blurred: blur.mock.calls.length,
 		}).toStrictEqual({
-			calls: [[{id, parent_id: "alice", name: "", index: 1}]],
+			calls: [[{id, parent_id: "alice", name: "", index: 1, at_end: true}]],
 			resumed: [[id, 0]],
 			blurred: 1,
 		});
