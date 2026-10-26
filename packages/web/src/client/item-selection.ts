@@ -565,3 +565,23 @@ export function selectionMenuAnchor(
 	const anchor = state.entries.findLast((entry) => rendered(entry.id));
 	return {anchorId: anchor?.id ?? null, count: state.entries.length};
 }
+
+export interface MatchRow {
+	id: string;
+	matches: boolean;
+	completed: boolean;
+	isMirror: boolean;
+}
+
+/** Ids for upstream's "Select matched": search matches that pass the completed and mirrors filters, in display order. */
+export function selectMatchedIds(
+	rows: readonly MatchRow[],
+	filters: {showCompleted: boolean; includeMirrors: boolean},
+): string[] {
+	return rows
+		.filter(
+			(row) =>
+				row.matches && (filters.showCompleted || !row.completed) && (filters.includeMirrors || !row.isMirror),
+		)
+		.map((row) => row.id);
+}

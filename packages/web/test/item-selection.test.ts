@@ -15,6 +15,7 @@ import {
 	pivotTo,
 	removeIds,
 	selectIds,
+	selectMatchedIds,
 	selectionMenuAnchor,
 	selectionDeletePlan,
 	selectionKeyAction,
@@ -442,5 +443,48 @@ describe("selectionMenuAnchor", () => {
 
 	it("is empty for an empty selection", () => {
 		expect(selectionMenuAnchor(emptySelection(), delta)).toStrictEqual({anchorId: null, count: 0});
+	});
+});
+
+describe("selectMatchedIds", () => {
+	const rows = [
+		{id: "Alpha", matches: true, completed: false, isMirror: false},
+		{id: "A1", matches: true, completed: true, isMirror: false},
+		{id: "Bravo", matches: false, completed: false, isMirror: false},
+		{id: "B1", matches: true, completed: false, isMirror: true},
+		{id: "Charlie", matches: true, completed: false, isMirror: false},
+	];
+
+	it("drops completed matches when completed are hidden", () => {
+		expect(selectMatchedIds(rows, {showCompleted: false, includeMirrors: true})).toStrictEqual([
+			"Alpha",
+			"B1",
+			"Charlie",
+		]);
+	});
+
+	it("drops mirror matches when mirrors are excluded", () => {
+		expect(selectMatchedIds(rows, {showCompleted: true, includeMirrors: false})).toStrictEqual([
+			"Alpha",
+			"A1",
+			"Charlie",
+		]);
+	});
+
+	it("collapses matched descendants under matched ancestors", () => {
+		const state = selectIds(emptySelection(), tree, ["Alpha", "A1", "Charlie"]);
+		expect({ids: sortedIds(state, tree), entryIds: state.entries.map((entry) => entry.id)}).toStrictEqual({
+			ids: ["Alpha", "Charlie"],
+			entryIds: ["Alpha", "Charlie"],
+		});
+	});
+
+	it("records the descendant as subsumed when it was selected first", () => {
+		const state = selectIds(emptySelection(), tree, ["A1", "Alpha", "Charlie"]);
+		expect(state.entries[0]?.subsumedIds).toStrictEqual(["A1"]);
+	});
+
+	it("is empty with no matches", () => {
+		expect(selectMatchedIds([], {showCompleted: true, includeMirrors: true})).toStrictEqual([]);
 	});
 });
