@@ -49,6 +49,10 @@ describe("hint", () => {
 		});
 	});
 
+	it("spells the off-mac complete chip as Ctrl+Enter", () => {
+		expect(hint("complete", false)).toBe("Ctrl+Enter");
+	});
+
 	it("derives off-mac chips from the off-mac table with upstream's arrow and space glyphs", () => {
 		expect(
 			Object.fromEntries(
