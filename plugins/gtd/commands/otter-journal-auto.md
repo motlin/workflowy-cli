@@ -49,6 +49,18 @@ On a mismatch or uncertainty, **flag the entry for review and create no node for
 
 Preflight the whole page before writes. If any candidate is flagged, stop without creating that page's entries or updating its scanner state. Keep the cursor, session start, and last-synced boundary at the last successfully saved page so the held recordings resurface. Return any earlier pages' verified creates alongside the flags. Review flags are unresolved work, not a successful empty scan; use `status: "error"` so the prep date does not advance. Resolving a flag requires a later explicit user decision; this run does not alter or delete existing journal entries.
 
+## Resolve a stale recording flag
+
+The scanner flags a recording under 2 minutes long, with no summary after 24 hours, as `⚠️ Otter stale silent recording`, with its title, date, URL/otid, and duration. Report one such line per flag in the briefing, and return `status: "error"`. The auto run never deletes anything.
+
+The daily review resolves each flag with the user, one `AskUserQuestion` per flag, with the title, date, URL, and duration inside the question. Options: "Delete it from Otter", "Keep it and skip it", "Keep it and wait". Delete only on an explicit "Delete it from Otter" answer for that otid, never in bulk and never by inference:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh trash <otid>
+```
+
+It returns `{"status": "OK"}` on success; treat anything else as a failure and report it. After a successful trash, rerun this command so the cursor advances. For "Keep it and skip it", record the otid as `skip` in `.llm/gtd/review/otter-confirmed-titles.json`, as in the title flag flow.
+
 ## Resolve a title flag
 
 The auto run never resolves a flag on its own. The daily review does it with the user, one flag per `AskUserQuestion`, when it surfaces this task's error. Put the title, date, Otter URL, and the reason inside the question. Options: keep the title as recorded, retitle it, or skip the recording.

@@ -15,6 +15,7 @@
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speaker-blocks <otid> [count]  # each non-self speaker's longest blocks, for tagging
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh summary <otid>
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh action_items <otid>
+#   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh trash <otid>  # move a recording to the Otter trash bin (user-approved only)
 #
 # Environment:
 #   OTTER_VERBOSE=1  - Log full request/response details to stderr
@@ -366,6 +367,25 @@ action_items() {
     log_timing "action_items: done"
 }
 
+# Move one recording to Otter's trash bin. Destructive: callers must have the
+# user's explicit approval for this otid first.
+trash() {
+    local otid="$1"
+    local csrf
+    csrf=$(awk -F'\t' '$6 == "csrftoken" {print $7}' "$COOKIE_FILE" | tail -1)
+    log_timing "trash: $otid"
+
+    curl -s -X POST \
+        -b "$COOKIE_FILE" \
+        -H "x-csrftoken: $csrf" \
+        -H 'referer: https://otter.ai/' \
+        -H 'accept: application/json' \
+        --data-urlencode "otid=$otid" \
+        "$API_BASE/move_to_trash_bin?userid=$USERID"
+
+    log_timing "trash: done"
+}
+
 # Fetch one available_speeches page, failing loudly on a network error or a non-JSON body.
 #
 # Assign and check the status on separate lines. `local raw=$(...)` would make
@@ -405,6 +425,7 @@ SPEECH_FIELDS='{
     otid,
     title,
     start_time,
+    duration,
     summary: .short_abstract_summary,
     outline: [.speech_outline[]? | {
         title: .text,
@@ -601,8 +622,16 @@ main() {
             login
             action_items "$2"
             ;;
+        trash)
+            if [[ -z "${2:-}" ]]; then
+                echo '{"error": "trash command requires otid argument"}' >&2
+                exit 1
+            fi
+            login
+            trash "$2"
+            ;;
         *)
-            echo "Usage: $0 {warm-credentials|available_speeches|sync|sync-since|speech|transcript|speaker-blocks|summary|action_items} <args>" >&2
+            echo "Usage: $0 {warm-credentials|available_speeches|sync|sync-since|speech|transcript|speaker-blocks|summary|action_items|trash} <args>" >&2
             exit 1
             ;;
     esac

@@ -179,6 +179,8 @@ echo "[$(date -Iseconds)] otid=<otid> search_result=<found|not_found> action=<cr
 
 **Check if ready:** Skip if `summary` is null (still processing).
 
+**Stale silent recordings:** A recording with `duration` under 120 seconds, `summary` still null, and `start_time` more than 24 hours ago probably never happened (a cancelled meeting, or the other person was out). Do not skip it silently, and do not let it hold the cursor as "still processing". Flag it like a title flag: original title, date, Otter URL/otid, duration, and the reason `short silent recording with no summary after 24 hours`. Create no node for it. Hold the page and its scanner state the same way a title flag does, with `status: "error"`. The daily review offers to delete it from Otter (see `Resolve a stale recording flag` in `commands/otter-journal-auto.md`). Younger or longer recordings with a null summary are still processing and are skipped as before.
+
 **Use the fetched output directly:** `sync-since` and `sync` return all needed data in minimal JSON, so never call `action_items` per meeting yourself:
 
 - `summary` - the narrative overview
