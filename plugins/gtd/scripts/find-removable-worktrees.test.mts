@@ -155,3 +155,22 @@ test("a worktree is idle only when nothing in it or its git admin dir changed wi
 		rmSync(root, {recursive: true});
 	}
 });
+
+test("a worktree whose file listing exceeds the default 1 MiB exec buffer is still described", () => {
+	const {root, repo} = makeRepo([["huge", "app-huge"]]);
+	const huge = join(root, "app-huge");
+	try {
+		mkdirSync(join(huge, "target"));
+		const many = join(huge, "many");
+		mkdirSync(many);
+		const padding = "x".repeat(200);
+		for (let index = 0; index < 6000; index++) {
+			writeFileSync(join(many, `${padding}-${index}.txt`), "");
+		}
+		assert.deepStrictEqual(findWorktrees([join(huge, "target")], LATER), [
+			{path: huge, repo, branch: "huge", dirCount: 1, clean: false, idle: true},
+		]);
+	} finally {
+		rmSync(root, {recursive: true});
+	}
+});

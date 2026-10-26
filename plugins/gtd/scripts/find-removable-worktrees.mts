@@ -24,9 +24,15 @@ import {existsSync, lstatSync, readFileSync, statSync} from "node:fs";
 import {dirname, join} from "node:path";
 
 const LINKED_GITDIR = /^gitdir: (.*\/\.git\/worktrees\/[^/]+)\s*$/u;
+// A large checkout lists far more than execFileSync's 1 MiB default buffer.
+const MAX_BUFFER = 256 * 1024 * 1024;
 
 function git(cwd: string, ...args: string[]): string {
-	return execFileSync("git", ["-C", cwd, ...args], {encoding: "utf8", stdio: ["ignore", "pipe", "pipe"]}).trim();
+	return execFileSync("git", ["-C", cwd, ...args], {
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "pipe"],
+		maxBuffer: MAX_BUFFER,
+	}).trim();
 }
 
 /** The root of the linked worktree containing `path`, or null when the nearest checkout is not one. */
@@ -86,7 +92,7 @@ function newestChange(worktree: string): number {
 		.filter((file) => file.length > 0)
 		.map((file) => join(worktree, file));
 	const adminDir = git(worktree, "rev-parse", "--absolute-git-dir");
-	const adminFiles = execFileSync("find", [adminDir, "-type", "f"], {encoding: "utf8"})
+	const adminFiles = execFileSync("find", [adminDir, "-type", "f"], {encoding: "utf8", maxBuffer: MAX_BUFFER})
 		.split("\n")
 		.filter((file) => file.length > 0);
 	return Math.max(mtimeMs(join(worktree, ".git")), ...files.map(mtimeMs), ...adminFiles.map(mtimeMs));
