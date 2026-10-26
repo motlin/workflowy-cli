@@ -1,8 +1,10 @@
+import {useQueryClient} from "@tanstack/react-query";
 import {useEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useNavigate} from "react-router-dom";
 import {useExpandAll} from "../hooks/use-nodes.js";
 import {movePane} from "../navigation.js";
+import {cachedResolvedId} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
@@ -68,6 +70,7 @@ interface HeaderMoreMenuProps {
  */
 export function HeaderMoreMenu({zoomedId, paneId, compact, onUndo, onRedo}: HeaderMoreMenuProps) {
 	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const panes = useOutlineStore((state) => state.panes);
 	const openSettings = useOutlineStore((state) => state.openSettings);
 	const expandAll = useExpandAll();
@@ -76,7 +79,7 @@ export function HeaderMoreMenu({zoomedId, paneId, compact, onUndo, onRedo}: Head
 	const rows = useMainMenuRows({
 		headerItems: compact ? compactHeaderItems(actions, zoomedId) : [],
 		paneItems: movePaneItems({panes}, paneId, (id, index) => {
-			movePane(navigate, id, index);
+			movePane(navigate, id, index, (locationId) => cachedResolvedId(queryClient, locationId) ?? locationId);
 		}),
 		onCollapseAll: () => {
 			expandAll(zoomedId, false);

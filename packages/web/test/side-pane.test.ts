@@ -449,7 +449,7 @@ describe("MainPane", () => {
 			separatorLabel: /aria-label="([^"]*)"/u.exec(separator)?.[1],
 			separatorControls: /aria-controls="([^"]*)"/u.exec(separator)?.[1],
 		}).toStrictEqual({
-			head: '<div id="pane-main" data-pane-id="main" data-pane-type="item-tree" data-pane-active="false" class="main-pane group/pane relative box-border flex-none h-full max-h-full min-h-0 bg-primary flex flex-col print:hidden" style="width:400px;min-width:350px"><div class="flex flex-1 min-h-0 flex-col" data-full-width-boundary="true" data-split-pane="true">',
+			head: '<div id="pane-main" data-pane-id="main" data-pane-type="item-tree" data-pane-active="false" class="main-pane group/pane relative box-border flex-none h-full max-h-full min-h-0 bg-primary flex flex-col print:hidden [&amp;_.header]:pl-[var(--pane-workspace-left-control-width)] [&amp;_.header]:min-w-[280px]" style="width:400px;min-width:350px"><div class="flex flex-1 min-h-0 flex-col" data-full-width-boundary="true" data-split-pane="true">',
 			separatorLabel: "Resize pane 1",
 			separatorControls: `pane-main pane-${B}`,
 		});

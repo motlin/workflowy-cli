@@ -1,5 +1,4 @@
 import {createContext, useContext} from "react";
-import {activeNoteContent, caretTextOffset, editorElement} from "../caret-dom.js";
 import {MAIN_PANE_ID, paneExpandedIds} from "../pane-ids.js";
 import {useOutlineStore} from "../stores/outline.js";
 
@@ -36,57 +35,14 @@ export function useInActivePane(): boolean {
 }
 
 /**
- * Upstream's `cE`: save the active pane's caret before another pane takes focus. Reads the edited name or focused note
- * in the active pane; does nothing while no editor there has the caret.
- */
-export function captureActivePaneCaret(): void {
-	const {activePaneId, editingId, editingNoteId, panes, savePaneCaret} = useOutlineStore.getState();
-	if (panes.length === 0) {
-		return;
-	}
-	if (editingId !== null) {
-		const editor = editorElement(editingId);
-		if (editor !== null) {
-			savePaneCaret(activePaneId, {nodeId: editingId, field: "name", offset: caretTextOffset(editor)});
-		}
-		return;
-	}
-	if (editingNoteId !== null) {
-		const note = activeNoteContent();
-		if (note !== null) {
-			savePaneCaret(activePaneId, {nodeId: editingNoteId, field: "note", offset: caretTextOffset(note)});
-		}
-	}
-}
-
-/**
- * Upstream's `focusout` capture: save the caret of the editor losing focus as its pane's caret. `textElement` is where
- * the offset counts from (a note's text container).
- */
-export function savePaneCaretOnBlur(
-	editor: HTMLElement,
-	nodeId: string,
-	field: "name" | "note",
-	textElement: HTMLElement = editor,
-): void {
-	const paneId = editor.closest<HTMLElement>("[data-pane-id]")?.dataset.paneId;
-	if (paneId !== undefined) {
-		useOutlineStore.getState().savePaneCaret(paneId, {nodeId, field, offset: caretTextOffset(textElement)});
-	}
-}
-
-/**
- * Upstream's pane focus tracking: a pointerdown or focusin anywhere in the pane makes it the active pane, saving the
- * outgoing pane's caret first. Like upstream's `restoreCursor: false`, it does not move the caret.
+ * Upstream's pane focus tracking: a pointerdown or focusin anywhere in the pane makes it the active pane. Like upstream's
+ * `restoreCursor: false`, it does not move the caret.
  */
 export function paneActivation(
 	paneId: string,
 	setActivePane: (paneId: string) => void,
 ): {onPointerDown: () => void; onFocus: () => void} {
 	const activate = () => {
-		if (useOutlineStore.getState().activePaneId !== paneId) {
-			captureActivePaneCaret();
-		}
 		setActivePane(paneId);
 	};
 	return {onPointerDown: activate, onFocus: activate};

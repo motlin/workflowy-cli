@@ -42,6 +42,7 @@ import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {StableNavigateProvider} from "./hooks/use-stable-navigate.js";
 import {useCopyCut} from "./hooks/use-copy-cut.js";
 import {activeCommandRegistry, useGlobalKeymap} from "./hooks/use-global-keymap.js";
+import {usePaneFocusRequests} from "./hooks/use-pane-focus-requests.js";
 import {usePaneUrlSync} from "./hooks/use-pane-url-sync.js";
 import {fetchResolvedId, useHashLocationZoom} from "./hooks/use-hash-location-zoom.js";
 import {installContentLinkContextMenu} from "./content-link-click.js";
@@ -240,6 +241,7 @@ function HashLocationRoute() {
 	useHashLocationZoom();
 	useEmptyDayCleanup();
 	usePaneUrlSync(fetchResolvedId);
+	usePaneFocusRequests();
 	useContentLinkClicks(fetchResolvedId);
 	return <OutlineView />;
 }

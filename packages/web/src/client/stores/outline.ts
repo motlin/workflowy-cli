@@ -25,7 +25,7 @@ import {locationUrl, shortId} from "../location.js";
 import {createPaneId, workspaceFragments} from "../pane-url.js";
 import {availablePaneWidth, beginDividerResize, paneWidth, resizedDivider, resolveWidths} from "../pane-widths.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
-import type {PaneCaret, PaneCaretPosition} from "../pane-caret.js";
+import type {PaneFocusRequest} from "../pane-focus.js";
 import {selectCompletedVisibility} from "../completed-visibility.js";
 import {closeSwitcher} from "../switcher-close.js";
 import {requestedMenuEntries} from "../requested-menu.js";
@@ -437,8 +437,11 @@ interface OutlineState {
 	workspaceWidth: number | null;
 	/** Upstream's `Nn2.state.resize`: whether a divider drag is under way (widths are not resolved or persisted). */
 	paneResizing: boolean;
-	/** Each pane's last caret, keyed like `paneWidths`; ⌃N restores it when focusing the pane (upstream's `viewState`). */
-	paneCarets: Record<string, PaneCaret>;
+	/**
+	 * Upstream's `focus.request`: the latest request to put the caret on a pane's title after it opened, closed, moved or
+	 * navigated. `seq` makes a repeat of the same request a new one; `usePaneFocusRequests` acts on it.
+	 */
+	paneFocusRequest: (PaneFocusRequest & {seq: number}) | null;
 	exportDialogOpen: boolean;
 	exportContext: ExportContext | null;
 	/** The node whose "Mirrors for" dialog is open (an original or any of its mirrors), or null. */
@@ -606,7 +609,12 @@ interface OutlineActions {
 	 * caller navigates the main outline to its zoom and query, and the old main outline becomes a pane under its URL id.
 	 * Null when `canPlacePane` refuses the place.
 	 */
-	movePane: (paneId: string, index: number) => {promoted: ItemTreePane | null} | null;
+	movePane: (
+		paneId: string,
+		index: number,
+		/** Expand a location's short id to the node id panes zoom by; defaults to the id as is. */
+		resolveId?: (locationId: string) => string,
+	) => {promoted: ItemTreePane | null} | null;
 	/**
 	 * Apply the panes the URL names (reload, Back/Forward): open each, or re-zoom an open one with the same id without
 	 * touching its history, and drop the rest. `activePaneId` (from `pane-workspace-runtime:v2`) activates that pane.
@@ -630,8 +638,6 @@ interface OutlineActions {
 	resizePaneDivider: (index: number, delta: number) => void;
 	/** Make `paneId` the active pane; a no-op for a pane that is not open. */
 	setActivePane: (paneId: string) => void;
-	/** Remember `paneId`'s caret with the pane's current zoom; ignored for a pane that is not open. */
-	savePaneCaret: (paneId: string, caret: PaneCaretPosition) => void;
 	openExportDialog: (context: ExportContext) => void;
 	closeExportDialog: () => void;
 	openMirrorsDialog: (nodeId: string) => void;
@@ -899,15 +905,18 @@ function commitExpanded(next: Set<string>): void {
 }
 
 /** Replace open pane `paneId` with `update(pane)`; a no-op for a pane that is not open or an unchanged pane. */
-function updatePane(paneId: string, update: (pane: ItemTreePane) => ItemTreePane): void {
-	const {panes} = useOutlineStore.getState();
-	const pane = findPane(panes, paneId);
+function updatePane(paneId: string, update: (pane: ItemTreePane) => ItemTreePane, requestFocus = false): void {
+	const state = useOutlineStore.getState();
+	const pane = findPane(state.panes, paneId);
 	if (pane === undefined) {
 		return;
 	}
 	const next = update(pane);
 	if (next !== pane) {
-		useOutlineStore.setState({panes: panes.map((open) => (open === pane ? next : open))});
+		useOutlineStore.setState({
+			panes: state.panes.map((open) => (open === pane ? next : open)),
+			...(requestFocus ? {paneFocusRequest: focusRequest(state, paneId, next.zoomedId, true)} : {}),
+		});
 	}
 }
 
@@ -916,6 +925,32 @@ function updatePane(paneId: string, update: (pane: ItemTreePane) => ItemTreePane
  * active pane stays active while it remains; otherwise the most recently active remaining pane (upstream's `vC4`), else
  * the main pane, takes over and editing ends. No panes left restores the single document.
  */
+/** A pane's back/forward entry as a location: the short id the URL and the main pane's history use. */
+function locationOf(id: string | null): Loc {
+	return {id: id === null ? null : shortId(id), query: null};
+}
+
+/** The next focus request: `seq` always advances so a repeated request still fires. */
+function focusRequest(
+	state: Pick<OutlineState, "paneFocusRequest">,
+	paneId: string,
+	zoomedId: string | null,
+	reveal: boolean,
+): PaneFocusRequest & {seq: number} {
+	return {paneId, zoomedId, reveal, seq: (state.paneFocusRequest?.seq ?? 0) + 1};
+}
+
+/**
+ * After a close: ask for the caret on the active pane's title, without scrolling it into view. `mainZoomedId` is the zoom
+ * the main outline is about to show when the main pane just changed.
+ */
+function requestActivePaneFocus(mainZoomedId: string | null): void {
+	const state = useOutlineStore.getState();
+	const pane = findPane(state.panes, state.activePaneId);
+	const zoomedId = pane === undefined ? mainZoomedId : pane.zoomedId;
+	useOutlineStore.setState({paneFocusRequest: focusRequest(state, state.activePaneId, zoomedId, false)});
+}
+
 function setWorkspace(
 	panes: ItemTreePane[],
 	mainPaneUrlId?: string,
@@ -932,9 +967,6 @@ function setWorkspace(
 		mainPaneUrlId: panes.length === 0 ? null : (mainPaneUrlId ?? state.mainPaneUrlId),
 		...(panes.length === 0 ? {mainPaneHistory: emptyMainPaneHistory} : {}),
 		paneFocusHistory: history,
-		paneCarets: Object.fromEntries(
-			Object.entries(state.paneCarets).filter(([id]) => panes.length > 0 && (id === MAIN_PANE_ID || ids.has(id))),
-		),
 		activePaneId,
 		...(remains
 			? {}
@@ -995,7 +1027,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	paneWidths: {},
 	workspaceWidth: null,
 	paneResizing: false,
-	paneCarets: {},
+	paneFocusRequest: null,
 	exportDialogOpen: false,
 	exportContext: null,
 	mirrorsDialogNodeId: null,
@@ -1510,6 +1542,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			mainPaneUrlId: mainId,
 			paneFocusHistory: [...paneFocusHistory.filter((paneId) => paneId !== id), id],
 			activePaneId: id,
+			paneFocusRequest: focusRequest(get(), id, zoomedId, true),
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
@@ -1519,44 +1552,54 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	zoomPane: (paneId, zoomedId) => {
-		updatePane(paneId, (pane) =>
-			pane.zoomedId === zoomedId
-				? pane
-				: {
-						...pane,
-						zoomedId,
-						backLocations: [...pane.backLocations, pane.zoomedId].slice(-PANE_HISTORY_LIMIT),
-						forwardLocations: [],
-						query: "",
-					},
+		// Upstream's location equality includes the search query, so a searched pane is a different location.
+		updatePane(
+			paneId,
+			(pane) =>
+				pane.zoomedId === zoomedId && pane.query === ""
+					? pane
+					: {
+							...pane,
+							zoomedId,
+							backLocations: [...pane.backLocations, pane.zoomedId].slice(-PANE_HISTORY_LIMIT),
+							forwardLocations: [],
+							query: "",
+						},
+			true,
 		);
 	},
 
 	paneBack: (paneId) => {
-		updatePane(paneId, (pane) =>
-			pane.backLocations.length === 0
-				? pane
-				: {
-						...pane,
-						zoomedId: pane.backLocations.at(-1) ?? null,
-						backLocations: pane.backLocations.slice(0, -1),
-						forwardLocations: [pane.zoomedId, ...pane.forwardLocations],
-						query: "",
-					},
+		updatePane(
+			paneId,
+			(pane) =>
+				pane.backLocations.length === 0
+					? pane
+					: {
+							...pane,
+							zoomedId: pane.backLocations.at(-1) ?? null,
+							backLocations: pane.backLocations.slice(0, -1),
+							forwardLocations: [pane.zoomedId, ...pane.forwardLocations],
+							query: "",
+						},
+			true,
 		);
 	},
 
 	paneForward: (paneId) => {
-		updatePane(paneId, (pane) =>
-			pane.forwardLocations.length === 0
-				? pane
-				: {
-						...pane,
-						zoomedId: pane.forwardLocations[0] ?? null,
-						backLocations: [...pane.backLocations, pane.zoomedId],
-						forwardLocations: pane.forwardLocations.slice(1),
-						query: "",
-					},
+		updatePane(
+			paneId,
+			(pane) =>
+				pane.forwardLocations.length === 0
+					? pane
+					: {
+							...pane,
+							zoomedId: pane.forwardLocations[0] ?? null,
+							backLocations: [...pane.backLocations, pane.zoomedId],
+							forwardLocations: pane.forwardLocations.slice(1),
+							query: "",
+						},
+			true,
 		);
 	},
 
@@ -1568,6 +1611,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		const {panes} = get();
 		if (findPane(panes, paneId) !== undefined) {
 			setWorkspace(panes.filter((pane) => pane.id !== paneId));
+			requestActivePaneFocus(null);
 		}
 	},
 
@@ -1577,31 +1621,37 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}
 	},
 
-	// Upstream's applySnapshot: the old first pane (main) is gone, so the new first pane is active.
+	// The active pane stays active across the close; one that was promoted to main is renamed.
 	closeMainPane: () => {
 		const [promoted, ...rest] = get().panes;
 		if (promoted === undefined) {
 			return null;
 		}
-		const promotedCaret = get().paneCarets[promoted.id];
+		const before = get();
 		// The promoted pane keeps its own width as the new main pane's; the old main pane's width goes with it.
-		const {[MAIN_PANE_ID]: _main, [promoted.id]: promotedWidth, ...kept} = get().paneWidths;
+		const {[MAIN_PANE_ID]: _main, [promoted.id]: promotedWidth, ...kept} = before.paneWidths;
 		setWorkspace(rest, promoted.id, promotedWidth === undefined ? kept : {...kept, [MAIN_PANE_ID]: promotedWidth});
-		const {[MAIN_PANE_ID]: _closed, ...carets} = get().paneCarets;
-		set({paneCarets: promotedCaret === undefined ? carets : {...carets, [MAIN_PANE_ID]: promotedCaret}});
-		if (get().activePaneId !== MAIN_PANE_ID) {
-			set({
-				activePaneId: MAIN_PANE_ID,
-				editingId: null,
-				editingClickPosition: null,
-				editingCaretOffset: null,
-				editingCaretEnd: null,
-			});
-		}
+		const promotedActive = before.activePaneId === MAIN_PANE_ID || before.activePaneId === promoted.id;
+		const activePaneId = promotedActive ? MAIN_PANE_ID : get().activePaneId;
+		// The old main pane's history entry is gone; the promoted pane's takes the `main` key where it stood.
+		const history = before.paneFocusHistory
+			.filter((id) => id !== MAIN_PANE_ID)
+			.map((id) => (id === promoted.id ? MAIN_PANE_ID : id));
+		set({
+			activePaneId,
+			paneFocusHistory:
+				rest.length === 0
+					? []
+					: history.filter((id) => id === MAIN_PANE_ID || findPane(rest, id) !== undefined),
+			...(activePaneId === before.activePaneId
+				? {}
+				: {editingId: null, editingClickPosition: null, editingCaretOffset: null, editingCaretEnd: null}),
+		});
+		requestActivePaneFocus(promoted.zoomedId);
 		return promoted;
 	},
 
-	movePane: (paneId, index) => {
+	movePane: (paneId, index, resolveId = (locationId) => locationId) => {
 		const state = get();
 		if (!canPlacePane(state, paneId, index)) {
 			return null;
@@ -1611,11 +1661,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		if (from === index || mainPaneUrlId === null) {
 			return {promoted: null};
 		}
+		// A pane's history travels with it, so the demoted main pane takes the main pane's own history.
+		const nodeIds = (locs: readonly Loc[]): (string | null)[] =>
+			locs.map((loc) => (loc.id === null ? null : resolveId(loc.id)));
 		const main: ItemTreePane = {
 			id: mainPaneUrlId,
 			zoomedId: state.zoomedNodeId,
-			backLocations: [],
-			forwardLocations: [],
+			backLocations: nodeIds(state.mainPaneHistory.back),
+			forwardLocations: nodeIds(state.mainPaneHistory.forward),
 			query: state.searchQuery,
 			expandedIds: new Set(state.expandedIds),
 		};
@@ -1626,7 +1679,15 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}
 		const [first, ...rest] = entries;
 		if (first === undefined || first === main) {
-			set({panes: rest});
+			set({
+				panes: rest,
+				paneFocusRequest: focusRequest(
+					state,
+					activePaneId,
+					findPane(rest, activePaneId)?.zoomedId ?? null,
+					true,
+				),
+			});
 			return {promoted: null};
 		}
 		// The promoted pane takes the `main` key; the old main outline goes by its URL id.
@@ -1636,8 +1697,17 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			panes: rest,
 			mainPaneUrlId: first.id,
 			paneWidths: Object.fromEntries(Object.entries(paneWidths).map(([id, width]) => [rename(id), width])),
-			paneCarets: Object.fromEntries(Object.entries(state.paneCarets).map(([id, caret]) => [rename(id), caret])),
+			mainPaneHistory: {
+				back: first.backLocations.map(locationOf),
+				forward: first.forwardLocations.map(locationOf),
+			},
 			activePaneId: rename(activePaneId),
+			paneFocusRequest: focusRequest(
+				state,
+				rename(activePaneId),
+				activePaneId === first.id ? first.zoomedId : (findPane(rest, activePaneId)?.zoomedId ?? null),
+				true,
+			),
 			paneFocusHistory: paneFocusHistory.map(rename),
 			editingId: null,
 			editingClickPosition: null,
@@ -1730,16 +1800,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 				paneFocusHistory: [...paneFocusHistory.filter((id) => id !== paneId), paneId],
 			});
 		}
-	},
-
-	savePaneCaret: (paneId, caret) => {
-		const state = get();
-		const pane = findPane(state.panes, paneId);
-		if (paneId !== MAIN_PANE_ID && pane === undefined) {
-			return;
-		}
-		const zoomedId = pane === undefined ? state.zoomedNodeId : pane.zoomedId;
-		set({paneCarets: {...state.paneCarets, [paneId]: {...caret, zoomedId}}});
 	},
 
 	openExportDialog: (context) => {

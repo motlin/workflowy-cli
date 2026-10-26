@@ -262,7 +262,7 @@ describe("pane navigation commands", () => {
 	});
 });
 
-function fakeNumbered(panes: {id: string; zoomedId: string | null}[], activePaneId = "main") {
+function fakeNumbered(panes: {id: string; zoomedId: string | null; query?: string}[], activePaneId = "main") {
 	const calls: string[] = [];
 	const deps: PaneNumberDeps = {
 		getState: () => ({
@@ -297,7 +297,7 @@ describe("focus_or_open_pane_N (⌃1–8)", () => {
 		expect(
 			["ctrl+1", "ctrl+2", "ctrl+3"].map((combo) => processCombo(combo, registry, onItem, true)),
 		).toStrictEqual(["claimed", "claimed", "claimed"]);
-		expect(calls).toStrictEqual(["focus:main:first", `focus:${A}:first`]);
+		expect(calls).toStrictEqual(["focus:main:title", `focus:${A}:title`]);
 	});
 
 	it("leaves the already active pane alone", () => {
@@ -350,7 +350,13 @@ describe("open_in_pane_N (⌃⇧1–8)", () => {
 	it("only focuses pane N when it already shows the item", () => {
 		const {calls, registry} = fakeNumbered(twoPanes);
 		registry.open_in_pane_2.execute({items: ["alice"], zoomedId: "zoom"});
-		expect(calls).toStrictEqual([`focus:${A}:first`]);
+		expect(calls).toStrictEqual([`focus:${A}:title`]);
+	});
+
+	it("treats a pane showing the item with a search as a different location and navigates it", () => {
+		const {calls, registry} = fakeNumbered([{id: A, zoomedId: "alice", query: "foo"}]);
+		registry.open_in_pane_2.execute({items: ["alice"], zoomedId: "zoom"});
+		expect(calls).toStrictEqual([`zoom:${A}:alice`]);
 	});
 
 	it("past the last pane opens the item in a new last pane", () => {

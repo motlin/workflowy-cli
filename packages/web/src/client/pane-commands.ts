@@ -168,16 +168,15 @@ function commandItem(ctx: CommandContext): string | null {
 /** What `focus_or_open_pane_N` / `open_in_pane_N` read and drive. */
 export interface PaneNumberDeps {
 	getState: () => {
-		panes: readonly {id: string; zoomedId: string | null}[];
+		panes: readonly {id: string; zoomedId: string | null; query?: string}[];
 		activePaneId: string;
 		openPane: (zoomedId: string | null, options?: OpenPaneOptions) => string;
 	};
 	/**
-	 * Upstream's `WF.Panes.focus`: make `paneId` (`main` for the main pane) active and put the caret in it: back where it
-	 * last was in that pane, else on its first row (`first`), or, upstream's `WF.Focus.firstChildOfSelected`, on the
-	 * zoom's first child (`first_child`).
+	 * Upstream's `WF.Panes.focus`: make `paneId` (`main` for the main pane) active and put the caret on its title at
+	 * offset 0 (`title`), or, upstream's `WF.Focus.firstChildOfSelected`, on the zoom's first child (`first_child`).
 	 */
-	focusPane: (paneId: string, caret: "first" | "first_child") => void;
+	focusPane: (paneId: string, caret: "title" | "first_child") => void;
 	/** Make `paneId` (`main` for the main outline) active and zoom it to `nodeId` (null for Home), caret in the new view. */
 	zoomPaneTo: (paneId: string, nodeId: string | null) => void;
 }
@@ -191,7 +190,7 @@ export interface PaneNumberDeps {
 export function paneNumberCommands(deps: PaneNumberDeps): CommandRegistry {
 	const workspace = () => {
 		const {panes} = deps.getState();
-		return panes.length === 0 ? [] : [{id: MAIN_PANE_ID, zoomedId: null}, ...panes];
+		return panes.length === 0 ? [] : [{id: MAIN_PANE_ID, zoomedId: null, query: ""}, ...panes];
 	};
 	const openLast = (ctx: CommandContext): void => {
 		const {activePaneId, panes, openPane} = deps.getState();
@@ -209,7 +208,7 @@ export function paneNumberCommands(deps: PaneNumberDeps): CommandRegistry {
 						openLast(ctx);
 					}
 				} else if (pane.id !== deps.getState().activePaneId) {
-					deps.focusPane(pane.id, "first");
+					deps.focusPane(pane.id, "title");
 				}
 			},
 		};
@@ -223,8 +222,8 @@ export function paneNumberCommands(deps: PaneNumberDeps): CommandRegistry {
 				const pane = workspace()[number - 1];
 				if (pane === undefined) {
 					openLast(ctx);
-				} else if (pane.zoomedId === nodeId) {
-					deps.focusPane(pane.id, "first");
+				} else if (pane.zoomedId === nodeId && (pane.query ?? "") === "") {
+					deps.focusPane(pane.id, "title");
 				} else {
 					deps.zoomPaneTo(pane.id, nodeId);
 				}

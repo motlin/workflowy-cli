@@ -75,6 +75,8 @@ export function PaneSearchBox({query, compact = false, onCommit}: PaneSearchBoxP
 					autoCorrect="off"
 					name="pane-search"
 					className={collapsed ? `${COMPACT_INPUT_CLASS} opacity-0 cursor-pointer` : COMPACT_INPUT_CLASS}
+					data-handbook="search.search"
+					data-pane-search-input="true"
 					onBlur={() => {
 						setFocused(false);
 					}}
@@ -87,6 +89,7 @@ export function PaneSearchBox({query, compact = false, onCommit}: PaneSearchBoxP
 					}}
 					onKeyDown={handleKeyDown}
 					placeholder="Search"
+					readOnly={!focused}
 					ref={inputRef}
 					type="text"
 					value={value}

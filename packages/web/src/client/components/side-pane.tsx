@@ -7,7 +7,7 @@ import {useNavigate} from "react-router-dom";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {movePane} from "../navigation.js";
-import {readNode} from "../node-cache.js";
+import {cachedResolvedId, readNode} from "../node-cache.js";
 import {MAIN_PANE_ID, findPane} from "../pane-ids.js";
 import type {ItemTreePane} from "../pane-ids.js";
 import {bindPaneReorder} from "../pane-reorder.js";
@@ -55,6 +55,8 @@ const WORKSPACE_STYLE: CSSProperties = cssVars({
 /** Upstream's pane: a fixed-width column that never flexes. Only the active pane prints. */
 const PANE_CLASS = "group/pane relative box-border flex-none h-full max-h-full min-h-0 bg-primary flex flex-col";
 const PANE_ACTIVE_PRINT_CLASS = "print:block print:!w-auto print:!min-w-0 print:!h-auto print:!max-h-none";
+/** The first pane's header leaves room for the fixed left control that holds the bars toggle while the left bar is closed. */
+const PANE_FIRST_CLASS = "[&_.header]:pl-[var(--pane-workspace-left-control-width)] [&_.header]:min-w-[280px]";
 /** The last pane's header leaves room for the workspace-level control at the workspace's top right. */
 const PANE_LAST_CLASS = "[&_.header]:pr-[var(--pane-workspace-control-width)] [&_.header]:min-w-[280px]";
 
@@ -152,7 +154,7 @@ export function PaneWorkspace({children}: {children: ReactNode}) {
 						getState: useOutlineStore.getState,
 						title: (paneId) => paneTitle(queryClient, paneId),
 						movePane: (paneId, index) => {
-							movePane(navigate, paneId, index);
+							movePane(navigate, paneId, index, (id) => cachedResolvedId(queryClient, id) ?? id);
 						},
 						onView: setReorder,
 					})
@@ -204,13 +206,14 @@ export function MainPane({children}: {children: ReactNode}) {
 	const isActive = useOutlineStore((state) => state.panes.length > 0 && state.activePaneId === MAIN_PANE_ID);
 	const width = useOutlineStore((state) => (state.panes.length > 0 ? state.paneWidths[MAIN_PANE_ID] : undefined));
 	const setActivePane = useOutlineStore((state) => state.setActivePane);
+	const leftControlShown = useOutlineStore((state) => state.leftBarMode !== "alwaysOpen");
 	return panesOpen ? (
 		<div
 			id={`pane-${MAIN_PANE_ID}`}
 			data-pane-id={MAIN_PANE_ID}
 			data-pane-type="item-tree"
 			data-pane-active={isActive ? "true" : "false"}
-			className={`main-pane ${paneClassName(isActive)}`}
+			className={`main-pane ${paneClassName(isActive, leftControlShown ? PANE_FIRST_CLASS : "")}`}
 			style={{width, minWidth: MIN_PANE_WIDTH}}
 			{...paneActivation(MAIN_PANE_ID, setActivePane)}
 		>

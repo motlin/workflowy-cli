@@ -107,9 +107,9 @@ import {showCompletedCommand} from "../show-completed-toggle.js";
 import {readLinkPopupTarget} from "../link-popup-open.js";
 import {switcherCommandAction, switcherStepCommand} from "../switcher-keys.js";
 import {openInPane, paneCommands, paneNavCommands, paneNumberCommands} from "../pane-commands.js";
-import {captureActivePaneCaret, scrollPaneToTop} from "../components/pane-context.js";
-import {restorableCaret} from "../pane-caret.js";
-import {MAIN_PANE_ID} from "../pane-ids.js";
+import {scrollPaneToTop} from "../components/pane-context.js";
+import {requestPaneFocus} from "../pane-focus.js";
+import {MAIN_PANE_ID, findPane} from "../pane-ids.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
@@ -1411,43 +1411,33 @@ export function useCommandRegistry(): CommandRegistry {
 				closeMainPane(navigate);
 			},
 			movePane: (paneId, index) => {
-				movePane(navigate, paneId, index);
+				movePane(navigate, paneId, index, (id) => cachedResolvedId(queryClient, id) ?? id);
 			},
 		}),
 		...paneNumberCommands({
 			getState: useOutlineStore.getState,
 			focusPane: (paneId, caret) => {
-				captureActivePaneCaret();
+				commitEdit();
 				useOutlineStore.getState().setActivePane(paneId);
 				if (caret === "first_child") {
 					focusEdge("first", true);
 					return;
 				}
-				const view = activePaneView();
-				const saved = restorableCaret(view.paneCarets[paneId], {
-					zoomedId: view.zoomedNodeId,
-					visibleIds: collectVisibleNodeIds(
-						queryClient,
-						view.zoomedNodeId,
-						view.expandedIds,
-						view.showCompleted,
-						view.animatingCompletionIds,
-					),
-				});
-				if (saved === null) {
-					focusEdge("first");
-				} else {
-					commitEdit();
-					if (saved.field === "note") {
-						view.focusNote(saved.nodeId, saved.offset);
-					} else {
-						view.resumeEditing(saved.nodeId, saved.offset);
-					}
-				}
+				const state = useOutlineStore.getState();
+				const zoomedId = paneId === MAIN_PANE_ID ? null : (findPane(state.panes, paneId)?.zoomedId ?? null);
+				requestPaneFocus({paneId, zoomedId, reveal: true}, {resumeEditing: state.resumeEditing});
 			},
 			zoomPaneTo: (paneId, nodeId) => {
-				useOutlineStore.getState().setActivePane(paneId);
-				void zoomTo(nodeId, "first_child");
+				commitEdit();
+				const state = useOutlineStore.getState();
+				state.setActivePane(paneId);
+				if (paneId === MAIN_PANE_ID) {
+					goToNode(navigate, nodeId);
+					requestPaneFocus({paneId, zoomedId: nodeId, reveal: true}, {resumeEditing: state.resumeEditing});
+				} else {
+					// The store's pane focus request moves the caret to the new title.
+					state.zoomPane(paneId, nodeId);
+				}
 			},
 		}),
 		...paneNavCommands({

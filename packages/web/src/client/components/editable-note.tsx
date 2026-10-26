@@ -13,7 +13,6 @@ import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {editorHtmlToNote, noteContentHtml, planNoteKey, planNoteSave, wrapBareNoteText} from "../note-text.js";
 import {isComposingInput, retagEditor} from "../editor-html.js";
 import {placeCaretAtTextOffset} from "../caret-dom.js";
-import {savePaneCaretOnBlur} from "./pane-context.js";
 import {planDateInsertion, planPillReplacement} from "../date-pills.js";
 import {deleteAdjacentPill} from "../pill-delete.js";
 import type {TimeAttrs} from "@workflowy/shared";
@@ -521,10 +520,6 @@ export function EditableNote({
 	}, [clearSearchHighlights, initialValue, restingHtml, isFocused, nodeId, focusNote, noteSaver, queryClient]);
 
 	const handleBlur = useCallback(() => {
-		const element = contentRef.current;
-		if (element !== null) {
-			savePaneCaretOnBlur(element, nodeId, "note", noteTextElement(element));
-		}
 		detachSlashMenu();
 		detachMentionMenu();
 		detachTagAutocomplete();

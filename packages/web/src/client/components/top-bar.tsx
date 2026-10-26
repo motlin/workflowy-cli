@@ -1,4 +1,5 @@
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
+import type {CSSProperties} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {useShallow} from "zustand/react/shallow";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
@@ -11,6 +12,7 @@ import {useBreakpoint} from "../hooks/use-breakpoint.js";
 import {IconButton} from "./icon-button.js";
 import {LayoutButtonMenu} from "./layout-button-menu.js";
 import {NewPaneIcon} from "./new-pane-icon.js";
+import {PaneSearchBox} from "./pane-search-box.js";
 import {SearchBox} from "./search-box.js";
 import {StarButton} from "./star-button.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
@@ -18,6 +20,22 @@ import {closeMainPane, stepNav, useNavStackSync} from "../navigation.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
 import {cachedResolvedId} from "../node-cache.js";
 import {PANE_HEADER_ACTIVE_BORDER} from "./pane-context.js";
+
+/** The first pane's header while panes are open: upstream's pane header reset, not the fixed single-document bar. */
+const FIRST_PANE_HEADER_STYLE: CSSProperties = {
+	position: "relative",
+	top: "auto",
+	right: "auto",
+	left: "auto",
+	height: "auto",
+	minHeight: "var(--wf-header-height)",
+	zIndex: "auto",
+	transition: "none",
+};
+
+/** Upstream's `pane-workspace-control` left portal, holding the bars toggle while the left bar is closed. */
+const LEFT_CONTROL_CLASS =
+	"pane-workspace-control empty:hidden box-border fixed top-0 left-0 flex h-[var(--wf-header-height)] w-[var(--pane-workspace-left-control-width)] items-center justify-start pl-[var(--wf-space-s)] bg-primary";
 
 /** Upstream's hamburger hover peek: the drawer closes this long after the pointer leaves the hamburger. */
 const PEEK_CLOSE_DELAY_MS = 200;
@@ -81,6 +99,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		closeLeftBarDrawer,
 		paneOpen,
 		openPane,
+		searchQuery,
 	} = useOutlineStore(
 		useShallow((state) => ({
 			zoomedNodeId: state.zoomedNodeId,
@@ -92,6 +111,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 			closeLeftBarDrawer: state.closeLeftBarDrawer,
 			paneOpen: state.panes.length > 0,
 			openPane: state.openPane,
+			searchQuery: state.searchQuery,
 		})),
 	);
 	const [peek] = useState(() =>
@@ -118,6 +138,12 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const narrow = !useBreakpoint(701);
 	const compact = narrow || paneOpen;
 
+	const commitMainSearch = useCallback(
+		(query: string) => {
+			useOutlineStore.getState().commitSearch(query, navigate);
+		},
+		[navigate],
+	);
 	const resolveCached = (locationId: string) => cachedResolvedId(queryClient, locationId);
 	const handleNavigateBack = () => {
 		stepNav(navigate, "back", resolveCached);
@@ -126,30 +152,30 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		stepNav(navigate, "forward", resolveCached);
 	};
 
+	const toggle = (
+		<div
+			style={{position: "relative"}}
+			onMouseEnter={() => {
+				// Upstream peeks on pointer devices only; touch taps go through the toggle.
+				if (canHover()) {
+					peek.enter();
+				}
+			}}
+			onMouseLeave={peek.leave}
+		>
+			<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftBar}>
+				<FaIcon icon="fal:bars" />
+			</IconButton>
+		</div>
+	);
+
 	return (
 		<div
-			className={`wf-header header bg-primary${paneOpen ? " wf-pane-header" : ""} border-b border-solid border-primary${paneOpen ? ` ${PANE_HEADER_ACTIVE_BORDER}` : ""}`}
-			style={{left: leftBarOffset, zIndex: 200}}
+			className={`wf-header header bg-primary${paneOpen ? " wf-pane-header" : ""} border-b border-solid border-primary${paneOpen ? ` ${PANE_HEADER_ACTIVE_BORDER} flex-shrink-0` : ""}`}
+			style={paneOpen ? FIRST_PANE_HEADER_STYLE : {left: leftBarOffset, zIndex: 200}}
 		>
 			{/* Upstream swaps the hamburger for a 16px spacer while the left bar is pinned. */}
-			{leftBarMode === "alwaysOpen" ? (
-				<div className="w-l" />
-			) : (
-				<div
-					style={{position: "relative"}}
-					onMouseEnter={() => {
-						// Upstream peeks on pointer devices only; touch taps go through the toggle.
-						if (canHover()) {
-							peek.enter();
-						}
-					}}
-					onMouseLeave={peek.leave}
-				>
-					<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftBar}>
-						<FaIcon icon="fal:bars" />
-					</IconButton>
-				</div>
-			)}
+			{leftBarMode === "alwaysOpen" ? <div className="w-l" /> : !paneOpen && toggle}
 
 			<div className="pagination">
 				<IconButton
@@ -177,14 +203,26 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 			<Breadcrumbs nodeId={zoomedNodeId} instance={zoomedInstance} />
 
 			<div className="ml-auto flex self-stretch items-center gap-xs flex-shrink-0">
-				<SearchBox />
+				{paneOpen ? <PaneSearchBox compact onCommit={commitMainSearch} query={searchQuery} /> : <SearchBox />}
 
-				{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys */}
-				<div onClick={() => void navigateToToday()}>
-					<IconButton shortcut="⌃T" tooltip="Today">
+				{paneOpen ? (
+					<IconButton
+						onClick={() => {
+							void navigateToToday();
+						}}
+						shortcut="⌃T"
+						tooltip="Today"
+					>
 						<FaIcon icon="fal:calendar-day" />
 					</IconButton>
-				</div>
+				) : (
+					// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys
+					<div onClick={() => void navigateToToday()}>
+						<IconButton shortcut="⌃T" tooltip="Today">
+							<FaIcon icon="fal:calendar-day" />
+						</IconButton>
+					</div>
+				)}
 
 				{!compact && (
 					<>
@@ -263,6 +301,13 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 					</>
 				)}
 			</div>
+
+			{/* Upstream's fixed left-control portal: with the left bar closed the first pane's header hosts the bars toggle. */}
+			{paneOpen && leftBarMode !== "alwaysOpen" && (
+				<div className={LEFT_CONTROL_CLASS} style={{zIndex: 200}}>
+					{toggle}
+				</div>
+			)}
 		</div>
 	);
 }

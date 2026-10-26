@@ -215,10 +215,19 @@ export function closeMainPane(navigate: NavigateFn): void {
  * lands first it becomes the main outline, so the URL navigates to its zoom and search; otherwise the pane sync pushes
  * the reordered `panes` param.
  */
-export function movePane(navigate: NavigateFn, paneId: string, index: number): void {
-	const promoted = useOutlineStore.getState().movePane(paneId, index)?.promoted ?? null;
+export function movePane(
+	navigate: NavigateFn,
+	paneId: string,
+	index: number,
+	/** Expand a location's short id to the node id (from the cache) so the demoted main pane can zoom back to it. */
+	resolveId?: (locationId: string) => string,
+): void {
+	const promoted = useOutlineStore.getState().movePane(paneId, index, resolveId)?.promoted ?? null;
 	if (promoted !== null) {
+		// The promoted pane arrives with its own history; navigating to it must not add the old main location to it.
+		const {mainPaneHistory} = useOutlineStore.getState();
 		goToNode(navigate, promoted.zoomedId, promoted.query === "" ? null : promoted.query, true);
+		useOutlineStore.setState({mainPaneHistory});
 	}
 }
 

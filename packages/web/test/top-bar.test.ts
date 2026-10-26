@@ -398,6 +398,70 @@ function newPaneHtml(html: string): string {
 	return html.slice(start, end).replaceAll(/ d="[^"]*"/gu, "");
 }
 
+describe("TopBar as the first pane's header", () => {
+	const header = (html: string) => html.slice(0, html.indexOf(">") + 1);
+
+	it("uses the pane header's inline reset instead of the fixed offset", () => {
+		expect(header(renderWithPane())).toBe(
+			'<div class="wf-header header bg-primary wf-pane-header border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint flex-shrink-0" style="position:relative;top:auto;right:auto;left:auto;height:auto;min-height:var(--wf-header-height);z-index:auto;transition:none">',
+		);
+	});
+
+	it("renders the compact 36px search circle, not the header search box", () => {
+		const html = renderWithPane();
+		expect({
+			input: html.includes('data-pane-search-input="true"'),
+			legacy: html.includes('id="srch-input"'),
+			circle: html.includes(
+				'class="relative shrink-0 max-w-[60vw] transition-[width] duration-300 ease-base hover:!bg-tertiary searchBox" style="width:36px;height:36px;border-radius:18px"',
+			),
+		}).toStrictEqual({input: true, legacy: false, circle: true});
+	});
+
+	it("renders Today as a direct IconButton with no wrapper div", () => {
+		const cluster = clusterHtml(renderWithPane());
+		expect(cluster).not.toMatch(/<div><div role="button"[^>]*><svg[^>]*fa-calendar-day/u);
+		expect(cluster.indexOf("fa-calendar-day")).toBeGreaterThan(-1);
+	});
+
+	it("moves the bars toggle into a fixed left control, the header's last child, while the left bar is closed", () => {
+		const html = renderWithPane();
+		const control = html.indexOf('<div class="pane-workspace-control');
+		expect({
+			control: html.slice(control, html.indexOf(">", control) + 1),
+			last: html.endsWith("</div></div></div>") && html.indexOf('data-handbook="toggle_leftbar"') > control,
+			leading: html.indexOf('data-handbook="toggle_leftbar"') > html.indexOf('class="pagination"'),
+		}).toStrictEqual({
+			control:
+				'<div class="pane-workspace-control empty:hidden box-border fixed top-0 left-0 flex h-[var(--wf-header-height)] w-[var(--pane-workspace-left-control-width)] items-center justify-start pl-[var(--wf-space-s)] bg-primary" style="z-index:200">',
+			last: true,
+			leading: true,
+		});
+	});
+
+	it("keeps the 16px spacer and no left control while the left bar is pinned", () => {
+		storeState.leftBarMode = "alwaysOpen";
+		const html = renderWithPane();
+		storeState.leftBarMode = "drawerClosed";
+		expect({
+			control: html.includes("pane-workspace-control"),
+			spacer: html.includes('<div class="w-l">'),
+		}).toStrictEqual({
+			control: false,
+			spacer: true,
+		});
+	});
+
+	it("keeps the single-document header unchanged: leading toggle, wrapped Today, no control", () => {
+		const html = renderCluster("alice", true, []);
+		expect({
+			control: html.includes("pane-workspace-control"),
+			legacy: html.includes('id="srch-input"'),
+			wrapped: /<div><div role="button"[^>]*>(?:(?!<\/div>).)*fa-calendar-day/u.test(clusterHtml(html)),
+		}).toStrictEqual({control: false, legacy: true, wrapped: true});
+	});
+});
+
 describe("TopBar New pane", () => {
 	it("renders upstream's separator and 30x27 columns-plus IconButton after the kebab", () => {
 		expect(newPaneHtml(renderCluster("alice", true, []))).toBe(
@@ -432,7 +496,13 @@ describe("TopBar New pane", () => {
 	});
 
 	it("swaps New pane for Close pane and compacts the cluster while a pane is open", () => {
-		expect(clusterSequence(renderWithPane())).toStrictEqual(["search", "today", "gearMenu", "close_pane"]);
+		expect(clusterSequence(renderWithPane())).toStrictEqual([
+			"search",
+			"today",
+			"gearMenu",
+			"close_pane",
+			"toggle_leftbar",
+		]);
 	});
 
 	it("renders Close pane as upstream's tertiary xmark", () => {

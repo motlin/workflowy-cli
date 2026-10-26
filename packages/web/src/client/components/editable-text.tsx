@@ -108,7 +108,6 @@ import {useInlineLinkPopup} from "../hooks/use-inline-link-popup.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripMentionChip} from "../mention-trigger.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
-import {savePaneCaretOnBlur} from "./pane-context.js";
 import {focusCenters, focusScrolls} from "../quiet-focus.js";
 import {scrollToCenter} from "../scroll-reveal.js";
 
@@ -1210,9 +1209,6 @@ function EditingText({
 	const handleBlur = useCallback(
 		(event: React.FocusEvent<HTMLSpanElement>) => {
 			handleLinkBlur(event);
-			if (contentRef.current !== null) {
-				savePaneCaretOnBlur(contentRef.current, nodeId, "name");
-			}
 			detachSlashMenu();
 			detachMentionMenu();
 			detachMirrorMenu();
