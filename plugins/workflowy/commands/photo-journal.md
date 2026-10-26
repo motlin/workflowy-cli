@@ -148,6 +148,18 @@ For multiple photos from the same day/event:
 # Then attach the photos with /workflowy:upload-attachment, one empty child per photo
 ```
 
+## Select a Photo for the User in Photos
+
+When a photo walk decides the user must delete or find a photo by hand, select it in Photos right then, at decision time, not as an end-of-run reminder. Never say Claude cannot help find it. Selecting is read-only UI: never delete, edit, or modify anything in the Photos library.
+
+```bash
+node plugins/gtd/scripts/select-photo.mts --filename "IMG_3513.HEIC" --date 2026-10-25
+```
+
+- Pass the exact filename including its extension plus the photo's date: several library items can share a filename
+- The script runs `spotlight` and `activate` through `osascript` and prints `selected`, or `matches=<n>` when the filename plus date is not exactly one item
+- On `selected`, tell the user the photo is selected in Photos; on `matches=<n>`, say so and ask for the time or a neighbouring photo to disambiguate
+
 ## Notes
 
 - The 📷 emoji at the start indicates a photo entry
