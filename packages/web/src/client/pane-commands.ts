@@ -10,6 +10,7 @@ export interface PaneCommandStore {
 		zoomedNodeId: string | null;
 		openPane: (zoomedId: string | null, options?: OpenPaneOptions) => string;
 		closePane: (paneId: string) => void;
+		closeAllPanes: () => void;
 	};
 	/** Close the main pane: the first pane becomes the main outline (its zoom navigates the URL). */
 	closeMainPane: () => void;
@@ -43,6 +44,19 @@ export function paneCommands(store: PaneCommandStore): CommandRegistry {
 					store.closeMainPane();
 				} else {
 					closePane(activePaneId);
+				}
+			},
+		},
+		/** Upstream's unbound `toggle_panes`: close every pane when any is open, else open the focused (or zoomed) item in one. */
+		toggle_panes: {
+			execute(ctx) {
+				const {panes, activePaneId, closeAllPanes, openPane} = store.getState();
+				if (panes.length > 0) {
+					closeAllPanes();
+				} else {
+					openPane(ctx.items[0] ?? ctx.zoomedId, {
+						sourcePaneId: findPane(panes, activePaneId)?.id ?? MAIN_PANE_ID,
+					});
 				}
 			},
 		},

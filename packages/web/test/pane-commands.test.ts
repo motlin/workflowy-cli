@@ -20,6 +20,9 @@ function fakeStore(panes: {id: string; zoomedId: string | null}[], activePaneId 
 			closePane: (paneId) => {
 				calls.push(`close:${paneId}`);
 			},
+			closeAllPanes: () => {
+				calls.push("close-all");
+			},
 		}),
 		closeMainPane: () => {
 			calls.push("close-main");
@@ -32,6 +35,22 @@ function fakeStore(panes: {id: string; zoomedId: string | null}[], activePaneId 
 }
 
 const ctx = {items: [], zoomedId: "main-zoom"};
+
+describe("toggle_panes", () => {
+	it("closes every pane while any pane is open", () => {
+		const {calls, store} = fakeStore([{id: A, zoomedId: "alice"}], A);
+		paneCommands(store).toggle_panes.execute(ctx);
+		expect(calls).toStrictEqual(["close-all"]);
+	});
+
+	it("opens the focused item in a pane when none is open, else the zoomed one", () => {
+		const {calls, store} = fakeStore([]);
+		const commands = paneCommands(store);
+		commands.toggle_panes.execute({items: ["focused"], zoomedId: "main-zoom"});
+		commands.toggle_panes.execute(ctx);
+		expect(calls).toStrictEqual(["open:focused:main:end", "open:main-zoom:main:end"]);
+	});
+});
 
 describe("pane commands", () => {
 	it("⌃R opens a pane on the main outline's zoom, after the last pane, when the main pane is active", () => {

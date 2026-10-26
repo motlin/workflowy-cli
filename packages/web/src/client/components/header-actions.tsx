@@ -90,8 +90,15 @@ export function useHeaderActions(zoomedId: string | null): HeaderActions {
  * The compactable actions as more-menu rows, like upstream's `more-menu.menu.header.*`. Change layout has no element
  * of its own, so its picker opens over the more menu, like upstream.
  */
-export function compactHeaderItems(actions: HeaderActions, zoomedId: string | null): GearMenuHeaderItem[] {
+export function compactHeaderItems(
+	actions: HeaderActions,
+	zoomedId: string | null,
+	onToday?: () => void,
+): GearMenuHeaderItem[] {
 	const items: GearMenuHeaderItem[] = [];
+	if (onToday !== undefined) {
+		items.push({label: "Today", icon: <FaIcon icon="fal:calendar-day" />, onSelect: onToday});
+	}
 	if (zoomedId !== null) {
 		items.push({label: "Share", icon: <FaIcon icon="fal:user-plus" />, onSelect: actions.share});
 	}

@@ -60,6 +60,8 @@ interface HeaderMoreMenuProps {
 	paneId: string;
 	/** Upstream's compact header: the compactable actions move into this menu. */
 	compact: boolean;
+	/** Set for a pane narrower than 530px: Today leaves the header for a row at the top of this menu. */
+	onToday?: () => void;
 	onUndo: () => void;
 	onRedo: () => void;
 }
@@ -68,7 +70,7 @@ interface HeaderMoreMenuProps {
  * The header kebab (upstream's gearMenu wrapper, no tooltip; blue dot omitted with no unread rows locally). Its
  * Expand/Collapse all act on the zoomed item's whole subtree (every top-level item at Home).
  */
-export function HeaderMoreMenu({zoomedId, paneId, compact, onUndo, onRedo}: HeaderMoreMenuProps) {
+export function HeaderMoreMenu({zoomedId, paneId, compact, onToday, onUndo, onRedo}: HeaderMoreMenuProps) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const panes = useOutlineStore((state) => state.panes);
@@ -77,7 +79,7 @@ export function HeaderMoreMenu({zoomedId, paneId, compact, onUndo, onRedo}: Head
 	const actions = useHeaderActions(zoomedId);
 	const [helpAnchor, setHelpAnchor] = useState<HelpAnchor | null>(null);
 	const rows = useMainMenuRows({
-		headerItems: compact ? compactHeaderItems(actions, zoomedId) : [],
+		headerItems: compact ? compactHeaderItems(actions, zoomedId, onToday) : [],
 		paneItems: movePaneItems({panes}, paneId, (id, index) => {
 			movePane(navigate, id, index, (locationId) => cachedResolvedId(queryClient, locationId) ?? locationId);
 		}),

@@ -42,7 +42,7 @@ const storeState: {panes: PaneState[]; activePaneId: string; paneWidths: Record<
 > = {
 	panes: [BOB],
 	activePaneId: B,
-	paneWidths: {main: 400, [B]: 500, [C]: 600, [D]: 700},
+	paneWidths: {main: 400, [B]: 540, [C]: 600, [D]: 700},
 	workspaceWidth: null,
 	paneResizing: false,
 	leftBarOffset: () => 0,
@@ -162,11 +162,13 @@ vi.mock("../src/client/components/pane-search-box.js", () => ({
 	},
 }));
 
-/** The pane's kebab: records the zoom its compactable items act on. */
+/** The pane's kebab: records the zoom its compactable items act on and whether it carries Today. */
 const menuZooms: (string | null)[] = [];
+const menuToday: boolean[] = [];
 vi.mock("../src/client/components/header-more-menu.js", () => ({
-	HeaderMoreMenu: ({zoomedId}: {zoomedId: string | null}) => {
+	HeaderMoreMenu: ({zoomedId, onToday}: {zoomedId: string | null; onToday?: () => void}) => {
 		menuZooms.push(zoomedId);
+		menuToday.push(onToday !== undefined);
 		return createElement("div", {className: "more-menu-mock"});
 	},
 }));
@@ -193,7 +195,7 @@ describe("SidePanes", () => {
 		expect({first: html.startsWith(`<div id="pane-${B}"`), tags}).toStrictEqual({
 			first: true,
 			tags: [
-				[B, 500, `${base} ${active}`],
+				[B, 540, `${base} ${active}`],
 				[C, 600, `${base} print:hidden`],
 				[D, 700, `${base} print:hidden ${last}`],
 			].map(
@@ -211,7 +213,7 @@ describe("SidePanes", () => {
 		const separator = (n: number, controls: string, min: number, now: number, text: string) =>
 			`<div aria-controls="${controls}" aria-label="Resize pane ${n}" aria-orientation="vertical" aria-valuemin="${min}" aria-valuenow="${now}" aria-valuetext="${text}" class="${classes}" data-pane-drag-ignore="true" role="separator" style="z-index:200" tabindex="0">`;
 		expect(separators).toStrictEqual([
-			separator(2, `pane-${B} pane-${C}`, 350, 500, "500 and 600 pixels"),
+			separator(2, `pane-${B} pane-${C}`, 350, 540, "540 and 600 pixels"),
 			separator(3, `pane-${C} pane-${D}`, 350, 600, "600 and 700 pixels"),
 			separator(4, `pane-${D}`, 350, 700, "700 pixels"),
 		]);
@@ -288,7 +290,7 @@ describe("SidePanes", () => {
 			threeDotPosition: crumbs?.threeDotPosition,
 		}).toStrictEqual({
 			sizes: {rightMargin: 8, itemGap: 18, ellipsisWidth: 28},
-			maxWidth: 140,
+			maxWidth: 180,
 			threeDotPosition: "left",
 		});
 	});
@@ -312,6 +314,24 @@ describe("SidePanes", () => {
 			found: order.every((index) => index > 0),
 			ordered: order.every((index, i) => i === 0 || index > (order[i - 1] ?? 0)),
 		}).toStrictEqual({found: true, ordered: true});
+	});
+
+	it("moves Today into the kebab when the pane is narrower than 530px, like upstream's width < 530 compaction", () => {
+		const widthOf = (width: number) => {
+			storeState.paneWidths[B] = width;
+			menuToday.length = 0;
+			try {
+				const html = render();
+				return {todayButton: html.includes("calendar-day"), kebabHasToday: menuToday.at(-1)};
+			} finally {
+				storeState.paneWidths[B] = 540;
+			}
+		};
+		expect({narrow: widthOf(350), edge: widthOf(529), wide: widthOf(530)}).toStrictEqual({
+			narrow: {todayButton: false, kebabHasToday: true},
+			edge: {todayButton: false, kebabHasToday: true},
+			wide: {todayButton: true, kebabHasToday: false},
+		});
 	});
 
 	it("gives the pane a compact search box over its own query that commits to the pane", () => {

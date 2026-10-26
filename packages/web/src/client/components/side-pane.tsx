@@ -14,7 +14,7 @@ import {bindPaneReorder} from "../pane-reorder.js";
 import type {ReorderView} from "../pane-reorder.js";
 import {bindPaneSeparator, handleSeparatorKey} from "../pane-resize.js";
 import {paneCrumbOptions} from "../breadcrumb-layout.js";
-import {MIN_PANE_WIDTH, minimumPaneWidth} from "../pane-widths.js";
+import {MIN_PANE_WIDTH, NARROW_PANE_WIDTH, minimumPaneWidth} from "../pane-widths.js";
 import {useOutlineStore, workspaceAvailableWidth, workspaceWidths} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
@@ -360,6 +360,7 @@ function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 		[id, zoomPane],
 	);
 	const navigateToToday = useNavigateToToday(context.zoom);
+	const narrow = (width ?? MIN_PANE_WIDTH) < NARROW_PANE_WIDTH;
 	return (
 		<div
 			id={`pane-${id}`}
@@ -413,13 +414,22 @@ function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 							}}
 							query={pane.query}
 						/>
-						{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys */}
-						<div onClick={() => void navigateToToday()}>
-							<IconButton tooltip="Today">
-								<FaIcon icon="fal:calendar-day" />
-							</IconButton>
-						</div>
-						<HeaderMoreMenu compact onRedo={onRedo} paneId={id} onUndo={onUndo} zoomedId={pane.zoomedId} />
+						{!narrow && (
+							// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys
+							<div onClick={() => void navigateToToday()}>
+								<IconButton tooltip="Today">
+									<FaIcon icon="fal:calendar-day" />
+								</IconButton>
+							</div>
+						)}
+						<HeaderMoreMenu
+							compact
+							onRedo={onRedo}
+							onToday={narrow ? () => void navigateToToday() : undefined}
+							paneId={id}
+							onUndo={onUndo}
+							zoomedId={pane.zoomedId}
+						/>
 						<IconButton
 							className="text-tertiary hover:text-on-surface flex-shrink-0"
 							onClick={() => {

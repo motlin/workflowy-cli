@@ -6,6 +6,9 @@
 
 /** Upstream `Nn2.min`: no pane gets narrower than this. */
 export const MIN_PANE_WIDTH = 350;
+
+/** Upstream's `t.width < 530`: a pane narrower than this moves every header action with a menu row into its kebab. */
+export const NARROW_PANE_WIDTH = 530;
 /** Upstream `Nn2.gutter`: the margin to the right of the workspace. */
 export const PANE_GUTTER = 8;
 /** Upstream `Nn2.normalize`'s fallback for a pane with no usable width. */
