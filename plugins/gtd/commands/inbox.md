@@ -124,6 +124,8 @@ For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to
 
 **The item count is never grounds to ask.** As soon as the refinement suggestions are parsed, present item 1. Never open with a listing of the proposed moves followed by a presentation-mode question — "How should I file them?", "file all as proposed / walk one at a time / group by destination?", "want me to auto-accept the high-confidence ones?". The batch-of-4 loop below, one `AskUserQuestion` per item, is the only mode.
 
+**Exception: more than about 8 questions.** When the loop would ask more than about 8 questions, present all items on one decision page instead of `AskUserQuestion`. This is a surface switch, not a how-to-file question, so do not ask the user about it. See "Choose the presentation surface" in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`.
+
 These openers are all banned, however phrased:
 
 - "Here are the 10 proposed moves — file all as proposed, or walk them one at a time?"

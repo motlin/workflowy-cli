@@ -214,6 +214,8 @@ Before each question (including a meeting-level question), refresh each displaye
 
 Present candidates one at a time using AskUserQuestion. The user does not read the scrolling console, so everything needed to decide goes **inside** the question body: the description, the source meeting (as a clickable link), the Step 6 reasoning, and the Step 7 match result.
 
+When the walk would ask more than about 8 questions, present all candidates on one decision page instead of `AskUserQuestion`. See "Choose the presentation surface" in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`.
+
 Include the name-resolution results **inside the same question body**, next to the proposed description. For each near-miss show the original, suggestion, and evidence inline, for example: `“Git Hub” — did you mean “GitHub” (project metadata)?` Show unresolved names and competing matches explicitly; do not hide them in console output. If all names matched exactly, say so; if a source was unavailable, state which check could not be performed.
 
 Make clear that accepting the displayed description also confirms its explicitly proposed spellings. When a name is ambiguous or unresolved, obtain the user's chosen spelling (or explicit instruction to retain the original) before recording; a destination choice alone does not resolve an unspecified identity. Update the local name resolutions with that decision. If a correction changes the apparent task match, refresh Step 7 and confirm the resulting destination before writing. The user may reject a suggested spelling without having to skip the follow-up.

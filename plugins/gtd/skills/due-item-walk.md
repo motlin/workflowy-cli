@@ -29,6 +29,8 @@ The only correct first move after computing the working set is to present item 1
 
 Use `AskUserQuestion`, never a plain-text batch. The user clears items quickly by tapping the first option. After recording an outcome and **dispatching its write in the background**, present the next item immediately — the write never blocks the next `AskUserQuestion`.
 
+**Long walks switch to a decision page.** When the walk would ask more than about 8 questions, present all items on one decision page instead of `AskUserQuestion`. See "Choose the presentation surface" in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`.
+
 **One task per question.** Never put two unrelated tasks in one question, however similar they look — shared due date, shared source, or a shared theme does not make them one decision. One `AskUserQuestion` call may carry up to 4 questions, one per task, each with its own context and options. Only copies of the same task (the `duplicateCopies` survivor and its external copies) may share a question.
 
 ## Walk a recurring item's list entry by entry
