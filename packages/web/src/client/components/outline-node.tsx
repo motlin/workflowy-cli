@@ -7,8 +7,10 @@ import {canHaveNote} from "../layout-types.js";
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {getHoveredRowId, setHoveredRowId} from "../hovered-row.js";
 import {useIsRowHovered} from "../hooks/use-row-hover.js";
-import type {ReactNode} from "react";
-import {memo, useContext, useMemo, useEffect, useLayoutEffect, useState} from "react";
+import type {ReactNode, CSSProperties} from "react";
+import {memo, useContext, useMemo, useEffect, useLayoutEffect, useState, useSyncExternalStore} from "react";
+import {IS_MOBILE} from "../is-mobile.js";
+import {getFontSize, mobileRowMetrics, subscribeFontSize} from "../mobile-font-size.js";
 import {childInstance, expansionId, isCyclical} from "../../mirror-path.js";
 import {MirrorInstanceContext} from "../mirror-instance-context.js";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
@@ -261,6 +263,17 @@ function NodeName({
 	const boardZoomed = useContext(BoardZoomedContext);
 	const search = useOutlineSearchFilter();
 	const isHovered = useIsRowHovered(node.id);
+	// A phone row sizes itself from the font setting (upstream's `AppSettings.font_size`); board and table rows keep their own.
+	const fontSize = useSyncExternalStore(subscribeFontSize, getFontSize, getFontSize);
+	const mobileMetrics =
+		IS_MOBILE && boardRole === undefined && tableCell === undefined ? mobileRowMetrics(fontSize) : null;
+	const mobileNameStyle: CSSProperties | undefined =
+		mobileMetrics === null
+			? undefined
+			: {
+					["--name-padding-left" as string]: `${mobileMetrics.namePaddingLeft}px`,
+					["--name-font-size" as string]: `${fontSize}px`,
+				};
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const {setItemMenuOpen, toggleExpand, toggleSearchExpansion, resumeEditing} = outlineActions();
 	const rowInstance = useContext(MirrorInstanceContext);
@@ -357,6 +370,7 @@ function NodeName({
 		<div
 			tabIndex={-1}
 			className={nameClasses}
+			style={mobileNameStyle}
 			onClick={handleRowClick}
 			onMouseEnter={() => {
 				setHoveredRowId(node.id);
@@ -377,6 +391,10 @@ function NodeName({
 				board: boardRole,
 				tableCell: tableCell !== undefined,
 				shared: tableCell !== undefined && isMirrorRoot(node),
+				mobile:
+					mobileMetrics === null
+						? undefined
+						: {size: mobileMetrics.bulletSize, left: mobileMetrics.bulletLeft},
 				nodeId: node.id,
 				instance: rowInstance,
 				isMirror: isMirrorRoot(node),
@@ -419,6 +437,7 @@ function NodeName({
 			{expandArrow({
 				hasChildren,
 				isExpanded,
+				mobile: mobileMetrics !== null,
 				nodeId: node.id,
 				alwaysVisible: boardRole === undefined ? alwaysVisibleControls : true,
 				extraClassName:

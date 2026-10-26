@@ -3761,3 +3761,165 @@ label.toggle > div {
 .bg-\[var\(--wf-background-gray\)\] {
 	background-color: var(--wf-background-gray);
 }
+
+/* is-mobile: the phone UI rules ported verbatim from upstream wf-base.css (comment and pane-comment rules belong to the comments feature). */
+.is-mobile .content.tapped {
+	background: #eee;
+}
+
+.is-mobile .notes {
+	margin-top: 10px;
+	padding-left: 6px;
+}
+
+.is-mobile .children .notes.notes--main {
+	margin-left: 0;
+	padding-left: 0;
+}
+
+.is-mobile .children .notes:not(.notes--main) {
+	margin-left: 32px;
+	padding-left: 0;
+}
+
+.is-mobile .notes > .content {
+	font-size: var(--notes-font-size);
+	height: var(--notes-line-height);
+	line-height: var(--notes-line-height);
+}
+
+.is-mobile :is(.project--bullet-on-hover > .name:hover > .bullet) {
+	opacity: 0.5 !important;
+}
+
+.is-mobile .project {
+	padding-top: 2px;
+	padding-bottom: 2px;
+}
+
+.is-mobile .children .children .project {
+	margin-left: 14px;
+}
+
+.is-mobile .name {
+	padding-left: var(--name-padding-left);
+	font-size: var(--name-font-size, inherit);
+	--line-height: 1.3em;
+}
+
+.is-mobile .name.name--main {
+	margin-left: 0;
+	padding-left: 6px;
+}
+
+.is-mobile .name > .content {
+	padding-right: 8px;
+}
+
+.is-mobile .name.name--main > .content {
+	padding-right: 0;
+}
+
+body.is-mobile {
+	--wf-content-padding-bottom: 12px;
+}
+
+.is-mobile .children,
+.is-mobile .draggableNameClone {
+	--wf-content-padding-top: 4px;
+	--wf-content-padding-bottom: 4px;
+}
+
+.is-mobile .boardColumn > .name .contentEditablePlaceholder {
+	font-size: var(--font-selected-name-font-size);
+}
+
+.is-mobile .code-block > .name:hover > .bullet {
+	opacity: 0.5 !important;
+}
+
+.is-mobile .quote-block > .name:hover > .bullet {
+	opacity: 0.5 !important;
+}
+
+.is-mobile.font-andale .quote-block .name .content .innerContentContainer {
+	padding-left: 8px;
+}
+
+.is-mobile.updatesMode .page.searching .selected > .children .children {
+	margin-left: 5px;
+	padding-left: 1px;
+	border: none;
+}
+
+.is-mobile.updatesMode .page.searching .selected > .children .children:before {
+	content: "";
+	border-left: var(--wf-border-width-m) solid var(--wf-border-secondary);
+	border-width: 2px;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 5px;
+}
+
+.is-mobile.updatesMode .page.searching .selected .children .bullet {
+	opacity: 1;
+}
+
+.is-mobile.updatesMode .addSiblingButton {
+	display: none;
+}
+
+.is-mobile .paragraph:not(.root) > .name:hover > .bullet:not(.keep-bullet),
+.is-mobile .header1:not(.root) > .name:hover > .bullet:not(.keep-bullet),
+.is-mobile .header2:not(.root) > .name:hover > .bullet:not(.keep-bullet),
+.is-mobile .header3:not(.root) > .name:hover > .bullet:not(.keep-bullet) {
+	opacity: 0.5 !important;
+}
+
+.is-mobile .header1:not(.root) > .name,
+.is-mobile .header2:not(.root) > .name,
+.is-mobile .header3:not(.root) > .name {
+	margin-top: var(--wf-space-s);
+	margin-bottom: var(--wf-space-s);
+}
+
+.is-mobile .header1:not(.root) > .name > .bullet:not(.keep-bullet),
+.is-mobile .header2:not(.root) > .name > .bullet:not(.keep-bullet),
+.is-mobile .header3:not(.root) > .name > .bullet:not(.keep-bullet) {
+	box-sizing: border-box;
+}
+
+.is-mobile .project.root > .children .paragraph {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+/* Local adaptation: upstream's mobile rows carry no desktop overhang, so a phone row takes its left room from --name-padding-left alone. */
+html body.is-mobile {
+	--name-left-overhang: 0px;
+	--name-padding-left: 30px;
+}
+
+/* Upstream's phone shell block (`nS4`): tap tints, the sheet-open body lock and the tab bar fade. */
+.is-mobile .contentTag.tapped,
+.is-mobile .contentLink.tapped {
+	background: var(--wf-background-tertiary);
+}
+
+.is-mobile .project.tapped::before {
+	background: var(--wf-background-selected);
+}
+
+body.mobile-sheet-open {
+	height: 100vh;
+	overflow-y: hidden;
+}
+
+.hideForSheetView {
+	transition: opacity 0.2s;
+}
+
+.is-mobile {
+	background: var(--wf-background-primary);
+}

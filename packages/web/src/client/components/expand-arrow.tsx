@@ -16,10 +16,16 @@ interface ExpandArrowProps {
 	onFocusRow?: (nodeId: string) => void;
 	/** Classes appended after the base ones (a board column or card's hover-only arrow). */
 	extraClassName?: string;
+	/** A phone row: upstream right-aligns a 30px arrow at half opacity, drawn at rest and scaled 1.2. */
+	mobile?: boolean;
 }
 
 const EXPAND_CLASS =
 	"expand absolute top-0 w-[20px] h-[var(--line-height)] pt-[var(--wf-content-padding-top)] flex items-center justify-center cursor-pointer print:hidden [body.moving_&]:hidden left-[calc(var(--name-left-overhang)_-_22px)]";
+
+/** Upstream's phone arrow: `w-[30px]`, right-aligned below 600px and half opaque. */
+const MOBILE_EXPAND_CLASS =
+	"expand absolute top-0 w-[30px] h-[var(--line-height)] pt-[var(--wf-content-padding-top)] flex items-center justify-center cursor-pointer print:hidden [body.moving_&]:hidden max-[600px]:-right-xl max-[600px]:left-[unset] max-[600px]:opacity-50 min-[600px]:-left-2xl";
 
 /**
  * Upstream's expand toggle (`a.expand`, kept a button for a11y). A parent shows
@@ -35,6 +41,7 @@ export function expandArrow({
 	alwaysVisible = true,
 	onFocusRow,
 	extraClassName,
+	mobile = false,
 }: ExpandArrowProps) {
 	const handleClick = (event: Pick<React.MouseEvent, "preventDefault" | "stopPropagation" | "timeStamp">) => {
 		event.preventDefault();
@@ -62,8 +69,8 @@ export function expandArrow({
 	};
 	const shared = {
 		"data-handbook": "expand.toggle",
-		className: extraClassName === undefined ? EXPAND_CLASS : `${EXPAND_CLASS} ${extraClassName}`,
-		style: {color: alwaysVisible ? "var(--wf-text-quinary)" : "transparent"},
+		className: [mobile ? MOBILE_EXPAND_CLASS : EXPAND_CLASS, extraClassName].filter(Boolean).join(" "),
+		style: {color: mobile ? "var(--wf-text-tertiary)" : alwaysVisible ? "var(--wf-text-quinary)" : "transparent"},
 		onClick: handleClick,
 	};
 	if (!hasChildren) {
@@ -80,7 +87,7 @@ export function expandArrow({
 			}}
 			{...shared}
 		>
-			<div>
+			<div style={mobile ? {transform: "scale(1.2)"} : undefined}>
 				<svg
 					width="20"
 					height="20"

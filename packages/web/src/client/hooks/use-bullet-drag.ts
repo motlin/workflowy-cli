@@ -659,11 +659,11 @@ export function startLeftBarRowDrag(
  * source bullet, `.moving` rows), each move re-resolves the drop target, release moves the row through the API,
  * and Escape cancels. A press released before the threshold is a click, which zooms.
  */
-export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnchorElement>) => void {
+export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLElement>) => void {
 	const queryClient = useQueryClient();
 
 	return useCallback(
-		(event: React.MouseEvent<HTMLAnchorElement>) => {
+		(event: React.MouseEvent<HTMLElement>) => {
 			// Arm the click first, as upstream does, so a ⌘/Ctrl or other-button press still reaches the click handler.
 			event.currentTarget.dataset.preDragClick = "true";
 			// ⌘/Ctrl-click keeps the link's href.

@@ -37,6 +37,9 @@ import {
 	PaneWorkspace,
 	SidePanes,
 } from "./components/side-pane.js";
+import {MobileSheetHost} from "./components/mobile-sheet-host.js";
+import {MobileTabBar} from "./components/mobile-tab-bar.js";
+import {MobileTopBar} from "./components/mobile-top-bar.js";
 import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
@@ -63,7 +66,9 @@ import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
 import {useOutlineStore} from "./stores/outline.js";
 import {outlineViewClassName} from "./search-classes.js";
-import {pageClassName, pageContainerClassName, pageStyle} from "./page-style.js";
+import {pageClassName, pageContainerClassName, pageStyle, readSafeInsets} from "./page-style.js";
+import {IS_MOBILE} from "./is-mobile.js";
+import {mobileSearchVisible} from "./mobile-search-model.js";
 import {shouldClearSelectionOnPageMouseDown} from "./page-mousedown.js";
 import {useRowHoverController} from "./hooks/use-row-hover.js";
 import {installSaveTracking} from "./hooks/use-saving.js";
@@ -150,14 +155,33 @@ export interface PageShellProps {
 	width: number;
 	searching: boolean;
 	showCompleted: boolean;
+	/** The phone's search form is showing, which pushes the page down. */
+	searchFormVisible?: boolean;
 }
 
 /** Upstream's `.pageContainer > .page` around the main outline (no pane open). Hook-free, so it adds no fiber. */
-export function pageShell({zoomedNodeId, fullWidth, width, searching, showCompleted}: PageShellProps) {
+export function pageShell({
+	zoomedNodeId,
+	fullWidth,
+	width,
+	searching,
+	showCompleted,
+	searchFormVisible = false,
+}: PageShellProps) {
 	return (
 		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- upstream clears the item selection on any plain press in the container
-		<div className={pageContainerClassName()} onMouseDown={clearSelectionOnPageMouseDown}>
-			<div className={pageClassName({searching, showCompleted})} style={pageStyle({fullWidth, width, searching})}>
+		<div className={pageContainerClassName(IS_MOBILE)} onMouseDown={clearSelectionOnPageMouseDown}>
+			<div
+				className={pageClassName({searching, showCompleted, mobile: IS_MOBILE})}
+				style={pageStyle({
+					fullWidth,
+					width,
+					searching,
+					mobile: IS_MOBILE,
+					safeInsets: IS_MOBILE ? readSafeInsets() : undefined,
+					searchFormVisible,
+				})}
+			>
 				<OutlineTree parentId={zoomedNodeId} shell="page" />
 				<SearchCountIndicator />
 			</div>
@@ -170,11 +194,21 @@ function MainOutline() {
 	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const searchQuery = useOutlineStore((state) => state.searchQuery);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const searchFormVisible = useOutlineStore((state) =>
+		mobileSearchVisible({focused: state.searchFocused, input: state.searchInput, query: state.searchQuery}),
+	);
 	const width = useInnerWidth();
 	// With a pane open the main outline scrolls itself, like each pane, instead of the document.
 	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
 	if (!panesOpen) {
-		return pageShell({zoomedNodeId, fullWidth: true, width, searching: searchQuery !== "", showCompleted});
+		return pageShell({
+			zoomedNodeId,
+			fullWidth: true,
+			width,
+			searching: searchQuery !== "",
+			showCompleted,
+			searchFormVisible: IS_MOBILE && searchFormVisible,
+		});
 	}
 	return (
 		<div className="relative flex flex-1 min-h-0 flex-col">
@@ -214,13 +248,19 @@ export const OutlineView = memo(function OutlineView() {
 		<div className={containerClasses}>
 			<PaneWorkspace>
 				<MainPane>
-					<TopBar onRedo={redoFromHeader} onUndo={undoFromHeader} />
+					{IS_MOBILE ? <MobileTopBar /> : <TopBar onRedo={redoFromHeader} onUndo={undoFromHeader} />}
 					<LeftBar />
 					<MainOutline />
 				</MainPane>
 				<SidePanes onRedo={redoFromHeader} onUndo={undoFromHeader} />
 			</PaneWorkspace>
 			<RightBar />
+			{IS_MOBILE && (
+				<>
+					<MobileTabBar />
+					<MobileSheetHost />
+				</>
+			)}
 			<RelatedNodesPanel />
 			<JumpMenu />
 			<AlertDialog />

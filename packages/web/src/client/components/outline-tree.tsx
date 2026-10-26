@@ -1,5 +1,6 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import {plainText} from "../rich-text.js";
+import {IS_MOBILE} from "../is-mobile.js";
 import {CopyCodeButton} from "./copy-code-button.js";
 import type {ReactNode, Ref} from "react";
 import type {BacklinkItem, FoundDateItem, FoundDatesResponse, NodeResponse} from "../../node-types.js";
@@ -298,6 +299,8 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- hover mounts the bullet-menu trigger; click is a mouse shortcut for editing the title, which keyboard users reach with the arrow keys */}
 			<div
 				tabIndex={-1}
+				// Upstream's phone title carries only the padding variable (no font-size variable).
+				style={IS_MOBILE ? {["--name-padding-left" as string]: "30px"} : undefined}
 				className={nameClassName({
 					focused: isEditing,
 					isZoomRoot: !isMainTreeRoot,

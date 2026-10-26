@@ -10,7 +10,7 @@ interface NodeBulletProps {
 	isMirror: boolean;
 	showHalo: boolean;
 	keepBullet: boolean;
-	onMouseDown: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+	onMouseDown: (event: React.MouseEvent<HTMLElement>) => void;
 	/** A plain press that did not become a drag; a selected row's bullet clears the selection instead. */
 	onZoom: () => void;
 	isInSelection: () => boolean;
@@ -21,6 +21,8 @@ interface NodeBulletProps {
 	tableCell?: boolean;
 	/** The cell is shared (a mirror root's original), so the bullet gains `text-shared`. */
 	shared?: boolean;
+	/** A phone row's bullet: upstream's `VD4` draws a sized `div` (no href) at half opacity. */
+	mobile?: {size: number; left: number};
 }
 
 /**
@@ -41,7 +43,17 @@ export function nodeBullet({
 	board,
 	tableCell = false,
 	shared = false,
+	mobile,
 }: NodeBulletProps) {
+	const style =
+		mobile === undefined
+			? {left: "calc(var(--name-left-overhang) + 1px)", width: "18px", ["--bullet-size" as string]: "18px"}
+			: {
+					left: `${mobile.left}px`,
+					width: `${mobile.size}px`,
+					opacity: 0.5,
+					["--bullet-size" as string]: `${mobile.size}px`,
+				};
 	const className = tableCell
 		? [
 				"bullet",
@@ -71,94 +83,87 @@ export function nodeBullet({
 				]
 					.filter(Boolean)
 					.join(" ");
-	return (
-		<a
-			href={nodeUrl(nodeId, instance)}
-			data-handbook="bullet.handle"
-			data-item-id={nodeId}
-			className={className}
-			style={{left: "calc(var(--name-left-overhang) + 1px)", width: "18px", ["--bullet-size" as string]: "18px"}}
-			onMouseDown={onMouseDown}
-			onClick={(event) => {
-				event.stopPropagation();
-				// Only a press the drag armed and released before moving 3px acts; a finished drag does not.
-				const armed = event.currentTarget.dataset.preDragClick === "true";
-				delete event.currentTarget.dataset.preDragClick;
-				const action = bulletClickAction({
-					metaKey: event.metaKey,
-					ctrlKey: event.ctrlKey,
-					button: event.button,
-					armed,
-					inSelection: isInSelection(),
-				});
-				if (action === "browser") {
-					return;
-				}
-				event.preventDefault();
-				if (action === "clear-selection") {
-					onClearSelection();
-				} else if (action === "zoom") {
-					onZoom();
-				}
-			}}
-		>
-			{tableCell ? (
-				<>
-					<div className="absolute w-[24px] h-[24px] rounded-full -z-1 translate-x-[-3px] box-border bg-primary group-hover/bullet:bg-tertiary transition-colors" />
-					<div
-						className={`circleBorder absolute w-[18px] h-[18px] z-1 rounded-full box-border border border-solid ${isMirror ? "border-transparent group-hover/cell:border-current" : "border-current"}`}
-					/>
-					{isMirror ? (
-						<svg
-							viewBox="0 0 16 16"
-							fill="currentColor"
-							className="mirrorDiamondIcon relative z-[2] !bg-transparent"
-						>
-							<path d="M8 4 L4 8 L8 12 L12 8 Z" />
-						</svg>
-					) : (
-						<svg viewBox="0 0 18 18" fill="currentColor" className="relative z-[2] !bg-transparent">
-							<circle cx="9" cy="9" r="3.5" />
-						</svg>
-					)}
-				</>
-			) : board === undefined ? (
-				<span className="bulletHalo">
-					{isMirror ? (
-						<svg
-							width="100%"
-							height="100%"
-							viewBox="0 0 16 16"
-							fill="currentColor"
-							className="mirrorDiamondIcon"
-						>
-							<path d="M8 4 L4 8 L8 12 L12 8 Z" />
-						</svg>
-					) : (
-						<svg
-							width="100%"
-							height="100%"
-							viewBox="0 0 18 18"
-							fill="currentColor"
-							className="zoomBulletIcon"
-						>
-							<circle cx="9" cy="9" r="3.5" />
-						</svg>
-					)}
-				</span>
+	const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+		event.stopPropagation();
+		// Only a press the drag armed and released before moving 3px acts; a finished drag does not.
+		const armed = event.currentTarget.dataset.preDragClick === "true";
+		delete event.currentTarget.dataset.preDragClick;
+		const action = bulletClickAction({
+			metaKey: event.metaKey,
+			ctrlKey: event.ctrlKey,
+			button: event.button,
+			armed,
+			inSelection: isInSelection(),
+		});
+		if (action === "browser") {
+			return;
+		}
+		event.preventDefault();
+		if (action === "clear-selection") {
+			onClearSelection();
+		} else if (action === "zoom") {
+			onZoom();
+		}
+	};
+	const content = tableCell ? (
+		<>
+			<div className="absolute w-[24px] h-[24px] rounded-full -z-1 translate-x-[-3px] box-border bg-primary group-hover/bullet:bg-tertiary transition-colors" />
+			<div
+				className={`circleBorder absolute w-[18px] h-[18px] z-1 rounded-full box-border border border-solid ${isMirror ? "border-transparent group-hover/cell:border-current" : "border-current"}`}
+			/>
+			{isMirror ? (
+				<svg
+					viewBox="0 0 16 16"
+					fill="currentColor"
+					className="mirrorDiamondIcon relative z-[2] !bg-transparent"
+				>
+					<path d="M8 4 L4 8 L8 12 L12 8 Z" />
+				</svg>
 			) : (
-				<>
-					<div
-						className={`absolute w-[24px] h-[24px] ${board === "column" ? "rounded-full" : "rounded-circle"} -z-1 translate-x-[-3px] box-border bg-tertiary opacity-0 group-hover/bullet:opacity-100 transition-opacity`}
-					/>
-					<div
-						className={`${board === "card" ? "circleBorder " : ""}absolute w-[18px] h-[18px] z-1 rounded-full box-border border border-solid border-current`}
-					/>
-					<svg viewBox="0 0 18 18" fill="currentColor" className="relative z-[2] !bg-transparent">
-						<circle cx="9" cy="9" r="3.5" />
-					</svg>
-				</>
+				<svg viewBox="0 0 18 18" fill="currentColor" className="relative z-[2] !bg-transparent">
+					<circle cx="9" cy="9" r="3.5" />
+				</svg>
 			)}
+		</>
+	) : board === undefined ? (
+		<span className="bulletHalo">
+			{isMirror ? (
+				<svg width="100%" height="100%" viewBox="0 0 16 16" fill="currentColor" className="mirrorDiamondIcon">
+					<path d="M8 4 L4 8 L8 12 L12 8 Z" />
+				</svg>
+			) : (
+				<svg width="100%" height="100%" viewBox="0 0 18 18" fill="currentColor" className="zoomBulletIcon">
+					<circle cx="9" cy="9" r="3.5" />
+				</svg>
+			)}
+		</span>
+	) : (
+		<>
+			<div
+				className={`absolute w-[24px] h-[24px] ${board === "column" ? "rounded-full" : "rounded-circle"} -z-1 translate-x-[-3px] box-border bg-tertiary opacity-0 group-hover/bullet:opacity-100 transition-opacity`}
+			/>
+			<div
+				className={`${board === "card" ? "circleBorder " : ""}absolute w-[18px] h-[18px] z-1 rounded-full box-border border border-solid border-current`}
+			/>
+			<svg viewBox="0 0 18 18" fill="currentColor" className="relative z-[2] !bg-transparent">
+				<circle cx="9" cy="9" r="3.5" />
+			</svg>
+		</>
+	);
+	const common = {
+		"data-handbook": "bullet.handle",
+		"data-item-id": nodeId,
+		className,
+		style,
+		onMouseDown,
+		onClick: handleClick,
+	};
+	// Upstream's phone bullet is a `div` with no href.
+	return mobile === undefined ? (
+		<a href={nodeUrl(nodeId, instance)} {...common}>
+			{content}
 		</a>
+	) : (
+		<div {...common}>{content}</div>
 	);
 }

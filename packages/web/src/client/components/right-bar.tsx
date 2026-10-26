@@ -1,4 +1,5 @@
 import {useEffect, useState} from "react";
+import {IS_MOBILE} from "../is-mobile.js";
 import {hint} from "../keys/hint.js";
 import {registerRightBarPanel, rightBarPanels, setRightBarLast, shownRightBarPanel} from "../right-bar-panels.js";
 import {isMacPlatform} from "../editable-text-keys.js";
@@ -160,7 +161,7 @@ function PanelContent() {
 	);
 }
 
-/** Upstream's right bar: a fixed hotkeys panel that collapses to a 16px strip. */
+/** Upstream's right bar: a fixed hotkeys panel that collapses to a 16px strip. A phone has none. */
 export function RightBar() {
 	const showSetting = useOutlineStore((s) => s.showKeyboardShortcuts);
 	const show = showSetting && rightBarPanels().length > 0;
@@ -168,7 +169,10 @@ export function RightBar() {
 	const toggleRightBarCollapsed = useOutlineStore((s) => s.toggleRightBarCollapsed);
 	const anyPane = useOutlineStore((s) => s.panes.length > 0);
 	const width = useRightBarWidth();
-	useBodyPaddingRight(show, collapsed, width);
+	useBodyPaddingRight(show && !IS_MOBILE, collapsed, width);
+	if (IS_MOBILE) {
+		return null;
+	}
 
 	return (
 		<div className="right-bar inline-flex fixed top-3xl right-0" style={{zIndex: 99}}>
