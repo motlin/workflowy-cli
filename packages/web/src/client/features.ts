@@ -91,3 +91,28 @@ export function isFeatureOn(name: FeatureName, storage: FeatureStorage | null = 
 	}
 	return DEFAULT_FEATURES[name] === true;
 }
+
+type FeatureWriter = (codename: string, on: boolean) => Promise<void>;
+
+let featureWriter: FeatureWriter = async () => Promise.resolve();
+
+/** The app installs the writer that POSTs a flag to the account (see `setFeature` in hooks/use-features). */
+export function setFeatureWriter(writer: FeatureWriter): void {
+	featureWriter = writer;
+}
+
+/** Write a flag to the account through the installed writer. */
+export async function writeFeature(codename: string, on: boolean): Promise<void> {
+	return featureWriter(codename, on);
+}
+
+/** The outline-store fields that mirror account flags, derived from the enabled dict. */
+export function featureStoreState(enabled: Readonly<Record<string, true>>): {
+	fullWidthPage: boolean;
+	alwaysVisibleControls: boolean;
+} {
+	return {
+		fullWidthPage: enabled.full_width_page === true,
+		alwaysVisibleControls: enabled.always_visible_controls === true,
+	};
+}

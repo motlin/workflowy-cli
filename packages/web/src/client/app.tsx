@@ -2,6 +2,8 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {memo, useEffect, useState} from "react";
 import {useNode} from "./hooks/use-nodes.js";
 import {dashboardClasses, dashboardsOn} from "./dashboard.js";
+import {featureStoreState, setFeatureWriter} from "./features.js";
+import {setFeature, useFeatures} from "./hooks/use-features.js";
 import {createPortal} from "react-dom";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
@@ -102,6 +104,7 @@ import "./themes/one_dark.css";
 installCoalescingTimeoutProvider();
 
 const queryClient = new QueryClient({defaultOptions: queryClientDefaults});
+setFeatureWriter(async (codename, on) => setFeature(queryClient, codename, on));
 watchMutations(queryClient, (event) => {
 	useOutlineStore.getState().recordSyncEvent(event);
 });
@@ -218,6 +221,18 @@ export function pageShell({
 			</div>
 		</div>
 	);
+}
+
+/** Keeps the store fields that mirror account flags in step with the features query, as upstream re-renders at once. */
+function FeatureFlagsSync() {
+	const {enabled, available, visible} = useFeatures();
+	const loaded = available || visible.length > 0 || Object.keys(enabled).length > 0;
+	useEffect(() => {
+		if (loaded) {
+			useOutlineStore.setState(featureStoreState(enabled));
+		}
+	}, [enabled, loaded]);
+	return null;
 }
 
 /** The main pane's outline under its zoom, styled by its search: the part of the page a zoom or search re-renders. */
@@ -388,6 +403,7 @@ export function App() {
 				<LinkColorStyles />
 				<WindowBlurredClass />
 				<ShowCompletedSync />
+				<FeatureFlagsSync />
 				<ShowKeyboardShortcutsSync />
 				<ExpansionSync />
 				<MenusHost />

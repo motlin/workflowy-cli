@@ -34,7 +34,7 @@ import {setRightBarLast, shownRightBarPanel} from "../right-bar-panels.js";
 import {hideBanner, showBanner, useBannerStore} from "./banner.js";
 import {SYNC_WARNING_TEXT, SYNC_WARNING_TITLE, syncHealth} from "../sync-health.js";
 import type {SyncEvent} from "../sync-health.js";
-import {readFullWidthPref, writeFullWidthPref} from "../full-width-pref.js";
+import {isFeatureOn, writeFeature} from "../features.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
 
 /** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
@@ -1023,8 +1023,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	datePickerRequest: null,
 	datePickerAnchor: null,
 	showCompleted: getInitialShowCompleted(),
-	fullWidthPage: readFullWidthPref(globalThis.localStorage),
-	alwaysVisibleControls: true,
+	fullWidthPage: isFeatureOn("full_width_page"),
+	alwaysVisibleControls: isFeatureOn("always_visible_controls"),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
 	slidingDownCompletedIds: new Set<string>(),
@@ -1358,7 +1358,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	toggleFullWidthPage: () => {
 		const fullWidthPage = !get().fullWidthPage;
 		set({fullWidthPage});
-		writeFullWidthPref(globalThis.localStorage, fullWidthPage);
+		writeFeature("full_width_page", fullWidthPage).catch(() => {
+			set({fullWidthPage: !fullWidthPage});
+		});
 	},
 
 	toggleLeftBar: () => {
