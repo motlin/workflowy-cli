@@ -223,3 +223,14 @@ Invoke `/gtd:review:daily:due` — two segments walked back to back: overdue rec
 Invoke `/gtd:review:daily:work-together` — with the ladders ranked and the dated items walked, offer to do real work on what is left, in three categories: items overdue, due now, or due within the week; the `1st` tier of both asap ladders; and items this run filed while their context is still fresh. Each candidate comes with the concrete help on offer (draft the email, write the code in its project directory, research the question) and is its own question. Accepted items are worked on the spot, one at a time.
 
 **This phase runs last, and the order matters.** It needs the Recurring Review's handled outcomes so it never offers help on something the user just said is done, and the rebalanced `1st` tier so the ranking it reads is today's. Silent when no candidate has help Claude can actually give.
+
+## No "remember to" loose ends in the final summary
+
+The final summary reports only what happened. It never hands the user a list of things to remember, check later, or follow up on (unread agent reports, a stuck recording, an untagged speaker, a photo to delete, tomorrow's recurring items).
+
+Before the final summary, resolve every open loose end one of two ways:
+
+- Walk it with the user now, one `AskUserQuestion` per item.
+- File it as a Workflowy task with a link to the relevant node and enough context to act on cold.
+
+A loose end that is neither walked nor filed is not allowed to reach the summary. This is the same style as [Never offer to pause or wrap up](#never-offer-to-pause-or-wrap-up): the review closes everything it opened.

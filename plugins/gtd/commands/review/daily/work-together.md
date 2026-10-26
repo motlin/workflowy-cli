@@ -93,3 +93,5 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/agent-launches.mts pending
 ## Finish
 
 Print one line per category, e.g. `✓ Due: 2 worked, 1 done, 3 not now · 1st tier: 1 worked · Filed: 0 offered`. Silent when no candidate survived the help filter.
+
+Before printing that line, resolve every open loose end the run still holds: walk it with the user now (one `AskUserQuestion` per item) or file it as a Workflowy task with a link and context. The summary reports only what happened, never a "remember to" list. See the "No remember to loose ends in the final summary" section of `${CLAUDE_PLUGIN_ROOT}/commands/review/daily.md`.
