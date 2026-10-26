@@ -4,7 +4,9 @@ import type {UndoBatch} from "../undo-history.js";
  * runs its command, and a bound combo is claimed (preventDefault) even when its command is missing or unavailable,
  * so ⌘S never opens Save and ⌘P never prints.
  */
+import {overlayHotkeys} from "./custom-overlay.js";
 import {buildHotkeys, comboFromEvent, currentPlatform} from "./keymap.js";
+import {useCustomKeymapStore} from "../stores/custom-keymap.js";
 import type {KeyComboEvent} from "./keymap.js";
 import {selectionKeyAction} from "../item-selection.js";
 import type {SelectionKeyAction} from "../item-selection.js";
@@ -74,6 +76,17 @@ const tables = new Map<boolean, ReadonlyMap<string, string>>();
 
 /** The combo-to-command table for the current browser, with its mac flag overridden. */
 export function hotkeyTable(isMac: boolean): ReadonlyMap<string, string> {
+	const {overrides} = useCustomKeymapStore.getState();
+	if (overrides.length > 0) {
+		const base = buildHotkeys({...currentPlatform(), mac: isMac});
+		const custom = new Map<string, string>();
+		for (const [combo, command] of overlayHotkeys(base, overrides)) {
+			if (command !== null) {
+				custom.set(combo, command);
+			}
+		}
+		return custom;
+	}
 	let table = tables.get(isMac);
 	if (table === undefined) {
 		table = new Map(buildHotkeys({...currentPlatform(), mac: isMac}));

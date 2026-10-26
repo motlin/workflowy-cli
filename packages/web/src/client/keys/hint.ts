@@ -4,6 +4,8 @@
 
 import {buildHotkeys} from "./keymap.js";
 import type {Hotkey} from "./keymap.js";
+import {hintFrom, overlayHotkeys} from "./custom-overlay.js";
+import {useCustomKeymapStore} from "../stores/custom-keymap.js";
 
 /** The mac `[combo, command]` table in upstream insertion order, using upstream combo spelling. */
 export const MAC_HOTKEYS: readonly Hotkey[] = buildHotkeys({
@@ -62,7 +64,11 @@ const OTHER_KEYS: Readonly<Record<string, string>> = {
 };
 
 export function hint(command: string, isMac = true): string | undefined {
-	const combo = hotkeysFor(isMac).find(([, bound]) => bound === command)?.[0];
+	const {overrides} = useCustomKeymapStore.getState();
+	const combo = hintFrom(
+		overrides.length > 0 ? overlayHotkeys(hotkeysFor(isMac), overrides) : hotkeysFor(isMac),
+		command,
+	);
 	if (combo === undefined) {
 		return undefined;
 	}

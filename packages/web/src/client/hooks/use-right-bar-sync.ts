@@ -2,6 +2,7 @@ import {useQuery} from "@tanstack/react-query";
 import {useEffect} from "react";
 import {useOutlineStore} from "../stores/outline.js";
 import type {Theme} from "../stores/outline.js";
+import {useCustomThemesStore} from "../stores/custom-themes.js";
 import {isRegisteredTheme} from "../themes.js";
 import {fetchPreferences, preferenceKeys, serverShowKeyboardShortcuts, serverTheme} from "./use-preferences.js";
 
@@ -24,6 +25,8 @@ export function themeFromAccount(name: string | null): Theme | null {
 /** Adopt the account's `theme` over this browser's saved one whenever `/api/v1/preferences` reports a known value. */
 export function useThemeSync(): void {
 	const {data} = useQuery({queryKey: preferenceKeys.all, queryFn: fetchPreferences});
+	// Custom themes register late; re-resolve the account theme when they do.
+	useCustomThemesStore((state) => state.themes);
 	const theme = themeFromAccount(serverTheme(data));
 	useEffect(() => {
 		if (theme !== null && useOutlineStore.getState().theme !== theme) {

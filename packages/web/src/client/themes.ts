@@ -1,3 +1,5 @@
+import {useCustomThemesStore} from "./stores/custom-themes.js";
+
 /** Upstream's theme registry (`WF.map.GuiThemes`); the order is the dropdown order. */
 
 export interface ThemeInfo {
@@ -28,11 +30,27 @@ export const THEMES: readonly ThemeInfo[] = [
 
 export type ThemeName = string;
 
+/** The built-in themes, with custom themes appended; a custom theme replaces a built-in one of the same key. */
+export function allThemes(
+	custom: readonly {name: string; prettyName: string}[] = useCustomThemesStore.getState().themes,
+): readonly ThemeInfo[] {
+	const replaced = new Map(custom.map((theme) => [theme.name, theme]));
+	const builtIn = THEMES.map((theme) => {
+		const override = replaced.get(theme.name);
+		replaced.delete(theme.name);
+		return override === undefined ? theme : {...theme, prettyName: override.prettyName};
+	});
+	return [
+		...builtIn,
+		...Array.from(replaced.values(), (theme): ThemeInfo => ({name: theme.name, prettyName: theme.prettyName})),
+	];
+}
+
 const DEFAULT_THEME: ThemeName = "default";
 
 /** The selected theme if registered, else the first (`default`). */
 export function currentTheme(selected: string | null | undefined): ThemeName {
-	return THEMES.find((theme) => theme.name === selected)?.name ?? DEFAULT_THEME;
+	return allThemes().find((theme) => theme.name === selected)?.name ?? DEFAULT_THEME;
 }
 
 /** The sheet to apply: `system` resolves from the OS colour scheme. */
@@ -45,9 +63,9 @@ export function effectiveTheme(selected: string | null | undefined, prefersDark:
 }
 
 export function isDarkTheme(name: string): boolean {
-	return THEMES.find((theme) => theme.name === name)?.dark === true;
+	return allThemes().find((theme) => theme.name === name)?.dark === true;
 }
 
 export function isRegisteredTheme(name: string | null | undefined): name is ThemeName {
-	return THEMES.some((theme) => theme.name === name);
+	return allThemes().some((theme) => theme.name === name);
 }

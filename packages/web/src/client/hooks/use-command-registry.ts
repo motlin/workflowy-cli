@@ -13,6 +13,7 @@ import type {RevealBuffer} from "../reveal-row.js";
 import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode, renderedCopyIds} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
+import {useCustomizeCommands} from "./use-customize-commands.js";
 import {
 	activeCommittedQuery,
 	activePaneView,
@@ -187,6 +188,9 @@ function isJumpMenuOpen(): boolean {
 export function useCommandRegistry(): CommandRegistry {
 	const navigate = useStableNavigate();
 	const queryClient = useQueryClient();
+	const customizeCommands = useCustomizeCommands((url) => {
+		void navigate(url);
+	});
 	const zoomedNodeId = useOutlineStore(activeZoomedId);
 	const editingId = useOutlineStore((state) => state.editingId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
@@ -1488,5 +1492,6 @@ export function useCommandRegistry(): CommandRegistry {
 				}
 			},
 		},
+		...customizeCommands,
 	};
 }

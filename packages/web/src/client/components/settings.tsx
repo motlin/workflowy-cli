@@ -7,7 +7,8 @@ import {usePreferences} from "../hooks/use-preferences.js";
 import type {Preferences, PreferencesPatch} from "../hooks/use-preferences.js";
 import {currentVersionLabel} from "../app-version.js";
 import {useFlash} from "../hooks/use-flash.js";
-import {THEMES, currentTheme} from "../themes.js";
+import {allThemes, currentTheme} from "../themes.js";
+import {useCustomThemesStore} from "../stores/custom-themes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {DialogCloseButton, DialogShell} from "./dialog-shell.js";
 import {Dropdown, DropdownOption} from "./flyout/dropdown.js";
@@ -219,13 +220,14 @@ function AccountSection({preferences}: SectionProps) {
 function PersonalizationSection({preferences, change}: SectionProps) {
 	const theme = useOutlineStore((state) => state.theme);
 	const setTheme = useOutlineStore((state) => state.setTheme);
+	const customThemes = useCustomThemesStore((state) => state.themes);
 	const current = currentTheme(preferences.theme ?? theme);
 	return (
 		<SettingsSection title="Personalization">
 			<SectionBody>
 				<ControlRow label="Theme">
 					<Dropdown large>
-						{THEMES.map((option) => (
+						{allThemes(customThemes).map((option) => (
 							<DropdownOption
 								key={option.name}
 								label={option.prettyName}

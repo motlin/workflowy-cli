@@ -51,6 +51,7 @@ const responses: Partial<Record<string, () => Response>> = {
 		}),
 	"/api/v1/account": () => Response.json({userId: 7, joinedAt: "2020-01-02T00:00:00.000Z", fullName: "Alice Smith"}),
 	"/api/v1/tags": () => Response.json({colors: {}}),
+	"/api/v1/custom-tree": () => Response.json({rootId: null, rootChildren: [], sections: {}}),
 	"/api/v1/stars": () => Response.json({stars: []}),
 	"/api/v1/nodes": () => Response.json({nodes: [row("alice", null, true)]}),
 	"/api/v1/nodes/view": () => Response.json(view),

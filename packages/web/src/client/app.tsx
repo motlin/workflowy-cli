@@ -58,6 +58,7 @@ import {usePaneClickRouting} from "./hooks/use-pane-click-routing.js";
 import {useSearchEscape} from "./hooks/use-search-escape.js";
 import {usePreferences} from "./hooks/use-preferences.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
+import {useCustomTree} from "./hooks/use-custom-tree.js";
 import {useShowKeyboardShortcutsSync, useThemeSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
 import {installWindowBlurredClass} from "./window-blurred.js";
@@ -326,6 +327,7 @@ function ShowCompletedSync() {
 function ShowKeyboardShortcutsSync() {
 	useShowKeyboardShortcutsSync();
 	useThemeSync();
+	useCustomTree();
 	return null;
 }
 
