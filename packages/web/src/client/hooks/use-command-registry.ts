@@ -13,7 +13,13 @@ import type {RevealBuffer} from "../reveal-row.js";
 import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode, renderedCopyIds} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
-import {activePaneView, activeZoomedId, flushEditing, useOutlineStore} from "../stores/outline.js";
+import {
+	activeCommittedQuery,
+	activePaneView,
+	activeZoomedId,
+	flushEditing,
+	useOutlineStore,
+} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {caretTextOffset, editorElement, placeCaretAtTextOffset, rowContent, selectionTextRange} from "../caret-dom.js";
 import {currentSearchFilter} from "./use-tree-search.js";
@@ -101,6 +107,7 @@ import {undoHistory} from "../undo-history.js";
 import {queueUndo} from "../undo-view-state.js";
 import {holdUndoReplay, previewUndoOps} from "../undo-cache.js";
 import {deleteSelectedItems} from "./use-selection-keymap.js";
+import {starCurrentItemCommand} from "../star-commands.js";
 import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
@@ -1457,13 +1464,7 @@ export function useCommandRegistry(): CommandRegistry {
 			toggleShowCompleted,
 			() => useOutlineStore.getState().searchQuery !== "",
 		),
-		star_current_item: {
-			execute(ctx) {
-				if (ctx.zoomedId !== null) {
-					void toggleStar({nodeId: ctx.zoomedId, query: null});
-				}
-			},
-		},
+		star_current_item: starCurrentItemCommand(toggleStar, () => activeCommittedQuery(useOutlineStore.getState())),
 		show_switcher: {execute: showSwitcher},
 		_select_next_in_switcher: switcherStepCommand("next", isJumpMenuOpen, openJumpMenu),
 		_select_prev_in_switcher: switcherStepCommand("prev", isJumpMenuOpen, openJumpMenu),

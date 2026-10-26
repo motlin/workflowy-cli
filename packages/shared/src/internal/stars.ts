@@ -111,7 +111,7 @@ export function starChanges(meta: unknown, key: string): MetadataChange[] {
 	return changes;
 }
 
-/** Unstar `key`: its location, its order entry (when ordered) and its rename. */
+/** Unstar `key`: its location and its order entry (when ordered). Like upstream, a custom name survives. */
 export function unstarChanges(meta: unknown, key: string): MetadataChange[] {
 	const id = keyUniqueId(key);
 	const changes: MetadataChange[] = [{path: [...LOCATIONS, key], value: undefined}];
@@ -119,7 +119,6 @@ export function unstarChanges(meta: unknown, key: string): MetadataChange[] {
 	if (order?.includes(id)) {
 		changes.push({path: ORDER, value: order.filter((entry) => entry !== id).join(",")});
 	}
-	changes.push({path: [...RENAMED, id], value: undefined});
 	return changes;
 }
 

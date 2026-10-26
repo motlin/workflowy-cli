@@ -8,6 +8,7 @@ export interface GearMenuHeaderItem {
 	icon: ReactNode;
 	onSelect: () => void;
 	disabled?: boolean;
+	handbook?: string;
 }
 
 /** Upstream's `gui-more-menu.groups.header` list, verbatim from the live config. */
@@ -123,6 +124,7 @@ export function entryFromItem(item: GearMenuHeaderItem): MenuRowEntry {
 		label: item.label,
 		icon: isValidElement(item.icon) ? item.icon : undefined,
 		disabled: item.disabled,
+		handbook: item.handbook,
 		onSelect: item.onSelect,
 	};
 }

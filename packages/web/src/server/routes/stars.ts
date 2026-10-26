@@ -38,6 +38,26 @@ async function readStars(ctx: ServerContext, adapter: WorkflowyInternalAdapter) 
 	return starsFromRootMeta(await adapter.getRootMeta([]), starNodes(ctx));
 }
 
+/**
+ * The app's own durable copy of the star state, in `local_settings`: upstream's raw starring metadata, so the
+ * stars outlive workflowy.com and a re-import never overwrites them.
+ */
+async function saveStarsLocally(adapter: WorkflowyInternalAdapter): Promise<unknown> {
+	const meta = await adapter.getRootMeta([]);
+	adapter.saveLocalSettings({
+		"root:starring.locations": getIn(meta, ["starring", "locations"]) ?? null,
+		"root:starring.order": getIn(meta, ["starring", "order"]) ?? null,
+		"root:location.renamed": getIn(meta, ["location", "renamed"]) ?? null,
+	});
+	return meta;
+}
+
+const RecordSchema = z.record(z.string(), z.unknown());
+
+function getIn(meta: unknown, path: string[]): unknown {
+	return path.reduce<unknown>((current, key) => RecordSchema.safeParse(current).data?.[key], meta);
+}
+
 async function jsonBody(c: Context<AppEnv>): Promise<unknown> {
 	return c.req.json().catch(() => {});
 }
@@ -69,6 +89,7 @@ export function createStarsRouter(readNode: ReadNode = readNodeDto): Hono<AppEnv
 				return c.json({error: "body must be {keys: string[]}"}, 400);
 			}
 			await adapter.setRootMetaValues(orderChanges(body.data.keys));
+			await saveStarsLocally(adapter);
 			return c.body(null, 204);
 		}),
 	);
@@ -90,7 +111,7 @@ export function createStarsRouter(readNode: ReadNode = readNodeDto): Hono<AppEnv
 				return c.json({error: `Node not found: ${nodeId}`}, 404);
 			}
 			await adapter.setRootMetaValues(starChanges(await adapter.getRootMeta([]), key));
-			const star = (await readStars(ctx, adapter)).find((s) => s.key === key);
+			const star = starsFromRootMeta(await saveStarsLocally(adapter), starNodes(ctx)).find((s) => s.key === key);
 			return c.json(star, 201);
 		}),
 	);
@@ -99,6 +120,7 @@ export function createStarsRouter(readNode: ReadNode = readNodeDto): Hono<AppEnv
 		"/:key",
 		withAdapter<"/:key">(async (c, adapter) => {
 			await adapter.setRootMetaValues(unstarChanges(await adapter.getRootMeta([]), c.req.param("key")));
+			await saveStarsLocally(adapter);
 			return c.body(null, 204);
 		}),
 	);
@@ -111,6 +133,7 @@ export function createStarsRouter(readNode: ReadNode = readNodeDto): Hono<AppEnv
 				return c.json({error: "body must be {name: string | null}"}, 400);
 			}
 			await adapter.setRootMetaValues(renameChanges(c.req.param("key"), body.data.name));
+			await saveStarsLocally(adapter);
 			return c.body(null, 204);
 		}),
 	);

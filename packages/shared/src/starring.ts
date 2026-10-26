@@ -99,3 +99,19 @@ export function label(star: Star, nameText: NameText): string {
 	}
 	return star.nodeId === null ? "Home" : nameText(star.nodeId);
 }
+
+/** The location ⇧⌘8 stars: the page plus the committed search query (Home included); an empty query is none. */
+export function starCurrentLocation({
+	zoomedId,
+	query,
+}: {
+	zoomedId: string | null;
+	query: string | null;
+}): StarredLocation {
+	return {nodeId: zoomedId, query: query === "" ? null : query};
+}
+
+/** Upstream stamps a star's last-viewed time only when navigation reaches a different location. */
+export function shouldRecordView(previous: StarredLocation | null, next: StarredLocation): boolean {
+	return previous === null || locationKey(previous) !== locationKey(next);
+}

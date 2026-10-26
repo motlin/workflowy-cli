@@ -81,7 +81,7 @@ describe("starChanges", () => {
 });
 
 describe("unstarChanges", () => {
-	it("removes the location, its order entry and its rename", () => {
+	it("removes the location and its order entry, and keeps the custom name", () => {
 		const meta = {
 			starring: {locations: {[P1]: "None", [P2]: "None"}, order: `None/${P2}/,None/${P1}/`},
 			location: {renamed: {[`None/${P1}/`]: "Alice"}},
@@ -90,15 +90,19 @@ describe("unstarChanges", () => {
 		expect(unstarChanges(meta, P1)).toStrictEqual([
 			{path: ["starring", "locations", P1], value: undefined},
 			{path: ["starring", "order"], value: `None/${P2}/`},
-			{path: ["location", "renamed", `None/${P1}/`], value: undefined},
 		]);
 	});
 
 	it("only removes the location when there is no order", () => {
-		expect(unstarChanges({}, P1)).toStrictEqual([
-			{path: ["starring", "locations", P1], value: undefined},
-			{path: ["location", "renamed", `None/${P1}/`], value: undefined},
-		]);
+		expect(unstarChanges({}, P1)).toStrictEqual([{path: ["starring", "locations", P1], value: undefined}]);
+	});
+});
+
+describe("re-starring after an unstar", () => {
+	it("shows the custom name kept through the unstar", () => {
+		const meta = {starring: {locations: {[P1]: "None"}}, location: {renamed: {[`None/${P1}/`]: "Alice"}}};
+
+		expect(starsFromRootMeta(meta, nodes).map((star) => star.name)).toStrictEqual(["Alice"]);
 	});
 });
 

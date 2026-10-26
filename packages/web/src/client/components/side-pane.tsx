@@ -428,6 +428,7 @@ function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 							onToday={narrow ? () => void navigateToToday() : undefined}
 							paneId={id}
 							onUndo={onUndo}
+							query={pane.query}
 							zoomedId={pane.zoomedId}
 						/>
 						<IconButton

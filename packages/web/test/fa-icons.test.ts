@@ -18,6 +18,7 @@ const SEED_KEYS = new Set([
 	"fal:arrow-left",
 	"fal:plus",
 	"fal:pencil",
+	"fal:star",
 	"fas:star",
 	"fas:magnifying-glass",
 ]);
@@ -44,6 +45,7 @@ describe("FA_ICONS", () => {
 			"fal:clock",
 			"fal:arrow-up",
 			"fal:pencil",
+			"fal:star",
 			"fas:star",
 			"fas:magnifying-glass",
 			"fal:arrows-cross",
@@ -184,6 +186,7 @@ describe("FA_ICONS", () => {
 				"fal:arrow-left": "448x512",
 				"fal:plus": "448x512",
 				"fal:pencil": "512x512",
+				"fal:star": "576x512",
 				"fas:star": "576x512",
 				"fas:magnifying-glass": "512x512",
 			},

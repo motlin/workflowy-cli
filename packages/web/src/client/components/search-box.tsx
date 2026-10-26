@@ -1,4 +1,5 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {StarButton} from "./star-button.js";
 import type {CSSProperties, KeyboardEvent} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
@@ -428,6 +429,7 @@ export const SearchBox = memo(function SearchBox() {
 					<path d={MAGNIFIER_PATH} fill="currentColor" />
 				</svg>
 				<div className="absolute top-0 right-[11px] h-full flex items-center justify-center">
+					{hasText && <StarButton />}
 					{hasText && (
 						// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's clear control is a bare svg
 						<svg

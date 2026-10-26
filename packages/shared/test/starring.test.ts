@@ -7,6 +7,8 @@ import {
 	mostRecent,
 	moveKey,
 	parseLocationKey,
+	shouldRecordView,
+	starCurrentLocation,
 	uniqueId,
 } from "../src/index.js";
 import type {Star} from "../src/index.js";
@@ -138,5 +140,30 @@ describe("label", () => {
 			label(star("a", null, 0), nameText),
 			label(star(null, null, 0), nameText),
 		]).toStrictEqual(["Custom", "q", "name:a", "Home"]);
+	});
+});
+
+describe("starCurrentLocation", () => {
+	it("stars the page plus the committed query, Home included, with an empty query as none", () => {
+		expect([
+			starCurrentLocation({zoomedId: null, query: null}),
+			starCurrentLocation({zoomedId: "a", query: "#x"}),
+			starCurrentLocation({zoomedId: "a", query: ""}),
+		]).toStrictEqual([
+			{nodeId: null, query: null},
+			{nodeId: "a", query: "#x"},
+			{nodeId: "a", query: null},
+		]);
+	});
+});
+
+describe("shouldRecordView", () => {
+	it("records only when the location changed", () => {
+		const a = {nodeId: "a", query: null};
+		expect([
+			shouldRecordView(null, a),
+			shouldRecordView(a, {nodeId: "a", query: null}),
+			shouldRecordView(a, {nodeId: "a", query: "q"}),
+		]).toStrictEqual([true, false, true]);
 	});
 });

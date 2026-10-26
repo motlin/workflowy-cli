@@ -29,6 +29,17 @@ vi.mock("../src/client/hooks/use-breakpoint.js", () => ({
 	},
 }));
 
+const STAR_MARKER = '<div role="button" tabindex="0" class="starring-star iconButton ms shape-circle"></div>';
+vi.mock("../src/client/components/star-button.js", async () => {
+	const {createElement: h} = await import("react");
+	return {
+		StarButton: (props: Record<string, unknown>) =>
+			Object.keys(props).length === 0
+				? h("div", {role: "button", tabIndex: 0, className: "starring-star iconButton ms shape-circle"})
+				: null,
+	};
+});
+
 const {SearchBox} = await import("../src/client/components/search-box.js");
 
 const INPUT_CLASS =
@@ -83,6 +94,13 @@ describe("SearchBox", () => {
 		expect(html).not.toContain("var(--wf-border-primary)");
 		expect(html).toContain(CLEAR_SVG);
 		expect(html).toContain('value="apple"');
+	});
+
+	it("shows the star, with no props, between the shortcut slot and the clear svg once there is text", () => {
+		expect(render({})).not.toContain("starring-star");
+		expect(render({searchInput: "zzq"})).toContain(
+			`<div class="absolute top-0 right-[11px] h-full flex items-center justify-center">${STAR_MARKER}${CLEAR_SVG}`,
+		);
 	});
 
 	it("widens to 320px and squares the bottom corners when focused", () => {

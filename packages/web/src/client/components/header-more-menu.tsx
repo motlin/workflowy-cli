@@ -56,6 +56,8 @@ function mainFlyoutAnchor(): HelpAnchor | null {
 interface HeaderMoreMenuProps {
 	/** The zoom the menu's actions act on (null is Home). */
 	zoomedId: string | null;
+	/** A pane's committed search query; its Star entry stars that search. Omitted for the main header. */
+	query?: string | null;
 	/** The pane this kebab sits in (`main` for the main pane); its Move pane left/right rows move it. */
 	paneId: string;
 	/** Upstream's compact header: the compactable actions move into this menu. */
@@ -70,16 +72,24 @@ interface HeaderMoreMenuProps {
  * The header kebab (upstream's gearMenu wrapper, no tooltip; blue dot omitted with no unread rows locally). Its
  * Expand/Collapse all act on the zoomed item's whole subtree (every top-level item at Home).
  */
-export function HeaderMoreMenu({zoomedId, paneId, compact, onToday, onUndo, onRedo}: HeaderMoreMenuProps) {
+export function HeaderMoreMenu({
+	zoomedId,
+	query = null,
+	paneId,
+	compact,
+	onToday,
+	onUndo,
+	onRedo,
+}: HeaderMoreMenuProps) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const panes = useOutlineStore((state) => state.panes);
 	const openSettings = useOutlineStore((state) => state.openSettings);
 	const expandAll = useExpandAll();
-	const actions = useHeaderActions(zoomedId);
+	const actions = useHeaderActions(zoomedId, query);
 	const [helpAnchor, setHelpAnchor] = useState<HelpAnchor | null>(null);
 	const rows = useMainMenuRows({
-		headerItems: compact ? compactHeaderItems(actions, zoomedId, onToday) : [],
+		headerItems: compact ? compactHeaderItems(actions, zoomedId, onToday, query) : [],
 		paneItems: movePaneItems({panes}, paneId, (id, index) => {
 			movePane(navigate, id, index, (locationId) => cachedResolvedId(queryClient, locationId) ?? locationId);
 		}),

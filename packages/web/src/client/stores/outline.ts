@@ -722,6 +722,14 @@ export function activeZoomedId(state: Pick<OutlineState, "activePaneId" | "panes
 	return pane === undefined ? state.zoomedNodeId : pane.zoomedId;
 }
 
+/** The active pane's committed search query: an open pane's while it is active, else the main outline's. */
+export function activeCommittedQuery(
+	state: Pick<OutlineState, "activePaneId" | "panes" | "urlSearchQuery">,
+): string | null {
+	const pane = findPane(state.panes, state.activePaneId);
+	return pane === undefined ? state.urlSearchQuery : pane.query;
+}
+
 /** The workspace's pane ids in order: the main pane, then each open pane left to right. */
 function workspacePaneIds(state: Pick<OutlineState, "panes">): string[] {
 	return [MAIN_PANE_ID, ...state.panes.map((pane) => pane.id)];

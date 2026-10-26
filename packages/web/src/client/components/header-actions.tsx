@@ -12,7 +12,6 @@ import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
 import type {GearMenuHeaderItem} from "./main-menu-model.js";
 import {typeIcon} from "./item-type-icon.js";
-import {StarIcon} from "./star-button.js";
 
 /** A header's compactable actions (upstream's share, present, star, show-completed and layout) for one pane's zoom. */
 export interface HeaderActions {
@@ -33,8 +32,11 @@ export interface HeaderActions {
 	openLayoutPickerOverMenu: () => void;
 }
 
-/** The compactable header actions acting on `zoomedId` (null is Home). */
-export function useHeaderActions(zoomedId: string | null): HeaderActions {
+/**
+ * The compactable header actions acting on `zoomedId` (null is Home). `query` is a pane's committed search: the star
+ * then acts on that search (the main header passes none and stars the page, like upstream).
+ */
+export function useHeaderActions(zoomedId: string | null, query: string | null = null): HeaderActions {
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const searchQuery = useOutlineStore((state) => state.searchQuery);
 	const openPresentation = useOutlineStore((state) => state.openPresentation);
@@ -42,13 +44,13 @@ export function useHeaderActions(zoomedId: string | null): HeaderActions {
 	const toggleCompleted = useShowCompletedToggle();
 	const {stars, unavailable: starsUnavailable} = useStars();
 	const {toggleStar} = useStarActions();
-	const pageKey = zoomedId === null ? null : locationKey({nodeId: zoomedId, query: null});
+	const starKey = locationKey({nodeId: zoomedId, query});
 	const zoomedNode = useNode(zoomedId);
 	const home = useHome();
 	const rootChildren = useChildren(null);
 	return {
 		canPresent: zoomedId === null ? (rootChildren.data?.length ?? 0) > 0 : zoomedNode.data?.hasChildren === true,
-		isStarred: stars.some((star) => star.key === pageKey),
+		isStarred: stars.some((star) => star.key === starKey),
 		showCompleted,
 		completedForced: selectCompletedVisibility({showCompleted, searchQuery}).forced,
 		layoutIcon: (
@@ -67,8 +69,8 @@ export function useHeaderActions(zoomedId: string | null): HeaderActions {
 			openPresentation(zoomedId ?? "root");
 		},
 		toggleStar: () => {
-			if (zoomedId !== null && !starsUnavailable) {
-				void toggleStar({nodeId: zoomedId, query: null});
+			if ((zoomedId !== null || query) && !starsUnavailable) {
+				void toggleStar({nodeId: zoomedId, query: query === "" ? null : query});
 			}
 		},
 		toggleCompleted,
@@ -94,6 +96,7 @@ export function compactHeaderItems(
 	actions: HeaderActions,
 	zoomedId: string | null,
 	onToday?: () => void,
+	query: string | null = null,
 ): GearMenuHeaderItem[] {
 	const items: GearMenuHeaderItem[] = [];
 	if (onToday !== undefined) {
@@ -108,10 +111,15 @@ export function compactHeaderItems(
 		onSelect: actions.present,
 		disabled: !actions.canPresent,
 	});
-	if (zoomedId !== null) {
+	if (zoomedId !== null || query) {
 		items.push({
 			label: actions.isStarred ? "Unstar" : "Star",
-			icon: <StarIcon starred={actions.isStarred} />,
+			icon: actions.isStarred ? (
+				<FaIcon icon="fas:star" style={{color: "var(--wf-text-spark)"}} />
+			) : (
+				<FaIcon icon="fal:star" fixedWidth />
+			),
+			handbook: "starring.star",
 			onSelect: actions.toggleStar,
 		});
 	}

@@ -16,6 +16,7 @@ function setup(meta: Record<string, unknown> | undefined) {
 	const adapter = {
 		getRootMeta: vi.fn<WorkflowyInternalAdapter["getRootMeta"]>(async () => Promise.resolve(meta)),
 		setRootMetaValues: vi.fn<WorkflowyInternalAdapter["setRootMetaValues"]>(async () => Promise.resolve()),
+		saveLocalSettings: vi.fn<WorkflowyInternalAdapter["saveLocalSettings"]>(),
 	};
 	const cacheService = {
 		getNode: (id: string) => (Object.hasOwn(NAMES, id) ? {id, name: NAMES[id]} : undefined),
@@ -136,7 +137,7 @@ describe("PUT /api/v1/stars/:key", () => {
 });
 
 describe("DELETE /api/v1/stars/:key", () => {
-	it("removes the location, its order entry and its rename", async () => {
+	it("removes the location and its order entry, keeping the rename", async () => {
 		const {adapter, request} = setup(ORDERED);
 
 		const response = await request("DELETE", `/${P1}`);
@@ -148,7 +149,6 @@ describe("DELETE /api/v1/stars/:key", () => {
 					[
 						{path: ["starring", "locations", P1], value: undefined},
 						{path: ["starring", "order"], value: `None/${P1}/#todo`},
-						{path: ["location", "renamed", `None/${P1}/`], value: undefined},
 					],
 				],
 			],
@@ -188,5 +188,39 @@ describe("PUT /api/v1/stars/order", () => {
 			invalid: {status: 400, body: {error: "body must be {keys: string[]}"}},
 			writes: [[[{path: ["starring", "order"], value: `None/${P1}/,None/${P1}/#todo`}]]],
 		});
+	});
+});
+
+describe("the durable local copy", () => {
+	const snapshot = (meta: Record<string, unknown>) => {
+		const {starring, location} = meta as {
+			starring?: {locations?: unknown; order?: unknown};
+			location?: {renamed?: unknown};
+		};
+		return {
+			"root:starring.locations": starring?.locations ?? null,
+			"root:starring.order": starring?.order ?? null,
+			"root:location.renamed": location?.renamed ?? null,
+		};
+	};
+
+	it("saves the star state after a star, an unstar, a rename and a reorder", async () => {
+		const {adapter, request} = setup(ORDERED);
+
+		await request("PUT", `/${P2}`, {nodeId: P2, query: null});
+		await request("DELETE", `/${P1}`);
+		await request("PATCH", `/${P1}`, {name: "Inbox triage"});
+		await request("PUT", "/order", {keys: [P1]});
+
+		expect(adapter.saveLocalSettings.mock.calls).toStrictEqual(Array.from({length: 4}, () => [snapshot(ORDERED)]));
+	});
+
+	it("saves nothing for a rejected request", async () => {
+		const {adapter, request} = setup(ORDERED);
+
+		await request("PUT", `/${P1}`, {nodeId: P2, query: null});
+		await request("PUT", "/order", {keys: "nope"});
+
+		expect(adapter.saveLocalSettings.mock.calls).toStrictEqual([]);
 	});
 });

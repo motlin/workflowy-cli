@@ -6,9 +6,9 @@
 
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
-import {useEffect, useMemo} from "react";
+import {useEffect, useMemo, useRef} from "react";
 import {z} from "zod";
-import {applyToggle, locationKey, moveKey, uniqueId} from "@workflowy/shared";
+import {applyToggle, locationKey, moveKey, shouldRecordView, uniqueId} from "@workflowy/shared";
 import type {Star, StarredLocation} from "@workflowy/shared";
 import type {NodeResponse} from "../../node-types.js";
 import {nodeKeys, readDetail} from "../node-cache.js";
@@ -214,15 +214,29 @@ export function useStarActions() {
 	}, [queryClient, addErrorNotification]);
 }
 
-/** Record a view of the current zoom/search location whenever it changes and is starred. */
+/**
+ * Record a view of the current zoom/search location when navigation reaches it and it is starred. A star refetch or
+ * toggle at the same location stamps nothing (upstream stamps only on `location.change.after`).
+ */
 export function useRecordStarViews(): void {
 	const {stars} = useStars();
 	const nodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const query = useOutlineStore((state) => state.urlSearchQuery);
+	const starsRef = useRef(stars);
 	useEffect(() => {
+		starsRef.current = stars;
+	}, [stars]);
+	const previous = useRef<StarredLocation | null>(null);
+	useEffect(() => {
+		const next = {nodeId, query};
+		// Until the stars load there is nothing to stamp; keep the location pending for the first load
+		if (starsRef.current.length === 0 || !shouldRecordView(previous.current, next)) {
+			return;
+		}
+		previous.current = next;
 		const storage = safeLocalStorage();
 		if (storage) {
-			recordView(storage, stars, {nodeId, query}, Date.now());
+			recordView(storage, starsRef.current, next, Date.now());
 		}
-	}, [stars, nodeId, query]);
+	}, [nodeId, query]);
 }
