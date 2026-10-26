@@ -792,6 +792,28 @@ export function planFocusSibling(
 	return index === -1 ? null : (siblings[index + step] ?? null);
 }
 
+/**
+ * Upstream `focus_parent`: where the caret goes. With nothing focused it goes to the zoom title; on the title it
+ * does nothing; on a row it goes to the row's parent (the title when the parent is the zoom root).
+ */
+export function planFocusParent({
+	zoomedId,
+	currentId,
+	parentOf,
+}: {
+	zoomedId: string | null;
+	currentId: string | null;
+	parentOf: Readonly<Record<string, string | null | undefined>>;
+}): string | null {
+	if (currentId === null) {
+		return zoomedId;
+	}
+	if (currentId === zoomedId) {
+		return null;
+	}
+	return parentOf[currentId] ?? null;
+}
+
 /** A mutation as `toUndoOps` reads it; `index` follows the create/move endpoints (omitted = bottom). */
 export type UndoableMutation =
 	| {kind: "create"; nodeId: string; parentId: string | null; index?: number}

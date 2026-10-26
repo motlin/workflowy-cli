@@ -16,6 +16,7 @@ import {
 	planIndent,
 	isPotentiallyVisible,
 	nextPotentiallyVisibleSibling,
+	planFocusParent,
 	planFocusSibling,
 	planOutdent,
 	planSplit,
@@ -1095,6 +1096,29 @@ describe("planFocusSibling", () => {
 
 	it("does nothing going forward from the title of an empty zoomed page", () => {
 		expect(planFocusSibling({...base, currentId: "z", firstChildId: null, siblings: []}, 1)).toBeNull();
+	});
+});
+
+describe("planFocusParent", () => {
+	const base = {zoomedId: "z", parentOf: {a1: "a", a: "z"}};
+
+	it("goes from a row to its parent, and from a top-level row to the title", () => {
+		expect([planFocusParent({...base, currentId: "a1"}), planFocusParent({...base, currentId: "a"})]).toStrictEqual(
+			["a", "z"],
+		);
+	});
+
+	it("does nothing on the title, and goes to the title with nothing focused", () => {
+		expect([planFocusParent({...base, currentId: "z"}), planFocusParent({...base, currentId: null})]).toStrictEqual(
+			[null, "z"],
+		);
+	});
+
+	it("does nothing with nothing focused at Home, or for a row with no known parent", () => {
+		expect([
+			planFocusParent({zoomedId: null, parentOf: {}, currentId: null}),
+			planFocusParent({...base, currentId: "x"}),
+		]).toStrictEqual([null, null]);
 	});
 });
 

@@ -37,6 +37,7 @@ import {
 	nextPotentiallyVisibleSibling,
 	planBlockMove,
 	planDuplicate,
+	planFocusParent,
 	planFocusSibling,
 	planIndent,
 	planOutdent,
@@ -607,6 +608,22 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
+	/** Upstream `focus_parent` (unbound): edit the row's parent at offset 0, centered; the title from a top-level row. */
+	const focusParent = (ctx: CommandContext): void => {
+		const currentId = ctx.items[0] ?? null;
+		const parentId = currentId === null ? null : (readNode(queryClient, currentId)?.parent_id ?? null);
+		const targetId = planFocusParent({
+			zoomedId: zoomedNodeId,
+			currentId,
+			parentOf: currentId === null || parentId === null ? {} : {[currentId]: parentId},
+		});
+		if (targetId !== null) {
+			commitEdit();
+			focusCenterNext(targetId);
+			resumeEditing(targetId, 0);
+		}
+	};
+
 	/**
 	 * Upstream `focus_first` / `focus_last`: caret at the start of the first navigable node or the end of the last.
 	 * `skipTitle` skips the zoomed title, for upstream's `WF.Focus.firstChildOfSelected`.
@@ -1029,6 +1046,11 @@ export function useCommandRegistry(): CommandRegistry {
 		focus_next_sibling: {
 			execute(ctx) {
 				focusSibling(ctx, 1);
+			},
+		},
+		focus_parent: {
+			execute(ctx) {
+				focusParent(ctx);
 			},
 		},
 		focus_first: {
