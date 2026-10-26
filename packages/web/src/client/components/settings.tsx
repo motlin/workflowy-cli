@@ -3,6 +3,7 @@ import type {KeyboardEvent, ReactNode} from "react";
 import {formatPillLabel} from "@workflowy/shared";
 import {dateFormatOptions, timeFormatOptions, weekStartPatch} from "../date-settings.js";
 import type {FormatOption} from "../date-settings.js";
+import {useFeatures} from "../hooks/use-features.js";
 import {usePreferences} from "../hooks/use-preferences.js";
 import type {Preferences, PreferencesPatch} from "../hooks/use-preferences.js";
 import {currentVersionLabel} from "../app-version.js";
@@ -316,6 +317,7 @@ function NotificationsSection({preferences, change}: SectionProps) {
 function FeaturesSection() {
 	const showKeyboardShortcuts = useOutlineStore((state) => state.showKeyboardShortcuts);
 	const setShowKeyboardShortcuts = useOutlineStore((state) => state.setShowKeyboardShortcuts);
+	const {visible, enabled, setFeature} = useFeatures();
 	return (
 		<SettingsSection title="Features">
 			<SectionBody>
@@ -328,6 +330,25 @@ function FeaturesSection() {
 						}}
 					/>
 				</ControlRow>
+				{visible.map(({codename, name, label, description}) => {
+					const on = enabled[codename] === true;
+					return (
+						<ControlRow
+							key={codename}
+							label={name}
+							badge={label === "LABS" || label === "DEV" ? label : undefined}
+							hint={description === null || description === "" ? undefined : description}
+						>
+							<Toggle
+								className={codename}
+								on={on}
+								onClick={() => {
+									void setFeature(codename, !on).catch(() => {});
+								}}
+							/>
+						</ControlRow>
+					);
+				})}
 			</SectionBody>
 		</SettingsSection>
 	);

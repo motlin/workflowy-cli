@@ -3,7 +3,7 @@ import {and, eq, inArray, like} from "drizzle-orm";
 import type {BaseSQLiteDatabase} from "drizzle-orm/sqlite-core";
 import {z} from "zod";
 import type {CreateMirrorResult} from "../api/workflowy-client.js";
-import type {InternalSession, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
+import type {InternalSession, VisibleFeature, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {keptInternalMetadata} from "../cache/importer.js";
 import {accountState, localSettings, mirrors as mirrorsTable, nodeContent, nodeInternalMetadata} from "../db/schema.js";
@@ -96,6 +96,19 @@ const CalendarMetadataSchema = z.object({
 		.loose(),
 });
 
+/** The `true`/`"yes"` entries of a `settings.features` value. */
+function enabledDict(value: unknown): Record<string, true> {
+	const dict: Record<string, true> = {};
+	if (typeof value === "object" && value !== null) {
+		for (const [name, flag] of Object.entries(value)) {
+			if (flag === true || flag === "yes") {
+				dict[name] = true;
+			}
+		}
+	}
+	return dict;
+}
+
 type StoredAccount = z.infer<typeof StoredAccountSchema>;
 type Metadata = z.infer<typeof MetadataSchema>;
 
@@ -103,12 +116,26 @@ interface AccountSnapshot {
 	account: StoredAccount;
 	rootMetadata: Metadata;
 	settings: Metadata;
+	visibleFeatures: VisibleFeature[];
 }
+
+const VisibleFeaturesSchema = z.array(
+	z.object({
+		codename: z.string(),
+		name: z.string(),
+		label: z.string().nullable(),
+		description: z.string().nullable(),
+	}),
+);
+
+/** Codenames go into `/features/<enable|disable>/<codename>`, so only slug characters pass. */
+const FEATURE_CODENAME = /^[a-z0-9_-]+$/u;
 
 const KEYS = {
 	account: "account",
 	rootMetadata: "root_metadata",
 	settings: "settings",
+	visibleFeatures: "visible_features",
 	expandedKeys: "expanded_keys",
 	entropyKey: "entropy_key",
 	calendarLayoutUndo: "calendar_layout_undo",
@@ -1793,6 +1820,42 @@ export class WorkflowyInternalAdapter {
 		return (await this.snapshot()).settings[name];
 	}
 
+	/** The server's visible feature list (one Settings > Features row each), from the account cache. */
+	async visibleFeatures(): Promise<VisibleFeature[]> {
+		return (await this.snapshot()).visibleFeatures;
+	}
+
+	/** The enabled-feature dict: codename -> true. Disabled flags are absent. */
+	async enabledFeatures(): Promise<Record<string, true>> {
+		return enabledDict((await this.snapshot()).settings.features);
+	}
+
+	/**
+	 * Enable or disable one account feature like upstream's `WF.Features.toggle`: POST
+	 * `/features/<enable|disable>/<codename>`, then cache the new dict (a disabled flag drops
+	 * out) and keep the durable copy in `local_settings` under `setting:features`.
+	 * A failed POST changes nothing.
+	 */
+	async setFeature(codename: string, on: boolean): Promise<Record<string, true>> {
+		if (!FEATURE_CODENAME.test(codename)) {
+			throw new TypeError(`invalid feature codename: ${codename}`);
+		}
+		const session = await this.session();
+		await this.postOk(
+			`/features/${on ? "enable" : "disable"}/${codename}`,
+			new URLSearchParams({clientId: session.clientId}),
+		);
+		const current = await this.snapshot();
+		const next: Record<string, true> = on
+			? {...enabledDict(current.settings.features), [codename]: true}
+			: Object.fromEntries(
+					Object.entries(enabledDict(current.settings.features)).filter(([name]) => name !== codename),
+				);
+		this.store({...current, settings: {...current.settings, features: next}});
+		this.saveLocalSettings({"setting:features": next});
+		return next;
+	}
+
 	/** POST one server-saved setting; flags go over the wire as `"yes"`/`"no"`. */
 	async setSetting(name: ServerSetting, value: string | boolean): Promise<void> {
 		if (FLAG_SETTINGS.has(name) !== (typeof value === "boolean")) {
@@ -1887,6 +1950,7 @@ export class WorkflowyInternalAdapter {
 			},
 			rootMetadata: session.rootMetadata,
 			settings: session.settings,
+			visibleFeatures: session.visibleFeatures,
 		};
 	}
 
@@ -1909,7 +1973,8 @@ export class WorkflowyInternalAdapter {
 		if (!account || !rootMetadata || !settings) {
 			return undefined;
 		}
-		return {snapshot: {account, rootMetadata, settings}, fetchedAt};
+		const visibleFeatures = read(KEYS.visibleFeatures, VisibleFeaturesSchema) ?? [];
+		return {snapshot: {account, rootMetadata, settings, visibleFeatures}, fetchedAt};
 	}
 
 	private store(snapshot: AccountSnapshot): void {
@@ -1919,6 +1984,7 @@ export class WorkflowyInternalAdapter {
 			{key: KEYS.account, json: JSON.stringify(snapshot.account), fetchedAt},
 			{key: KEYS.rootMetadata, json: JSON.stringify(snapshot.rootMetadata), fetchedAt},
 			{key: KEYS.settings, json: JSON.stringify(snapshot.settings), fetchedAt},
+			{key: KEYS.visibleFeatures, json: JSON.stringify(snapshot.visibleFeatures), fetchedAt},
 		];
 		this.db.transaction((tx) => {
 			for (const row of rows) {

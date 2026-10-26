@@ -1,4 +1,4 @@
-import {isFeatureOn} from "./features.js";
+import {accountFeaturesKnown, isFeatureOn} from "./features.js";
 
 /**
  * Upstream's Dashboard layout (Labs, `doc/plugins/dashboard`): an item whose `layoutMode` is `dashboard` draws
@@ -7,10 +7,16 @@ import {isFeatureOn} from "./features.js";
  */
 let cachedFlag: boolean | undefined;
 
-/** The flag as of first read: rows ask per render, so flipping it takes a reload. */
+/** The flag as of the first read after the account's features loaded: rows ask per render, so flipping it takes a reload. */
 export function dashboardsOn(): boolean {
-	cachedFlag ??= isFeatureOn("dashboards");
-	return cachedFlag;
+	if (cachedFlag !== undefined) {
+		return cachedFlag;
+	}
+	const on = isFeatureOn("dashboards");
+	if (accountFeaturesKnown()) {
+		cachedFlag = on;
+	}
+	return on;
 }
 
 /** Upstream's `xs` predicate, minus the mobile and `canRender` checks (the caller is desktop-only). */

@@ -31,6 +31,7 @@ const EXPECTED_SESSION = {
 	rootMetadata: {starring: {locations: {abc: "None"}}},
 	settings: {theme: "dark", show_completed: true},
 	expandedKeys: ["1a2b3c4d"],
+	visibleFeatures: [],
 };
 
 const INIT_HEADERS = {
@@ -107,6 +108,48 @@ describe("WorkflowyInternalClient.bootstrap", () => {
 			["GET", "/get_user_data/"],
 		]);
 		expect(api.requests[2]?.headers).toStrictEqual(INIT_HEADERS);
+	});
+
+	it("parses the visible feature list from the init data, keeping only codename, name, label and description", async () => {
+		const api = createFakeInternalApi();
+		const data = initializationData();
+		data.features = [
+			{codename: "bdl", name: "Backlinks", label: null, description: "d", beta: true, workflowy_dev: false},
+			{codename: "dashboards", name: "Dashboard layout", label: "LABS", description: "x"},
+			{codename: "bare", name: "Bare"},
+		];
+		api.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+		const {client} = clientWith(api);
+
+		const session = await client.bootstrap();
+
+		expect(session.visibleFeatures).toStrictEqual([
+			{codename: "bdl", name: "Backlinks", label: null, description: "d"},
+			{codename: "dashboards", name: "Dashboard layout", label: "LABS", description: "x"},
+			{codename: "bare", name: "Bare", label: null, description: null},
+		]);
+	});
+
+	it("parses the visible feature list from /get_user_data/ on the live shape, and gives [] without one", async () => {
+		const api = createFakeInternalApi();
+		const data = initializationData();
+		delete data.user;
+		api.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+		api.respond("/get_user_data/", () =>
+			json({user: {id: 123}, features: [{codename: "dates", name: "Dates", label: null, description: "d"}]}),
+		);
+		const {client} = clientWith(api);
+
+		const session = await client.bootstrap();
+
+		expect(session.visibleFeatures).toStrictEqual([
+			{codename: "dates", name: "Dates", label: null, description: "d"},
+		]);
+		const bare = createFakeInternalApi();
+		const noFeatures = initializationData();
+		delete noFeatures.features;
+		bare.respond("/get_initialization_data", () => json(noFeatures, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+		await expect(clientWith(bare).client.bootstrap()).resolves.toMatchObject({visibleFeatures: []});
 	});
 
 	it("carries the user's entropyKey (salt of upstream's deterministic ids) when the server sends one", async () => {

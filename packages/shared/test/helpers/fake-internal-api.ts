@@ -18,7 +18,8 @@ export type FakeRoute =
 	| "/get_tree_data/"
 	| "/get_user_data/"
 	| "/push_and_poll"
-	| "/change_settings";
+	| "/change_settings"
+	| `/features/${"enable" | "disable"}/${string}`;
 
 type Responder = (request: RecordedRequest) => Response | Promise<Response>;
 
@@ -58,10 +59,10 @@ export function json(body: unknown, init: ResponseInit = {}): Response {
 }
 
 function isFakeRoute(path: string): path is FakeRoute {
-	return Object.hasOwn(defaultResponders(), path);
+	return Object.hasOwn(defaultResponders(), path) || path.startsWith("/features/");
 }
 
-function defaultResponders(): Record<FakeRoute, Responder> {
+function defaultResponders(): Record<string, Responder> {
 	return {
 		"/ajax_login": () =>
 			new Response("", {
@@ -115,7 +116,7 @@ export function createFakeInternalApi(): FakeInternalApi {
 			return Promise.resolve(new Response("not found", {status: 404}));
 		}
 		const next = queued.get(route)?.shift();
-		return Promise.resolve((next ?? standing[route])(request));
+		return Promise.resolve((next ?? standing[route] ?? (() => json({})))(request));
 	};
 
 	return {

@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vite-plus/test";
+import {afterEach, describe, expect, it} from "vite-plus/test";
 import {
 	CARD_PLACEHOLDER,
 	dashboardInsertIndex,
@@ -13,7 +13,7 @@ import type {DropRows} from "../src/client/outline-drop-target.js";
 import {placeholderFor} from "../src/client/slash-trigger.js";
 import {planSplit} from "../src/client/tree-ops.js";
 import {ITEM_TYPES, availableItemTypes} from "../src/client/layout-types.js";
-import {isFeatureOn} from "../src/client/features.js";
+import {DEFAULT_FEATURES, isFeatureOn, setAccountFeatures} from "../src/client/features.js";
 import {resolveLayoutMode} from "../src/client/components/layout-mode.js";
 
 function storage(value: string | null) {
@@ -35,6 +35,28 @@ describe("isFeatureOn", () => {
 				},
 			}),
 		).toBe(false);
+	});
+});
+
+describe("isFeatureOn with the account dict", () => {
+	afterEach(() => {
+		setAccountFeatures(null);
+	});
+
+	it("lets the loaded account dict win over localStorage", () => {
+		setAccountFeatures({dashboards: true});
+		expect(isFeatureOn("dashboards", storage(null))).toBe(true);
+		setAccountFeatures({});
+		expect(isFeatureOn("dashboards", storage("on"))).toBe(false);
+	});
+
+	it("answers the measured default dict before the account loads", () => {
+		setAccountFeatures(null);
+		expect([isFeatureOn("dates", storage(null)), isFeatureOn("dashboards", storage(null))]).toStrictEqual([
+			true,
+			false,
+		]);
+		expect(Object.keys(DEFAULT_FEATURES)).toHaveLength(20);
 	});
 });
 

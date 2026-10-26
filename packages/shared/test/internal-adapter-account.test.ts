@@ -2,6 +2,7 @@ import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
+import {eq} from "drizzle-orm";
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import * as schema from "../src/db/schema.js";
@@ -263,6 +264,112 @@ describe("WorkflowyInternalAdapter account state", () => {
 
 		expect(db.select().from(accountState).all()).toStrictEqual(before);
 	});
+	it("serves the visible feature list from the account cache, with no network for a second adapter", async () => {
+		const {api, adapter, db, clock} = tracked();
+		const list = [
+			{codename: "bdl", name: "Backlinks", label: null, description: "d"},
+			{codename: "dashboards", name: "Dashboard layout", label: "LABS", description: "x"},
+		];
+		api.respond("/get_initialization_data", () =>
+			json({...initializationData(), features: list}, {headers: {wfclientid: FAKE_CLIENT_ID}}),
+		);
+
+		await expect(adapter.visibleFeatures()).resolves.toStrictEqual(list);
+
+		const requestsBefore = api.requests.length;
+		const second = new WorkflowyInternalAdapter({
+			client: new WorkflowyInternalClient({
+				credentials: {username: "alice@example.com", password: "hunter2"},
+				fetch: api.fetch,
+				baseUrl: "https://workflowy.test",
+			}),
+			db,
+			now: () => clock.ms,
+		});
+		await expect(second.visibleFeatures()).resolves.toStrictEqual(list);
+		expect(api.requests).toHaveLength(requestsBefore);
+	});
+
+	it("answers an empty visible feature list from a cache written before the list existed", async () => {
+		const {adapter, db} = tracked();
+		await adapter.getSetting("theme");
+		db.delete(accountState).where(eq(accountState.key, "visible_features")).run();
+
+		await expect(adapter.visibleFeatures()).resolves.toStrictEqual([]);
+	});
+
+	it("reads the enabled feature dict, keeping only true or yes entries", async () => {
+		const {api, adapter} = tracked();
+		api.respond("/get_initialization_data", () =>
+			json(
+				{...initializationData(), settings: {features: {bdl: true, a: "yes", x: false, y: null, z: "no"}}},
+				{headers: {wfclientid: FAKE_CLIENT_ID}},
+			),
+		);
+
+		await expect(adapter.enabledFeatures()).resolves.toStrictEqual({bdl: true, a: true});
+	});
+
+	it("enables a feature: posts the codename and client id, caches the dict, and keeps the local_settings copy", async () => {
+		const {api, adapter} = tracked();
+		api.respond("/get_initialization_data", () =>
+			json(
+				{...initializationData(), settings: {features: {dates: true}}},
+				{headers: {wfclientid: FAKE_CLIENT_ID}},
+			),
+		);
+
+		const next = await adapter.setFeature("dashboards", true);
+
+		const posts = api.requests.filter((r) => r.path.startsWith("/features/"));
+		expect(posts.map((r) => [r.method, r.path])).toStrictEqual([["POST", "/features/enable/dashboards"]]);
+		expect(Object.fromEntries(new URLSearchParams(posts[0]?.body ?? ""))).toStrictEqual({
+			clientId: FAKE_CLIENT_ID,
+			crosscheck_user_id: "123",
+		});
+		expect(next).toStrictEqual({dates: true, dashboards: true});
+		await expect(adapter.enabledFeatures()).resolves.toStrictEqual({dates: true, dashboards: true});
+		expect(adapter.localSettings()["setting:features"]).toStrictEqual({dates: true, dashboards: true});
+	});
+
+	it("disables a feature by dropping its key", async () => {
+		const {api, adapter} = tracked();
+		api.respond("/get_initialization_data", () =>
+			json(
+				{...initializationData(), settings: {features: {dates: true, table: true}}},
+				{headers: {wfclientid: FAKE_CLIENT_ID}},
+			),
+		);
+
+		const next = await adapter.setFeature("dates", false);
+
+		expect(api.requests.filter((r) => r.path.startsWith("/features/")).map((r) => r.path)).toStrictEqual([
+			"/features/disable/dates",
+		]);
+		expect(next).toStrictEqual({table: true});
+		expect(adapter.localSettings()["setting:features"]).toStrictEqual({table: true});
+	});
+
+	it("leaves the cache and local_settings unchanged when the feature POST fails", async () => {
+		const {api, adapter, db} = tracked();
+		await adapter.getSetting("theme");
+		const before = db.select().from(accountState).all();
+		api.respond("/features/enable/dashboards", () => new Response("boom", {status: 500}));
+
+		await expect(adapter.setFeature("dashboards", true)).rejects.toThrow("returned 500");
+
+		expect(db.select().from(accountState).all()).toStrictEqual(before);
+		expect(adapter.localSettings()).toStrictEqual({});
+	});
+
+	it("rejects a codename that could escape the path and sends nothing", async () => {
+		const {api, adapter} = tracked();
+
+		await expect(adapter.setFeature("../x", true)).rejects.toThrow(TypeError);
+
+		expect(api.requests).toStrictEqual([]);
+	});
+
 	it("keeps a durable local copy of each written setting that a server refresh does not overwrite", async () => {
 		const {api, adapter, db, clock} = tracked();
 		await adapter.setSetting("theme", "dark");

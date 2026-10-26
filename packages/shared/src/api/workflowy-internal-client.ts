@@ -23,6 +23,24 @@ const WORKFLOWY_URL = "https://workflowy.com";
 const TransactionIdSchema = z.union([z.string(), z.number()]).transform((value) => String(value));
 const ClientVersionSchema = TransactionIdSchema;
 
+const VisibleFeatureSchema = z
+	.object({
+		codename: z.string(),
+		name: z.string(),
+		label: z.string().nullish(),
+		description: z.string().nullish(),
+	})
+	.loose();
+
+/** One row of the server's visible feature list (Settings > Features). */
+export interface VisibleFeature {
+	codename: string;
+	name: string;
+	/** `"LABS"`, `"DEV"` or null. */
+	label: string | null;
+	description: string | null;
+}
+
 const InitializationDataSchema = z
 	.object({
 		projectTreeData: z
@@ -45,6 +63,7 @@ const InitializationDataSchema = z
 			.loose()
 			.optional(),
 		globals: z.array(z.tuple([z.string(), z.unknown()])).optional(),
+		features: z.array(VisibleFeatureSchema).optional(),
 	})
 	.loose();
 
@@ -55,6 +74,7 @@ const UserDataSchema = z
 		settings: z.record(z.string(), z.unknown()).optional(),
 		globals: z.array(z.tuple([z.string(), z.unknown()])).optional(),
 		rootProjectMetadata: z.record(z.string(), z.unknown()).optional(),
+		features: z.array(VisibleFeatureSchema).optional(),
 	})
 	.loose();
 
@@ -148,6 +168,8 @@ export interface InternalSession {
 	/** Root (Home) metadata: stars, tag colors, date formats. */
 	rootMetadata: Record<string, unknown>;
 	settings: Record<string, unknown>;
+	/** The server's visible feature list, in server order. */
+	visibleFeatures: VisibleFeature[];
 	/** Short ids of the nodes the server records as expanded. */
 	expandedKeys: string[];
 	/** The per-account salt upstream's `WF.Id.uuidv5` prefixes to every deterministic id; absent when the server sends none. */
@@ -309,6 +331,7 @@ export class WorkflowyInternalClient {
 						user: init.user,
 						settings: init.settings,
 						globals: init.globals,
+						features: init.features,
 						rootProjectMetadata: init.projectTreeData.rootProjectMetadata,
 					};
 		const userId = account.user.id;
@@ -328,6 +351,12 @@ export class WorkflowyInternalClient {
 			txId,
 			rootMetadata: account.rootProjectMetadata ?? {},
 			settings: account.settings ?? {},
+			visibleFeatures: (account.features ?? []).map(({codename, name, label, description}) => ({
+				codename,
+				name,
+				label: label ?? null,
+				description: description ?? null,
+			})),
 			expandedKeys: tree.serverExpandedProjectsList ?? [],
 			...(entropyKey.success ? {entropyKey: entropyKey.data} : {}),
 			...(fullName.success ? {fullName: fullName.data} : {}),

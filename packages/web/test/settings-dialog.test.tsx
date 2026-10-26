@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import {readFileSync} from "node:fs";
+import {resolve} from "node:path";
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import type {Root} from "react-dom/client";
+import {featureKeys} from "../src/client/hooks/use-features.js";
 import {EMPTY_PREFERENCES, preferenceKeys} from "../src/client/hooks/use-preferences.js";
 import type {Preferences} from "../src/client/hooks/use-preferences.js";
 
@@ -40,6 +43,11 @@ const calls = {
 	toggleRightBarCollapsed: vi.fn<() => void>(),
 };
 const fetchStub = vi.fn<typeof fetch>();
+let featuresBody: unknown = {visible: [], enabled: {}, available: true};
+const DUMPS = resolve(process.cwd(), ".llm/upstream-sync/dumps");
+function dump(name: string): unknown {
+	return JSON.parse(readFileSync(resolve(DUMPS, name), "utf8"));
+}
 
 beforeAll(() => {
 	globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -49,6 +57,7 @@ beforeEach(() => {
 	vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
 	vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
 	vi.stubGlobal("fetch", fetchStub);
+	featuresBody = {visible: [], enabled: {}, available: true};
 	store.state = {
 		settingsOpen: true,
 		settingsSection: null,
@@ -73,7 +82,10 @@ afterEach(async () => {
 });
 
 async function open(preferences: Partial<Preferences> = {}, opened: string | null = null): Promise<void> {
-	fetchStub.mockImplementation(async (_input, init) => {
+	fetchStub.mockImplementation(async (input, init) => {
+		if (urlOf(input).startsWith("/api/v1/features")) {
+			return Promise.resolve(Response.json(featuresBody));
+		}
 		const patch: unknown = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
 		Object.assign(preferences, patch);
 		return Promise.resolve(Response.json({...EMPTY_PREFERENCES, ...preferences}));
@@ -85,6 +97,7 @@ async function open(preferences: Partial<Preferences> = {}, opened: string | nul
 		available: true,
 		error: null,
 	});
+	client.setQueryData(featureKeys.all, featuresBody);
 	host = document.createElement("div");
 	document.body.append(host);
 	root = createRoot(host);
@@ -96,6 +109,10 @@ async function open(preferences: Partial<Preferences> = {}, opened: string | nul
 /** The writes: a mounted dialog also re-reads preferences, which is not one. */
 function patches() {
 	return fetchStub.mock.calls.filter(([, init]) => init?.method === "PATCH");
+}
+
+function urlOf(input: Parameters<typeof fetch>[0]): string {
+	return typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 }
 
 function collapse(value: string): string {
@@ -400,6 +417,91 @@ describe("Settings dialog", () => {
 			set: [[true]],
 			bar: [[], []],
 		});
+	});
+
+	it("lists one toggle per server feature in server order, with LABS badges, hints and upstream's toggle classes", async () => {
+		const visible = (dump("settings-page-upstream-features-visible.json") as {all: {description: string}[]}).all;
+		const enabled = (dump("account-feature-flags-upstream-state.json") as {settings_features_enabled: unknown})
+			.settings_features_enabled;
+		featuresBody = {visible, enabled, available: true};
+		await open();
+		const features = section("Features");
+		const badges = [...features.querySelectorAll<HTMLElement>(".text-base.leading-s > div")].map((badge) => [
+			badge.parentElement?.firstChild?.textContent,
+			badge.textContent,
+			badge.getAttribute("style"),
+		]);
+		const LABS = "color: var(--wf-gray-0); background: var(--wf-blue-300);";
+
+		expect({
+			labels: [...features.querySelectorAll(".text-base.leading-s")].map(
+				(label) => label.firstChild?.textContent,
+			),
+			states: [...features.querySelectorAll("label.toggle")].map((toggle) =>
+				toggle.classList.contains("on") ? "on" : "off",
+			),
+			badges,
+			datesClass: features.querySelector("label.toggle.dates")?.className,
+			hints: features.querySelectorAll(".text-s.leading-xs").length,
+			firstHint: features.querySelector(".text-s.leading-xs")?.textContent,
+		}).toStrictEqual({
+			labels: [
+				"Keyboard shortcuts helper",
+				"Workflowy Labs",
+				"Open links in desktop app",
+				"Dates",
+				"Full width page",
+				"Templates",
+				"Backlinks",
+				"Keep Mobile Keyboard on Scroll",
+				"Rich tags",
+				"Always show expand/collapse arrows",
+				"All updates",
+				"Fractal Comments",
+				"Dashboard layout",
+				"Workflowy AI",
+				"Instant Presentations",
+				"Nested search",
+				"Recognize markdown pasting",
+				"Calendar",
+				"Numbered List",
+				"Tables",
+				"Panes",
+			],
+			states: [
+				"off",
+				...Array.from({length: 10}, () => "on"),
+				"off",
+				"off",
+				"off",
+				...Array.from({length: 7}, () => "on"),
+			],
+			badges: [
+				["All updates", "LABS", LABS],
+				["Dashboard layout", "LABS", LABS],
+				["Workflowy AI", "LABS", LABS],
+				["Instant Presentations", "LABS", LABS],
+			],
+			datesClass: "toggle on inline-flex gap-m mobile:gap-l\n        dates\n        cursor-pointer",
+			hints: 20,
+			firstHint: visible[0]?.description,
+		});
+	});
+
+	it("posts the feature POST for a clicked server toggle and flips it at once", async () => {
+		const visible = (dump("settings-page-upstream-features-visible.json") as {all: unknown[]}).all;
+		featuresBody = {visible, enabled: {dates: true}, available: true};
+		await open();
+		const dashboards = section("Features").querySelector<HTMLElement>("label.toggle.dashboards");
+
+		await run(() => {
+			dashboards?.click();
+		});
+
+		const posts = fetchStub.mock.calls.filter(([input]) => urlOf(input).startsWith("/api/v1/features/"));
+		expect(posts.map(([input, init]) => [urlOf(input), init?.method, init?.body])).toStrictEqual([
+			["/api/v1/features/dashboards", "POST", '{"on":true}'],
+		]);
 	});
 
 	it("copies the version and flashes copied! for 2000ms", async () => {

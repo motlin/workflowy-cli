@@ -37,6 +37,7 @@ const SESSION: InternalSession = {
 	txId: "1",
 	rootMetadata: {dateFormat: "YYYY-MM-DD ddd"},
 	settings: {},
+	visibleFeatures: [],
 	expandedKeys: [],
 	entropyKey: ENTROPY,
 };
