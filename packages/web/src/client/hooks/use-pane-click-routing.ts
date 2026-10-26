@@ -4,6 +4,7 @@ import {isMacPlatform} from "../editable-text-keys.js";
 import {parseLocationHash} from "../location.js";
 import {RESOLVED_ID_STALE_TIME, nodeKeys} from "../node-cache.js";
 import {paneClickModifier} from "../pane-click-routing.js";
+import {focusedPaneId} from "../left-bar-pane-nav.js";
 import {openInPane} from "../pane-commands.js";
 import {MAIN_PANE_ID, findPane} from "../pane-ids.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -13,13 +14,6 @@ const BULLET_SELECTOR = '[data-handbook="bullet.handle"][data-item-id]';
 
 function paneIdOf(element: Element): string {
 	return element.closest("[data-pane-id]")?.getAttribute("data-pane-id") ?? MAIN_PANE_ID;
-}
-
-/** The pane a plain left-bar click navigates: the one holding the focused element, else the active pane. */
-function focusedPaneId(): string {
-	const active = document.activeElement;
-	const holder = active instanceof Element ? active.closest("[data-pane-id]") : null;
-	return holder?.getAttribute("data-pane-id") ?? useOutlineStore.getState().activePaneId;
 }
 
 /**

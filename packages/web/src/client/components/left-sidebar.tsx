@@ -17,6 +17,7 @@ import {leftBarExpansionKey, pageUniqueId, useLeftBarExpansionStore} from "../st
 import {domkitInputClass} from "./domkit-input.js";
 import {create} from "zustand";
 import {rowHasChildren} from "../tree-ops.js";
+import {focusedSidePaneId, zoomFocusedPane} from "../left-bar-pane-nav.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 
 const STARRED_CONTEXT = "leftbar__starred__";
@@ -419,7 +420,12 @@ export function HomeSectionName() {
 			className="hover:underline"
 			onClick={(event) => {
 				event.stopPropagation();
-				void navigate("/");
+				const paneId = focusedSidePaneId();
+				if (paneId === null) {
+					void navigate("/");
+				} else {
+					zoomFocusedPane(paneId, null);
+				}
 			}}
 		>
 			Home
@@ -430,6 +436,13 @@ export function HomeSectionName() {
 /** Upstream's Today row: zooms to today's day node. */
 export function TodayRow() {
 	const navigateToToday = useNavigateToToday();
+	// With a side pane focused, Today zooms that pane, as the pane header's Today does.
+	const navigateFocusedPaneToToday = useNavigateToToday((id) => {
+		const paneId = focusedSidePaneId();
+		if (paneId !== null) {
+			zoomFocusedPane(paneId, id);
+		}
+	});
 	// Upstream `s30`: a drag over the row paints it quaternary with a 4px bar under its label.
 	const dropHovered = useOutlineStore((state) => state.stripDropKey === LEFT_BAR_TODAY_KEY);
 	return (
@@ -438,7 +451,7 @@ export function TodayRow() {
 			<div
 				className="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer"
 				data-left-bar-today=""
-				onClick={() => void navigateToToday()}
+				onClick={() => void (focusedSidePaneId() === null ? navigateToToday() : navigateFocusedPaneToToday())}
 				style={dropHovered ? {background: "var(--wf-background-quaternary)"} : undefined}
 			>
 				{dropHovered ? (

@@ -93,11 +93,17 @@ export interface OpenInPaneState {
  * Upstream's `open_in_pane` (bullet menu, ⌘-click on an internal link): open a new pane on the item right after the
  * source pane (the active pane by default; the link's pane for a ⌘-click) and focus it.
  */
-export function openInPane(state: OpenInPaneState, nodeId: string | null, sourcePaneId = state.activePaneId): void {
+export function openInPane(
+	state: OpenInPaneState,
+	nodeId: string | null,
+	sourcePaneId = state.activePaneId,
+	query?: string,
+): void {
 	const index = state.panes.findIndex((pane) => pane.id === sourcePaneId);
 	state.openPane(nodeId, {
 		index: index + 2,
 		sourcePaneId: index === -1 ? MAIN_PANE_ID : sourcePaneId,
+		query,
 	});
 }
 

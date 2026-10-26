@@ -5,6 +5,8 @@ interface ButtonProps {
 	variant: "primary" | "secondary";
 	loading?: boolean;
 	disabled?: boolean;
+	/** Upstream's explicit `className`: used verbatim, ahead of `button` and the variant. */
+	className?: string;
 	onClick?: MouseEventHandler<HTMLButtonElement>;
 	children: ReactNode;
 }
@@ -14,7 +16,7 @@ interface ButtonProps {
  * span that turns invisible while loading, when a spinner covers it and the button is disabled. A `disabled` button
  * keeps its look and takes upstream's `button disabled primary` class string.
  */
-export function Button({variant, loading = false, disabled = false, onClick, children}: ButtonProps) {
+export function Button({variant, loading = false, disabled = false, className, onClick, children}: ButtonProps) {
 	return (
 		<button
 			// oxlint-disable-next-line react/button-has-type -- upstream renders the button without a type
@@ -22,7 +24,7 @@ export function Button({variant, loading = false, disabled = false, onClick, chi
 			className={
 				disabled
 					? `  button disabled ${variant}`
-					: `${loading ? " " : " hover:no-underline"} button${loading ? " loading" : ""} ${variant}`
+					: `${className ?? (loading ? " " : " hover:no-underline")} button${loading ? " loading" : ""} ${variant}`
 			}
 			disabled={loading || disabled}
 			onClick={onClick}

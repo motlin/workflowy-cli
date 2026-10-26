@@ -21,7 +21,9 @@ import {useOutlineStore} from "../stores/outline.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {BACKDROP_CLASS, DIALOG_CLASS, SCRIM_CLASS} from "./dialog-shell.js";
 import {FaIcon} from "./fa-icons.js";
+import {Button} from "./button.js";
 import {LoadingSpinner} from "./loading-spinner.js";
+import {openInPane} from "../pane-commands.js";
 
 // Upstream WF.DomKit.Input with the switcher's py-ml px-l padding.
 const INPUT_CLASS =
@@ -81,6 +83,9 @@ interface SwitcherOptionProps {
 	row: SwitcherRow;
 	selected: boolean;
 	onSelect: (row: SwitcherRow) => void;
+	/** Whether the selected row shows its action box: upstream hides it for the `-` and `..` filters. */
+	showActions: boolean;
+	onOpenInPane: (row: SwitcherRow) => void;
 	/** Takes the row's key, not its place: a row dropping out above it must not re-render it. */
 	onHover: (key: string) => void;
 }
@@ -93,13 +98,22 @@ function sameOptionProps(previous: SwitcherOptionProps, next: SwitcherOptionProp
 	return (
 		previous.selected === next.selected &&
 		previous.onSelect === next.onSelect &&
+		previous.showActions === next.showActions &&
+		previous.onOpenInPane === next.onOpenInPane &&
 		previous.onHover === next.onHover &&
 		sameSwitcherRow(previous.row, next.row)
 	);
 }
 
 /** One `.switcher-option` row: star cell, highlighted label, then the ancestor crumbs when there are any. */
-const SwitcherOption = memo(function SwitcherOption({row, selected, onSelect, onHover}: SwitcherOptionProps) {
+const SwitcherOption = memo(function SwitcherOption({
+	row,
+	selected,
+	showActions,
+	onSelect,
+	onOpenInPane,
+	onHover,
+}: SwitcherOptionProps) {
 	const struck = row.completed && !selected;
 	const hasCrumbs = row.ancestors.length > 0;
 	return (
@@ -136,6 +150,24 @@ const SwitcherOption = memo(function SwitcherOption({row, selected, onSelect, on
 						)}
 						<span dangerouslySetInnerHTML={{__html: row.search ?? row.labelHtml}} />
 					</div>
+					{selected && showActions && (
+						// Upstream `RY4`: the chip carries no Tooltip, because upstream's never attaches (Button drops the ref).
+						<div className="flex items-center gap-xs shrink-0">
+							<Button
+								variant="secondary"
+								className="!px-xs !py-xs !text-xs !rounded-pill"
+								onClick={(event) => {
+									event.preventDefault();
+									event.stopPropagation();
+									onOpenInPane(row);
+								}}
+							>
+								<div className="flex flex-row items-center !gap-xs">
+									<FaIcon icon="fal:table-columns" />
+								</div>
+							</Button>
+						</div>
+					)}
 				</div>
 			</div>
 			{hasCrumbs && (
@@ -199,6 +231,8 @@ export interface SwitcherDialogProps {
 	onQueryChange: (query: string) => void;
 	onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 	onSelect: (row: SwitcherRow) => void;
+	/** Open the row in a new pane: the selected row's chip. */
+	onOpenInPane: (row: SwitcherRow) => void;
 	onSelectSpecial?: (row: SpecialRow) => void;
 	/** The hovered row's key (`specialKey` for a special): a key, not a place, keeps the options stable. */
 	onHover: (key: string) => void;
@@ -218,6 +252,7 @@ export function SwitcherDialog({
 	onQueryChange,
 	onKeyDown,
 	onSelect,
+	onOpenInPane,
 	onSelectSpecial,
 	onHover,
 	onClose,
@@ -276,7 +311,9 @@ export function SwitcherDialog({
 								key={row.key}
 								row={row}
 								selected={specials.length + index === selectedIndex}
+								showActions={!isSpecialFilter(query)}
 								onSelect={onSelect}
+								onOpenInPane={onOpenInPane}
 								onHover={onHover}
 							/>
 						))}
@@ -460,6 +497,15 @@ function JumpMenuDialog() {
 		[closeJumpMenu, navigate, zoomTo],
 	);
 
+	/** Upstream `rC1` then `open_in_pane`: close without restoring, then open the row in a pane after the active one. */
+	const handleOpenInPane = useCallback(
+		(row: SwitcherRow) => {
+			closeJumpMenu("navigate");
+			openInPane(useOutlineStore.getState(), row.nodeId, undefined, row.query ?? undefined);
+		},
+		[closeJumpMenu],
+	);
+
 	const rowCount = specials.length + rows.length;
 	// Read by the hover handler, never during render, so a changed list keeps the handler and the options stable.
 	const listedKeys = useRef<readonly string[]>([]);
@@ -563,6 +609,7 @@ function JumpMenuDialog() {
 			onQueryChange={handleQueryChange}
 			onKeyDown={handleKeyDown}
 			onSelect={handleSelect}
+			onOpenInPane={handleOpenInPane}
 			onSelectSpecial={handleSelectSpecial}
 			onHover={handleHover}
 			onClose={cancel}

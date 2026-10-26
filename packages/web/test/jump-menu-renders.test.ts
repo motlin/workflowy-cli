@@ -148,6 +148,7 @@ describe("JumpMenu render count", () => {
 				onQueryChange: noop,
 				onKeyDown: noop,
 				onSelect: noop,
+				onOpenInPane: noop,
 				onHover: noop,
 				onClose: noop,
 				onScrollNearEnd: noop,

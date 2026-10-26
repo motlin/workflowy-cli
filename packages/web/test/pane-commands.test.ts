@@ -147,7 +147,9 @@ function fakeOpenInPaneState(panes: {id: string}[], activePaneId = "main") {
 		panes,
 		activePaneId,
 		openPane: (zoomedId, options) => {
-			calls.push(`open:${zoomedId ?? "home"}:${options?.sourcePaneId ?? "?"}:${options?.index ?? "end"}`);
+			calls.push(
+				`open:${zoomedId ?? "home"}:${options?.sourcePaneId ?? "?"}:${options?.index ?? "end"}${options?.query === undefined ? "" : `:${options.query}`}`,
+			);
 			return "NEW";
 		},
 	};
@@ -171,6 +173,12 @@ describe("openInPane", () => {
 		const {calls, state} = fakeOpenInPaneState([{id: A}, {id: B}], A);
 		openInPane(state, "alice", B);
 		expect(calls).toStrictEqual([`open:alice:${B}:3`]);
+	});
+
+	it("carries a starred search's query into the new pane", () => {
+		const {calls, state} = fakeOpenInPaneState([{id: A}], A);
+		openInPane(state, "alice", undefined, "foo ");
+		expect(calls).toStrictEqual([`open:alice:${A}:2:foo `]);
 	});
 
 	it("opens after the main pane for a source pane that is no longer open", () => {

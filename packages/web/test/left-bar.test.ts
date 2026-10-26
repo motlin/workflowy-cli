@@ -65,7 +65,18 @@ vi.mock("../src/client/stores/left-bar-expansions.js", async (importActual) => (
 	useLeftBarExpansionStore: (selector: (state: typeof expansionState) => unknown) => selector(expansionState),
 }));
 const navigateToTodayMock = vi.fn<() => Promise<void>>(async () => {});
-vi.mock("../src/client/hooks/use-navigate-to-today.js", () => ({useNavigateToToday: () => navigateToTodayMock}));
+const paneTodayMock = vi.fn<() => Promise<void>>(async () => {});
+vi.mock("../src/client/hooks/use-navigate-to-today.js", () => ({
+	useNavigateToToday: (zoomTo?: unknown) => (zoomTo === undefined ? navigateToTodayMock : paneTodayMock),
+}));
+let focusedPane: string | null = null;
+const zoomPaneMock = vi.fn<(paneId: string, id: string | null) => void>();
+vi.mock("../src/client/left-bar-pane-nav.js", () => ({
+	focusedSidePaneId: () => focusedPane,
+	zoomFocusedPane: (paneId: string, id: string | null) => {
+		zoomPaneMock(paneId, id);
+	},
+}));
 
 const {
 	HomeSectionName,
@@ -209,6 +220,21 @@ describe("LeftBarSection", () => {
 	});
 });
 
+describe("Home section name in a focused side pane", () => {
+	it("zooms that pane to Home instead of navigating", () => {
+		navigateMock.mockClear();
+		zoomPaneMock.mockClear();
+		focusedPane = "p1";
+		const span = HomeSectionName() as {props: {onClick: (event: unknown) => void}};
+		span.props.onClick({stopPropagation: () => {}});
+		focusedPane = null;
+		expect({zoom: zoomPaneMock.mock.calls, navigate: navigateMock.mock.calls}).toStrictEqual({
+			zoom: [["p1", null]],
+			navigate: [],
+		});
+	});
+});
+
 describe("Home section name", () => {
 	it("navigates to the root without toggling the section", () => {
 		navigateMock.mockClear();
@@ -252,6 +278,19 @@ describe("TodayRow", () => {
 			'<div class="my-xl mx-l desktop:mt-m desktop:mb-2xl"><div class="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer" data-left-bar-today="" style="background:var(--wf-background-quaternary)">' +
 				'<div class="absolute left-[24px] right-0 bottom-0 h-[4px] rounded-full" style="background:#ccc"></div>',
 		);
+	});
+
+	it("zooms the focused side pane to today instead of the main outline", () => {
+		navigateToTodayMock.mockClear();
+		paneTodayMock.mockClear();
+		focusedPane = "p1";
+		const wrapper = TodayRow() as {props: {children: {props: {onClick: () => void}}}};
+		wrapper.props.children.props.onClick();
+		focusedPane = null;
+		expect({main: navigateToTodayMock.mock.calls, pane: paneTodayMock.mock.calls}).toStrictEqual({
+			main: [],
+			pane: [[]],
+		});
 	});
 
 	it("zooms to today instead of navigating to the root", () => {

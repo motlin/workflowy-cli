@@ -69,6 +69,7 @@ function render(overrides: Partial<SwitcherDialogProps> = {}): ReactElement<Elem
 		onQueryChange: () => {},
 		onKeyDown: () => {},
 		onSelect: () => {},
+		onOpenInPane: () => {},
 		onHover: () => {},
 		onClose: () => {},
 		onScrollNearEnd: () => {},
@@ -141,7 +142,9 @@ describe("SwitcherDialog", () => {
 
 	it("shows the star and an SVG magnifier on every starred location, never the magnifying-glass icon", () => {
 		const check = (overrides: Partial<SwitcherRow>) => {
-			const [option] = options(render({rows: [row({id: "a", starred: true, search: "Alpha", ...overrides})]}));
+			const [option] = options(
+				render({rows: [row({id: "a", starred: true, search: "Alpha", ...overrides})], selectedIndex: 1}),
+			);
 			const svgs = elements(option).filter((element) => element.type === "svg");
 			return {
 				icons: svgs.map((element) => element.props["data-icon"]).filter(Boolean),
@@ -173,6 +176,7 @@ describe("SwitcherDialog", () => {
 				onQueryChange: () => {},
 				onKeyDown: () => {},
 				onSelect: () => {},
+				onOpenInPane: () => {},
 				onHover: () => {},
 				onClose: () => {},
 				onScrollNearEnd: () => {},
@@ -218,6 +222,7 @@ describe("SwitcherDialog", () => {
 				onQueryChange: () => {},
 				onKeyDown: () => {},
 				onSelect: () => {},
+				onOpenInPane: () => {},
 				onHover: () => {},
 				onClose: () => {},
 				onScrollNearEnd: () => {},
@@ -240,6 +245,7 @@ describe("SwitcherDialog", () => {
 				onQueryChange: () => {},
 				onKeyDown: () => {},
 				onSelect: () => {},
+				onOpenInPane: () => {},
 				onHover: () => {},
 				onClose: () => {},
 				onScrollNearEnd: () => {},
