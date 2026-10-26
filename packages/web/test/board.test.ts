@@ -5,6 +5,7 @@ import {
 	columnWidth,
 	inlineBoardBleed,
 	insertColumnSubject,
+	rowEnterRole,
 	insertColumnTarget,
 	isBoard,
 	nextWidth,
@@ -149,7 +150,11 @@ describe("insertColumnSubject", () => {
 		plain: {parent_id: null, layoutMode: null},
 	};
 	const children: Record<string, string[]> = {board: ["a", "b", "c"], c: ["card"]};
-	const tree = {node: (id: string) => nodes[id], childIds: (id: string) => children[id] ?? []};
+	const tree = {
+		node: (id: string) => nodes[id],
+		childIds: (id: string) => children[id] ?? [],
+		renders: () => true,
+	};
 
 	it("finds the role and positions, and refuses a plain row", () => {
 		expect([
@@ -171,5 +176,27 @@ describe("insertColumnSubject", () => {
 			parentId: "board",
 			index: 2,
 		});
+	});
+
+	it("refuses a board, column and card whose board does not render", () => {
+		const gated = (rendering: string[]) => ({...tree, renders: (id: string) => rendering.includes(id)});
+		expect([
+			insertColumnSubject("board", gated([]))?.role ?? null,
+			insertColumnSubject("b", gated([]))?.role ?? null,
+			insertColumnSubject("card", gated([]))?.role ?? null,
+			insertColumnSubject("board", gated(["board"]))?.role ?? null,
+			insertColumnSubject("b", gated(["board"]))?.role ?? null,
+			insertColumnSubject("card", gated(["board"]))?.role ?? null,
+		]).toStrictEqual([null, null, null, "board", "column", "card"]);
+	});
+});
+
+describe("rowEnterRole", () => {
+	it("is column or card only under a renderable board or dashboard", () => {
+		expect([
+			rowEnterRole({parentRendersBoard: true, parentRendersDashboard: false}),
+			rowEnterRole({parentRendersBoard: false, parentRendersDashboard: true}),
+			rowEnterRole({parentRendersBoard: false, parentRendersDashboard: false}),
+		]).toStrictEqual(["column", "card", null]);
 	});
 });

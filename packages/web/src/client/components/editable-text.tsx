@@ -8,7 +8,8 @@ import {
 	shouldCommitOnBlur,
 	useOutlineStore,
 } from "../stores/outline.js";
-import {isBoard} from "../board.js";
+import {rowEnterRole} from "../board.js";
+import {cachedCanRender} from "../layouts-cache.js";
 import {cellBackspace, cellEnter} from "../table-actions.js";
 import {locateCell} from "../table-cache.js";
 import {planCellKey} from "../table.js";
@@ -108,7 +109,7 @@ import {useInlineLinkPopup} from "../hooks/use-inline-link-popup.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripMentionChip} from "../mention-trigger.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
-import {dashboardsOn, isDashboard, shouldExpandOnEnter} from "../dashboard.js";
+import {dashboardsOn, isDashboard} from "../dashboard.js";
 import {focusCenters, focusKeepsScroll, focusScrolls} from "../quiet-focus.js";
 import {scrollToCenter} from "../scroll-reveal.js";
 
@@ -985,13 +986,10 @@ function EditingText({
 				hasNextSibling: visibleSiblings.at(-1)?.id !== nodeId,
 				canOutdent: outdent !== null,
 				layoutMode: listed?.data.layoutMode,
-				role:
-					parentId !== null && isBoard(readNode(queryClient, parentId)?.data.layoutMode ?? null)
-						? "column"
-						: parentId !== null &&
-							  shouldExpandOnEnter(readNode(queryClient, parentId)?.data.layoutMode, dashboardsOn())
-							? "card"
-							: null,
+				role: rowEnterRole({
+					parentRendersBoard: parentId !== null && cachedCanRender(queryClient, parentId, "board"),
+					parentRendersDashboard: parentId !== null && cachedCanRender(queryClient, parentId, "dashboard"),
+				}),
 			},
 			html,
 			selection: selectionTextOffsets(content),

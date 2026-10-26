@@ -109,6 +109,8 @@ export function boardColumnsVisibleInSearch(
 export interface BoardTreeReader {
 	node: (id: string) => {parent_id: string | null; layoutMode: string | null} | undefined;
 	childIds: (parentId: string) => readonly string[];
+	/** Upstream `Board.is`: the node is a board that renders (not nested in another complex layout). */
+	renders: (id: string) => boolean;
 }
 
 /** The board, column or card the item is, with the positions `insertColumnTarget` needs; null for a plain row. */
@@ -122,7 +124,7 @@ export function insertColumnSubject(itemId: string, tree: BoardTreeReader): Inse
 	const grandparentId = parent?.parent_id ?? null;
 	const grandparent = grandparentId === null ? undefined : tree.node(grandparentId);
 	const childCount = tree.childIds(itemId).length;
-	if (isBoard(item.layoutMode)) {
+	if (isBoard(item.layoutMode) && tree.renders(itemId)) {
 		return {
 			role: "board",
 			id: itemId,
@@ -133,7 +135,7 @@ export function insertColumnSubject(itemId: string, tree: BoardTreeReader): Inse
 			childCount,
 		};
 	}
-	if (parentId !== null && parent !== undefined && isBoard(parent.layoutMode)) {
+	if (parentId !== null && parent !== undefined && isBoard(parent.layoutMode) && tree.renders(parentId)) {
 		return {
 			role: "column",
 			id: itemId,
@@ -144,7 +146,13 @@ export function insertColumnSubject(itemId: string, tree: BoardTreeReader): Inse
 			childCount,
 		};
 	}
-	if (parentId !== null && grandparentId !== null && grandparent !== undefined && isBoard(grandparent.layoutMode)) {
+	if (
+		parentId !== null &&
+		grandparentId !== null &&
+		grandparent !== undefined &&
+		isBoard(grandparent.layoutMode) &&
+		tree.renders(grandparentId)
+	) {
 		return {
 			role: "card",
 			id: itemId,
@@ -156,4 +164,12 @@ export function insertColumnSubject(itemId: string, tree: BoardTreeReader): Inse
 		};
 	}
 	return null;
+}
+
+/** Enter's row role: a child of a renderable board is a column, a child of a renderable dashboard is a card. */
+export function rowEnterRole(parent: {
+	parentRendersBoard: boolean;
+	parentRendersDashboard: boolean;
+}): "column" | "card" | null {
+	return parent.parentRendersBoard ? "column" : parent.parentRendersDashboard ? "card" : null;
 }

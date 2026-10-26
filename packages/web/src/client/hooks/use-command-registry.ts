@@ -88,7 +88,8 @@ import {planLayoutHotkey, todoModeAvailable} from "../layout-hotkeys.js";
 import {lineSplitRequests} from "../line-split.js";
 import {canHaveNote} from "../layout-types.js";
 import type {LayoutToggleCommand} from "../layout-types.js";
-import {insertColumnSubject, isBoard, insertColumnTarget} from "../board.js";
+import {insertColumnSubject, insertColumnTarget} from "../board.js";
+import {cachedCanRender} from "../layouts-cache.js";
 import type {BoardTreeReader} from "../board.js";
 import {toggleBoardOrTable} from "../item-type-select.js";
 import type {ItemTypeSelectDeps} from "../item-type-select.js";
@@ -527,6 +528,7 @@ export function useCommandRegistry(): CommandRegistry {
 					: {parent_id: node.parent_id, layoutMode: node.data.layoutMode ?? null};
 			},
 			childIds: (parentId) => (readChildren(queryClient, parentId) ?? []).map((child) => child.id),
+			renders: (id) => cachedCanRender(queryClient, id, "board"),
 		};
 		return {
 			available: (ctx) =>
@@ -661,7 +663,7 @@ export function useCommandRegistry(): CommandRegistry {
 	/** `"column"` when the node's parent is a board. */
 	const columnRole = (node: NodeResponse): "column" | null => {
 		const parent = node.parent_id === null ? undefined : readNode(queryClient, node.parent_id);
-		return parent !== undefined && isBoard(parent.data.layoutMode ?? null) ? "column" : null;
+		return parent !== undefined && cachedCanRender(queryClient, parent.id, "board") ? "column" : null;
 	};
 
 	/**

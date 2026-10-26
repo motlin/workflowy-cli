@@ -1,5 +1,7 @@
 // Reads a node's layout ancestors out of the query cache, for callers outside the React tree (commands, drag, export).
 import type {QueryClient} from "@tanstack/react-query";
+import {dashboardsOn} from "./dashboard.js";
+import {canRenderLayout} from "./layouts.js";
 import {readNode} from "./node-cache.js";
 import {activePaneView} from "./stores/outline.js";
 
@@ -30,4 +32,22 @@ export function cachedAncestorLayouts(
 		current = parent;
 	}
 	return {layouts, reachedRoot};
+}
+
+/** `WF.Layouts.canRender(layout, node)` against the cached ancestors, for callers outside the React tree. */
+export function cachedCanRender(
+	queryClient: QueryClient,
+	nodeId: string,
+	layout: string,
+	zoomedId: string | null = activePaneView().zoomedNodeId,
+): boolean {
+	const node = readNode(queryClient, nodeId);
+	if (node === undefined) {
+		return false;
+	}
+	const {layouts, reachedRoot} = cachedAncestorLayouts(queryClient, nodeId, zoomedId);
+	return canRenderLayout(layout, {layoutMode: node.data.layoutMode ?? null}, layouts, {
+		reachedRoot,
+		dashboardsFlag: dashboardsOn(),
+	});
 }
