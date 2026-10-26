@@ -6,7 +6,15 @@ import {execFileSync} from "node:child_process";
 import {mkdirSync, mkdtempSync, realpathSync, writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
-import {buildReport, buildStacks, findLocalRepo, parsePrs, processStack, remoteFor} from "./rebase-open-prs.mts";
+import {
+	buildReport,
+	buildStacks,
+	findLocalRepo,
+	ghGraphql,
+	parsePrs,
+	processStack,
+	remoteFor,
+} from "./rebase-open-prs.mts";
 import type {Pr, StackOutcome} from "./rebase-open-prs.mts";
 
 const pr = (over: Partial<Pr>): Pr => ({
@@ -282,4 +290,17 @@ test("findLocalRepo finds the checkout whose remote matches", () => {
 	const f = fixture();
 	assert.strictEqual(findLocalRepo([join(f.root, "projects")], "acme/widgets"), f.clone);
 	assert.strictEqual(findLocalRepo([join(f.root, "projects")], "acme/missing"), null);
+});
+
+test("ghGraphql inherits stdin so op plugin run can authenticate, and parses captured stdout", () => {
+	const calls: {command: string; args: string[]; stdio: unknown}[] = [];
+	const result = ghGraphql((command, args, options) => {
+		calls.push({command, args, stdio: options.stdio});
+		return '{"data":{"ok":true}}';
+	}, "op plugin run -- gh");
+	assert.deepStrictEqual(result, {data: {ok: true}});
+	assert.strictEqual(calls.length, 1);
+	assert.strictEqual(calls[0]!.command, "op");
+	assert.deepStrictEqual(calls[0]!.args.slice(0, 5), ["plugin", "run", "--", "gh", "api"]);
+	assert.deepStrictEqual(calls[0]!.stdio, ["inherit", "pipe", "inherit"]);
 });

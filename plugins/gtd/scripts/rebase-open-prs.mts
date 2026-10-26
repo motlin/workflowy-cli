@@ -22,6 +22,7 @@
 //   Prints a JSON report on stdout and progress on stderr.
 
 import {execFileSync, spawnSync} from "node:child_process";
+import type {ExecFileSyncOptionsWithStringEncoding} from "node:child_process";
 import {existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync} from "node:fs";
 import {homedir, tmpdir} from "node:os";
 import {join} from "node:path";
@@ -380,11 +381,15 @@ export function processStack({repoPath, stack, worktreeRoot, apply}: ProcessStac
 
 // ---- CLI ----
 
-function ghGraphql(): unknown {
-	const [command = "gh", ...prefix] = (process.env.REBASE_PRS_GH ?? "gh").split(/\s+/u);
-	const out = execFileSync(command, [...prefix, "api", "graphql", "-f", `query=${SEARCH_QUERY}`], {
+export type GhExec = (command: string, args: string[], options: ExecFileSyncOptionsWithStringEncoding) => string;
+
+// stdin is inherited so wrappers like `op plugin run -- gh` can authenticate; stdout is captured for parsing.
+export function ghGraphql(exec: GhExec = execFileSync, ghCommand: string = process.env.REBASE_PRS_GH ?? "gh"): unknown {
+	const [command = "gh", ...prefix] = ghCommand.split(/\s+/u);
+	const out = exec(command, [...prefix, "api", "graphql", "-f", `query=${SEARCH_QUERY}`], {
 		encoding: "utf8",
 		maxBuffer: 64 * 1024 * 1024,
+		stdio: ["inherit", "pipe", "inherit"],
 	});
 	return JSON.parse(out);
 }
