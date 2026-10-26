@@ -182,7 +182,7 @@ importers:
         version: 5.1.8
       '@oclif/plugin-help':
         specifier: ^7
-        version: 7.0.4
+        version: 7.0.5
       '@workflowy/shared':
         specifier: workspace:*
         version: link:packages/shared
@@ -243,7 +243,7 @@ importers:
         version: 5.1.8
       '@oclif/plugin-help':
         specifier: ^7
-        version: 7.0.4
+        version: 7.0.5
       '@tobilu/qmd':
         specifier: ^2.8.3
         version: 2.8.3(supports-color@10.2.2)(typescript@7.0.2)
@@ -1541,8 +1541,8 @@ packages:
     resolution: {integrity: sha512-K1b3zdmbwANV9Jk+QN8aFvnXY/IhfWRnmhWn/V57h7alzbtck2je2DVVf0EkA01FokreF7Tpe+7hiGS87q30SA==}
     engines: {node: '>=22.0.0'}
 
-  '@oclif/plugin-help@7.0.4':
-    resolution: {integrity: sha512-i3AKiJrHF8y/Hj/1QfNBVaE4N9sOlodA/CFq8Lv998BZAHe/uBwgqL94FvaZenj/3REyl01stptAUp/AQjpfOw==}
+  '@oclif/plugin-help@7.0.5':
+    resolution: {integrity: sha512-yhDWRNRRgCPXmmlNQoqlVMF75M/6MkLWiSYsxSyCCG3o1cn8NW5pmAzU71LwN/7SVUyqm1ou0y51pQ2CScVvkQ==}
     engines: {node: '>=22.0.0'}
 
   '@oclif/plugin-not-found@4.0.2':
@@ -6736,7 +6736,7 @@ snapshots:
       wrap-ansi: 7.0.0
       wsl-utils: 0.4.0
 
-  '@oclif/plugin-help@7.0.4':
+  '@oclif/plugin-help@7.0.5':
     dependencies:
       '@oclif/core': 5.1.8
 
@@ -9512,7 +9512,7 @@ snapshots:
       '@inquirer/input': 2.3.0
       '@inquirer/select': 2.5.0
       '@oclif/core': 5.1.8
-      '@oclif/plugin-help': 7.0.4
+      '@oclif/plugin-help': 7.0.5
       '@oclif/plugin-not-found': 4.0.2(@types/node@26.6.5)
       '@oclif/plugin-warn-if-update-available': 4.0.4(supports-color@10.2.2)
       ansis: 3.17.0
@@ -9541,7 +9541,7 @@ snapshots:
       '@inquirer/input': 2.3.0
       '@inquirer/select': 2.5.0
       '@oclif/core': 5.1.8
-      '@oclif/plugin-help': 7.0.4
+      '@oclif/plugin-help': 7.0.5
       '@oclif/plugin-not-found': 4.0.2(@types/node@26.6.5)
       '@oclif/plugin-warn-if-update-available': 4.0.4(supports-color@8.1.1)
       ansis: 3.17.0
