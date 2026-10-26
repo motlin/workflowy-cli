@@ -15,9 +15,9 @@ Read `.llm/gtd/review/proposals/time-machine-exclusions.json` and act on its sta
 
 ## Remove clean worktrees before the sweep
 
-Removing a fully-committed worktree deletes its build output outright, which beats excluding it. When `summary.worktreeCandidates` has entries with `clean: true`, ask with AskUserQuestion before launching the sweep. Put the list inside the question: each worktree's path, branch, and build-dir count. Options: remove all clean worktrees, pick which ones, keep them all.
+Removing a fully-committed worktree deletes its build output outright, which beats excluding it. When `summary.worktreeCandidates` has entries with `clean: true` and `idle: true`, ask with AskUserQuestion before launching the sweep. Put the list inside the question: each worktree's path, branch, and build-dir count. Options: remove all clean worktrees, pick which ones, keep them all.
 
-- Offer only `clean: true` entries. List the unclean ones as a count in the question so the user knows they exist, and never offer to remove them.
+- Offer only entries that are both `clean: true` and `idle: true` (nothing edited in the last hour, no process inside). List the rest as a count in the question so the user knows they exist, and never offer to remove them.
 - Remove the accepted worktrees with the script, which runs `git worktree remove` **without `--force`**:
 
     ```bash

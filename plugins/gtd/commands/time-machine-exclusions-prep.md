@@ -56,7 +56,7 @@ Pipe the same null-delimited paths through the worktree finder:
 node ${CLAUDE_PLUGIN_ROOT}/scripts/find-removable-worktrees.mts
 ```
 
-It prints `[{path, repo, branch, dirCount, clean}]`: every linked git worktree that holds at least one of the unexcluded build dirs, whether it lives under `<repo>/.worktrees/` or in a peer directory such as `~/projects/<repo>-<branch>`. It identifies a linked worktree by its `.git` file pointing into `<repo>/.git/worktrees/`, so the main checkout and submodules never appear. `clean` is true when `git status --porcelain` is empty. Prep only detects; it never removes anything.
+It prints `[{path, repo, branch, dirCount, clean, idle}]`: every linked git worktree that holds at least one of the unexcluded build dirs, whether it lives under `<repo>/.worktrees/` or in a peer directory such as `~/projects/<repo>-<branch>`. It identifies a linked worktree by its `.git` file pointing into `<repo>/.git/worktrees/`, so the main checkout and submodules never appear. `clean` is true when `git status --porcelain` is empty. `idle` is false when any non-ignored file in the worktree or any file in its `.git/worktrees/<name>` admin dir changed in the last hour, or a process has it as its working directory (per `lsof`). Prep only detects; it never removes anything.
 
 ## Stage the result
 

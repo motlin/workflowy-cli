@@ -3,7 +3,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
-import {existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync} from "node:fs";
+import {existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {findWorktrees, removeWorktrees} from "./find-removable-worktrees.mts";
@@ -30,11 +30,15 @@ function makeRepo(worktrees: [branch: string, path: string][]): {root: string; r
 	return {root, repo};
 }
 
+const HOUR = 60 * 60 * 1000;
+/** A clock two hours ahead, so freshly created fixtures count as long idle. */
+const LATER = {now: Date.now() + 2 * HOUR, cwds: []};
+
 test("build dirs in the main checkout are not worktree candidates", () => {
 	const {root, repo} = makeRepo([]);
 	try {
 		mkdirSync(join(repo, "node_modules"));
-		assert.deepStrictEqual(findWorktrees([join(repo, "node_modules")]), []);
+		assert.deepStrictEqual(findWorktrees([join(repo, "node_modules")], LATER), []);
 	} finally {
 		rmSync(root, {recursive: true});
 	}
@@ -52,10 +56,13 @@ test("linked worktrees in peer dirs and under .worktrees are found with their bu
 			mkdirSync(dir, {recursive: true});
 		}
 		assert.deepStrictEqual(
-			findWorktrees([`${peer}/node_modules`, `${peer}/lib/target`, `${nested}/target`, "/nonexistent/app/dist"]),
+			findWorktrees(
+				[`${peer}/node_modules`, `${peer}/lib/target`, `${nested}/target`, "/nonexistent/app/dist"],
+				LATER,
+			),
 			[
-				{path: peer, repo, branch: "just-format-hooks", dirCount: 2, clean: true},
-				{path: nested, repo, branch: "feature", dirCount: 1, clean: true},
+				{path: peer, repo, branch: "just-format-hooks", dirCount: 2, clean: true, idle: true},
+				{path: nested, repo, branch: "feature", dirCount: 1, clean: true, idle: true},
 			],
 		);
 	} finally {
@@ -69,8 +76,8 @@ test("a worktree with untracked or modified files is reported as not clean", () 
 	try {
 		mkdirSync(join(dirty, "target"));
 		writeFileSync(join(dirty, "notes.txt"), "wip\n");
-		assert.deepStrictEqual(findWorktrees([join(dirty, "target")]), [
-			{path: dirty, repo, branch: "dirty", dirCount: 1, clean: false},
+		assert.deepStrictEqual(findWorktrees([join(dirty, "target")], LATER), [
+			{path: dirty, repo, branch: "dirty", dirCount: 1, clean: false, idle: true},
 		]);
 	} finally {
 		rmSync(root, {recursive: true});
@@ -98,6 +105,52 @@ test("removal runs git worktree remove without --force and reports refusals", ()
 		assert.match(at(results, 1).error ?? "", /contains modified or untracked files/u);
 		assert.deepStrictEqual([existsSync(clean), existsSync(dirty)], [false, true]);
 		assert.match(git(repo, "branch", "--list", "clean"), /clean/u);
+	} finally {
+		rmSync(root, {recursive: true});
+	}
+});
+
+test("a worktree is idle only when nothing in it or its git admin dir changed within the hour and no process sits in it", () => {
+	const {root, repo} = makeRepo([
+		["quiet", "app-quiet"],
+		["edited", "app-edited"],
+		["busy", "app-busy"],
+		["staged", "app-staged"],
+	]);
+	const dirs = ["quiet", "edited", "busy", "staged"].map((name) => join(root, `app-${name}`));
+	const [quiet, edited, busy, staged] = [at(dirs, 0), at(dirs, 1), at(dirs, 2), at(dirs, 3)];
+	try {
+		const now = Date.now();
+		const old = new Date(now - 3 * HOUR);
+		for (const dir of [quiet, edited, busy, staged]) {
+			mkdirSync(join(dir, "target"));
+			for (const file of git(dir, "ls-files").split("\n").filter(Boolean)) {
+				utimesSync(join(dir, file), old, old);
+			}
+			const adminDir = git(dir, "rev-parse", "--absolute-git-dir").trim();
+			for (const adminFile of execFileSync("find", [adminDir, "-type", "f"], {encoding: "utf8"}).split("\n")) {
+				if (adminFile !== "") {
+					utimesSync(adminFile, old, old);
+				}
+			}
+			utimesSync(join(dir, ".git"), old, old);
+		}
+		writeFileSync(join(edited, ".gitignore"), "node_modules/\ntarget/\n# touched\n");
+		utimesSync(join(staged, ".gitignore"), old, old);
+		const adminHead = join(git(staged, "rev-parse", "--absolute-git-dir").trim(), "HEAD");
+		utimesSync(adminHead, new Date(now - 5 * 60 * 1000), new Date(now - 5 * 60 * 1000));
+		const paths = [quiet, edited, busy, staged].map((dir) => join(dir, "target"));
+		const result = findWorktrees(paths, {now, cwds: [join(busy, "src")]});
+		assert.deepStrictEqual(
+			result.map(({path, idle}) => ({path, idle})),
+			[
+				{path: busy, idle: false},
+				{path: edited, idle: false},
+				{path: quiet, idle: true},
+				{path: staged, idle: false},
+			],
+		);
+		assert.ok(repo.length > 0);
 	} finally {
 		rmSync(root, {recursive: true});
 	}
