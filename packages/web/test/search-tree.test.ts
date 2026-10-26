@@ -23,6 +23,7 @@ function row(
 		layoutMode: null,
 		isMirror: false,
 		isBacklink: false,
+		fileType: null,
 		...overrides,
 	};
 }
@@ -110,6 +111,19 @@ describe("computeTreeSearch", () => {
 			rootHalfExpanded: true,
 			matchCount: 1,
 		});
+	});
+
+	it("has:image and has:file match rows by their live attachment's mime type", () => {
+		const rows = [
+			row("root", null, 0, "root"),
+			row("png", "root", 0, "", {fileType: "image/png"}),
+			row("pdf", "root", 1, "", {fileType: "application/pdf"}),
+			row("none", "root", 2, "plain"),
+		];
+		expect([
+			computeTreeSearch(rows, "root", "has:image", NOW).matchIds,
+			computeTreeSearch(rows, "root", "has:file", NOW).matchIds,
+		]).toStrictEqual([["png"], ["pdf"]]);
 	});
 
 	it("is:complete reveals completed and counts matches under a completed ancestor", () => {

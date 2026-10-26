@@ -65,6 +65,12 @@ describe("projectClassName", () => {
 		expect(projectClassName({...LEAF, layoutClasses: ["checkmark"]})).toBe("font-custom project task checkmark");
 	});
 
+	it("adds item--with-image after the layout classes for a previewable attachment", () => {
+		expect(projectClassName({...LEAF, layoutClasses: ["paragraph"], withImage: true})).toBe(
+			"font-custom project task paragraph item--with-image",
+		);
+	});
+
 	it("emits every state class in upstream order", () => {
 		expect(
 			projectClassName({

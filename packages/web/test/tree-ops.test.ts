@@ -911,6 +911,15 @@ describe("planBackspaceAtStart / planDeleteAtEnd", () => {
 		});
 	});
 
+	it("refuses to merge a row that holds a file, in either direction", () => {
+		expect([
+			planBackspaceAtStart({current, previousSibling: {...bravo, hasFile: true}}),
+			planBackspaceAtStart({current: {...current, hasFile: true}, previousSibling: bravo}),
+			planDeleteAtEnd({current: {...current, hasFile: true}, nextSibling: bravo}),
+			planDeleteAtEnd({current, nextSibling: {...bravo, hasFile: true}}),
+		]).toStrictEqual([{kind: "none"}, {kind: "none"}, {kind: "none"}, {kind: "none"}]);
+	});
+
 	it("refuses when the previous sibling has a note", () => {
 		expect(planBackspaceAtStart({current, previousSibling: {...bravo, hasNote: true}})).toStrictEqual({
 			kind: "none",

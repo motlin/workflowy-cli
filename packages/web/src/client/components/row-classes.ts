@@ -25,6 +25,8 @@ export interface ProjectClassState {
 	highlighted: boolean;
 	addedToSelection: boolean;
 	layoutClasses?: readonly string[];
+	/** The row's attachment is previewable (an image or video): upstream's `item--with-image`. */
+	withImage?: boolean;
 	/** Upstream's references root, the Backlinks section's row. */
 	references?: boolean;
 	/** The completed row is playing upstream's slideUp before it hides. */
@@ -80,6 +82,7 @@ export function projectClassName(state: ProjectClassState): string {
 		state.dragHoveredIn && "drag-hovered-in",
 		state.dragHoveredAt && "drag-hovered-at",
 		...(state.layoutClasses ?? []),
+		state.withImage && "item--with-image",
 		state.slidingUp && "completing-slide-up",
 		state.slidingDown && "completed-slide-down",
 	]

@@ -138,6 +138,13 @@ describe("FA_ICONS", () => {
 			"fal:download",
 			"fal:circle-question",
 			"fal:arrow-right-from-bracket",
+			"fas:play",
+			"fas:pause",
+			"fal:arrows-maximize",
+			"fal:arrow-up-right-from-square",
+			"fal:image",
+			"fab:youtube",
+			"fab:twitter",
 		]);
 	});
 

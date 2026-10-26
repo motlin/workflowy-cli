@@ -352,6 +352,8 @@ export interface MergeRow {
 	/** The row is an original that mirrors point to. */
 	hasMirrors: boolean;
 	layoutMode: string | null | undefined;
+	/** The row holds an attachment: upstream's `item.can_merge` refuses to merge it. */
+	hasFile?: boolean;
 }
 
 /** What Backspace at the start / Delete at the end does: merge two sibling rows, or nothing. */
@@ -364,6 +366,8 @@ export type MergePlan = {kind: "none"} | {kind: "merge"; keepId: string; deleteI
  */
 function planMerge(first: MergeRow, second: MergeRow, absorbed: MergeRow, kept: MergeRow): MergePlan {
 	const refused =
+		absorbed.hasFile === true ||
+		kept.hasFile === true ||
 		absorbed.hasChildren ||
 		absorbed.hasNote ||
 		absorbed.completed ||

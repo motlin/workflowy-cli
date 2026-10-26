@@ -25,6 +25,7 @@ function row(
 		layoutMode: null,
 		isMirror: false,
 		isBacklink: false,
+		fileType: null,
 		...overrides,
 	};
 }

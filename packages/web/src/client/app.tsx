@@ -4,6 +4,7 @@ import {createPortal} from "react-dom";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
 import {ItemColorPopupHost} from "./components/item-color-popup-host.js";
+import {ImageViewerHost} from "./components/image-viewer.js";
 import {MenusHost} from "./components/menus-host.js";
 import {AppMessages} from "./components/app-message.js";
 import {GuiBanner} from "./components/gui-banner.js";
@@ -353,6 +354,7 @@ export function App() {
 				<ShowKeyboardShortcutsSync />
 				<ExpansionSync />
 				<MenusHost />
+				<ImageViewerHost />
 				{/* Location updates render synchronously, in the same commit as the zoom a navigation sets in the store. */}
 				<BrowserRouter useTransitions={false}>
 					<StableNavigateProvider>

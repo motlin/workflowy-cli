@@ -8,6 +8,7 @@ import type {AppEnv} from "./context.js";
 import {changesRouter} from "./routes/changes.js";
 import {createAccountRouter} from "./routes/account.js";
 import {createCalendarRouter} from "./routes/calendar.js";
+import {createFilesRouter} from "./routes/files.js";
 import {createExpansionRouter} from "./routes/expansion.js";
 import {ladderEvents} from "./ladder-events.js";
 import {ladderSocketHandlers} from "./ladder-socket.js";
@@ -61,6 +62,7 @@ app.route("/api/v1/calendar", createCalendarRouter());
 app.route("/api/v1/stars", createStarsRouter());
 app.route("/api/v1/preferences", createPreferencesRouter());
 app.route("/api/v1/account", createAccountRouter());
+app.route("/api/v1/files", createFilesRouter());
 app.route("/api/search", searchRouter);
 app.route("/api/related", relatedRouter);
 

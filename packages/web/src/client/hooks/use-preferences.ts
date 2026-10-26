@@ -10,6 +10,8 @@ import {useMemo} from "react";
 import {resolveDateSettings} from "../date-settings.js";
 import type {DateSettings} from "../date-settings.js";
 import {readJson} from "../read-json.js";
+import {embedFor, firstLinkHref} from "../components/embeds.js";
+import type {Embed} from "../components/embeds.js";
 
 export interface Preferences {
 	dateFormat: string | null;
@@ -158,4 +160,17 @@ export function serverShowKeyboardShortcuts(state: PreferencesState | undefined)
 /** The account's `theme` once preferences load; null while loading, unavailable or unset. */
 export function serverTheme(state: PreferencesState | undefined): string | null {
 	return state?.available === true ? state.preferences.theme : null;
+}
+
+/** The embed a row's first link gets under the account's embed flags, or null; a row re-renders only when its own embed changes. */
+export function useRowEmbed(nameHtml: string | null): Embed | null {
+	const {data} = useQuery({
+		queryKey: preferenceKeys.all,
+		queryFn: fetchPreferences,
+		select: (state): Embed | null => {
+			const href = firstLinkHref(nameHtml);
+			return href === null ? null : embedFor(href, state.preferences);
+		},
+	});
+	return data ?? null;
 }

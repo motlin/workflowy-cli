@@ -82,6 +82,10 @@ function optionTable({now, dateFormat, timeFormat}: AutocompleteOptions): Record
 			option("note", {icon: "fal:pencil", displayOrder: 1}),
 			option("children", {icon: "fal:list-ul", displayOrder: 2}),
 			option("date", {icon: calendar}),
+			option("file", {icon: "fal:file"}),
+			option("image", {icon: "fal:image"}),
+			option("video", {icon: "fab:youtube"}),
+			option("tweet", {icon: "fab:twitter"}),
 		],
 		"text:": [
 			...COLORS.map((color) => option(color, {icon: {swatch: "text", color}, displayOrder: 1})),

@@ -64,6 +64,8 @@ import {hasMirrorsClass, nameClassName, projectClassName} from "./row-classes.js
 import {planBlankSpaceClick} from "../blank-space-click.js";
 import {DOCUMENT_END_HEIGHT} from "../page-style.js";
 import {rowClickResumesEditing} from "./row-click.js";
+import {isPreviewable, previewKind} from "./file-preview-kind.js";
+import {RowFilePreview} from "./row-file-preview.js";
 
 interface OutlineTreeProps {
 	parentId: string | null;
@@ -281,6 +283,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 						highlighted: false,
 						addedToSelection: isAddedToSelection,
 						layoutClasses: layout.projectClasses,
+						withImage: isPreviewable(node?.attachment),
 						dragHoveredIn: isDragHoveredIn,
 					}),
 					isMainTreeRoot && "mainTreeRoot",
@@ -351,6 +354,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					/>
 				) : null}
 			</div>
+			{node && previewKind(node.attachment) !== "none" ? <RowFilePreview node={node} zoomedIn /> : null}
 			{node && (noteMounted || shouldMountNote) ? (
 				<EditableNote initialValue={node.note ?? ""} isFocused={isEditingNote} isMain nodeId={node.id} />
 			) : null}

@@ -120,6 +120,17 @@ export const isTodo = exact(["is:todo", "is:task"], layout("todo", "check"));
 export const isDivider = exact(["is:divider"], layout("divider"));
 export const hasNote = exact(["has:note"], (item) => item.noteHtml.trim().length > 0);
 export const hasChildren = exact(["has:children"], (item) => item.childCount > 0);
+// Upstream's regexes, verbatim: has:video and has:tweet test the name html, as the embeds do.
+const YOUTUBE_LINK =
+	/(?:https?:\/\/)?(?:youtu\.be\/|(?:www\.|m\.)?youtube\.com\/(?:watch|v|embed|shorts)(?:\.php)?(?:\?.*v=|\/))([a-zA-Z0-9_-]+)/u;
+const TWEET_LINK = /https?:\/\/(twitter|x)\.com\/(?:#!\/)?(\w+)\/status(es)?\/(\d+)/u;
+export const hasFile = exact(
+	["has:file"],
+	(item) => item.fileType !== undefined && item.fileType !== null && !item.fileType.startsWith("image/"),
+);
+export const hasImage = exact(["has:image"], (item) => item.fileType?.startsWith("image/") === true);
+export const hasVideo = exact(["has:video"], (item) => YOUTUBE_LINK.test(item.nameHtml));
+export const hasTweet = exact(["has:tweet"], (item) => TWEET_LINK.test(item.nameHtml));
 export const textBold = exact(["text:bold"], inHtml(/<b[\s>]/iu));
 export const textItalic = exact(["text:italic"], inHtml(/<i[\s>]/iu));
 export const textUnderline = exact(["text:underline"], inHtml(/<u[\s>]/iu));

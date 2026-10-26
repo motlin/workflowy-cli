@@ -187,3 +187,43 @@ describe("is:backlink and in:backlink: operators", () => {
 		expect(parseQuery("in:backlink:Source").matches(searchItem("in:backlink:Source")).matches).toBe(true);
 	});
 });
+
+describe("has:file, has:image, has:video and has:tweet", () => {
+	const FILE_ROWS = [
+		searchItem("", "", {id: "png", fileType: "image/png"}),
+		searchItem("", "", {id: "pdf", fileType: "application/pdf"}),
+		searchItem("", "", {id: "mp4", fileType: "video/mp4"}),
+		searchItem("plain"),
+		searchItem('Watch <a href="https://youtu.be/abc123">clip</a>', "", {id: "youtube"}),
+		searchItem('Tweet <a href="https://x.com/alice/status/42">t</a>', "", {id: "tweet"}),
+		searchItem("youtube.com/watch?v=nolink", "", {id: "bare-youtube"}),
+	];
+
+	function matchingIds(query: string): string[] {
+		const parsed = parseQuery(query);
+		return FILE_ROWS.flatMap((row) => (parsed.matches(row).matches ? [row.id] : []));
+	}
+
+	it("has:file matches an attachment that is not an image", () => {
+		expect(matchingIds("has:file")).toStrictEqual(["pdf", "mp4"]);
+	});
+
+	it("has:image matches an image attachment", () => {
+		expect(matchingIds("has:image")).toStrictEqual(["png"]);
+	});
+
+	it("has:video matches a YouTube link in the name, not an attachment", () => {
+		expect(matchingIds("has:video")).toStrictEqual(["youtube", "bare-youtube"]);
+	});
+
+	it("has:tweet matches a tweet link in the name", () => {
+		expect(matchingIds("has:tweet")).toStrictEqual(["tweet"]);
+	});
+
+	it("reports a meta match and negates", () => {
+		expect([parseQuery("has:image").matches(FILE_ROWS[0]!), matchingIds("-has:file")]).toStrictEqual([
+			META_MATCH,
+			["png", "plain", "youtube", "tweet", "bare-youtube"],
+		]);
+	});
+});

@@ -1245,15 +1245,6 @@ body.item-selection--dragging * {
 	width: -moz-available;
 }
 
-/* The attachment still sits inside .content; wrap it onto its own line below the text. */
-.name > .content {
-	flex-wrap: wrap;
-}
-
-.name > .content > .node-attachment {
-	flex-basis: 100%;
-}
-
 /* Upstream's slideUp(120): a completed row shrinks and fades before it hides. */
 .project.completing-slide-up {
 	transform-origin: 0 0;
@@ -1987,30 +1978,106 @@ time > .bc-pink.bc-pink {
 	background: var(--wf-background-tertiary);
 }
 
-/* 📎 File attachment indicator (appears below text/note) */
-.node-attachment {
+/* File previews (uploads-files, audio-video-file-previews): wf-base rules, verbatim. */
+.image-viewer {
+	width: 100%;
+	height: var(--image-viewer-h);
+	padding-bottom: var(--image-viewer-pb);
+}
+.item--with-image:has(> .name--focused) > .file-preview .image-viewer {
+	cursor: zoom-in;
+}
+.item--with-image:has(> .name--focused) > .file-preview .image-viewer--no-name {
+	animation: border-cursor 0.55s step-end infinite alternate;
+}
+@keyframes border-cursor {
+	50% {
+		border-right-color: var(--wf-text-primary);
+	}
+}
+.image-viewer:hover .imagePreviewMenu {
+	display: block;
+}
+.item--with-image > .name > .content:empty {
+	flex: 0;
+	height: 2px;
+	min-height: 2px;
+	padding: 0;
+	opacity: 0;
+}
+.audio--player {
 	display: inline-flex;
+	gap: var(--wf-space-m);
+	flex-direction: row;
 	align-items: center;
-	gap: 4px;
-	margin-top: 2px;
-	font-size: 12px;
-	line-height: 17px;
-	color: var(--color-text-secondary);
+	font-size: var(--wf-font-size-xs) !important;
+	border-radius: var(--wf-radius-m);
+	padding: var(--wf-space-s) var(--wf-space-m);
+	flex-wrap: nowrap;
+	width: auto;
+	background: var(--wf-background-secondary);
 }
-
-.node-attachment-name {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.audio--player > button {
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	background: none !important;
+	color: var(--wf-text-tertiary);
 }
-
-/* 🗑️ Deleted attachment: file removed in Workflowy, shown dimmed + struck through */
-.node-attachment.deleted {
-	opacity: 0.55;
+.audio--player > button:hover {
+	color: var(--wf-text-quaternary);
 }
-
-.node-attachment.deleted .node-attachment-name {
-	text-decoration: line-through;
+.audio--player > input[type="range"] {
+	-webkit-appearance: none;
+	margin-right: 15px;
+	height: 4px;
+	border-radius: var(--wf-radius-pill);
+	background: var(--wf-background-primary);
+	background-repeat: no-repeat;
+}
+.audio--player > input[type="range"]::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	height: 10px;
+	width: 10px;
+	border-radius: var(--wf-radius-circle);
+	background: var(--wf-text-tertiary);
+	cursor: pointer;
+}
+.audio--player > input[type="range"]::-webkit-slider-thumb:hover {
+	background: var(--wf-text-quaternary);
+}
+.audio--player > input[type="range"]::-webkit-slider-runnable-track {
+	-webkit-appearance: none;
+	box-shadow: none;
+	border: none;
+	background: transparent;
+}
+/* The full-screen image viewer's prev/next buttons. */
+.gallery-btn {
+	position: fixed;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	width: 44px;
+	height: 44px;
+	z-index: 1000;
+	cursor: pointer;
+	border: 0;
+	opacity: 0.7 !important;
+	border-radius: 50%;
+	font-size: var(--wf-font-size-base);
+}
+.gallery-btn:hover {
+	opacity: 1 !important;
+}
+.gallery-btn.inactive {
+	display: none;
+}
+.gallery-btn.prev {
+	inset: 50vh auto auto var(--wf-space-l);
+}
+.gallery-btn.next {
+	inset: 50vh var(--wf-space-l) auto auto;
 }
 
 /* Notes: upstream's sibling `.notes` after `.name`, verbatim from js_wf-base.css. */

@@ -61,6 +61,10 @@ describe("operatorAutocomplete", () => {
 			["note", "has:note"],
 			["children", "has:children"],
 			["date", "has:date"],
+			["file", "has:file"],
+			["image", "has:image"],
+			["video", "has:video"],
+			["tweet", "has:tweet"],
 		]);
 	});
 

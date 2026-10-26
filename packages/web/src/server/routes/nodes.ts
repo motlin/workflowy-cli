@@ -47,7 +47,7 @@ import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
  * Resolve an ID parameter that could be a short ID (12 hex chars) or a full UUID.
  * Returns the full UUID, or null if a short ID couldn't be resolved.
  */
-function resolveNodeId(ctx: ServerContext, id: string): string | null {
+export function resolveNodeId(ctx: ServerContext, id: string): string | null {
 	// A row inside a mirror (`v_<child12>_<mirror12>[_<path>]`) names the original child it shows.
 	const virtual = parseVirtualShortId(id);
 	if (virtual !== null) {
@@ -147,7 +147,7 @@ function nodeToRestDto(
  * attachment are absent from the map. `isDeleted` is normalized to a boolean —
  * the column stores 1/0/NULL, and anything other than 1 means "not deleted".
  */
-function loadAttachments(ctx: ServerContext, nodeIds: string[]): Map<string, NodeAttachment> {
+export function loadAttachments(ctx: ServerContext, nodeIds: string[]): Map<string, NodeAttachment> {
 	const map = new Map<string, NodeAttachment>();
 	if (nodeIds.length === 0) {
 		return map;
@@ -160,6 +160,8 @@ function loadAttachments(ctx: ServerContext, nodeIds: string[]): Map<string, Nod
 			objectFolder: s3Files.objectFolder,
 			imageOriginalWidth: s3Files.imageOriginalWidth,
 			imageOriginalHeight: s3Files.imageOriginalHeight,
+			imageOriginalPixels: s3Files.imageOriginalPixels,
+			isAnimatedGif: s3Files.isAnimatedGif,
 			isDeleted: s3Files.isDeleted,
 		})
 		.from(s3Files)
@@ -172,6 +174,8 @@ function loadAttachments(ctx: ServerContext, nodeIds: string[]): Map<string, Nod
 			objectFolder: row.objectFolder,
 			imageOriginalWidth: row.imageOriginalWidth,
 			imageOriginalHeight: row.imageOriginalHeight,
+			imageOriginalPixels: row.imageOriginalPixels,
+			isAnimatedGif: row.isAnimatedGif === 1,
 			isDeleted: row.isDeleted === 1,
 		});
 	}

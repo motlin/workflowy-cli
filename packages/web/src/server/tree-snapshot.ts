@@ -27,6 +27,8 @@ interface TreeSqlRow {
 	underReferencesRoot: number;
 	/** An `ai.inChat` item (upstream's "AI Messages" mailbox), whose subtree the tree does not descend into. */
 	isInChat: number;
+	/** The MIME type of the live, not deleted, attachment (`s3_files`), or null. */
+	fileType: string | null;
 }
 
 /** Epoch seconds as stored by drizzle's timestamp mode, to milliseconds. */
@@ -47,6 +49,7 @@ function toSearchRow(row: TreeSqlRow): TreeSearchRow {
 		layoutMode: row.layoutMode,
 		isMirror: row.isMirror === 1,
 		isBacklink: row.underReferencesRoot === 1,
+		fileType: row.fileType,
 	};
 }
 
@@ -93,7 +96,8 @@ function selectTreeRows(database: Database, seeds: SQL, recursive: boolean): Tre
 			s.depth AS depth,
 			c.id IN ${LIVE_REFERENCES_ROOTS} AS isReferencesRoot,
 			coalesce(c.parent_id IN ${LIVE_REFERENCES_ROOTS}, 0) AS underReferencesRoot,
-			c.id IN ${LIVE_IN_CHAT} AS isInChat
+			c.id IN ${LIVE_IN_CHAT} AS isInChat,
+			(SELECT f.file_type FROM s3_files f WHERE f.node_id = c.id AND f.system_to = ${FAR_FUTURE_DATE} AND coalesce(f.is_deleted, 0) = 0) AS fileType
 		FROM subtree s
 		INNER JOIN node_content c ON c.id = s.id AND c.system_to = ${FAR_FUTURE_DATE}
 		LEFT JOIN node_metadata m ON m.node_id = c.id AND m.system_to = ${FAR_FUTURE_DATE}
@@ -189,6 +193,7 @@ const ROW_FIELDS = [
 	"layoutMode",
 	"isMirror",
 	"isBacklink",
+	"fileType",
 ] as const satisfies readonly (keyof TreeSearchRow)[];
 
 /** `old` when every field of `row` is unchanged, keeping caches keyed on the row object warm. */

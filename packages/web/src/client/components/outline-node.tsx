@@ -4,7 +4,7 @@ import {selectionExportRequest} from "../export-entry.js";
 import {plainText} from "../rich-text.js";
 import {CopyCodeButton} from "./copy-code-button.js";
 import {canHaveNote} from "../layout-types.js";
-import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
+import type {BacklinkCrumb, NodeResponse} from "../../node-types.js";
 import {getHoveredRowId, setHoveredRowId} from "../hovered-row.js";
 import {useIsRowHovered} from "../hooks/use-row-hover.js";
 import type {ReactNode, CSSProperties} from "react";
@@ -74,28 +74,14 @@ import {makeTableDeps} from "../hooks/use-table-actions.js";
 import {columnWidth, isBoard} from "../board.js";
 import type {ColumnSearchMode} from "../board.js";
 import {PaneContext, usePaneId} from "./pane-context.js";
+import {isPreviewable, previewKind} from "./file-preview-kind.js";
+import {RowFilePreview} from "./row-file-preview.js";
+import {EmbedView, firstLinkHref} from "./embeds.js";
+import {useRowEmbed} from "../hooks/use-preferences.js";
 import {nodeBullet} from "./node-bullet.js";
 import {hasMirrorsClass, isMirrorRoot, nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 import {planDuplicate, rowHasChildren} from "../tree-ops.js";
-
-/**
- * Renders a file-attachment indicator beneath a node's text. Live attachments
- * show a paperclip and the file name; deleted attachments (Workflowy removed
- * the underlying file) are dimmed and struck through with a trash marker.
- */
-function NodeAttachmentIndicator({attachment}: {attachment: NodeAttachment}) {
-	const className = ["node-attachment", attachment.isDeleted && "deleted"].filter(Boolean).join(" ");
-	return (
-		<div
-			className={className}
-			title={attachment.isDeleted ? `Deleted attachment: ${attachment.fileName}` : attachment.fileName}
-		>
-			<span className="node-attachment-icon">{attachment.isDeleted ? "🗑️" : "📎"}</span>
-			<span className="node-attachment-name">{attachment.fileName}</span>
-		</div>
-	);
-}
 
 interface NodeItemMenuProps {
 	node: NodeResponse;
@@ -428,7 +414,6 @@ function NodeName({
 							priority: node.priority,
 						})
 					: null}
-				{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
 			</div>
 			{copyCodeButton}
 			<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
@@ -506,6 +491,7 @@ function rowProjectClassName(
 		hasMirrors: hasMirrorsClass(node),
 		highlighted,
 		addedToSelection: addedToSelection || tableCell?.rowSelected === true,
+		withImage: isPreviewable(node.attachment),
 		layoutClasses: [
 			...resolveLayoutMode(node.data.layoutMode).projectClasses.flatMap((layoutClass) =>
 				layoutClass === "tableItem"
@@ -581,6 +567,7 @@ export const OutlineRow = memo(function OutlineRow({
 }) {
 	const boardZoomed = useContext(BoardZoomedContext);
 	const inComplexLayout = useContext(InComplexLayoutContext);
+	const embed = useRowEmbed(node.name);
 	// Upstream `WF.Table.isRenderable`: a table inside a board, a table or a cell is a plain list.
 	const tableRenders = isTable(node.data.layoutMode) && !inComplexLayout && boardRole === undefined;
 	const search = useOutlineSearchFilter();
@@ -707,11 +694,13 @@ export const OutlineRow = memo(function OutlineRow({
 				node={node}
 				searchNameClasses={rowSearchClasses.name}
 				searching={search !== null}
-				withEmbedder={backlinkCrumbs !== undefined}
+				withEmbedder={backlinkCrumbs !== undefined || embed !== null}
 				number={number}
 				boardRole={boardRole}
 				tableCell={tableCell}
 			/>
+			{embed === null ? null : <EmbedView key={firstLinkHref(node.name)} embed={embed} />}
+			{previewKind(node.attachment) === "none" ? null : <RowFilePreview node={node} zoomedIn={false} />}
 			{noteMounted || shouldMountNote ? (
 				<EditableNote
 					extraClasses={rowSearchClasses.note}

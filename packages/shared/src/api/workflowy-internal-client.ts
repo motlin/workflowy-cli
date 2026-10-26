@@ -81,6 +81,8 @@ export interface InternalTreeItem {
 	metadata?: Record<string, unknown>;
 }
 
+const SignedFileSchema = z.object({url: z.string().min(1)}).loose();
+
 const LoggedOutSchema = z.object({logged_out: z.literal(true)}).loose();
 
 /**
@@ -343,6 +345,15 @@ export class WorkflowyInternalClient {
 	async getExpandedKeys(): Promise<string[]> {
 		const {body} = await this.withSession(async () => this.getJson("/get_tree_data/"));
 		return ExpandedKeysSchema.parse(body).server_expanded_projects_list ?? [];
+	}
+
+	/**
+	 * The short-lived signed S3 URL behind one of workflowy.com's `/file-proxy/signed-preview|signed-original/...` paths
+	 * (logging in per {@link withSession}).
+	 */
+	async signedFileUrl(path: string): Promise<string> {
+		const {body} = await this.withSession(async () => this.getJson(path));
+		return SignedFileSchema.parse(body).url;
 	}
 
 	/** An authenticated GET; throws `SessionRejectedError` on a login redirect or `logged_out` body. */

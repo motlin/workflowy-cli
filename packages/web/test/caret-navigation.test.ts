@@ -89,6 +89,10 @@ describe("backspaceDeleteTarget", () => {
 		expect(backspaceDeleteTarget(visible, "b", {text: "", note: "", hasChildren: false})).toBe("a");
 	});
 
+	it("keeps an empty-named node that holds a file", () => {
+		expect(backspaceDeleteTarget(visible, "b", {text: "", note: "", hasChildren: false, hasFile: true})).toBeNull();
+	});
+
 	it("keeps a node that still has text", () => {
 		expect(backspaceDeleteTarget(visible, "b", {text: "x", note: "", hasChildren: false})).toBeNull();
 	});

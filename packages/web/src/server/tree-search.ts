@@ -15,6 +15,8 @@ export interface TreeSearchRow {
 	isMirror: boolean;
 	/** A backlink item under a references root; only `is:backlink` / `in:backlink:` queries load these rows. */
 	isBacklink: boolean;
+	/** The MIME type of the node's live (not deleted) attachment, or null without one. */
+	fileType: string | null;
 }
 
 export interface TreeSearchResult {
@@ -107,6 +109,7 @@ export function searchItem(row: TreeSearchRow, childCount: number, ancestorCompl
 		childCount,
 		isMirror: row.isMirror,
 		isBacklink: row.isBacklink,
+		fileType: row.fileType,
 		ancestorCompleted,
 	};
 	slots[slot] = item;

@@ -1738,6 +1738,16 @@ export class WorkflowyInternalAdapter {
 		return entropyKey;
 	}
 
+	/** The id upstream's `/file-proxy/` paths carry as the file owner. */
+	async fileOwnerId(): Promise<number> {
+		return (await this.session()).ownerId;
+	}
+
+	/** The signed S3 URL a `/file-proxy/signed-preview|signed-original/...` path resolves to. */
+	async signedFileUrl(path: string): Promise<string> {
+		return this.client.signedFileUrl(path);
+	}
+
 	async getAccount(): Promise<Account> {
 		const {account} = await this.snapshot();
 		return {

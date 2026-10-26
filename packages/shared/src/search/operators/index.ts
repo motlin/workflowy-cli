@@ -5,7 +5,7 @@ import * as time from "./time.js";
 
 /**
  * Search operators in upstream insertion order (WF.map.SearchQueryNode): the first whose `matchesToken`
- * accepts a token wins. Collaboration-only operators (is:shared, @:me, mentioned:, has:file, ...) are never registered.
+ * accepts a token wins. Collaboration-only operators (is:shared, @:me, mentioned:, ...) are never registered.
  */
 export const SEARCH_OPERATORS: SearchOperator[] = [
 	meta.isComplete,
@@ -16,6 +16,10 @@ export const SEARCH_OPERATORS: SearchOperator[] = [
 	meta.isDivider,
 	meta.hasNote,
 	meta.hasChildren,
+	meta.hasFile,
+	meta.hasImage,
+	meta.hasVideo,
+	meta.hasTweet,
 	time.changed,
 	time.changedBefore,
 	time.created,

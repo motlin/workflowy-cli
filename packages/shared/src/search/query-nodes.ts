@@ -15,6 +15,8 @@ export interface SearchItem {
 	/** A backlink item (a mirror of a source under a target's references root), or the references root itself. */
 	isBacklink: boolean;
 	ancestorCompleted: boolean;
+	/** The MIME type of the item's live (not deleted) attachment; absent or null without one. */
+	fileType?: string | null;
 	ancestors?: SearchItem[];
 }
 

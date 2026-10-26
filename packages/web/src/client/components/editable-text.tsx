@@ -1074,7 +1074,12 @@ function EditingText({
 			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 		);
 		const note = readDetail(queryClient, nodeId)?.note ?? listed?.note ?? "";
-		const targetId = backspaceDeleteTarget(visibleIds, nodeId, {text: content.textContent, note, hasChildren});
+		const targetId = backspaceDeleteTarget(visibleIds, nodeId, {
+			text: content.textContent,
+			note,
+			hasChildren,
+			hasFile: listed?.attachment?.isDeleted === false,
+		});
 		if (targetId === null) {
 			return false;
 		}
@@ -1124,6 +1129,7 @@ function EditingText({
 					isMirror: node.isMirror === true,
 					hasMirrors: node.hasMirrors === true,
 					layoutMode: node.data.layoutMode,
+					hasFile: node.attachment?.isDeleted === false,
 				};
 			};
 			const currentRow = toRow(current, serializeEditorHtml(content.innerHTML));

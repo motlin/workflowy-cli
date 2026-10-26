@@ -7,6 +7,9 @@ export interface NodeAttachment {
 	objectFolder: string | null;
 	imageOriginalWidth: number | null;
 	imageOriginalHeight: number | null;
+	/** The upload's pixel density (a fractional upstream value such as 2.5); previews divide the original width by it. */
+	imageOriginalPixels: number | null;
+	isAnimatedGif: boolean;
 	isDeleted: boolean;
 }
 

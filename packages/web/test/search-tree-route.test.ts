@@ -133,6 +133,7 @@ describe("loadTreeSearchRows", () => {
 					layoutMode: "todo",
 					isMirror: false,
 					isBacklink: false,
+					fileType: null,
 				},
 				{
 					id: "a1",
@@ -143,6 +144,7 @@ describe("loadTreeSearchRows", () => {
 					...NO_META,
 					isMirror: false,
 					isBacklink: false,
+					fileType: null,
 				},
 				{
 					id: "mirror",
@@ -153,6 +155,7 @@ describe("loadTreeSearchRows", () => {
 					...NO_META,
 					isMirror: true,
 					isBacklink: false,
+					fileType: null,
 				},
 				{
 					id: "root",
@@ -163,6 +166,7 @@ describe("loadTreeSearchRows", () => {
 					...NO_META,
 					isMirror: false,
 					isBacklink: false,
+					fileType: null,
 				},
 			]),
 		);
