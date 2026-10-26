@@ -245,6 +245,27 @@ describe("zoomed table renderer", () => {
 	});
 });
 
+describe("board as a table cell", () => {
+	it("drops the board class from a board that is a table cell", () => {
+		setup();
+		const table = node("table", null, {data: {layoutMode: "table"}, hasChildren: true});
+		const row = node("row", "table", {hasChildren: true});
+		const cell = node("cell", "row", {data: {layoutMode: "board"}});
+		nodesById.set("table", table);
+		childrenByParent.set(null, [table]);
+		childrenByParent.set("table", [row]);
+		childrenByParent.set("row", [cell]);
+		outlineState.expandedIds = new Set(["row"]);
+		const html = render("table");
+		expect(
+			classes(html, 'projectid="cell"').map((cls) => ({
+				board: cls.split(" ").includes("board"),
+				tableCell: cls.includes("tableCell"),
+			})),
+		).toStrictEqual([{board: false, tableCell: true}]);
+	});
+});
+
 describe("inline table renderer", () => {
 	it("renders an expanded table row as a 300px scroller of table rows, not outline rows", () => {
 		setup();

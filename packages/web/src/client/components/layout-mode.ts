@@ -6,7 +6,7 @@
  * Workflowy's convention: the `.project` class equals the `layoutMode` value, with
  * exceptions — headings map to `header{N}`, `todo` maps to `checkmark`, and the
  * default `bullets`/`bullet` and `numbered` (numbering renders as a prefix)
- * carry no class; `table` carries `tableItem` (the renderer drops it for a table that cannot render, see `canRenderTable`). Quote and code
+ * carry no class; `table` carries `tableItem` and `board` carries `board` (the renderer drops either for a layout that cannot render, see `canRenderLayout`). Quote and code
  * blocks also carry `multiline`, and a divider carries upstream's variant class list. The stored
  * values are `p` and `quote-block`; legacy `paragraph`, `quote` and `check` are
  * still read as aliases.

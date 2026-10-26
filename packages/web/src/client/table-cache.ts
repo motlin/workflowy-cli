@@ -2,35 +2,14 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../node-types.js";
 import {readChildren, readNode} from "./node-cache.js";
-import {activePaneView} from "./stores/outline.js";
+import {dashboardsOn} from "./dashboard.js";
+import {cachedAncestorLayouts} from "./layouts-cache.js";
 import {tableRole} from "./table.js";
 import type {TableRole, TableTreeNode} from "./table.js";
 import {sortByPriority} from "./tree-position.js";
 
-/** The layouts of `nodeId`'s ancestors, nearest first, up to and including the zoomed item (the render root). */
-function cachedAncestorLayouts(
-	queryClient: QueryClient,
-	nodeId: string,
-	zoomedId: string | null = activePaneView().zoomedNodeId,
-): {layoutMode: string | null}[] {
-	const layouts: {layoutMode: string | null}[] = [];
-	let current = readNode(queryClient, nodeId);
-	while (current?.parent_id !== null && current?.parent_id !== undefined) {
-		const parent = readNode(queryClient, current.parent_id);
-		if (parent === undefined) {
-			break;
-		}
-		layouts.push({layoutMode: parent.data.layoutMode ?? null});
-		if (parent.id === zoomedId) {
-			break;
-		}
-		current = parent;
-	}
-	return layouts;
-}
-
 export function cachedTableRole(queryClient: QueryClient, nodeId: string): TableRole | null {
-	return tableRole(cachedAncestorLayouts(queryClient, nodeId));
+	return tableRole(cachedAncestorLayouts(queryClient, nodeId).layouts, dashboardsOn());
 }
 
 export interface TableGrid {

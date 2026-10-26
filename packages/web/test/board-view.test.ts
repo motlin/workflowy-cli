@@ -258,4 +258,36 @@ describe("inline board renderer", () => {
 			selected: false,
 		});
 	});
+
+	it("renders a board nested in a board card as a plain list without the board class", () => {
+		setup();
+		const root = board("home1", null, {data: {layoutMode: "board"}, hasChildren: true});
+		nodesById.set("home1", root);
+		childrenByParent.set(null, [root]);
+		childrenByParent.set("home1", [board("col", "home1", {hasChildren: true})]);
+		childrenByParent.set("col", [board("card", "col", {hasChildren: true})]);
+		childrenByParent.set("card", [board("inner", "card", {data: {layoutMode: "board"}, hasChildren: true})]);
+		childrenByParent.set("inner", [board("innerCol", "inner", {hasChildren: true})]);
+		childrenByParent.set("innerCol", [board("innerCard", "innerCol")]);
+		outlineState.expandedIds = new Set(["col", "card", "inner", "innerCol"]);
+		const html = render("home1");
+		expect({
+			innerClasses: classes(html, 'projectid="inner"'),
+			boardColumns: html.split("boardColumn").length - 1,
+			strips: html.split("max-h-[60vh]").length - 1,
+		}).toStrictEqual({innerClasses: ["font-custom project open"], boardColumns: 1, strips: 0});
+	});
+
+	it("drops the board class from a board that is a board column", () => {
+		setup();
+		const boardRoot = board("home2", null, {data: {layoutMode: "board"}, hasChildren: true});
+		nodesById.set("home2", boardRoot);
+		childrenByParent.set(null, [boardRoot]);
+		childrenByParent.set("home2", [board("col2", "home2", {data: {layoutMode: "board"}})]);
+		const column = classes(render("home2"), 'projectid="col2"');
+		expect({
+			columnHasBoard: column.some((cls) => cls.split(" ").includes("board")),
+			columnHasBoardColumn: column.some((cls) => cls.includes("boardColumn")),
+		}).toStrictEqual({columnHasBoard: false, columnHasBoardColumn: true});
+	});
 });

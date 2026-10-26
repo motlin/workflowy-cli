@@ -80,7 +80,17 @@ describe("table model", () => {
 			inCell: canRenderTable([{layoutMode: null}, {layoutMode: "table"}], table),
 			plainParent: canRenderTable([{layoutMode: null}], table),
 			notATable: canRenderTable([{layoutMode: null}], {layoutMode: "board"}),
-		}).toStrictEqual({zoomRoot: true, inBoard: false, inCell: false, plainParent: true, notATable: false});
+			dashboardFlagOff: canRenderTable([{layoutMode: "dashboard"}], table, false),
+			dashboardFlagOn: canRenderTable([{layoutMode: "dashboard"}], table, true),
+		}).toStrictEqual({
+			zoomRoot: true,
+			inBoard: false,
+			inCell: false,
+			plainParent: true,
+			notATable: false,
+			dashboardFlagOff: true,
+			dashboardFlagOn: false,
+		});
 	});
 });
 

@@ -488,6 +488,7 @@ function rowProjectClassName(
 	boardZoomed = true,
 	tableCell?: TableCellInfo,
 	tableRenders = false,
+	boardRenders = false,
 	dashboardCard = false,
 ): string {
 	const flagOn = dashboardsOn();
@@ -518,7 +519,11 @@ function rowProjectClassName(
 					? tableRenders
 						? [isExpanded ? "tableItem " : "tableItem"]
 						: []
-					: [layoutClass],
+					: layoutClass === "board"
+						? boardRenders
+							? [layoutClass]
+							: []
+						: [layoutClass],
 			),
 			...dashboardExtras,
 			...(tableCell === undefined
@@ -594,6 +599,9 @@ export const OutlineRow = memo(function OutlineRow({
 	const embed = useRowEmbed(node.name);
 	// Upstream `WF.Table.isRenderable`: a table inside a board, a table or a cell is a plain list.
 	const tableRenders = isTable(node.data.layoutMode) && !inComplexLayout && boardRole === undefined;
+	// Likewise `WF.Board.is`: a board inside a board card, a table or a cell is a plain list.
+	const boardRenders =
+		isBoard(node.data.layoutMode) && !inComplexLayout && boardRole === undefined && tableCell === undefined;
 	const search = useOutlineSearchFilter();
 	const paneId = usePaneId();
 	const instance = useContext(MirrorInstanceContext);
@@ -694,6 +702,7 @@ export const OutlineRow = memo(function OutlineRow({
 					boardZoomed,
 					tableCell,
 					tableRenders,
+					boardRenders,
 					dashboardCard,
 				),
 				rowSearchClasses.project,
@@ -744,7 +753,7 @@ export const OutlineRow = memo(function OutlineRow({
 						<BoardColumnBody columnId={node.id} expanded={isExpanded} hasChildren={hasChildren} />
 						<ColumnResizeHandle columnId={node.id} />
 					</MirrorInstanceContext.Provider>
-				) : isExpanded && isBoard(node.data.layoutMode) && boardRole === undefined && search === null ? (
+				) : isExpanded && boardRenders && search === null ? (
 					<MirrorInstanceContext.Provider value={nestedInstance}>
 						<BoardChildren boardId={node.id} zoomed={false} depth={depth} />
 					</MirrorInstanceContext.Provider>

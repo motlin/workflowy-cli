@@ -1,13 +1,11 @@
 // Upstream's table layout model (`WF.Table`, `WF.Layouts.canRender`) as pure functions over plain trees. A table's
 // children are rows, a row's children are cells, and a cell's own children are nested items the table hides.
 import type {TableMetadata} from "../node-types.js";
+import {canRenderLayout} from "./layouts.js";
 
 export const TABLE_COLUMN = {defaultWidth: 125, minWidth: 30} as const;
 const TABLE_ROW_DEFAULT_NAME = "Row";
 const TABLE_HEADERS_NAME = "Headers";
-
-/** Layouts upstream registers with `{complex: true}`: one nested inside another renders as a plain list. */
-const COMPLEX_LAYOUTS = new Set(["table", "board", "dashboard"]);
 
 export function isTable(layoutMode: string | null | undefined): boolean {
 	return layoutMode === "table";
@@ -34,17 +32,21 @@ interface LayoutHolder {
  * `WF.Layouts.canRender("table", item)`: `ancestors` runs nearest-first up to and including the render root (the
  * zoomed item or a pane root). A table renders only when no complex layout sits between it and that root.
  */
-export function canRenderTable(ancestors: readonly LayoutHolder[], node: LayoutHolder): boolean {
-	return isTable(node.layoutMode) && !ancestors.some((ancestor) => COMPLEX_LAYOUTS.has(ancestor.layoutMode ?? ""));
+export function canRenderTable(
+	ancestors: readonly LayoutHolder[],
+	node: LayoutHolder,
+	dashboardsFlag = false,
+): boolean {
+	return canRenderLayout("table", node, ancestors, {reachedRoot: true, dashboardsFlag});
 }
 
 export type TableRole = "row" | "cell" | "inner";
 
 /** A node's role under the nearest renderable table above it: a table parent makes a row, a grandparent a cell. */
-export function tableRole(ancestors: readonly LayoutHolder[]): TableRole | null {
+export function tableRole(ancestors: readonly LayoutHolder[], dashboardsFlag = false): TableRole | null {
 	for (let depth = 0; depth < ancestors.length; depth += 1) {
 		const candidate = ancestors[depth];
-		if (candidate !== undefined && canRenderTable(ancestors.slice(depth + 1), candidate)) {
+		if (candidate !== undefined && canRenderTable(ancestors.slice(depth + 1), candidate, dashboardsFlag)) {
 			return depth === 0 ? "row" : depth === 1 ? "cell" : "inner";
 		}
 	}
