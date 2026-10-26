@@ -24,19 +24,18 @@ Only `op run` proves `op run` works. Warming it here means the authorization pro
 
 - `timeout 90 op run -- true` fails or times out → halt. Tell the user to approve the 1Password prompt (or unlock the desktop app), then re-run. Retry once after they confirm — the second call succeeds immediately once the first authorization lands.
 
-Then confirm the **iMCP** tools are registered in this session by listing them (`ToolSearch` for `mcp__imcp__*`, or call `mcp__imcp__calendars_list`). `iMCP.app` appearing in `ps` proves nothing — only tool registration counts.
-
-Then confirm **Gmail IMAP** on both accounts by calling `mcp__gmail-cmotlin-imap__check_connection` and `mcp__gmail-motlin1-imap__check_connection`. `email-calendar-prep` reads unread inbox mail through these servers, so a missing tool or a failed connection on either account means that prep task stages nothing — one healthy account does not vouch for the other.
+Then confirm **subagents** can reach iMCP and both Gmail IMAP servers. Prep tasks run in subagents, so the main thread seeing the tools proves nothing. Spawn one throwaway probe subagent that calls `mcp__imcp__calendars_list` plus `mcp__gmail-cmotlin-imap__check_connection` and `mcp__gmail-motlin1-imap__check_connection`, and reports per tool whether it was available and succeeded. `iMCP.app` appearing in `ps` proves nothing — only a successful call from the probe counts. `email-calendar-prep` reads unread inbox mail through the Gmail servers, so a missing tool or failed connection on either account means that prep task stages nothing — one healthy account does not vouch for the other.
 
 - `op run` fails → halt. Tell the user to unlock the 1Password desktop app (Settings → Developer → "Integrate with 1Password CLI" must be on) and approve the authorization prompt. Do not suggest `eval $(op signin)`: it exports `OP_SESSION_*` into one shell, and every Bash tool call gets a fresh shell, so that token never reaches the barrier.
-- iMCP tools absent → halt. Tell the user to run `/mcp`, **then restart the Claude Code session**.
-- Gmail IMAP tools absent, or `check_connection` failing on either account → halt with the same message, naming the account that failed.
+- Probe shows iMCP tools absent or failing → halt. Tell the user to run `/mcp`, wait, then re-run; the probe re-checks on the next run.
+- Probe shows Gmail IMAP tools absent, or `check_connection` failing on either account → halt with the same message, naming the account that failed.
+- Probe still fails after the user ran `/mcp` and re-ran → only then tell the user to restart the Claude Code session.
 
 Every halt message must be a plain-text response that ends the turn. Do **not** use `AskUserQuestion`: an open prompt prevents the user from typing `/mcp` and gets in the way of unlocking 1Password until they press Esc. State the recovery action in plain text and return control immediately.
 
-The restart is not optional. A server connected mid-session via `/mcp` reaches the main thread only; subagents build their tool registry from the session's startup configuration, so every prep controller spawned afterward still sees no `mcp__imcp__*` or `mcp__gmail-*-imap__*` tools no matter how long it waits or how many times it is redispatched. Only a session that starts with iMCP and both Gmail IMAP servers already connected gives prep tasks Apple/iCloud calendar access and inbox mail.
+A server connected mid-session via `/mcp` has been observed to reach subagents (a post-`/mcp` subagent listed 9 calendars), so a restart is not assumed. The probe decides: subagents that can call the tools mean the barrier proceeds; subagents that cannot mean a restart is required, because the session's startup configuration is what those subagents inherit.
 
-Do not fan out on a partial credential set. A halted barrier costs one restart; a fan-out on missing credentials costs the whole review and silently degrades Apple-calendar deduplication and the email-calendar scan.
+Do not fan out on a partial credential set. A halted barrier costs one re-run; a fan-out on missing credentials costs the whole review and silently degrades Apple-calendar deduplication and the email-calendar scan.
 
 ## Import
 

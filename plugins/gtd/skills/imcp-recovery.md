@@ -15,7 +15,7 @@ When a step requires an `mcp__imcp__*` tool:
     - Find **this session's** helper: `node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mts --pid`. Every Claude session spawns its own `imcp-server`, so `pgrep -f` matches dozens; the script walks this process's ancestors and returns only the helper parented by this session's `claude` (or `none`). Never kill helpers found by `pgrep` / `ps aux` — they belong to other sessions.
     - If it printed a pid, `kill <pid>` (then `kill -9 <pid>` if it survives). Report and kill only that pid.
     - Relaunch a fresh server: `open -a iMCP` (installed at `/Applications/iMCP.app`), `sleep 5`, retry the call **once**.
-- If the retry still fails, stop and return the unavailable result below instead of empty data. Claude cannot run `/mcp` itself: killing and relaunching makes the app fresh so the user's `/mcp` reconnect succeeds quickly, but only that user action re-establishes the in-session MCP connection.
+- If the retry still fails, stop and return the unavailable result below instead of empty data. Claude cannot run `/mcp` itself: killing and relaunching makes the app fresh so the user's `/mcp` reconnect succeeds quickly, but only that user action re-establishes the in-session MCP connection. After `/mcp`, probe from a subagent (`calendars_list`) rather than assuming a session restart is needed; restart only if the probe fails.
 
 ## Proactive restart before a long run
 
