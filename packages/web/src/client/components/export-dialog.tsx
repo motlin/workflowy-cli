@@ -2,6 +2,7 @@ import {useQuery, useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {useCallback, useEffect, useRef, useState} from "react";
 import {filterBySearch} from "../export-entry.js";
+import {cachedAncestorLayouts} from "../layouts-cache.js";
 import type {ExportRequest} from "../export-entry.js";
 import {
 	EXPORT_DEFAULT,
@@ -76,7 +77,11 @@ async function fetchExportItems(queryClient: QueryClient, request: ExportRequest
 						search.createdIds.has(id) ||
 						(parentId !== null && search.expansion.get(parentId) === true),
 				);
-	return toExportItems(visible);
+	const roots = toExportItems(visible);
+	for (const root of roots) {
+		root.aboveLayouts = cachedAncestorLayouts(queryClient, root.id).layouts.map((layout) => layout.layoutMode);
+	}
+	return roots;
 }
 
 async function fetchOwnerEmail(): Promise<string> {

@@ -79,3 +79,31 @@ describe("export formatters keep text that looks like a tag", () => {
 		expect(formatToString("opml", items)).toContain('_note="line two &amp; &lt;three&gt;"');
 	});
 });
+
+describe("export formatters gate tables on the complex-layout render rule", () => {
+	function tableForest(aboveLayouts?: (string | null)[]): ExportItem[] {
+		counter = 0;
+		const card = mk("Card", {layoutMode: "table"}, [mk("R1", {}, [mk("c1")])]);
+		if (aboveLayouts !== undefined) {
+			card.aboveLayouts = aboveLayouts;
+		}
+		return linkParents([card]);
+	}
+
+	it("writes a list for a table inside a board column card", () => {
+		counter = 0;
+		const card = mk("Card", {layoutMode: "table"}, [mk("R1", {}, [mk("c1")])]);
+		const board = mk("Board", {layoutMode: "board"}, [mk("Col", {}, [card])]);
+		const html = formatToString("html", linkParents([board]));
+		const markdown = formatToString("markdown", linkParents([board]));
+		expect(html).not.toContain("<table");
+		expect(markdown).not.toContain("| c1 |");
+	});
+	it("writes a list for a table under a board above the export root", () => {
+		expect(formatToString("html", tableForest([null, "board"]))).not.toContain("<table");
+	});
+	it("keeps the table when nothing above the export root is complex", () => {
+		expect(formatToString("html", tableForest([]))).toContain("<table");
+		expect(formatToString("html", tableForest([null]))).toContain("<table");
+	});
+});

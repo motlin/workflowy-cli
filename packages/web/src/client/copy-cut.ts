@@ -1,4 +1,5 @@
 import type {QueryClient} from "@tanstack/react-query";
+import {cachedAncestorLayouts} from "./layouts-cache.js";
 import {copyItemsHtml, copyItemsPlainText, linkParents} from "./export-format.js";
 import type {ChildAccessor, ExportItem, FormatOptions} from "./export-format.js";
 import {highlightSearchMatches} from "./highlight-html.js";
@@ -121,6 +122,7 @@ export function exportItemsFromCache(queryClient: QueryClient, ids: readonly str
 			completed: false,
 			parent: null,
 			children: [top],
+			aboveLayouts: cachedAncestorLayouts(queryClient, id).layouts.map((layout) => layout.layoutMode),
 		};
 		linkParents([parent]);
 		return [top];

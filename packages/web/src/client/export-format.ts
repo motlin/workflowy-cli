@@ -12,6 +12,9 @@
  * template so stored markup never loads resources.
  */
 
+import {dashboardsOn} from "./dashboard.js";
+import {canRenderLayout} from "./layouts.js";
+
 export interface ExportItem {
 	id: string;
 	/** Raw stored HTML. */
@@ -23,6 +26,11 @@ export interface ExportItem {
 	completed: boolean;
 	parent: ExportItem | null;
 	children: ExportItem[];
+	/**
+	 * On an export root only: the layoutModes from the root's real parent up to and including the zoom root, nearest
+	 * first, so a table under a board or table outside the export still writes a list.
+	 */
+	aboveLayouts?: (string | null)[];
 }
 
 /** Returns the children to export for an item (upstream's accessor). */
@@ -102,7 +110,19 @@ function isNumbered(item: ExportItem): boolean {
 }
 
 function isTable(item: ExportItem): boolean {
-	return item.layoutMode === "table";
+	if (item.layoutMode !== "table") {
+		return false;
+	}
+	const ancestors: {layoutMode: string | null}[] = [];
+	let root = item;
+	while (root.parent) {
+		root = root.parent;
+		ancestors.push({layoutMode: root.layoutMode});
+	}
+	for (const layoutMode of root.aboveLayouts ?? []) {
+		ancestors.push({layoutMode});
+	}
+	return canRenderLayout("table", item, ancestors, {reachedRoot: true, dashboardsFlag: dashboardsOn()});
 }
 
 function previousSibling(item: ExportItem, accessor: ChildAccessor): ExportItem | null {
