@@ -78,6 +78,18 @@ Only a confirmed done completes the item; a partial result stays open with a chi
 
 The review's rules still hold here: never offer to pause or wrap up because the list is long, and an improvement idea goes to `.llm/gtd/review/mid-run-notes.md` rather than stopping the walk.
 
+## Closing walk of launched agents
+
+Before the run ends, read the ledger of cross-project agents launched by this review (see **Cross-project #llm-task launches** in `${CLAUDE_PLUGIN_ROOT}/commands/review/daily/due.md`):
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/agent-launches.mts pending
+```
+
+- For each launch in `ready`, read its report file and show it to the user as plain final text, never right before an `AskUserQuestion` (the dialog hides it). Then ask whether to advance the item's date with its staged `applyOp`; apply it only on yes.
+- For each launch in `missing`, say the agent has not written a report (its pane may still be running or it exited early) and leave the item's date alone.
+- Silent when the ledger holds no launches.
+
 ## Finish
 
 Print one line per category, e.g. `✓ Due: 2 worked, 1 done, 3 not now · 1st tier: 1 worked · Filed: 0 offered`. Silent when no candidate survived the help filter.

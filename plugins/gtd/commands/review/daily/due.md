@@ -207,7 +207,7 @@ Whenever you write a new instruction child for an `#llm-task` item (converting a
 
 ### Cross-project #llm-task launches
 
-Some `#llm-task` items are not work for this session — their child instructions say to start a **separate** Claude session in another directory and run a command there. Each part of that launch has a failure mode that reads as success from this side, so treat all five rules below as mandatory.
+Some `#llm-task` items are not work for this session — their child instructions say to start a **separate** Claude session in another directory and run a command there. Each part of that launch has a failure mode that reads as success from this side, so treat all the rules below as mandatory.
 
 **Launch into this session's own workspace, never the focused one.** A bare `herdr tab create` or `herdr pane split` lands in whatever workspace and pane the user happens to be looking at, which is almost never the daily review. Resolve your own ids first and pass them explicitly:
 
@@ -241,6 +241,8 @@ ls ~/.claude/plugins/cache/*/<plugin>/*/commands
 ```
 
 **Verify the launch before calling the task done.** After submitting the prompt (`herdr agent prompt <agent-name> <text>`), read the new session's output back with `herdr agent read <agent-name>` or `herdr pane read <pane_id>` and confirm it is actually running. Two distinct failures show up here: `Unknown command:` means the slash-command name was wrong, and a bare shell prompt (`❯`) with your command sitting on it un-executed means the agent never started at all. A launched-but-failed agent is not a completed task — do not advance the item's `<time>` on a launch alone.
+
+**Check the ledger before launching; record every launch in it.** Two review sessions once both launched the same task because nothing remembered the first launch, and the launched agents' reports were never read. Before creating a tab, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/agent-launches.mts check <slug>`; on `true`, skip the launch (the task already ran this cycle) and do not advance its date again. After `herdr agent start` succeeds, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/agent-launches.mts record <slug> <pane_id> <cwd>`, which writes `.llm/gtd/review/agent-launches.json` and prints the report path. Add this to the agent's prompt: write your final report to that path (`.llm/gtd/review/agent-reports/<slug>-<YYYY-MM-DD>.md`, relative to the review's repository root, using its absolute path). The review reads the reports in **Closing walk** of `work-together.md`.
 
 ## Directory-cleanup items are launches, not inventories
 
