@@ -44,32 +44,28 @@ mcp__imcp__photos_search with:
 
 If iMCP is not available or returns an error, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If the retry succeeds, continue here. If iMCP still cannot be reached, fall back to the AppleScript fetch below (the photos scanner has a legitimate non-iMCP path). Only if **both** iMCP and AppleScript fail does this scanner return the `imcp-unavailable` result.
 
-## Fetch Recent Photos (AppleScript Fallback)
+## Fetch Recent Photos (Photos DB Fallback)
 
-If iMCP is unavailable, use AppleScript to query Photos.app:
+If iMCP is unavailable, query the Photos database read-only. Never use `every media item whose date ...` in AppleScript: it times out (-1700) on a large library.
+
+Clone the DB to a scratch path (APFS copy-on-write), query the clone, and delete it afterwards:
 
 ```bash
-osascript -e '
-tell application "Photos"
-    set cutoffDate to (current date) - (7 * days)
-    set recentPhotos to every media item whose date is greater than cutoffDate
-    set output to ""
-    repeat with p in recentPhotos
-        try
-            set photoDate to date of p as string
-            set photoFilename to filename of p
-            set photoId to id of p
-            -- Check for screenshot pattern in filename
-            set isScreenshot to photoFilename starts with "IMG_" or photoFilename contains "Screenshot"
-            set output to output & photoId & "|||" & photoFilename & "|||" & photoDate & "|||" & isScreenshot & "\n"
-        end try
-    end repeat
-    return output
-end tell
-' 2>/dev/null | head -100
+LIB="$HOME/Pictures/Photos Library.photoslibrary/database"
+COPY=.llm/gtd/capture/scans/photos-ro.sqlite
+for s in "" -wal -shm; do [ -e "$LIB/Photos.sqlite$s" ] && cp -c "$LIB/Photos.sqlite$s" "$COPY$s"; done
+sqlite3 -readonly -separator '|||' "$COPY" "
+SELECT A.ZUUID, COALESCE(B.ZORIGINALFILENAME, A.ZFILENAME),
+       datetime(A.ZDATECREATED+978307200,'unixepoch','localtime'),
+       (COALESCE(B.ZORIGINALFILENAME, A.ZFILENAME) LIKE '%Screenshot%' OR A.ZISDETECTEDSCREENSHOT=1)
+FROM ZASSET A LEFT JOIN ZADDITIONALASSETATTRIBUTES B ON A.Z_PK=B.ZASSET
+WHERE A.ZKIND=0 AND A.ZTRASHEDSTATE=0 AND A.ZHIDDEN=0
+  AND A.ZDATECREATED > strftime('%s','now','-7 days')-978307200
+ORDER BY A.ZDATECREATED DESC LIMIT 100;"
+rm -f "$COPY" "$COPY-wal" "$COPY-shm"
 ```
 
-This returns `ID|||Filename|||Date|||IsScreenshot` format for each photo. If Photos is not available, the output will be empty.
+This returns `UUID|||Filename|||Date|||IsScreenshot` for each photo. If an image must be viewed, export it by media item id (`get every media item whose id is "<UUID>/L0/001"`), never by date. If the DB cannot be read, the output is empty.
 
 ## Identify Task-Suggestive Photos
 

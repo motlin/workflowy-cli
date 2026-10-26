@@ -8,6 +8,7 @@ import {join} from "node:path";
 import {
 	buildExportAppleScript,
 	buildManifest,
+	cacheIsStale,
 	captionSeed,
 	facesQuery,
 	facesSummary,
@@ -331,4 +332,11 @@ test("withDatabaseCopy deletes the Photos DB copy even when the callback throws"
 	} finally {
 		rmSync(root, {recursive: true, force: true});
 	}
+});
+
+test("cacheIsStale compares the newest cached node version (UTC) with the allowed age", () => {
+	const now = Date.parse("2026-10-26T10:00:00Z");
+	assert.strictEqual(cacheIsStale("2026-10-26 09:30:00.000", now, 60), false);
+	assert.strictEqual(cacheIsStale("2026-10-26 08:59:00.000", now, 60), true);
+	assert.strictEqual(cacheIsStale(null, now, 60), true);
 });

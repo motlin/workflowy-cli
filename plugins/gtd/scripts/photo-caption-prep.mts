@@ -202,6 +202,30 @@ export function groupJournal(rows: JournalRow[]): Record<string, string[]> {
 	return byDate;
 }
 
+// The journal seeds and journaled check read the Workflowy cache, so a cache
+// older than maxAgeMinutes means entries written since (e.g. in the app) are
+// invisible and captions would start from an old version of the notes.
+export function cacheIsStale(latestSystemFrom: string | null, nowMs: number, maxAgeMinutes: number): boolean {
+	if (!latestSystemFrom) {
+		return true;
+	}
+	const latest = Date.parse(`${latestSystemFrom.replace(" ", "T")}Z`);
+	return Number.isNaN(latest) || nowMs - latest > maxAgeMinutes * 60_000;
+}
+
+function refreshStaleCache(workflowyDb: string): void {
+	const [row] = sqliteJson(workflowyDb, "SELECT max(system_from) AS latest FROM node_content;");
+	const latest = row ? (stringField(row, "latest") ?? null) : null;
+	if (!cacheIsStale(latest, Date.now(), 60)) {
+		return;
+	}
+	process.stderr.write("Workflowy cache is stale; running cache import-api\n");
+	const result = spawnSync("./bin/run.js", ["cache", "import-api"], {encoding: "utf8", stdio: "inherit"});
+	if (result.status !== 0) {
+		throw new Error("cache import-api failed; re-run after fixing the import");
+	}
+}
+
 function minuteTime(created: string): string {
 	const match = TIMESTAMP_RE.exec(created);
 	if (!match) {
@@ -422,6 +446,7 @@ function run(args: Args, libraryPath: string, outDir: string, dbPath: string): v
 	if (!existsSync(workflowyDb)) {
 		throw new Error(`Workflowy cache not found: ${workflowyDb}`);
 	}
+	refreshStaleCache(workflowyDb);
 	const candidates = sqliteJson(dbPath, favoritesQuery(args.days)).map(toFavorite);
 	const empty: {journaled: Favorite[]; remaining: Favorite[]} = {journaled: [], remaining: []};
 	const {journaled, remaining: favorites} =
