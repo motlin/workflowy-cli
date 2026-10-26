@@ -2,7 +2,8 @@
 // Build the project table for the daily-review Distribute phase: each project's absolute path,
 // its .llm/todo.md, its Workflowy tasks link and tags, and any herdr panes already open in it.
 // Usage: plan-project-distribution.mts --projects <project-directories.json> --panes <herdr-pane-list.json>
-import {existsSync, readFileSync} from "node:fs";
+import {execFileSync} from "node:child_process";
+import {existsSync, readFileSync, realpathSync} from "node:fs";
 import {homedir} from "node:os";
 import {arrayField, errorMessage, isObject, parseJson, stringField} from "./json.mts";
 
@@ -29,6 +30,7 @@ export interface HerdrPane {
 export interface PlannedProject extends ProjectEntry {
 	todoPath: string;
 	todoExists: boolean;
+	notGitToplevel: boolean;
 	openPanes: {paneId: string; tabId: string; workspaceId: string}[];
 }
 
@@ -67,14 +69,33 @@ export function planProjects(
 	projects: readonly ProjectEntry[],
 	panes: readonly HerdrPane[],
 	todoExists: (path: string) => boolean,
+	checkGitToplevel: (path: string) => boolean,
 ): PlannedProject[] {
 	return projects.map((project) => {
 		const todoPath = `${project.path}/.llm/todo.md`;
 		const openPanes = panes
 			.filter((pane) => pane.cwd === project.path || pane.cwd?.startsWith(`${project.path}/`))
 			.map((pane) => ({paneId: pane.pane_id, tabId: pane.tab_id, workspaceId: pane.workspace_id}));
-		return {...project, todoPath, todoExists: todoExists(todoPath), openPanes};
+		return {
+			...project,
+			todoPath,
+			todoExists: todoExists(todoPath),
+			notGitToplevel: !checkGitToplevel(project.path),
+			openPanes,
+		};
 	});
+}
+
+export function isGitToplevel(path: string): boolean {
+	try {
+		const top = execFileSync("git", ["-C", path, "rev-parse", "--show-toplevel"], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+		return realpathSync(top) === realpathSync(path);
+	} catch {
+		return false;
+	}
 }
 
 function toProjectNode(value: unknown): ProjectNode {
@@ -112,7 +133,7 @@ function main(): void {
 	};
 	const exported = toProjectNode(parseJson(readFileSync(value("--projects"), "utf8")));
 	const panes = toPanes(parseJson(readFileSync(value("--panes"), "utf8")));
-	const plan = planProjects(parseProjectDirectories(exported, homedir()), panes, existsSync);
+	const plan = planProjects(parseProjectDirectories(exported, homedir()), panes, existsSync, isGitToplevel);
 	process.stdout.write(`${JSON.stringify(plan, null, "\t")}\n`);
 }
 

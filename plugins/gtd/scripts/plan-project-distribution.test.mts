@@ -61,7 +61,8 @@ test("planProjects marks open panes by exact cwd or a subdirectory, and todo pre
 		{pane_id: "w1:p3", tab_id: "w1:t3", workspace_id: "w1", cwd: "/p/gamma-other"},
 	];
 	const todoExists = (path: string): boolean => path === "/p/alpha/.llm/todo.md";
-	assert.deepStrictEqual(planProjects(projects, panes, todoExists), [
+	const isToplevel = (path: string): boolean => path !== "/p/beta";
+	assert.deepStrictEqual(planProjects(projects, panes, todoExists, isToplevel), [
 		{
 			name: "alpha",
 			path: "/p/alpha",
@@ -70,6 +71,7 @@ test("planProjects marks open panes by exact cwd or a subdirectory, and todo pre
 			tags: [],
 			todoPath: "/p/alpha/.llm/todo.md",
 			todoExists: true,
+			notGitToplevel: false,
 			openPanes: [{paneId: "w1:p1", tabId: "w1:t1", workspaceId: "w1"}],
 		},
 		{
@@ -80,6 +82,7 @@ test("planProjects marks open panes by exact cwd or a subdirectory, and todo pre
 			tags: [],
 			todoPath: "/p/beta/.llm/todo.md",
 			todoExists: false,
+			notGitToplevel: true,
 			openPanes: [{paneId: "w1:p2", tabId: "w1:t2", workspaceId: "w1"}],
 		},
 		{
@@ -90,6 +93,7 @@ test("planProjects marks open panes by exact cwd or a subdirectory, and todo pre
 			tags: [],
 			todoPath: "/p/gamma/.llm/todo.md",
 			todoExists: false,
+			notGitToplevel: false,
 			openPanes: [],
 		},
 	]);
