@@ -5,6 +5,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import type * as ReactQuery from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
 import type {SearchFilter} from "../src/client/search-filter.js";
+import {setAccountFeatures} from "../src/client/features.js";
 
 const outlineState = {
 	activePaneId: "main" as string,
@@ -287,5 +288,65 @@ describe("inline table renderer", () => {
 			zoomedScroller: false,
 			rows: 3,
 		});
+	});
+});
+
+describe("dashboard render gate", () => {
+	function setupDashboard(cardLayout: string | null): void {
+		setAccountFeatures({dashboards: true});
+		nodesById.clear();
+		childrenByParent.clear();
+		const dash = node("dash", null, {data: {layoutMode: "dashboard"}, hasChildren: true});
+		const card = node("card", "dash", {data: {layoutMode: cardLayout}, hasChildren: true});
+		const row = node("row", "card", {hasChildren: true});
+		const cell = leaf("cell", "row", {});
+		for (const n of [dash, card, row, cell]) {
+			nodesById.set(n.id, n);
+		}
+		childrenByParent.set(null, [dash]);
+		childrenByParent.set("dash", [card]);
+		childrenByParent.set("card", [row]);
+		childrenByParent.set("row", [cell]);
+		outlineState.expandedIds = new Set(["card", "row"]);
+	}
+
+	it("renders a table card of a dashboard as a plain list", () => {
+		setupDashboard("table");
+		const html = render("dash");
+		expect({tableItem: html.includes("tableItem"), tableRow: html.includes("table-row")}).toStrictEqual({
+			tableItem: false,
+			tableRow: false,
+		});
+	});
+
+	it("renders a board card of a dashboard as a plain list", () => {
+		setupDashboard("board");
+		const html = render("dash");
+		expect(classes(html, 'projectid="card"').some((cls) => cls.split(" ").includes("board"))).toBe(false);
+	});
+
+	it("gives no dashboard classes to a dashboard inside a board card or to its children", () => {
+		setAccountFeatures({dashboards: true});
+		nodesById.clear();
+		childrenByParent.clear();
+		const board = node("board", null, {data: {layoutMode: "board"}, hasChildren: true});
+		const col = node("col", "board", {hasChildren: true});
+		const card = node("card", "col", {hasChildren: true});
+		const inner = node("inner", "card", {data: {layoutMode: "dashboard"}, hasChildren: true});
+		const child = leaf("child", "inner", {});
+		for (const n of [board, col, card, inner, child]) {
+			nodesById.set(n.id, n);
+		}
+		childrenByParent.set(null, [board]);
+		childrenByParent.set("board", [col]);
+		childrenByParent.set("col", [card]);
+		childrenByParent.set("card", [inner]);
+		childrenByParent.set("inner", [child]);
+		outlineState.expandedIds = new Set(["col", "card", "inner"]);
+		const html = render("board");
+		expect({
+			inline: html.includes("dashboard-inline"),
+			card: html.includes("dashboard-card"),
+		}).toStrictEqual({inline: false, card: false});
 	});
 });

@@ -26,21 +26,24 @@ export function isDashboard(layoutMode: string | null | undefined, flagOn: boole
 
 export interface DashboardClassInput {
 	layoutMode: string | null | undefined;
-	parentLayoutMode: string | null | undefined;
+	/** The row is a dashboard that draws as one: the zoom root, or not under another complex layout. */
+	renders: boolean;
+	/** The row's parent is a dashboard that renders, so the row is a card. */
+	parentRenders: boolean;
 	isZoomRoot: boolean;
 	flagOn: boolean;
 }
 
 /** Upstream's `item:classes` and `page:classes` middleware: the extra `.project` and `.page` classes. */
-export function dashboardClasses({layoutMode, parentLayoutMode, isZoomRoot, flagOn}: DashboardClassInput): {
+export function dashboardClasses({layoutMode, renders, parentRenders, isZoomRoot, flagOn}: DashboardClassInput): {
 	project: string[];
 	page: string[];
 } {
-	const dashboard = isDashboard(layoutMode, flagOn);
+	const dashboard = renders && isDashboard(layoutMode, flagOn);
 	return {
 		project: [
 			...(dashboard ? (isZoomRoot ? ["dashboard"] : ["dashboard", "dashboard-inline"]) : []),
-			...(isDashboard(parentLayoutMode, flagOn) ? ["show-controls-on-hover", "dashboard-card"] : []),
+			...(flagOn && parentRenders ? ["show-controls-on-hover", "dashboard-card"] : []),
 		],
 		page: dashboard && isZoomRoot ? ["dashboard-page"] : [],
 	};

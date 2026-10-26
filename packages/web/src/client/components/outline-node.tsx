@@ -46,7 +46,7 @@ import {expandArrow} from "./expand-arrow.js";
 import {DividerLine} from "./divider-line.js";
 import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
 import {resolveLayoutMode} from "./layout-mode.js";
-import {CARD_PLACEHOLDER, dashboardClasses, dashboardsOn} from "../dashboard.js";
+import {CARD_PLACEHOLDER, dashboardClasses, dashboardsOn, isDashboard} from "../dashboard.js";
 import {itemMenuLeft} from "../item-menu-model.js";
 import {openInPane} from "../pane-commands.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
@@ -490,11 +490,13 @@ function rowProjectClassName(
 	tableRenders = false,
 	boardRenders = false,
 	dashboardCard = false,
+	dashboardRenders = false,
 ): string {
 	const flagOn = dashboardsOn();
 	const dashboardExtras = dashboardClasses({
 		layoutMode: node.data.layoutMode,
-		parentLayoutMode: dashboardCard ? "dashboard" : null,
+		renders: dashboardRenders,
+		parentRenders: dashboardCard,
 		isZoomRoot: false,
 		flagOn,
 	}).project.filter((name) => name !== "dashboard");
@@ -602,6 +604,11 @@ export const OutlineRow = memo(function OutlineRow({
 	// Likewise `WF.Board.is`: a board inside a board card, a table or a cell is a plain list.
 	const boardRenders =
 		isBoard(node.data.layoutMode) && !inComplexLayout && boardRole === undefined && tableCell === undefined;
+	const dashboardRenders =
+		isDashboard(node.data.layoutMode, dashboardsOn()) &&
+		!inComplexLayout &&
+		boardRole === undefined &&
+		tableCell === undefined;
 	const search = useOutlineSearchFilter();
 	const paneId = usePaneId();
 	const instance = useContext(MirrorInstanceContext);
@@ -704,6 +711,7 @@ export const OutlineRow = memo(function OutlineRow({
 					tableRenders,
 					boardRenders,
 					dashboardCard,
+					dashboardRenders,
 				),
 				rowSearchClasses.project,
 			)}
@@ -768,6 +776,7 @@ export const OutlineRow = memo(function OutlineRow({
 							containerRef={setChildrenEl}
 							depth={depth + 1}
 							owner={node}
+							ownerDashboard={dashboardRenders}
 							parentId={node.id}
 						/>
 					</MirrorInstanceContext.Provider>

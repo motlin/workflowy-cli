@@ -253,7 +253,8 @@ function MainOutline() {
 			dashboardPage:
 				dashboardClasses({
 					layoutMode: zoomedNode?.data.layoutMode,
-					parentLayoutMode: null,
+					renders: true,
+					parentRenders: false,
 					isZoomRoot: true,
 					flagOn: dashboardsOn(),
 				}).page.length > 0,

@@ -75,7 +75,7 @@ describe("isDashboard and resolveLayoutMode", () => {
 });
 
 describe("dashboardClasses", () => {
-	const base = {layoutMode: null, parentLayoutMode: null, isZoomRoot: false, flagOn: true};
+	const base = {layoutMode: null, renders: true, parentRenders: false, isZoomRoot: false, flagOn: true};
 
 	it("marks an inline dashboard", () => {
 		expect(dashboardClasses({...base, layoutMode: "dashboard"})).toStrictEqual({
@@ -91,8 +91,8 @@ describe("dashboardClasses", () => {
 		});
 	});
 
-	it("marks direct children as cards, in order", () => {
-		expect(dashboardClasses({...base, parentLayoutMode: "dashboard"})).toStrictEqual({
+	it("marks direct children of a rendering dashboard as cards, in order", () => {
+		expect(dashboardClasses({...base, parentRenders: true})).toStrictEqual({
 			project: ["show-controls-on-hover", "dashboard-card"],
 			page: [],
 		});
@@ -100,12 +100,22 @@ describe("dashboardClasses", () => {
 
 	it("gives a grandchild and a flag-off tree nothing", () => {
 		expect(dashboardClasses(base)).toStrictEqual({project: [], page: []});
-		expect(
-			dashboardClasses({...base, layoutMode: "dashboard", parentLayoutMode: "dashboard", flagOn: false}),
-		).toStrictEqual({
+		expect(dashboardClasses({...base, layoutMode: "dashboard", parentRenders: true, flagOn: false})).toStrictEqual({
 			project: [],
 			page: [],
 		});
+	});
+
+	it("gives a dashboard that does not render no classes", () => {
+		expect(
+			dashboardClasses({
+				layoutMode: "dashboard",
+				renders: false,
+				parentRenders: false,
+				isZoomRoot: false,
+				flagOn: true,
+			}).project,
+		).toStrictEqual([]);
 	});
 });
 

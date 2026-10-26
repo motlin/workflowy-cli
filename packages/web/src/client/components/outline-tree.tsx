@@ -42,6 +42,7 @@ import {placeCaretAtTextOffset} from "../caret-dom.js";
 import {expandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
+import {InComplexLayoutContext} from "./complex-layout-context.js";
 import {DashboardBottomButton, DashboardTopButton} from "./dashboard-controls.js";
 import {dashboardsOn, isDashboard} from "../dashboard.js";
 import {CalendarStrip} from "./calendar-strip.js";
@@ -742,6 +743,7 @@ function childNumbers(
 export function OutlineChildren({
 	parentId,
 	owner,
+	ownerDashboard = false,
 	isRoot = false,
 	depth = 1,
 	found = null,
@@ -758,6 +760,8 @@ export function OutlineChildren({
 	containerRef?: Ref<HTMLDivElement>;
 	/** The row whose `.children` this is; a nested `.children` ends with its add-sibling button. */
 	owner?: NodeResponse;
+	/** The owner is a dashboard that renders as one (the zoom root always does), so these rows are its cards. */
+	ownerDashboard?: boolean;
 	isRoot?: boolean;
 	depth?: number;
 	/** The zoomed day page's Found Dates (root only): its day id and the cached list, or null elsewhere. */
@@ -765,7 +769,7 @@ export function OutlineChildren({
 }): ReactNode {
 	const {data: nodes} = useChildren(parentId);
 	const search = useOutlineSearchFilter();
-	const dashboard = parentId !== null && isDashboard(owner?.data.layoutMode, dashboardsOn());
+	const dashboard = parentId !== null && ownerDashboard;
 	// A search leaves the Backlinks section out, so its rows skip the fetch.
 	const {data: backlinks} = useBacklinks(search === null ? parentId : null);
 	const {showCompleted, animatingCompletionIds} = useOutlineStore(
@@ -809,7 +813,7 @@ export function OutlineChildren({
 	}
 
 	const numbers = childNumbers(nodes ?? [], visibleNodes, search !== null, showCompleted, animatingCompletionIds);
-	return (
+	const tree = (
 		<div ref={containerRef} className={isRoot ? ROOT_CHILDREN_CLASS : (className ?? NESTED_CHILDREN_CLASS)}>
 			{visibleNodes.slice(0, limit).map((node) => (
 				<OutlineRow
@@ -832,6 +836,7 @@ export function OutlineChildren({
 			)}
 		</div>
 	);
+	return dashboard ? <InComplexLayoutContext.Provider value>{tree}</InComplexLayoutContext.Provider> : tree;
 }
 
 /**
@@ -877,6 +882,7 @@ export function RootOutlineChildren({parentId, addChild}: {parentId: string | nu
 			found={dayId === null ? null : {dayId, response}}
 			isRoot
 			owner={zoomed}
+			ownerDashboard={isDashboard(zoomed?.data.layoutMode, dashboardsOn())}
 			parentId={parentId}
 		/>
 	);
