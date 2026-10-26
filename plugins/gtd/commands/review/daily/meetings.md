@@ -242,6 +242,7 @@ Offer these options, omitting filing when no eligible target exists:
 
 - Resolve each candidate's decision and Step 9 recording before preparing the next question. On Skip, set `skipped` locally without writing a Workflowy node. On acceptance, set `accepted_pending_write`; after a successful write, read back the destination and record `added`, `laddered`, `filed`, `delegated`, `journaled`, `completed`, `logged`, or `agendaed`. On a write or verification failure, set `failed` and stop without advancing the watermark.
 - Never auto-add — every item needs explicit confirmation, including the "file on existing task" path.
+- Hold all writes when the user asks to discuss first. An answer like "file it, but let us talk about X", "check the summary first", or "talk to me about it here" does not authorize a write. Keep the candidate `pending`, draft the text (and for Branch F, the extracted notes) in the console, discuss and revise with the user, then ask for confirmation of the final text. Only after that confirmation set `accepted_pending_write` and run Step 9. This applies to every branch, including Branch F, which must not fetch-and-file before the user has approved the drafted summary.
 
 ### Step 9: Record confirmed items
 
@@ -388,6 +389,8 @@ Add one child per request, requester and date first so the list scans as a log:
 #### Branch F — Extract my notes from the full transcript
 
 The Workflowy meeting entry holds only Otter's summary and outline. When the user led the discussion, the transcript holds much more of their framing — reasoning, examples, numbers, open questions — and that is what this branch captures.
+
+If the user's Step 8 answer asked to discuss first, draft the summary in the console and get explicit approval of it before creating any node; see the "Hold all writes" rule in Step 8.
 
 Take the otid from the meeting's `otter.ai/u/<otid>` link and fetch the transcript into the gitignored review directory. Never print the whole file into context or logs; filter it with `jq`:
 
