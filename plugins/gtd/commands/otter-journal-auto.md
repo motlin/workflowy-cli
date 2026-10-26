@@ -67,13 +67,13 @@ The main thread records each answer and creates nothing itself. Creation stays i
 
 Once every flag on the held page has a decision, rerun this command right away. If the user wants to wait, the next daily review's Auto run picks the decisions up instead. The scanner reads the file during title preflight, so a decided otid no longer holds the page. It creates the approved entries, skips the skipped ones, and advances the cursor. URL dedup still prevents duplicates. A recording with no decision still flags as before.
 
-When the user confirms a flagged attendee was in the meeting, offer in a follow-up question to tag that person as a speaker in Otter. Word the options with the actor named, not bare "I" or "you": "Claude will tag it" or "the user will tag it". Otter learns a voice from tagged blocks and then labels that person in future recordings by itself, which stops the same flag from coming back. A few big blocks are enough:
+When the user confirms a flagged attendee was in the meeting, offer in a follow-up question to tag that person as a speaker in Otter. Word the options with the actor named, not bare "I" or "you": "Claude will tag it" or "the user will tag it". Otter learns a voice from tagged blocks and then labels that person in future recordings by itself, which stops the same flag from coming back. Erroneous tags destroy voice recognition far more than missing tags do, so suggest only 1-2 obvious blocks per person, never all blocks. Skip mixed or unattributed blocks, and suggest no tag when in doubt:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speaker-blocks <otid> [count]
 ```
 
-- Prints JSON: `{otid, title, url, speakers: [{speaker_id, label, blocks: [{time, chars, text}]}]}`. Each speaker other than the user gets its `count` longest blocks (default 3), in time order. Segments with no speaker go under `unattributed`, and `text` is cut to a 120-character preview so the block is easy to find.
+- Prints JSON: `{otid, title, url, speakers: [{speaker_id, label, blocks: [{time, chars, text}]}]}`. Each speaker other than the user gets its `count` longest blocks (default 2), in time order. Segments with no speaker go under `unattributed`, and `text` is cut to a 120-character preview so the block is easy to find.
 - Choose the speaker whose blocks match the confirmed attendee. Often that is a generic `Speaker N` or `unattributed`.
 - Put the URL plus each block's `[mm:ss]` time and preview inside the question. Do not put them in text around the question.
 - Tagging happens in the Otter web app: open the URL, go to each listed block, click its speaker label, and choose or type the attendee's name. When Otter asks, apply the tag to every block from that speaker.

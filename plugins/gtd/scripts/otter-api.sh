@@ -299,10 +299,10 @@ transcript() {
 # The longest transcript blocks per speaker, as JSON, so the user can tag a speaker in the
 # Otter UI from a few big blocks and Otter learns the voice for future recordings. Skips the
 # user's own speaker; undiarized segments (speaker_id null) group under "unattributed".
-# Each speaker keeps its `count` longest blocks (default 3), listed in time order.
+# Each speaker keeps its `count` longest blocks (default 2), listed in time order.
 speaker_blocks() {
     local otid="$1"
-    local count="${2:-3}"
+    local count="${2:-2}"
     local body
     body=$(speech "$otid")
     if ! jq -e '.speech | type == "object"' <<< "$body" >/dev/null 2>&1; then
@@ -583,7 +583,7 @@ main() {
                 exit 1
             fi
             login
-            speaker_blocks "$2" "${3:-3}"
+            speaker_blocks "$2" "${3:-2}"
             ;;
         summary)
             if [[ -z "${2:-}" ]]; then

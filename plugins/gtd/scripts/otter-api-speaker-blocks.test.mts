@@ -115,7 +115,7 @@ test("speaker-blocks lists each non-self speaker's longest blocks in time order,
 	});
 });
 
-test("speaker-blocks defaults to three blocks per speaker and truncates long text to a findable preview", () => {
+test("speaker-blocks defaults to two blocks per speaker and truncates long text to a findable preview", () => {
 	const long = "x".repeat(150);
 	const sb = sandbox({
 		speech: {
@@ -142,7 +142,6 @@ test("speaker-blocks defaults to three blocks per speaker and truncates long tex
 				speaker_id: 3,
 				label: "Alice",
 				blocks: [
-					{time: "00:01", chars: 6, text: "bbbbbb"},
 					{time: "00:02", chars: 150, text: `${"x".repeat(120)}...`},
 					{time: "00:03", chars: 8, text: "cccccccc"},
 				],
