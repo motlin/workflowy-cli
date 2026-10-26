@@ -17,6 +17,17 @@ import type {SelectionKeyAction} from "../src/client/item-selection.js";
 
 const ctx: CommandContext = {items: ["a"], zoomedId: null};
 
+describe("processCombo show_command_palette", () => {
+	it("claims alt+w and runs the command with the context, even with no items", () => {
+		const execute = vi.fn<(ctx: CommandContext) => void>();
+		const empty: CommandContext = {items: [], zoomedId: null};
+		expect({
+			result: processCombo("alt+w", {show_command_palette: {execute}}, empty, true),
+			calls: execute.mock.calls,
+		}).toStrictEqual({result: "claimed", calls: [[empty]]});
+	});
+});
+
 describe("processCombo", () => {
 	it("claims a bound combo with no registered command, so the browser never acts on it", () => {
 		expect(processCombo("meta+s", {}, ctx, true)).toBe("claimed");

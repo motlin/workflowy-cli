@@ -90,6 +90,7 @@ const SHELL = {
 	SidePanes: 1,
 	RightBar: 1,
 	RelatedNodesPanel: 1,
+	CommandPaletteHost: 1,
 	JumpMenu: 1,
 	AlertDialog: 1,
 	LinkPopupHost: 1,

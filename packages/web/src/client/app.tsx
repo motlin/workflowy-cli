@@ -18,6 +18,7 @@ import {MirrorsDialogHost} from "./components/mirrors-dialog.js";
 import {AlertDialog} from "./components/alert-dialog.js";
 import {setTableCellProbe} from "./item-type-select.js";
 import {cachedTableRole} from "./table-cache.js";
+import {CommandPaletteHost} from "./components/command-palette.js";
 import {JumpMenu} from "./components/jump-menu.js";
 import {LadderView} from "./components/ladder-view.js";
 import {LeftBar} from "./components/left-sidebar.js";
@@ -304,6 +305,7 @@ export const OutlineView = memo(function OutlineView() {
 			)}
 			<RelatedNodesPanel />
 			<JumpMenu />
+			<CommandPaletteHost />
 			<AlertDialog />
 			<LinkPopupHost />
 			<LocationPickerHost />

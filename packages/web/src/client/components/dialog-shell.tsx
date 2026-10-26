@@ -17,20 +17,32 @@ const EXIT_MS = 100;
 export type DialogPadding = "xl" | "lg" | "none";
 
 /** The box class for a padding: `DIALOG_CLASS` carries `p-0`, the padded boxes swap it for `p-xl`. */
-function dialogClass(padding: DialogPadding): string {
-	return padding === "none" ? DIALOG_CLASS : DIALOG_CLASS.replace(" p-0 ", " p-xl ");
+const BOX_TRANSITION = " transition-[transform,opacity] duration-300 transition-base";
+
+function dialogClass(padding: DialogPadding, instant: boolean): string {
+	const base = padding === "none" ? DIALOG_CLASS : DIALOG_CLASS.replace(" p-0 ", " p-xl ");
+	return instant ? base.replace(BOX_TRANSITION, "") : base;
 }
 
 export interface DialogShellProps {
 	open?: boolean;
 	onClose: () => void;
 	padding?: DialogPadding;
+	/** Upstream `instant`: the box carries no transition classes (the scrim still fades). */
+	instant?: boolean;
 	onScroll?: UIEventHandler<HTMLDivElement>;
 	children?: ReactNode;
 }
 
 /** Upstream WF.DomKit.Dialog: backdrop, scrim and box with enter after one frame and unmount 100ms after exit. */
-export function DialogShell({open = true, onClose, padding = "xl", onScroll, children}: DialogShellProps) {
+export function DialogShell({
+	open = true,
+	onClose,
+	padding = "xl",
+	instant = false,
+	onScroll,
+	children,
+}: DialogShellProps) {
 	const [entered, setEntered] = useState(false);
 	const [mounted, setMounted] = useState(open);
 	const [previousOpen, setPreviousOpen] = useState(open);
@@ -91,7 +103,7 @@ export function DialogShell({open = true, onClose, padding = "xl", onScroll, chi
 			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Escape closes through the body listener */}
 			<div className={SCRIM_CLASS} style={{opacity: entered ? 0.2 : 0}} onClick={onClose} />
 			<div
-				className={dialogClass(padding)}
+				className={dialogClass(padding, instant)}
 				style={{opacity: entered ? 1 : 0, transform: entered ? "" : "translateY(-48px) scale(0.98)"}}
 				onScroll={onScroll}
 			>

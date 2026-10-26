@@ -1093,6 +1093,11 @@ export function useCommandRegistry(): CommandRegistry {
 			execute: openColorPopupForItems,
 		},
 		print: printCommand(),
+		show_command_palette: {
+			execute(ctx) {
+				useOutlineStore.getState().openCommandPalette(ctx);
+			},
+		},
 		toggle_full_width_page: {
 			execute() {
 				useOutlineStore.getState().toggleFullWidthPage();

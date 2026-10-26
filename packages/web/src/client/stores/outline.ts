@@ -24,7 +24,8 @@ import type {DropIndicator} from "../bullet-drag-state.js";
 import {locationUrl, shortId} from "../location.js";
 import {createPaneId, workspaceFragments} from "../pane-url.js";
 import {availablePaneWidth, beginDividerResize, paneWidth, resizedDivider, resolveWidths} from "../pane-widths.js";
-import {caretTextOffset, editorElement} from "../caret-dom.js";
+import {caretTextOffset, editorElement, selectionTextRange} from "../caret-dom.js";
+import type {CommandContext} from "../keys/dispatch.js";
 import type {PaneFocusRequest} from "../pane-focus.js";
 import {selectCompletedVisibility} from "../completed-visibility.js";
 import {closeSwitcher} from "../switcher-close.js";
@@ -420,6 +421,8 @@ interface OutlineState {
 	searchCreatedIds: Set<string>;
 	/** Per-item expansion overrides while searching; reset per zoom and query. */
 	searchExpansion: Map<string, boolean>;
+	/** The Labs command palette: the command context and view state captured at open. */
+	commandPalette: CommandPaletteState | null;
 	jumpMenuOpen: boolean;
 	/** The edited node and caret when the jump menu opened, restored when it is cancelled. */
 	jumpMenuReturn: SwitcherReturn | null;
@@ -583,6 +586,9 @@ interface OutlineActions {
 	/** Clear the input and leave the search box without a URL push, for a navigation that drops `?q=` itself. */
 	leaveSearch: () => void;
 	/** Open the jump menu, committing the edit by blurring and remembering its caret. */
+	openCommandPalette: (ctx: CommandContext) => void;
+	/** `cancel` (Escape/scrim) restores nothing; `execute` restores the caret and selection first. */
+	closeCommandPalette: (mode: "cancel" | "execute") => void;
 	openJumpMenu: () => void;
 	/** Close the jump menu; `cancel` returns the caret to where it was, `navigate` leaves placing it to the caller. */
 	closeJumpMenu: (mode: SwitcherCloseMode) => void;
@@ -830,12 +836,19 @@ export function paneView(paneId: string): OutlineStore {
 	};
 }
 
+interface CommandPaletteState {
+	ctx: CommandContext;
+	restore: {nodeId: string; start: number; end: number} | null;
+	selectionIds: readonly string[];
+}
+
 /** A modal popup is open, which keeps the selection toolbar from opening. */
 export function isModalOpen(): boolean {
 	const state = useOutlineStore.getState();
 	return (
 		state.linkPopup !== null ||
 		state.jumpMenuOpen ||
+		state.commandPalette !== null ||
 		state.locationPicker !== null ||
 		state.exportDialogOpen ||
 		state.mirrorsDialogNodeId !== null ||
@@ -1035,6 +1048,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	searchSession: 0,
 	searchCreatedIds: new Set(),
 	searchExpansion: new Map(),
+	commandPalette: null,
 	jumpMenuOpen: false,
 	jumpMenuReturn: null,
 	linkPopup: null,
@@ -1505,6 +1519,39 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	leaveSearch: () => {
 		set({searchInput: ""});
 		get().blurSearch();
+	},
+
+	openCommandPalette: (ctx) => {
+		const {editingId, itemSelection} = get();
+		const editor = editingId === null ? null : editorElement(editingId);
+		const range = editor ? selectionTextRange(editor) : null;
+		editor?.blur();
+		set({
+			commandPalette: {
+				ctx,
+				restore:
+					editingId === null ? null : {nodeId: editingId, start: range?.start ?? 0, end: range?.end ?? 0},
+				selectionIds: itemSelection.entries.map((entry) => entry.id),
+			},
+			editingId: null,
+			editingClickPosition: null,
+			editingCaretOffset: null,
+			editingCaretEnd: null,
+		});
+	},
+
+	closeCommandPalette: (mode) => {
+		const {commandPalette} = get();
+		set({commandPalette: null});
+		if (commandPalette === null || mode === "cancel") {
+			return;
+		}
+		if (commandPalette.restore !== null) {
+			const {nodeId, start, end} = commandPalette.restore;
+			get().resumeEditing(nodeId, start, start === end ? undefined : {end});
+		} else if (commandPalette.selectionIds.length > 0) {
+			get().restoreItemSelection(commandPalette.selectionIds);
+		}
 	},
 
 	openJumpMenu: () => {

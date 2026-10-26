@@ -76,6 +76,17 @@ async function frame(): Promise<void> {
 	});
 }
 
+describe("DialogShell instant", () => {
+	it("drops the box transition classes but keeps the scrim's", async () => {
+		const {DIALOG_CLASS, SCRIM_CLASS} = await import("../src/client/components/dialog-shell.js");
+		await render(createElement(DialogShell, {instant: true, padding: "none", onClose: () => {}}));
+		expect(box().className).toBe(
+			DIALOG_CLASS.replace(" transition-[transform,opacity] duration-300 transition-base", ""),
+		);
+		expect(scrim().className).toBe(SCRIM_CLASS);
+	});
+});
+
 describe("DialogShell", () => {
 	it("renders the upstream backdrop with the padded box", async () => {
 		await render(createElement(DialogShell, {onClose: vi.fn<() => void>()}, "body"));
