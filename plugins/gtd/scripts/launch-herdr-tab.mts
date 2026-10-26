@@ -6,6 +6,7 @@
 import {execFileSync} from "node:child_process";
 import {createConnection} from "node:net";
 import {homedir} from "node:os";
+import {setTimeout as delay} from "node:timers/promises";
 import {errorMessage, expectObject, isObject, parseJson, stringField} from "./json.mts";
 import type {JsonObject} from "./json.mts";
 
@@ -106,6 +107,62 @@ export async function socketRequest(
 	});
 }
 
+export interface PaneIo {
+	read: () => string;
+	run: (command: string) => void;
+	pressEnter: () => void;
+	sleep: (ms: number) => Promise<void>;
+}
+
+const lastLine = (text: string): string =>
+	text
+		.split("\n")
+		.map((line) => line.trimEnd())
+		.findLast((line) => line.length > 0) ?? "";
+
+/** True when the pane's last non-empty line looks like an idle shell prompt. */
+export function isShellPrompt(text: string): boolean {
+	return /[%$#>❯]$/u.test(lastLine(text));
+}
+
+/** True when the command text sits on the final line after a prompt, typed but never executed. */
+export function commandIsStuckAtPrompt(text: string, command: string): boolean {
+	const line = lastLine(text);
+	return line.endsWith(command) && line.length > command.length;
+}
+
+/**
+ * Wait for the shell prompt, run the command, verify it started, and press Enter once more
+ * if the text is still sitting at the prompt.
+ */
+export async function runWhenReady(
+	io: PaneIo,
+	command: string,
+	{promptAttempts = 50, intervalMs = 200}: {promptAttempts?: number; intervalMs?: number} = {},
+): Promise<void> {
+	let ready = false;
+	for (let attempt = 0; attempt < promptAttempts && !ready; attempt += 1) {
+		if (isShellPrompt(io.read())) {
+			ready = true;
+		} else {
+			await io.sleep(intervalMs);
+		}
+	}
+	if (!ready) {
+		throw new Error("shell prompt never appeared in the new pane");
+	}
+	io.run(command);
+	await io.sleep(intervalMs);
+	if (!commandIsStuckAtPrompt(io.read(), command)) {
+		return;
+	}
+	io.pressEnter();
+	await io.sleep(intervalMs);
+	if (commandIsStuckAtPrompt(io.read(), command)) {
+		throw new Error("command did not start after retry");
+	}
+}
+
 async function main(): Promise<void> {
 	const {label, cwd, focus, command} = parseArgs(process.argv.slice(2));
 	const caller = expectObject(herdr("pane", "current").pane, "herdr pane");
@@ -130,7 +187,19 @@ async function main(): Promise<void> {
 	const insertIndex = insertIndexRightOf(toHerdrTabs(herdr("tab", "list").tabs), workspaceId, callerTabId);
 	await socketRequest("tab.move", {tab_id: tabId, insert_index: insertIndex});
 
-	execFileSync("herdr", ["pane", "run", paneId, ...command], {stdio: "ignore"});
+	await runWhenReady(
+		{
+			read: () => execFileSync("herdr", ["pane", "read", paneId, "--source", "visible"], {encoding: "utf8"}),
+			run: (text) => {
+				execFileSync("herdr", ["pane", "run", paneId, text], {stdio: "ignore"});
+			},
+			pressEnter: () => {
+				execFileSync("herdr", ["pane", "send-keys", paneId, "Enter"], {stdio: "ignore"});
+			},
+			sleep: delay,
+		},
+		command.join(" "),
+	);
 	process.stdout.write(
 		`${JSON.stringify({label, number, tabId, paneId, workspaceId, rightOfTabId: callerTabId}, null, "\t")}\n`,
 	);

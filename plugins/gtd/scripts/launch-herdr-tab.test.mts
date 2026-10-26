@@ -6,7 +6,15 @@ import {mkdtempSync, rmSync} from "node:fs";
 import {createServer} from "node:net";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
-import {insertIndexRightOf, parseArgs, socketRequest} from "./launch-herdr-tab.mts";
+import type {PaneIo} from "./launch-herdr-tab.mts";
+import {
+	commandIsStuckAtPrompt,
+	insertIndexRightOf,
+	isShellPrompt,
+	parseArgs,
+	runWhenReady,
+	socketRequest,
+} from "./launch-herdr-tab.mts";
 
 const tab = (workspace_id: string, tab_id: string): {workspace_id: string; tab_id: string} => ({workspace_id, tab_id});
 
@@ -70,4 +78,64 @@ test("socketRequest decodes a multibyte character split across two chunks", asyn
 		server.close();
 		rmSync(dir, {recursive: true, force: true});
 	}
+});
+
+const fakePane = (reads: string[]): {io: PaneIo; calls: string[]} => {
+	const calls: string[] = [];
+	let index = 0;
+	const io: PaneIo = {
+		read: () => {
+			const text = reads[Math.min(index, reads.length - 1)] ?? "";
+			index += 1;
+			return text;
+		},
+		run: (command) => {
+			calls.push(`run ${command}`);
+		},
+		pressEnter: () => {
+			calls.push("enter");
+		},
+		sleep: async () => {
+			calls.push("sleep");
+			await Promise.resolve();
+		},
+	};
+	return {io, calls};
+};
+
+test("isShellPrompt recognises an idle prompt and rejects a blank or busy pane", () => {
+	assert.strictEqual(isShellPrompt("last login\n~/projects %"), true);
+	assert.strictEqual(isShellPrompt("~/projects ❯ "), true);
+	assert.strictEqual(isShellPrompt(""), false);
+	assert.strictEqual(isShellPrompt("compiling..."), false);
+});
+
+test("commandIsStuckAtPrompt detects text typed but not executed", () => {
+	assert.strictEqual(commandIsStuckAtPrompt("~ % echo hi", "echo hi"), true);
+	assert.strictEqual(commandIsStuckAtPrompt("~ % echo hi\nhi\n~ %", "echo hi"), false);
+});
+
+test("runWhenReady waits for the prompt before running", async () => {
+	const {io, calls} = fakePane(["", "starting", "~ %", "~ % echo hi\nhi\n~ %"]);
+	await runWhenReady(io, "echo hi");
+	assert.deepStrictEqual(calls, ["sleep", "sleep", "run echo hi", "sleep"]);
+});
+
+test("runWhenReady presses Enter once when the command is stuck at the prompt", async () => {
+	const {io, calls} = fakePane(["~ %", "~ % echo hi", "~ % echo hi\nhi\n~ %"]);
+	await runWhenReady(io, "echo hi");
+	assert.deepStrictEqual(
+		calls.filter((c) => c === "enter"),
+		["enter"],
+	);
+});
+
+test("runWhenReady throws when the command never starts after one retry", async () => {
+	const {io} = fakePane(["~ %", "~ % echo hi"]);
+	await assert.rejects(runWhenReady(io, "echo hi"), /did not start/u);
+});
+
+test("runWhenReady throws when no prompt ever appears", async () => {
+	const {io} = fakePane(["busy"]);
+	await assert.rejects(runWhenReady(io, "echo hi", {promptAttempts: 3}), /prompt/u);
 });
