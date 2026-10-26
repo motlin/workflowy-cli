@@ -29,6 +29,7 @@ import type {PaneCaret, PaneCaretPosition} from "../pane-caret.js";
 import {selectCompletedVisibility} from "../completed-visibility.js";
 import {closeSwitcher} from "../switcher-close.js";
 import {requestedMenuEntries} from "../requested-menu.js";
+import {setRightBarLast, shownRightBarPanel} from "../right-bar-panels.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
 
 /** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
@@ -548,6 +549,12 @@ interface OutlineActions {
 	toggleRightBarCollapsed: () => void;
 	/** Upstream's right-bar toggle: expand and show shortcuts when collapsed, otherwise collapse and hide them. */
 	toggleRightBar: () => void;
+	/** Upstream's `WF.RightBar.show(name)`: expand the bar, turn the setting on and show that panel. */
+	showRightBarPanel: (name: string) => void;
+	/** Upstream's `WF.RightBar.toggle(name)`: hide the bar when that panel is already shown, else show it. */
+	toggleRightBarPanel: (name: string) => void;
+	/** Bumped whenever the remembered panel changes, so the bar re-renders. */
+	rightBarPanelRevision: number;
 	setSearchInput: (value: string) => void;
 	setSearchFocused: (focused: boolean) => void;
 	/** Leave the outline for the search box, remembering the edited node and caret (`from`) to return to. */
@@ -968,6 +975,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	starDragActive: false,
 	showKeyboardShortcuts: false,
 	rightBarCollapsed: true,
+	rightBarPanelRevision: 0,
 	searchReturn: null,
 	searchInput: "",
 	searchFocused: false,
@@ -1354,6 +1362,22 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		const collapsed = get().rightBarCollapsed;
 		set({rightBarCollapsed: !collapsed});
 		get().setShowKeyboardShortcuts(collapsed);
+	},
+
+	showRightBarPanel: (name) => {
+		setRightBarLast(name);
+		set((state) => ({rightBarCollapsed: false, rightBarPanelRevision: state.rightBarPanelRevision + 1}));
+		get().setShowKeyboardShortcuts(true);
+	},
+
+	toggleRightBarPanel: (name) => {
+		const {rightBarCollapsed, showKeyboardShortcuts} = get();
+		if (!rightBarCollapsed && showKeyboardShortcuts && shownRightBarPanel()?.title === name) {
+			set({rightBarCollapsed: true});
+			get().setShowKeyboardShortcuts(false);
+			return;
+		}
+		get().showRightBarPanel(name);
 	},
 
 	setSearchInput: (value) => {

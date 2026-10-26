@@ -1,5 +1,8 @@
 import {useEffect, useState} from "react";
 import {hint} from "../keys/hint.js";
+import {registerRightBarPanel, rightBarPanels, setRightBarLast, shownRightBarPanel} from "../right-bar-panels.js";
+import {isMacPlatform} from "../editable-text-keys.js";
+import {ErrorBoundary} from "./error-boundary.js";
 import {useOutlineStore} from "../stores/outline.js";
 
 interface HotkeyRow {
@@ -98,7 +101,7 @@ function useBodyPaddingRight(show: boolean, collapsed: boolean, width: number): 
 }
 
 function HotkeyRowView({name, command, modifier}: HotkeyRow) {
-	const chip = hint(command);
+	const chip = hint(command, isMacPlatform());
 	const text = chip === undefined || modifier === undefined ? chip : modifier(chip);
 	return (
 		<div title={command} className="font-system leading-base py-xs cursor-help">
@@ -116,12 +119,9 @@ function HotkeyRowView({name, command, modifier}: HotkeyRow) {
 	);
 }
 
-function HotkeysPanel() {
+function HotkeyRows() {
 	return (
 		<>
-			<div className="pb-ml text-base font-bold">
-				<span className="cursor-pointer py-2xs px-ml rounded-[16px] !text-on-color !bg-tint">Hotkeys</span>
-			</div>
 			{HOTKEY_ROWS.map((row) => (
 				<HotkeyRowView key={row.command} {...row} />
 			))}
@@ -129,9 +129,41 @@ function HotkeysPanel() {
 	);
 }
 
+registerRightBarPanel({title: "Hotkeys", element: () => <HotkeyRows />});
+
+const PILL = "cursor-pointer py-2xs px-ml rounded-[16px]";
+
+function PanelContent() {
+	const shown = shownRightBarPanel();
+	const bumpRevision = useOutlineStore((s) => s.rightBarPanelRevision);
+	const rerender = useState(0)[1];
+	void bumpRevision;
+	return (
+		<>
+			<div className="pb-ml text-base font-bold">
+				{rightBarPanels().map(({title}) => (
+					// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's pill is a plain span
+					<span
+						key={title}
+						className={`${PILL} ${title === shown?.title ? "!text-on-color !bg-tint" : "!text-on-surface !bg-transparent"}`}
+						onClick={() => {
+							setRightBarLast(title);
+							rerender((n) => n + 1);
+						}}
+					>
+						{title}
+					</span>
+				))}
+			</div>
+			<ErrorBoundary>{shown?.element()}</ErrorBoundary>
+		</>
+	);
+}
+
 /** Upstream's right bar: a fixed hotkeys panel that collapses to a 16px strip. */
 export function RightBar() {
-	const show = useOutlineStore((s) => s.showKeyboardShortcuts);
+	const showSetting = useOutlineStore((s) => s.showKeyboardShortcuts);
+	const show = showSetting && rightBarPanels().length > 0;
 	const collapsed = useOutlineStore((s) => s.rightBarCollapsed);
 	const toggleRightBarCollapsed = useOutlineStore((s) => s.toggleRightBarCollapsed);
 	const anyPane = useOutlineStore((s) => s.panes.length > 0);
@@ -150,7 +182,7 @@ export function RightBar() {
 					}}
 				>
 					<div className="h-full py-xl pl-[calc(var(--wf-space-l)+var(--wf-space-m))] pr-xl box-border overflow-auto">
-						<HotkeysPanel />
+						<PanelContent />
 					</div>
 					{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's strip is a plain div; ⌘/ is the keyboard path */}
 					<div

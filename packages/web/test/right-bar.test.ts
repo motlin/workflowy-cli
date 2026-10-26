@@ -17,7 +17,11 @@ vi.mock("../src/client/stores/outline.js", () => ({
 }));
 vi.stubGlobal("innerWidth", 1272);
 
+vi.stubGlobal("navigator", {platform: "MacIntel", userAgent: ""});
+vi.stubGlobal("document", {cookie: "", body: {style: {}}});
+
 const {RightBar, HOTKEY_ROWS, bodyPaddingRight} = await import("../src/client/components/right-bar.js");
+const {registerRightBarPanel} = await import("../src/client/right-bar-panels.js");
 
 // Copied from .llm/upstream-sync/dumps/shortcuts-help-upstream-rows.txt (mac, upstream order)
 const UPSTREAM_ROWS: {command: string; name: string; text: string}[] = [
@@ -156,6 +160,60 @@ describe("RightBar", () => {
 				),
 			})),
 		).toStrictEqual(UPSTREAM_ROWS);
+	});
+});
+
+describe("right bar panel registry", () => {
+	const PILL_CLASS = "cursor-pointer py-2xs px-ml rounded-[16px]";
+	const ACTIVE = `${PILL_CLASS} !text-on-color !bg-tint`;
+	const INACTIVE = `${PILL_CLASS} !text-on-surface !bg-transparent`;
+
+	function pills(html: string): {class: string; text: string}[] {
+		return [...html.matchAll(/<span class="(cursor-pointer[^"]*)">([^<]*)<\/span>/gu)].map((match) => ({
+			class: match[1],
+			text: match[2],
+		}));
+	}
+
+	function withTwoPanels(cookie: string): {class: string; text: string}[] {
+		const first = registerRightBarPanel({title: "First", element: () => null});
+		const second = registerRightBarPanel({title: "Second", element: () => null});
+		document.cookie = cookie;
+		try {
+			return pills(render(true, false));
+		} finally {
+			first();
+			second();
+			document.cookie = "";
+		}
+	}
+
+	it("activates the first panel without a cookie", () => {
+		expect(withTwoPanels("")).toStrictEqual([
+			{class: ACTIVE, text: "Hotkeys"},
+			{class: INACTIVE, text: "First"},
+			{class: INACTIVE, text: "Second"},
+		]);
+	});
+
+	it("activates the panel named by the right-bar-last cookie", () => {
+		expect(withTwoPanels("right-bar-last=Second")).toStrictEqual([
+			{class: INACTIVE, text: "Hotkeys"},
+			{class: INACTIVE, text: "First"},
+			{class: ACTIVE, text: "Second"},
+		]);
+	});
+
+	it("falls back to the first panel for an unknown cookie value", () => {
+		expect(withTwoPanels("right-bar-last=Nope")).toStrictEqual([
+			{class: ACTIVE, text: "Hotkeys"},
+			{class: INACTIVE, text: "First"},
+			{class: INACTIVE, text: "Second"},
+		]);
+	});
+
+	it("keeps the single-panel pill markup upstream's", () => {
+		expect(pills(render(true, false))).toStrictEqual([{class: ACTIVE, text: "Hotkeys"}]);
 	});
 });
 

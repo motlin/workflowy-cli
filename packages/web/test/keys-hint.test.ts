@@ -44,8 +44,32 @@ describe("hint", () => {
 				["navigate_to_today", "previous_unread"].map((command) => [command, hint(command, false)]),
 			),
 		).toStrictEqual({
-			navigate_to_today: "Ctrl+T",
+			navigate_to_today: "Alt+T",
 			previous_unread: "Alt+Ctrl+P",
+		});
+	});
+
+	it("derives off-mac chips from the off-mac table with upstream's arrow and space glyphs", () => {
+		expect(
+			Object.fromEntries(
+				[
+					"zoom_in",
+					"toggle_rightbar",
+					"move_up",
+					"expand",
+					"toggle_ai_item",
+					"delete",
+					"focus_or_open_pane_1",
+				].map((command) => [command, hint(command, false)]),
+			),
+		).toStrictEqual({
+			zoom_in: "Alt+↓",
+			toggle_rightbar: "Ctrl+/",
+			move_up: "Alt+Shift+↑",
+			expand: "Ctrl+↓",
+			toggle_ai_item: "Alt+Shift+Space",
+			delete: "Ctrl+Shift+Backspace",
+			focus_or_open_pane_1: "Alt+1",
 		});
 	});
 

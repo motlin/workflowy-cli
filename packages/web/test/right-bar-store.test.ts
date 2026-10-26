@@ -13,6 +13,7 @@ function stubGlobals(): void {
 	vi.stubGlobal("document", {
 		documentElement: {dataset: {}},
 		body: {classList: {toggle: () => true, contains: () => false}},
+		cookie: "",
 	});
 	vi.stubGlobal("addEventListener", () => {});
 	vi.stubGlobal("fetch", fetchMock);
@@ -100,6 +101,32 @@ describe("right bar store", () => {
 			state: {showKeyboardShortcuts: true, rightBarCollapsed: true},
 			logged: 0,
 		});
+	});
+});
+
+describe("toggleRightBarPanel", () => {
+	it("shows a panel when collapsed, hides the bar when that panel is shown, and switches panels otherwise", async () => {
+		const store = await loadStore();
+		const {registerRightBarPanel} = await import("../src/client/right-bar-panels.js");
+		const unregisterFirst = registerRightBarPanel({title: "Hotkeys", element: () => null});
+		const unregisterSecond = registerRightBarPanel({title: "Second", element: () => null});
+		const steps: unknown[] = [];
+		const step = (): void => {
+			steps.push({...rightBar(store), cookie: document.cookie, calls: patchCalls().length});
+		};
+		store.getState().toggleRightBarPanel("Hotkeys");
+		step();
+		store.getState().toggleRightBarPanel("Second");
+		step();
+		store.getState().toggleRightBarPanel("Second");
+		step();
+		unregisterFirst();
+		unregisterSecond();
+		expect(steps).toStrictEqual([
+			{showKeyboardShortcuts: true, rightBarCollapsed: false, cookie: "right-bar-last=Hotkeys", calls: 1},
+			{showKeyboardShortcuts: true, rightBarCollapsed: false, cookie: "right-bar-last=Second", calls: 2},
+			{showKeyboardShortcuts: false, rightBarCollapsed: true, cookie: "right-bar-last=Second", calls: 3},
+		]);
 	});
 });
 

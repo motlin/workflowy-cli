@@ -15,6 +15,20 @@ export const MAC_HOTKEYS: readonly Hotkey[] = buildHotkeys({
 	electron: false,
 });
 
+const OFF_MAC_HOTKEYS: readonly Hotkey[] = buildHotkeys({
+	mac: false,
+	safari: false,
+	windows: true,
+	linux: false,
+	chromeos: false,
+	electron: false,
+});
+
+/** The `[combo, command]` table `hint` searches for one platform flag. */
+function hotkeysFor(isMac: boolean): readonly Hotkey[] {
+	return isMac ? MAC_HOTKEYS : OFF_MAC_HOTKEYS;
+}
+
 const MAC_KEYS: Readonly<Record<string, string>> = {
 	meta: "⌘",
 	ctrl: "⌃",
@@ -40,10 +54,15 @@ const OTHER_KEYS: Readonly<Record<string, string>> = {
 	enter: "Enter",
 	return: "Enter",
 	tab: "Tab",
+	space: "Space",
+	down: "↓",
+	up: "↑",
+	left: "←",
+	right: "→",
 };
 
 export function hint(command: string, isMac = true): string | undefined {
-	const combo = MAC_HOTKEYS.find(([, bound]) => bound === command)?.[0];
+	const combo = hotkeysFor(isMac).find(([, bound]) => bound === command)?.[0];
 	if (combo === undefined) {
 		return undefined;
 	}
