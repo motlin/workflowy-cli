@@ -13,10 +13,12 @@ import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {editorHtmlToNote, noteContentHtml, planNoteKey, planNoteSave, wrapBareNoteText} from "../note-text.js";
 import {isComposingInput, retagEditor} from "../editor-html.js";
 import {placeCaretAtTextOffset} from "../caret-dom.js";
-import {planDateInsertion, planPillReplacement} from "../date-pills.js";
+import {applyDatePhrase, planDateInsertion, planPillReplacement} from "../date-pills.js";
 import {deleteAdjacentPill} from "../pill-delete.js";
+import {formatPillLabel} from "@workflowy/shared";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
+import {useDateAutocomplete} from "./date-autocomplete.js";
 import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picker.js";
 import {prefetchPickerMonths} from "../hooks/use-calendar-event-days.js";
 import {useAccount} from "../hooks/use-account.js";
@@ -144,7 +146,7 @@ export function EditableNote({
 	extraClasses = NO_EXTRA_CLASSES,
 }: EditableNoteProps) {
 	const contentRef = useRef<HTMLDivElement>(null);
-	const {focusNote, focusName, blurNote} = outlineActions();
+	const {focusNote, focusName, blurNote, openSettings} = outlineActions();
 	const updateNodeMutation = useUpdateNode();
 	const queryClient = useQueryClient();
 	const dateSettings = useDateSettings();
@@ -262,7 +264,36 @@ export function EditableNote({
 		onInsert: insertDate,
 		onCancel: cancelDate,
 	});
-	const {handleInput: handleDateTrigger} = datePicker;
+	const {handleInput: handleDateTrigger, openForPhrase, isOpen: isDatePickerOpen} = datePicker;
+
+	// Typing a natural-language date ("tomorrow") offers a flyout; Tab or a click converts it to a pill.
+	const dateAutocomplete = useDateAutocomplete({
+		editorRef: contentRef,
+		dateSettings,
+		isBlocked: isDatePickerOpen,
+		onApply: (phrase) => {
+			const element = contentRef.current;
+			if (element !== null) {
+				const plan = applyDatePhrase(planNoteSave(noteSaver.saved, element.innerHTML).note, phrase);
+				element.innerHTML = noteContentHtml(plan.html, dateSettings, undefined, account);
+				placeCaretAtTextOffset(element, plan.caretOffset);
+				noteSaver.saveNow(plan.html);
+			}
+		},
+		onOpenPicker: (phrase, position) => {
+			openForPhrase({
+				offset: phrase.start,
+				replaceEnd: phrase.end,
+				position,
+				term: formatPillLabel(phrase.attrs, {dateFormat: dateSettings.dateFormat}),
+				isRange: phrase.attrs.endYear !== undefined,
+			});
+		},
+		onOpenSettings: () => {
+			openSettings("Dates");
+		},
+	});
+	const {handleInput: handleDateAutocomplete, hide: hideDateAutocomplete} = dateAutocomplete;
 
 	// A plain click on a pill (the note at rest or focused) edits or removes just that pill in the live note, which
 	// keeps focus: like the `!!` picker, the picker's focus neither saves nor re-renders the note.
@@ -419,8 +450,17 @@ export function EditableNote({
 				chipArmedAfter: armedAfter,
 				datePopupOpened: false,
 			});
+			let datePopupOpened = false;
 			if (route.dateTrigger && event !== undefined) {
+				const wasOpen = isDatePickerOpen();
 				handleDateTrigger(event.nativeEvent);
+				datePopupOpened = !wasOpen && isDatePickerOpen();
+			}
+			if (
+				routeTypedInput({chipArmedBefore: armedBefore, chipArmedAfter: armedAfter, datePopupOpened})
+					.dateAutocomplete
+			) {
+				handleDateAutocomplete();
 			}
 			if (route.detachTags) {
 				detachTagAutocomplete();
@@ -441,6 +481,8 @@ export function EditableNote({
 			handleMentionInput,
 			isSlashOpen,
 			handleDateTrigger,
+			isDatePickerOpen,
+			handleDateAutocomplete,
 			handleTagAutocomplete,
 			detachTagAutocomplete,
 		],
@@ -523,13 +565,14 @@ export function EditableNote({
 		detachSlashMenu();
 		detachMentionMenu();
 		detachTagAutocomplete();
+		hideDateAutocomplete();
 		if (datePickerOpen.current) {
 			return;
 		}
 		saveNow();
 		setFocusedHtml(null);
 		blurNote(nodeId);
-	}, [detachSlashMenu, detachMentionMenu, detachTagAutocomplete, saveNow, blurNote, nodeId]);
+	}, [detachSlashMenu, detachMentionMenu, detachTagAutocomplete, hideDateAutocomplete, saveNow, blurNote, nodeId]);
 
 	const focusNextRowName = useCallback(() => {
 		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
@@ -719,6 +762,7 @@ export function EditableNote({
 			{datePicker.popup}
 			{pillPicker.popup}
 			{tagAutocomplete.popup}
+			{dateAutocomplete.flyout}
 			{tagPointer.popups}
 			{slashMenu.menu}
 			{mentionMenu.menu}
