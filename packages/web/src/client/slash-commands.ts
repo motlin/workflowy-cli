@@ -223,6 +223,7 @@ const LOCAL_SLASH_KEYS: ReadonlySet<SlashCommandKey> = new Set<SlashCommandKey>(
 	"insert_board_column_left",
 	"insert_board_column_right",
 	"delete",
+	"show_command_palette",
 ]);
 
 export function LOCAL_SLASH_AVAILABLE(key: SlashCommandKey): boolean {

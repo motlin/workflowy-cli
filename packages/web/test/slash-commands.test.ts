@@ -190,6 +190,16 @@ describe("LOCAL_SLASH_AVAILABLE", () => {
 			"Insert column left",
 			"Insert column right",
 			"Delete",
+			"Show Command Palette",
+		]);
+	});
+
+	it("carries key and icon for /palette", () => {
+		expect(resolveSlash("/palette", {available: LOCAL_SLASH_AVAILABLE})).toStrictEqual([
+			{
+				name: "Actions",
+				options: [{key: "show_command_palette", label: "Show Command Palette", icon: "fal:palette"}],
+			},
 		]);
 	});
 
