@@ -105,6 +105,7 @@ import {
 } from "../rich-text.js";
 import * as latestColor from "../latest-color.js";
 import {openItemColorPopup} from "../item-color-popup.js";
+import {planDeleteDates} from "../date-pills.js";
 import type {ColorChoice, InlineAttr, ItemField} from "../rich-text.js";
 import {applyOps, captureOutlineView, runInUndoBatch, settleUndoNow} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
@@ -1432,6 +1433,24 @@ export function useCommandRegistry(): CommandRegistry {
 				if (nodeId !== undefined) {
 					useOutlineStore.getState().requestDatePicker(nodeId, ctx.anchorRect);
 				}
+			},
+		},
+		delete_dates: {
+			available: (ctx) =>
+				ctx.items.length > 0 && ctx.items.every((id) => readNode(queryClient, id)?.readOnly !== true),
+			execute: (ctx) => {
+				editSelectionFields(ctx, (fields) => {
+					const byId = new Map<string, {id: string; name: string; note: string}>();
+					for (const {id, field, html} of fields) {
+						const node = byId.get(id) ?? {id, name: "", note: ""};
+						node[field] = html;
+						byId.set(id, node);
+					}
+					return planDeleteDates([...byId.values()]).flatMap(({id, name, note}) => [
+						...(name === undefined ? [] : [{id, field: "name" as const, html: name}]),
+						...(note === undefined ? [] : [{id, field: "note" as const, html: note}]),
+					]);
+				});
 			},
 		},
 		open_in_pane: singleItemCommand((nodeId) => {

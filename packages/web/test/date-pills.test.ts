@@ -10,6 +10,7 @@ import {
 	findDatePhraseAtCaret,
 	deletePillBeforeCaret,
 	planDateInsertion,
+	planDeleteDates,
 	renderDatePills,
 	planPillReplacement,
 	replacePill,
@@ -443,5 +444,20 @@ describe("renderDatePills guards and canonical attributes", () => {
 		);
 		expect(html).toContain('title="\u2325click to search" startyear="2026" startmonth="10" startday="25">');
 		expect(html).not.toContain("foo");
+	});
+});
+
+describe("planDeleteDates", () => {
+	it("strips dates from names and notes, only for changed values", () => {
+		expect(
+			planDeleteDates([
+				{id: "a", name: 'x <time startYear="2026" startMonth="10" startDay="1">Oct 1</time>', note: ""},
+				{id: "b", name: "plain", note: ""},
+				{id: "c", name: "n", note: 'y <time startYear="2026" startMonth="10" startDay="1">Oct 1</time>'},
+			]),
+		).toStrictEqual([
+			{id: "a", name: "x"},
+			{id: "c", note: "y"},
+		]);
 	});
 });

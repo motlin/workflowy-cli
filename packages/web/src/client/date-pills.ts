@@ -168,6 +168,28 @@ export function deleteDates(html: string): string {
 	return html.replaceAll(SPACED_TIME_PATTERN, "");
 }
 
+/** Per-node `delete_dates` edits: only the fields whose value changes. */
+export function planDeleteDates(
+	nodes: readonly {id: string; name: string; note: string}[],
+): {id: string; name?: string; note?: string}[] {
+	const plan: {id: string; name?: string; note?: string}[] = [];
+	for (const {id, name, note} of nodes) {
+		const edit: {id: string; name?: string; note?: string} = {id};
+		const newName = deleteDates(name);
+		const newNote = deleteDates(note);
+		if (newName !== name) {
+			edit.name = newName;
+		}
+		if (newNote !== note) {
+			edit.note = newNote;
+		}
+		if (edit.name !== undefined || edit.note !== undefined) {
+			plan.push(edit);
+		}
+	}
+	return plan;
+}
+
 /** Whether stored HTML holds any `<time>` date. */
 export function hasDates(html: string): boolean {
 	return /<time\b/iu.test(html);
