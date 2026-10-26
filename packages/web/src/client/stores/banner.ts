@@ -8,6 +8,8 @@ export interface BannerAction {
 
 interface Banner {
 	kind: "info" | "warn";
+	/** An optional bold first line, followed by a line break. */
+	title?: string;
 	text: string;
 	action?: BannerAction;
 }
@@ -19,9 +21,17 @@ interface BannerState {
 /** Upstream `WF.GuiBanner`: one banner at a time, with no timeout; the next banner replaces it. */
 export const useBannerStore = create<BannerState>(() => ({banner: null}));
 
-export function showBanner(text: string, options: {kind: "info" | "warn"; action?: BannerAction}): void {
+export function showBanner(
+	text: string,
+	options: {kind: "info" | "warn"; title?: string; action?: BannerAction},
+): void {
 	useBannerStore.setState({
-		banner: {kind: options.kind, text, ...(options.action === undefined ? {} : {action: options.action})},
+		banner: {
+			kind: options.kind,
+			text,
+			...(options.title === undefined ? {} : {title: options.title}),
+			...(options.action === undefined ? {} : {action: options.action}),
+		},
 	});
 }
 

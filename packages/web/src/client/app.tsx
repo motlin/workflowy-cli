@@ -21,7 +21,8 @@ import {LeftBar} from "./components/left-sidebar.js";
 import {LinkPopupHost} from "./components/link-popup-host.js";
 import {LocationPickerHost} from "./components/location-picker-host.js";
 import {SelectionMenu} from "./components/selection-menu.js";
-import {OfflineBanner} from "./components/offline-banner.js";
+import {OfflineNotice} from "./components/offline-notice.js";
+import {watchMutations} from "./sync-health.js";
 import {OutlineTree} from "./components/outline-tree.js";
 import {PresentationMode} from "./components/presentation-mode.js";
 import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
@@ -88,6 +89,9 @@ import "./themes/one_dark.css";
 installCoalescingTimeoutProvider();
 
 const queryClient = new QueryClient({defaultOptions: queryClientDefaults});
+watchMutations(queryClient, (event) => {
+	useOutlineStore.getState().recordSyncEvent(event);
+});
 setTableCellProbe((nodeId) => cachedTableRole(queryClient, nodeId) === "cell");
 installSaveTracking(queryClient, window);
 
@@ -208,7 +212,6 @@ export const OutlineView = memo(function OutlineView() {
 		.join(" ");
 	return (
 		<div className={containerClasses}>
-			<OfflineBanner />
 			<PaneWorkspace>
 				<MainPane>
 					<TopBar onRedo={redoFromHeader} onUndo={undoFromHeader} />
@@ -231,6 +234,7 @@ export const OutlineView = memo(function OutlineView() {
 			<ErrorNotifications />
 			<AppMessages />
 			<GuiBanner />
+			<OfflineNotice />
 			{/* Last, so its window keydown listeners register after every other pane's, as when the page shell held them. */}
 			<GlobalCommands />
 		</div>

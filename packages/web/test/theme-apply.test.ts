@@ -92,7 +92,7 @@ function runScript(script: string): void {
 }
 
 describe("index.html pre-paint script", () => {
-	const script = /<body[^>]*>\s*<script>([\s\S]*?)<\/script>\s*<div id="root">/u.exec(html)?.[1] ?? "";
+	const script = /<body[^>]*>\s*<script>([\s\S]*?)<\/script>/u.exec(html)?.[1] ?? "";
 
 	it("is the first body script and names the stored keys", () => {
 		expect(

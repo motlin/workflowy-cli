@@ -2604,57 +2604,6 @@ body.moving * {
 }
 
 /* ================================
-   Offline Banner Styles
-   ================================ */
-
-.offline-banner {
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	z-index: 1500;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 10px;
-	padding: 10px 16px;
-	background-color: var(--color-warning);
-	color: #fff;
-	font-size: 13px;
-	font-weight: 500;
-}
-
-.offline-banner-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 18px;
-	height: 18px;
-	font-size: 12px;
-	font-weight: 700;
-	background-color: rgba(255, 255, 255, 0.2);
-	border-radius: 50%;
-}
-
-.offline-banner-message {
-	line-height: 1.4;
-}
-
-/* Adjust container when offline banner is visible */
-.outline-container:has(.offline-banner) .pageContainer {
-	padding-top: 88px; /* the 40px banner and 48px top bar; local divergence, upstream's desktop page does not move offline */
-}
-
-.outline-container:has(.offline-banner) .related-nodes-panel {
-	top: 88px; /* 48px top bar + 40px offline banner */
-	height: calc(100vh - 88px);
-}
-
-.outline-container:has(.offline-banner) .wf-header {
-	top: 40px; /* Below offline banner */
-}
-
-/* ================================
    Loading Spinner Styles
    ================================ */
 

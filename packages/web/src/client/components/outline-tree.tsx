@@ -3,6 +3,7 @@ import {plainText} from "../rich-text.js";
 import {CopyCodeButton} from "./copy-code-button.js";
 import type {ReactNode, Ref} from "react";
 import type {BacklinkItem, FoundDateItem, FoundDatesResponse, NodeResponse} from "../../node-types.js";
+import {hideLoadingScreenOnce} from "../loading-screen.js";
 import {useContext, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
@@ -943,6 +944,12 @@ export function OutlineTree({parentId: requestedId, shell = "pane"}: OutlineTree
 			resumeEditing(id, 0);
 		}
 	};
+
+	useEffect(() => {
+		if (!shownLoading || error) {
+			hideLoadingScreenOnce();
+		}
+	}, [shownLoading, error]);
 
 	if (shownLoading) {
 		return <div className="outline-tree-loading">Loading...</div>;

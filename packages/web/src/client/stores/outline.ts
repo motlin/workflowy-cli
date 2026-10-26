@@ -30,6 +30,9 @@ import {selectCompletedVisibility} from "../completed-visibility.js";
 import {closeSwitcher} from "../switcher-close.js";
 import {requestedMenuEntries} from "../requested-menu.js";
 import {setRightBarLast, shownRightBarPanel} from "../right-bar-panels.js";
+import {hideBanner, showBanner, useBannerStore} from "./banner.js";
+import {SYNC_WARNING_TEXT, SYNC_WARNING_TITLE, syncHealth} from "../sync-health.js";
+import type {SyncEvent} from "../sync-health.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
 
 /** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
@@ -454,7 +457,8 @@ interface OutlineState {
 	/** The Settings section to scroll to when the modal opens. */
 	settingsSection: SettingsSection | null;
 	theme: Theme;
-	isOnline: boolean;
+	/** Consecutive failed local writes (see `syncHealth`). */
+	syncFailures: number;
 	errorNotifications: ErrorNotification[];
 	appMessage: AppMessageState | null;
 	/** Menus opened by id (`showMenuById`); one open menu per id. */
@@ -652,7 +656,7 @@ interface OutlineActions {
 	openSettings: (section?: SettingsSection) => void;
 	closeSettings: () => void;
 	setTheme: (theme: Theme) => void;
-	setOnline: (isOnline: boolean) => void;
+	recordSyncEvent: (event: SyncEvent) => void;
 	addErrorNotification: (message: string, type?: "error" | "warning" | "info", retryAction?: () => void) => string;
 	removeErrorNotification: (id: string) => void;
 	clearAllErrorNotifications: () => void;
@@ -1046,7 +1050,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	settingsOpen: false,
 	settingsSection: null,
 	theme: getInitialTheme(),
-	isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
+	syncFailures: 0,
 	errorNotifications: [],
 	appMessage: null,
 	requestedMenus: new Map(),
@@ -1896,8 +1900,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({theme});
 	},
 
-	setOnline: (isOnline) => {
-		set({isOnline});
+	recordSyncEvent: (event) => {
+		const next = syncHealth({failures: get().syncFailures}, event);
+		set({syncFailures: next.failures});
+		if (next.warn) {
+			showBanner(SYNC_WARNING_TEXT, {kind: "warn", title: SYNC_WARNING_TITLE});
+		} else if (useBannerStore.getState().banner?.title === SYNC_WARNING_TITLE) {
+			hideBanner();
+		}
 	},
 
 	addErrorNotification(message, type = "error", retryAction) {
@@ -2018,12 +2028,7 @@ if (typeof globalThis !== "undefined") {
 	});
 
 	// Listen for online/offline events
-	globalThis.addEventListener("online", () => {
-		useOutlineStore.getState().setOnline(true);
-		useOutlineStore.getState().addErrorNotification("Connection restored", "info");
-	});
-
 	globalThis.addEventListener("offline", () => {
-		useOutlineStore.getState().setOnline(false);
+		useOutlineStore.getState().recordSyncEvent("browser-offline");
 	});
 }

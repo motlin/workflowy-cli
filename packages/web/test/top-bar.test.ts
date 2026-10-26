@@ -699,9 +699,9 @@ describe("header CSS", () => {
 		expect(cssBlockText(styles, "@media print").replaceAll(/\s+/gu, "")).toBe(".header{display:none!important;}");
 	});
 
-	it("drops the old top-bar layout rules and retargets the offline-banner override", () => {
+	it("drops the old top-bar layout rules and the offline-banner override", () => {
 		expect(hasSelector(styles, /\.top-bar(-left|-right|-nav-buttons)?\s*[{,]/u)).toBe(false);
-		expect(cssBlock(styles, ".outline-container:has(.offline-banner) .wf-header")).toStrictEqual({top: "40px"});
+		expect(hasSelector(styles, /offline-banner/u)).toBe(false);
 	});
 
 	it("drops the local-only Calendar popover rules", () => {

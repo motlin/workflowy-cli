@@ -257,7 +257,7 @@ describe("page layout styles guard", () => {
 			offlineTargets: offlineRules.map((match) => match[1].trim()),
 		}).toStrictEqual({
 			bareOutlineView: [],
-			offlineTargets: [".outline-container:has(.offline-banner) .pageContainer"],
+			offlineTargets: [],
 		});
 	});
 

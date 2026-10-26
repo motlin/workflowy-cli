@@ -9,6 +9,7 @@ const SEARCH_INPUT_ID = "srch-input";
 interface GuiBannerViewProps {
 	kind: "info" | "warn";
 	text: string;
+	title?: string;
 	action?: BannerAction;
 	/** The left bar's offset, so the banner sits beside it. */
 	left: number;
@@ -16,7 +17,7 @@ interface GuiBannerViewProps {
 	onAction: () => void;
 }
 
-export function GuiBannerView({kind, text, action, left, onClose, onAction}: GuiBannerViewProps) {
+export function GuiBannerView({kind, text, title, action, left, onClose, onAction}: GuiBannerViewProps) {
 	return (
 		<div
 			className="fixed right-0 top-[calc(var(--wf-header-height,0)+var(--safe-area-inset-top,0))] overflow-hidden z-10 print:hidden transition-[left] duration-250"
@@ -26,7 +27,15 @@ export function GuiBannerView({kind, text, action, left, onClose, onAction}: Gui
 				className={`font-system flex items-center px-2xl py-ml text-s text-center transition-transform duration-300 ${kind === "warn" ? "bg-warning" : "bg-info"} [&_a]:text-[var(--wf-gray-800)] [&_a]:underline [&_a]:cursor-pointer [&_a.undelete]:font-bold`}
 			>
 				<div className="messageContent flex-grow flex-shrink leading-base">
-					{text}
+					{title === undefined ? (
+						text
+					) : (
+						<div>
+							<strong>{title}</strong>
+							<br />
+							{text}
+						</div>
+					)}
 					{action !== undefined && (
 						// oxlint-disable-next-line jsx-a11y/anchor-is-valid, jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup
 						<a
@@ -82,6 +91,7 @@ export function GuiBanner() {
 		<GuiBannerView
 			kind={banner.kind}
 			text={banner.text}
+			{...(banner.title === undefined ? {} : {title: banner.title})}
 			{...(banner.action === undefined ? {} : {action: banner.action})}
 			left={left}
 			onClose={hideBanner}

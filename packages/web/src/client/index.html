@@ -25,6 +25,75 @@
 				}
 			} catch (e) {}
 		</script>
+		<style>
+			#loadingScreen {
+				position: fixed;
+				width: 64px;
+				height: 64px;
+				top: 50%;
+				left: 50%;
+				margin-left: -32px;
+				margin-top: -32px;
+				color: #ddd;
+			}
+			#loadingScreen > .b {
+				position: absolute;
+				left: 3px;
+				transform-origin: 58px 50%;
+			}
+			.b > .c {
+				border: 3px solid currentColor;
+				width: 12px;
+				height: 12px;
+				border-radius: 9px;
+			}
+			.b > .l {
+				width: 36px;
+				height: 3px;
+				background: currentColor;
+				position: absolute;
+				left: 22px;
+				top: 8px;
+			}
+			#b1 { animation: b1 1.5s infinite 0s; }
+			#b2 { animation: b2 1.5s infinite 0s; }
+			#b3 { animation: b3 1.5s infinite 0s; }
+			#b4 { animation: b4 1.5s infinite 0s; }
+			#b5 { animation: b5 1.5s infinite 0s; }
+			#b6 { animation: b6 1.5s infinite 0s; }
+			@keyframes b1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(0, -24px) scale(1.4); opacity: 0; } }
+			@keyframes b2 { from { transform: translate(0, 16px) scale(0.6); } to { transform: translate(0, 0) scale(1); } }
+			@keyframes b3 { from { transform: translate(0, 21px) scale(0.2); opacity: 0; } to { transform: translate(0, 16px) scale(0.6); opacity: 1; } }
+			@keyframes b4 { from { transform: translate(0, 27px) scale(0.2); opacity: 0; } to { transform: translate(0, 30px) scale(0.6); opacity: 1; } }
+			@keyframes b5 { from { transform: translate(0, 30px) scale(0.6); } to { transform: translate(0, 46px) scale(1); } }
+			@keyframes b6 { from { transform: translate(0, 46px) scale(1); } to { transform: translate(0, 70px) scale(1.4); opacity: 0; } }
+		</style>
+		<div id="loadingScreen">
+			<div id="b1" class="b">
+				<div class="c"></div>
+				<div class="l"></div>
+			</div>
+			<div id="b2" class="b">
+				<div class="c"></div>
+				<div class="l"></div>
+			</div>
+			<div id="b3" class="b">
+				<div class="c"></div>
+				<div class="l"></div>
+			</div>
+			<div id="b4" class="b">
+				<div class="c"></div>
+				<div class="l"></div>
+			</div>
+			<div id="b5" class="b">
+				<div class="c"></div>
+				<div class="l"></div>
+			</div>
+			<div id="b6" class="b">
+				<div class="c"></div>
+				<div class="l"></div>
+			</div>
+		</div>
 		<div id="root"></div>
 		<script type="module" src="/main.tsx"></script>
 	</body>
