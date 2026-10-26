@@ -11,6 +11,48 @@ interface ErrorBoundaryState {
 	error: Error | null;
 }
 
+/** Upstream's no-unsaved-data fatal screen (`Ys1`): "Try again" reloads the page (`Zs1`). */
+export function FatalErrorScreen({message}: {message: string}): ReactNode {
+	return (
+		<div className="error-boundary">
+			<svg
+				className="error-boundary-face"
+				viewBox="0 0 36 36"
+				fill="none"
+				stroke="currentColor"
+				strokeLinecap="round"
+			>
+				<circle cx="18" cy="18" r="17" />
+				<circle cx="18" cy="24" r="6" />
+				<g transform="translate(10 4)">
+					<path d="M0 3 a 5 5 0 0 1 6 -1" />
+					<line x1="0" y1="6" x2="6" y2="12" />
+					<line x1="6" y1="6" x2="0" y2="12" />
+				</g>
+				<g transform="translate(20 4)">
+					<path d="M0 2 a 5 5 0 0 1 6 1" />
+					<line x1="0" y1="6" x2="6" y2="12" />
+					<line x1="6" y1="6" x2="0" y2="12" />
+				</g>
+			</svg>
+			<h1 className="error-boundary-title">Something has gone wrong</h1>
+			<button
+				className="button large error-boundary-retry"
+				onClick={() => {
+					window.location.reload();
+				}}
+				type="button"
+			>
+				<span>Try again</span>
+			</button>
+			<div className="error-boundary-details">
+				<div className="error-boundary-details-label">Error details</div>
+				<div className="error-boundary-details-box">{message.slice(0, 200)}</div>
+			</div>
+		</div>
+	);
+}
+
 /**
  * Error boundary component that catches JavaScript errors anywhere in the child
  * component tree, logs them, and displays a fallback UI.
@@ -29,10 +71,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 		console.error("ErrorBoundary caught an error:", error, errorInfo);
 	}
 
-	handleRetry = (): void => {
-		this.setState({hasError: false, error: null});
-	};
-
 	render(): ReactNode {
 		const {hasError, error} = this.state;
 		const {children, fallback} = this.props;
@@ -42,17 +80,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 				return fallback;
 			}
 
-			return (
-				<div className="error-boundary">
-					<div className="error-boundary-content">
-						<h2 className="error-boundary-title">Something went wrong</h2>
-						<p className="error-boundary-message">{error?.message ?? "An unexpected error occurred"}</p>
-						<button className="error-boundary-retry" onClick={this.handleRetry} type="button">
-							Try again
-						</button>
-					</div>
-				</div>
-			);
+			return <FatalErrorScreen message={error?.message ?? "An unexpected error occurred"} />;
 		}
 
 		return children;

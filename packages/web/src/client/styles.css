@@ -2491,58 +2491,67 @@ body.moving * {
    ================================ */
 
 .error-boundary {
-	line-height: 1.5;
+	position: fixed;
+	inset: 0;
 	display: flex;
+	flex-direction: column;
 	align-items: center;
-	justify-content: center;
-	min-height: 100vh;
-	padding: 20px;
-	background-color: var(--color-bg);
+	line-height: 1.4;
+	text-align: center;
+	padding: calc(env(safe-area-inset-top) + 48px) 24px calc(env(safe-area-inset-bottom) + 32px);
+	box-sizing: border-box;
+	overflow: auto;
+	color: var(--wf-text-primary, var(--color-text));
+	background: var(--wf-background-primary, var(--color-bg));
 }
 
-.error-boundary-content {
-	max-width: 500px;
-	text-align: center;
-	padding: 40px;
-	background-color: var(--color-bg-secondary);
-	border-radius: 8px;
-	border: 1px solid var(--color-border);
+.error-boundary-face {
+	width: 96px;
+	height: 96px;
+	flex-shrink: 0;
+	align-self: center;
+	color: var(--wf-gray-300);
 }
 
 .error-boundary-title {
-	margin: 0 0 16px;
-	font-size: 20px;
-	font-weight: 600;
-	color: var(--color-error);
-}
-
-.error-boundary-message {
-	margin: 0 0 24px;
-	font-size: 14px;
-	color: var(--color-text-secondary);
-	line-height: 1.5;
+	margin: 24px 0 0;
+	font-size: 22px;
+	line-height: 1.25;
+	max-width: 420px;
 }
 
 .error-boundary-retry {
-	padding: 10px 24px;
-	font-size: 14px;
-	font-family: inherit;
-	font-weight: 500;
-	border: none;
+	margin-top: 24px;
+	align-self: center;
+	border-radius: var(--wf-radius-pill);
+	padding: var(--wf-space-m) var(--wf-space-l);
+	background: var(--wf-background-tertiary, #dce0e2);
+}
+
+.error-boundary-details {
+	width: 100%;
+	max-width: 420px;
+	margin-top: 24px;
+	text-align: left;
+}
+
+.error-boundary-details-label {
+	margin-bottom: 6px;
+	color: var(--wf-text-secondary, var(--color-text-secondary));
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.error-boundary-details-box {
+	border: var(--wf-border-width-s) solid var(--wf-border-primary, var(--color-border));
+	background: var(--wf-background-secondary, var(--color-bg-secondary));
+	color: var(--wf-text-tertiary, var(--color-text-secondary));
 	border-radius: 6px;
-	background-color: var(--color-accent);
-	color: #fff;
-	cursor: pointer;
-	transition: background-color 0.15s ease;
-}
-
-.error-boundary-retry:hover {
-	background-color: var(--color-accent-hover);
-}
-
-.error-boundary-retry:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 2px;
+	padding: 12px;
+	font-family: Consolas, Monaco, "Lucida Console", "Andale Mono", monospace;
+	font-size: 12px;
+	line-height: 15px;
+	overflow-wrap: anywhere;
 }
 
 /* ================================
