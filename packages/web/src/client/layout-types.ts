@@ -4,6 +4,7 @@
  * type-menu header shows for the item's current layout.
  */
 import {dashboardsOn} from "./dashboard.js";
+import {isFeatureOn} from "./features.js";
 
 export interface ItemType {
 	key: string;
@@ -90,6 +91,8 @@ export function availableItemTypes(ctx: ItemTypeContext, flagOn: boolean = dashb
 	return ITEM_TYPES.filter(
 		(type) =>
 			!(type.layoutModeKey === "dashboard" && !flagOn) &&
+			!(type.layoutModeKey === "table" && !isFeatureOn("table")) &&
+			!(type.layoutModeKey === "numbered" && !isFeatureOn("numbered_list")) &&
 			!(ctx.isRoot && type.layoutModeKey === "todo") &&
 			!(ctx.isMainDocumentRoot && MAIN_DOCUMENT_ROOT_EXCLUDED.has(type.layoutModeKey)) &&
 			!(ctx.isTableCell && !TABLE_CELL_ALLOWED.has(type.layoutModeKey)),

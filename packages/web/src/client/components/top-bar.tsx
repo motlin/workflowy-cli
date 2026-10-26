@@ -15,6 +15,7 @@ import {NewPaneIcon} from "./new-pane-icon.js";
 import {PaneSearchBox} from "./pane-search-box.js";
 import {SearchBox} from "./search-box.js";
 import {StarButton} from "./star-button.js";
+import {useFeatureOn} from "../hooks/use-features.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {closeMainPane, stepNav, useNavStackSync} from "../navigation.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
@@ -125,6 +126,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const navigate = useStableNavigate();
 	const queryClient = useQueryClient();
 	const navigateToToday = useNavigateToToday();
+	const calendarOn = useFeatureOn("calendar_node");
 	useNavStackSync();
 	// Upstream's main pane header steps `mainPaneHistory` while panes are open.
 	const canGoBack = useOutlineStore(
@@ -205,24 +207,26 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 			<div className="ml-auto flex self-stretch items-center gap-xs flex-shrink-0">
 				{paneOpen ? <PaneSearchBox compact onCommit={commitMainSearch} query={searchQuery} /> : <SearchBox />}
 
-				{paneOpen ? (
-					<IconButton
-						onClick={() => {
-							void navigateToToday();
-						}}
-						shortcut="⌃T"
-						tooltip="Today"
-					>
-						<FaIcon icon="fal:calendar-day" />
-					</IconButton>
-				) : (
-					// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys
-					<div onClick={() => void navigateToToday()}>
-						<IconButton shortcut="⌃T" tooltip="Today">
+				{calendarOn ? (
+					paneOpen ? (
+						<IconButton
+							onClick={() => {
+								void navigateToToday();
+							}}
+							shortcut="⌃T"
+							tooltip="Today"
+						>
 							<FaIcon icon="fal:calendar-day" />
 						</IconButton>
-					</div>
-				)}
+					) : (
+						// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys
+						<div onClick={() => void navigateToToday()}>
+							<IconButton shortcut="⌃T" tooltip="Today">
+								<FaIcon icon="fal:calendar-day" />
+							</IconButton>
+						</div>
+					)
+				) : null}
 
 				{!compact && (
 					<>

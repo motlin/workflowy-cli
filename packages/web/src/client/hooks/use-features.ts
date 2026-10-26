@@ -7,7 +7,8 @@
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {useEffect} from "react";
-import {setAccountFeatures} from "../features.js";
+import {isFeatureOn, setAccountFeatures} from "../features.js";
+import type {FeatureName} from "../features.js";
 import {readJson} from "../read-json.js";
 
 export interface VisibleFeature {
@@ -80,4 +81,13 @@ export function useFeatures(): UseFeatures {
 		}
 	}, [data, loaded]);
 	return {...data, setFeature: async (codename, on) => setFeature(queryClient, codename, on)};
+}
+
+/**
+ * Whether `codename` is on, re-rendering when the account's dict changes. Until the dict loads this is the
+ * `isFeatureOn` fallback, so a gated surface does not flash away on first paint.
+ */
+export function useFeatureOn(codename: FeatureName): boolean {
+	const {data} = useQuery({queryKey: featureKeys.all, queryFn: fetchFeatures});
+	return data === undefined ? isFeatureOn(codename) : data.enabled[codename] === true;
 }

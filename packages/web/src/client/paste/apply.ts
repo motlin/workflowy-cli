@@ -3,6 +3,7 @@
 import {parseHtmlTable, parseMarkdownTable, parseTsvTable} from "./table.js";
 import {findAutoLinks} from "../auto-link.js";
 import {concatHtml, plainLength} from "../rich-text.js";
+import {isFeatureOn} from "../features.js";
 import {applyMarkdown} from "./markdown.js";
 import {buildHtmlLines, hasRichContent} from "./html.js";
 import {escapeHtml, buildPlainLines} from "./lines.js";
@@ -61,7 +62,7 @@ export function buildPasteLines({
 		return [table];
 	}
 	const lines = !plain && html !== undefined && hasRichContent(html) ? buildHtmlLines(html) : buildPlainLines(text);
-	return applyMarkdown(lines);
+	return isFeatureOn("markdown_pasting") ? applyMarkdown(lines) : lines;
 }
 
 function toTree(line: PasteLine): PasteTree {

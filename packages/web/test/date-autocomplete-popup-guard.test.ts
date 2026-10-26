@@ -5,6 +5,7 @@ import type {RefObject} from "react";
 import {createRoot} from "react-dom/client";
 import type {Root} from "react-dom/client";
 import {useDateAutocomplete} from "../src/client/components/date-autocomplete.js";
+import {setAccountFeatures} from "../src/client/features.js";
 import {is, pop, resetPopupsForTests, unpop} from "../src/client/popups.js";
 
 declare global {
@@ -111,5 +112,20 @@ describe("date autocomplete popup guard", () => {
 			flyouts: 0,
 			registered: false,
 		});
+	});
+});
+
+describe("dates flag", () => {
+	it("never shows the flyout when the account flag is off", () => {
+		setAccountFeatures({});
+		try {
+			typeAtEnd();
+			expect({flyouts: flyouts(), registered: is("date.autocomplete")}).toStrictEqual({
+				flyouts: 0,
+				registered: false,
+			});
+		} finally {
+			setAccountFeatures(null);
+		}
 	});
 });

@@ -1,5 +1,6 @@
 import {parseNestedQuery, parseQuery} from "@workflowy/shared/search";
 import type {QueryNode} from "@workflowy/shared/search";
+import {isFeatureOn} from "./features.js";
 import {decodeSegment} from "./tag-render.js";
 
 /** A half-open `[start, end)` range of plain-text offsets. */
@@ -61,12 +62,13 @@ export function highlightHtml(html: string, ranges: readonly PlainRange[]): stri
 	return out;
 }
 
-let parsed: {query: string; node: QueryNode} | null = null;
+let parsed: {query: string; nested: boolean; node: QueryNode} | null = null;
 
 /** The parsed `query`, kept for the last query so every rendered row shares one parse. */
 function parsedQuery(query: string): QueryNode {
-	if (parsed === null || parsed.query !== query) {
-		parsed = {query, node: parseNestedQuery(query)?.highlight ?? parseQuery(query)};
+	const nested = isFeatureOn("nested_search");
+	if (parsed === null || parsed.query !== query || parsed.nested !== nested) {
+		parsed = {query, nested, node: (nested ? parseNestedQuery(query)?.highlight : undefined) ?? parseQuery(query)};
 	}
 	return parsed.node;
 }

@@ -1,4 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
+import {setAccountFeatures} from "../src/client/features.js";
 import {
 	MOVE_TO_DATE_COMMANDS,
 	executeMirrorToDate,
@@ -251,5 +252,40 @@ describe("executeMirrorToDate", () => {
 			log: ["commit", "clear", 'mirror {"item_ids":["x"],"parent_id":"day","index":0}'],
 			toasts: [],
 		});
+	});
+});
+
+describe("calendar_node flag", () => {
+	it("moves and mirrors nothing when the account flag is off", async () => {
+		const calls: string[] = [];
+		const common = {
+			date: FRIDAY,
+			fetch: async () => {
+				calls.push("fetch");
+				return Promise.resolve(new Response("no", {status: 500}));
+			},
+			commitEdit: () => {
+				calls.push("commit");
+			},
+			clearSelection: () => {
+				calls.push("clear");
+			},
+			notify: () => {
+				calls.push("notify");
+			},
+			loadTarget: async () => Promise.reject(new Error("unreachable")),
+		};
+		setAccountFeatures({});
+		try {
+			const moved = await executeMoveToDate({
+				...common,
+				items: ["x"],
+				verb: MOVE_TO_DATE_COMMANDS.move_to_today,
+			} as never);
+			const mirrored = await executeMirrorToDate({...common, items: ["x"]} as never);
+			expect({moved, mirrored, calls}).toStrictEqual({moved: false, mirrored: false, calls: []});
+		} finally {
+			setAccountFeatures(null);
+		}
 	});
 });

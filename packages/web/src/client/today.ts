@@ -1,3 +1,4 @@
+import {isFeatureOn} from "./features.js";
 import {dateId} from "@workflowy/shared";
 import type {CalendarLevel} from "@workflowy/shared";
 import {readJson} from "./read-json.js";
@@ -73,6 +74,9 @@ export async function navigateToCalendarDate(
 	target: CalendarTarget,
 	{fetch, seedResolved, zoomTo, notify, startEditing, commitEdit}: NavigateToCalendarDeps,
 ): Promise<void> {
+	if (!isFeatureOn("calendar_node")) {
+		return;
+	}
 	commitEdit();
 	const node = await findOrEnsureCalendarNode(target, fetch);
 	if (node === null) {

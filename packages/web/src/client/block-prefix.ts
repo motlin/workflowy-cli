@@ -3,6 +3,7 @@
  * `transform-to-gui-divider`, `transform-to-numbered`): typing the prefix at the very start of a row name
  * turns the row into that block type.
  */
+import {isFeatureOn} from "./features.js";
 import {normalizeLayoutMode} from "./layout-types.js";
 import {plainText, splitHtml} from "./rich-text.js";
 
@@ -69,7 +70,7 @@ export function planBlockPrefix(input: {
 		};
 	}
 	const numbered = NUMBERED_PREFIX.exec(before);
-	if (numbered !== null && input.after === "" && current !== "numbered") {
+	if (numbered !== null && input.after === "" && current !== "numbered" && isFeatureOn("numbered_list")) {
 		return {
 			kind: "clear",
 			strip: length,

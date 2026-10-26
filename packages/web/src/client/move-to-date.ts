@@ -1,3 +1,4 @@
+import {isFeatureOn} from "./features.js";
 import {executeMirrorTo} from "./mirror-commands.js";
 import {runMoveTo} from "./move-to.js";
 import type {LoadedMoveTarget} from "./move-to.js";
@@ -79,6 +80,9 @@ export async function executeMoveToDate({
 	/** Runs after the items moved (the calendar strip's dots are stale). */
 	onMoved?: () => void;
 }): Promise<boolean> {
+	if (!isFeatureOn("calendar_node")) {
+		return false;
+	}
 	commitEdit();
 	clearSelection();
 	const day = await findOrEnsureCalendarNode({date, createChild: false}, fetch);
@@ -117,6 +121,9 @@ export async function executeMirrorToDate({
 	/** Runs after the mirrors were made (the calendar strip's dots are stale). */
 	onMirrored?: () => void;
 }): Promise<boolean> {
+	if (!isFeatureOn("calendar_node")) {
+		return false;
+	}
 	commitEdit();
 	clearSelection();
 	const day = await findOrEnsureCalendarNode({date, createChild: false}, fetch);

@@ -3,6 +3,7 @@
  * only: each creates the Custom root and its Hotkeys/Themes node on first use, then zooms into it.
  */
 
+import {isFeatureOn} from "../features.js";
 import {useQueryClient} from "@tanstack/react-query";
 import {readJson} from "../read-json.js";
 import {nodeUrl} from "../navigation.js";
@@ -61,11 +62,17 @@ export function useCustomizeCommands(navigate: (url: string) => void): Record<st
 	return {
 		customize_hotkeys: {
 			execute() {
+				if (!isFeatureOn("beta_redirect")) {
+					return;
+				}
 				void run((info) => planCustomizeHotkeys(info));
 			},
 		},
 		customize_themes: {
 			execute() {
+				if (!isFeatureOn("beta_redirect")) {
+					return;
+				}
 				void run((info) => planCustomizeThemes(info, currentThemeValues()));
 			},
 		},

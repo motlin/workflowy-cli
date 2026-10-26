@@ -1,3 +1,4 @@
+import {isFeatureOn} from "./features.js";
 import type {Command, CommandContext, CommandRegistry} from "./keys/dispatch.js";
 import {MAIN_PANE_ID, findPane, paneMoveIndex} from "./pane-ids.js";
 import type {OpenPaneOptions} from "./stores/outline.js";
@@ -27,6 +28,9 @@ export function paneCommands(store: PaneCommandStore): CommandRegistry {
 	return {
 		new_pane: {
 			execute() {
+				if (!isFeatureOn("side_pane")) {
+					return;
+				}
 				const {panes, activePaneId, zoomedNodeId, openPane} = store.getState();
 				const active = findPane(panes, activePaneId);
 				openPane(active === undefined ? zoomedNodeId : active.zoomedId, {
@@ -50,6 +54,9 @@ export function paneCommands(store: PaneCommandStore): CommandRegistry {
 		/** Upstream's unbound `toggle_panes`: close every pane when any is open, else open the focused (or zoomed) item in one. */
 		toggle_panes: {
 			execute(ctx) {
+				if (!isFeatureOn("side_pane")) {
+					return;
+				}
 				const {panes, activePaneId, closeAllPanes, openPane} = store.getState();
 				if (panes.length > 0) {
 					closeAllPanes();

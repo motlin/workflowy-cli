@@ -1,3 +1,4 @@
+import {isFeatureOn} from "../features.js";
 import type {NodeAttachment} from "../../node-types.js";
 
 export type PreviewKind = "none" | "image" | "audio" | "pdf" | "video" | "download";
@@ -20,7 +21,7 @@ export function previewKind(attachment: NodeAttachment | null | undefined): Prev
 	if (type === "application/pdf") {
 		return "pdf";
 	}
-	if (type.startsWith("video/")) {
+	if (type.startsWith("video/") && isFeatureOn("beta_redirect")) {
 		return "video";
 	}
 	return "download";

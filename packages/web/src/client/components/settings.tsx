@@ -3,7 +3,7 @@ import type {KeyboardEvent, ReactNode} from "react";
 import {formatPillLabel} from "@workflowy/shared";
 import {dateFormatOptions, timeFormatOptions, weekStartPatch} from "../date-settings.js";
 import type {FormatOption} from "../date-settings.js";
-import {useFeatures} from "../hooks/use-features.js";
+import {useFeatureOn, useFeatures} from "../hooks/use-features.js";
 import {usePreferences} from "../hooks/use-preferences.js";
 import type {Preferences, PreferencesPatch} from "../hooks/use-preferences.js";
 import {currentVersionLabel} from "../app-version.js";
@@ -449,6 +449,7 @@ function orderedTitles(titles: readonly string[]): string[] {
 
 function SettingsBody({initialSection, onClose}: {initialSection: string | null; onClose: () => void}) {
 	const {preferences, setPreferences} = usePreferences();
+	const datesOn = useFeatureOn("dates");
 	const rootRef = useRef<HTMLDivElement>(null);
 	const [titles, setTitles] = useState<string[]>([]);
 	const [jump, setJump] = useState(initialSection ?? "");
@@ -482,9 +483,12 @@ function SettingsBody({initialSection, onClose}: {initialSection: string | null;
 	const sections: ReactNode[] = [
 		<AccountSection key="Account" {...sectionProps} />,
 		<PersonalizationSection key="Personalization" {...sectionProps} />,
-		<SettingsSection key="Dates" title="Dates">
-			<DatesSection />
-		</SettingsSection>,
+		// Upstream renders the Dates section only while the `dates` flag is on.
+		datesOn && (
+			<SettingsSection key="Dates" title="Dates">
+				<DatesSection />
+			</SettingsSection>
+		),
 		<MediaSection key="Media & Previews" {...sectionProps} />,
 		// Backup holds only Trash, which waits on a trash view.
 		<NotificationsSection key="Notifications" {...sectionProps} />,

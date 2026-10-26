@@ -4,6 +4,7 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import type {Root} from "react-dom/client";
+import {DEFAULT_FEATURES} from "../src/client/features.js";
 import {featureKeys} from "../src/client/hooks/use-features.js";
 import {EMPTY_PREFERENCES, preferenceKeys} from "../src/client/hooks/use-preferences.js";
 import type {Preferences} from "../src/client/hooks/use-preferences.js";
@@ -43,7 +44,7 @@ const calls = {
 	toggleRightBarCollapsed: vi.fn<() => void>(),
 };
 const fetchStub = vi.fn<typeof fetch>();
-let featuresBody: unknown = {visible: [], enabled: {}, available: true};
+let featuresBody: unknown = {visible: [], enabled: {...DEFAULT_FEATURES}, available: true};
 const DUMPS = resolve(process.cwd(), ".llm/upstream-sync/dumps");
 function dump(name: string): unknown {
 	return JSON.parse(readFileSync(resolve(DUMPS, name), "utf8"));
@@ -57,7 +58,7 @@ beforeEach(() => {
 	vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
 	vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
 	vi.stubGlobal("fetch", fetchStub);
-	featuresBody = {visible: [], enabled: {}, available: true};
+	featuresBody = {visible: [], enabled: {...DEFAULT_FEATURES}, available: true};
 	store.state = {
 		settingsOpen: true,
 		settingsSection: null,
@@ -396,6 +397,25 @@ describe("Settings dialog", () => {
 			labels: ["Show weekly report", "Daily change email summary"],
 			states: ["off", "off"],
 			patch: ['{"weeklyReportOn":true}', '{"unsubscribeFromSummaryEmails":false}'],
+		});
+	});
+
+	it("keeps the Dates section by default and drops it when the dates flag is off", async () => {
+		await open();
+		const defaults = sectionTitles();
+		await run(() => {
+			root?.unmount();
+		});
+		host?.remove();
+		featuresBody = {
+			visible: [],
+			enabled: Object.fromEntries(Object.entries(DEFAULT_FEATURES).filter(([name]) => name !== "dates")),
+			available: true,
+		};
+		await open();
+		expect({defaults, off: sectionTitles()}).toStrictEqual({
+			defaults: ["Personalization", "Dates", "Media & Previews", "Notifications", "Features"],
+			off: ["Personalization", "Media & Previews", "Notifications", "Features"],
 		});
 	});
 

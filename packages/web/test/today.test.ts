@@ -1,4 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
+import {setAccountFeatures} from "../src/client/features.js";
 import {navigateToCalendarDate, navigateToToday} from "../src/client/today.js";
 
 interface Reply {
@@ -163,5 +164,18 @@ describe("navigateToCalendarDate", () => {
 				["notify", "No calendar page for the week of 2026-10-11 yet", "info"],
 			],
 		});
+	});
+});
+
+describe("calendar_node flag", () => {
+	it("does nothing when the account flag is off", async () => {
+		const {calls, deps} = harness([]);
+		setAccountFeatures({});
+		try {
+			await navigateToToday(deps);
+		} finally {
+			setAccountFeatures(null);
+		}
+		expect(calls).toStrictEqual([]);
 	});
 });

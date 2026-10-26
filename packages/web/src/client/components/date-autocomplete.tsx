@@ -6,6 +6,7 @@ import type {DatePhrase} from "@workflowy/shared";
 import {caretTextOffset} from "../caret-dom.js";
 import {datePhraseText, findDatePhraseAtCaret, serializeDatePills} from "../date-pills.js";
 import type {DateSettings} from "../date-settings.js";
+import {isFeatureOn} from "../features.js";
 import {isVisible, pop, unpop} from "../popups.js";
 import {FaIcon} from "./fa-icons.js";
 import {popoverBox} from "./flyout/popover-box.js";
@@ -138,7 +139,7 @@ export function useDateAutocomplete({
 		const selection = globalThis.getSelection();
 		// Upstream: drop our own slot first, then yield to any other registered popup.
 		unpop("date.autocomplete");
-		if (editor === null || isBlocked() || isVisible() || !selection?.isCollapsed) {
+		if (editor === null || !isFeatureOn("dates") || isBlocked() || isVisible() || !selection?.isCollapsed) {
 			hide();
 			return;
 		}

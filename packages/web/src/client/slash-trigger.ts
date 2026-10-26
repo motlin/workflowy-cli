@@ -4,6 +4,7 @@
  */
 
 import {CARD_PLACEHOLDER} from "./dashboard.js";
+import {isFeatureOn} from "./features.js";
 import {isPropping} from "./suggest/suggest-engine.js";
 
 export const SLASH_CHIP_CLASS = "slash-input bg-tertiary py-2xs pr-xs pl-xs rounded-s leading-none";
@@ -21,6 +22,9 @@ const REARM_SCAN_LENGTH = 10;
  * also wraps the preceding character (the space).
  */
 export function planSlashOpen(text: string, slashIndex: number): SlashRange | null {
+	if (!isFeatureOn("slash-command")) {
+		return null;
+	}
 	const first = slashIndex === 0;
 	const standalone = !isPropping(text[slashIndex - 1]) && !isPropping(text[slashIndex + 1]);
 	if (!first && !standalone) {
