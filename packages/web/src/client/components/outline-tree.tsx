@@ -42,6 +42,8 @@ import {placeCaretAtTextOffset} from "../caret-dom.js";
 import {expandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
+import {DashboardBottomButton, DashboardTopButton} from "./dashboard-controls.js";
+import {dashboardsOn, isDashboard} from "../dashboard.js";
 import {CalendarStrip} from "./calendar-strip.js";
 import {DayTitlePrefix} from "./day-title-prefix.js";
 import {EditableNote} from "./editable-note.js";
@@ -207,6 +209,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const searchRootClasses = rootSearchClasses(useOutlineSearchFilter());
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
 	const layout = resolveLayoutMode(node?.data.layoutMode);
+	const zoomDashboard = isDashboard(node?.data.layoutMode, dashboardsOn());
 	const handleComplete = () => {
 		if (node) {
 			toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: node.completedAt !== null});
@@ -319,6 +322,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					setIsHovered(false);
 				}}
 			>
+				{zoomDashboard && node ? <DashboardTopButton parentId={node.id} /> : null}
 				{!isMainTreeRoot && !isReferencesRoot && nameHtml === "" && node?.data.layoutMode !== "numbered" ? (
 					<div className="contentEditablePlaceholderWrapper">
 						<div className="contentEditablePlaceholder">Untitled</div>
@@ -759,6 +763,7 @@ export function OutlineChildren({
 }): ReactNode {
 	const {data: nodes} = useChildren(parentId);
 	const search = useOutlineSearchFilter();
+	const dashboard = parentId !== null && isDashboard(owner?.data.layoutMode, dashboardsOn());
 	// A search leaves the Backlinks section out, so its rows skip the fetch.
 	const {data: backlinks} = useBacklinks(search === null ? parentId : null);
 	const {showCompleted, animatingCompletionIds} = useOutlineStore(
@@ -792,17 +797,31 @@ export function OutlineChildren({
 		(total > 0 && limit === 0) ||
 		(total === 0 && backlinksRootId == null && foundItems.length === 0)
 	) {
-		return isRoot ? (addChild ?? null) : null;
+		return dashboard && visibleNodes !== undefined && total === 0 ? (
+			<div ref={containerRef} className={isRoot ? ROOT_CHILDREN_CLASS : (className ?? NESTED_CHILDREN_CLASS)}>
+				<DashboardBottomButton parentId={parentId} />
+			</div>
+		) : isRoot ? (
+			(addChild ?? null)
+		) : null;
 	}
 
 	const numbers = childNumbers(nodes ?? [], visibleNodes, search !== null, showCompleted, animatingCompletionIds);
 	return (
 		<div ref={containerRef} className={isRoot ? ROOT_CHILDREN_CLASS : (className ?? NESTED_CHILDREN_CLASS)}>
 			{visibleNodes.slice(0, limit).map((node) => (
-				<OutlineRow key={node.id} depth={depth} node={node} number={numbers.get(node.id)} />
+				<OutlineRow
+					key={node.id}
+					dashboardCard={dashboard}
+					depth={depth}
+					node={node}
+					number={numbers.get(node.id)}
+				/>
 			))}
-			{isRoot ? addChild : null}
+			{isRoot && !dashboard ? addChild : null}
 			{isRoot || owner === undefined || limit < total || total === 0 ? null : <AddSiblingButton owner={owner} />}
+			{dashboard && !isRoot ? <div className="dashboard-grid-spacer" /> : null}
+			{dashboard ? <DashboardBottomButton parentId={parentId} /> : null}
 			{backlinksRootId == null ? null : (
 				<BacklinksSection depth={depth} items={backlinks?.items ?? []} rootId={backlinksRootId} />
 			)}
@@ -855,6 +874,7 @@ export function RootOutlineChildren({parentId, addChild}: {parentId: string | nu
 			addChild={addChild}
 			found={dayId === null ? null : {dayId, response}}
 			isRoot
+			owner={zoomed}
 			parentId={parentId}
 		/>
 	);

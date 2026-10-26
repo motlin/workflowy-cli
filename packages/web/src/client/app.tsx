@@ -1,5 +1,7 @@
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {memo, useEffect, useState} from "react";
+import {useNode} from "./hooks/use-nodes.js";
+import {dashboardClasses, dashboardsOn} from "./dashboard.js";
 import {createPortal} from "react-dom";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
@@ -153,6 +155,23 @@ function clearSelectionOnPageMouseDown(event: React.MouseEvent<HTMLDivElement>):
 	}
 }
 
+/** A dashboard page takes its padding, margin and radius from the `.dashboard-page` rule, not the inline page style. */
+function dashboardPageStyle(dashboardPage: boolean, style: ReturnType<typeof pageStyle>) {
+	if (!dashboardPage) {
+		return style;
+	}
+	const {
+		paddingLeft: _paddingLeft,
+		paddingRight: _paddingRight,
+		marginTop: _marginTop,
+		borderRadius: _borderRadius,
+		minHeight: _minHeight,
+		maxWidth: _maxWidth,
+		...rest
+	} = style;
+	return rest;
+}
+
 export interface PageShellProps {
 	zoomedNodeId: string | null;
 	fullWidth: boolean;
@@ -162,6 +181,8 @@ export interface PageShellProps {
 	showCompleted: boolean;
 	/** The phone's search form is showing, which pushes the page down. */
 	searchFormVisible?: boolean;
+	/** The zoomed item is a dashboard. */
+	dashboardPage?: boolean;
 }
 
 /** Upstream's `.pageContainer > .page` around the main outline (no pane open). Hook-free, so it adds no fiber. */
@@ -172,20 +193,24 @@ export function pageShell({
 	searching,
 	showCompleted,
 	searchFormVisible = false,
+	dashboardPage = false,
 }: PageShellProps) {
 	return (
 		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- upstream clears the item selection on any plain press in the container
 		<div className={pageContainerClassName(IS_MOBILE)} onMouseDown={clearSelectionOnPageMouseDown}>
 			<div
-				className={pageClassName({searching, showCompleted, mobile: IS_MOBILE})}
-				style={pageStyle({
-					fullWidth,
-					width,
-					searching,
-					mobile: IS_MOBILE,
-					safeInsets: IS_MOBILE ? readSafeInsets() : undefined,
-					searchFormVisible,
-				})}
+				className={pageClassName({searching, showCompleted, mobile: IS_MOBILE, dashboardPage})}
+				style={dashboardPageStyle(
+					dashboardPage,
+					pageStyle({
+						fullWidth,
+						width,
+						searching,
+						mobile: IS_MOBILE,
+						safeInsets: IS_MOBILE ? readSafeInsets() : undefined,
+						searchFormVisible,
+					}),
+				)}
 			>
 				<OutlineTree parentId={zoomedNodeId} shell="page" />
 				<SearchCountIndicator />
@@ -206,8 +231,16 @@ function MainOutline() {
 	const fullWidth = useOutlineStore((state) => state.fullWidthPage);
 	// With a pane open the main outline scrolls itself, like each pane, instead of the document.
 	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
+	const {data: zoomedNode} = useNode(zoomedNodeId);
 	if (!panesOpen) {
 		return pageShell({
+			dashboardPage:
+				dashboardClasses({
+					layoutMode: zoomedNode?.data.layoutMode,
+					parentLayoutMode: null,
+					isZoomRoot: true,
+					flagOn: dashboardsOn(),
+				}).page.length > 0,
 			zoomedNodeId,
 			fullWidth,
 			width,

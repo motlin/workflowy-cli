@@ -34,14 +34,17 @@ export function setTableCellProbe(probe: (nodeId: string) => boolean): void {
 }
 
 /** The types the picker offers for `nodeIds`: Home is both the root and the main document root. */
-export function pickerItemTypes(nodeIds: readonly string[]): ItemType[] {
+export function pickerItemTypes(nodeIds: readonly string[], dashboardsOn?: boolean): ItemType[] {
 	const atHome = nodeIds.includes(HOME_TARGET);
-	return availableItemTypes({
-		isRoot: atHome,
-		isMainDocumentRoot: atHome,
-		readOnly: false,
-		isTableCell: nodeIds.some((id) => tableCellProbe(id)),
-	});
+	return availableItemTypes(
+		{
+			isRoot: atHome,
+			isMainDocumentRoot: atHome,
+			readOnly: false,
+			isTableCell: nodeIds.some((id) => tableCellProbe(id)),
+		},
+		dashboardsOn,
+	);
 }
 
 /**
@@ -50,7 +53,7 @@ export function pickerItemTypes(nodeIds: readonly string[]): ItemType[] {
  * Table first expand every child of each node so the columns or rows show.
  */
 export function selectItemType(type: ItemType, nodeIds: readonly string[], deps: ItemTypeSelectDeps): void {
-	const targets = nodeIds.filter((id) => pickerItemTypes([id]).some((available) => available.key === type.key));
+	const targets = nodeIds.filter((id) => pickerItemTypes([id], true).some((available) => available.key === type.key));
 	if (type.layoutModeKey === "divider") {
 		for (const id of targets) {
 			if (deps.layoutMode(id) !== "divider") {
@@ -60,7 +63,7 @@ export function selectItemType(type: ItemType, nodeIds: readonly string[], deps:
 		}
 		return;
 	}
-	if (type.layoutModeKey === "board" || type.layoutModeKey === "table") {
+	if (type.layoutModeKey === "board" || type.layoutModeKey === "table" || type.layoutModeKey === "dashboard") {
 		deps.expandAll(targets.flatMap((id) => expandTargets(id, deps, type.layoutModeKey === "board")));
 	}
 	for (const id of targets) {

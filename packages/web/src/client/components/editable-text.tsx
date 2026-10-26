@@ -108,6 +108,7 @@ import {useInlineLinkPopup} from "../hooks/use-inline-link-popup.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripMentionChip} from "../mention-trigger.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
+import {dashboardsOn, isDashboard, shouldExpandOnEnter} from "../dashboard.js";
 import {focusCenters, focusScrolls} from "../quiet-focus.js";
 import {scrollToCenter} from "../scroll-reveal.js";
 
@@ -982,7 +983,10 @@ function EditingText({
 				role:
 					parentId !== null && isBoard(readNode(queryClient, parentId)?.data.layoutMode ?? null)
 						? "column"
-						: null,
+						: parentId !== null &&
+							  shouldExpandOnEnter(readNode(queryClient, parentId)?.data.layoutMode, dashboardsOn())
+							? "card"
+							: null,
 			},
 			html,
 			selection: selectionTextOffsets(content),
@@ -1473,6 +1477,9 @@ function EditingText({
 					empty: true,
 					layoutMode: readNode(queryClient, nodeId)?.data.layoutMode,
 					slashDiscovered,
+					dashboardCard:
+						parentId !== null &&
+						isDashboard(readNode(queryClient, parentId)?.data.layoutMode, dashboardsOn()),
 				})}
 				contentEditable
 				dangerouslySetInnerHTML={{__html: editorHtml}}

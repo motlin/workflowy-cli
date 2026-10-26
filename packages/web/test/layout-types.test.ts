@@ -31,6 +31,13 @@ describe("ITEM_TYPES", () => {
 			{key: "board", label: "Board", layoutModeKey: "board", icon: "columns-3", command: "turn_into_board"},
 			{key: "table", label: "Table", layoutModeKey: "table", icon: "table-cells", command: "turn_into_table"},
 			{
+				key: "dashboard",
+				label: "Dashboard",
+				layoutModeKey: "dashboard",
+				icon: "grid-horizontal",
+				command: "turn_into_dashboard",
+			},
+			{
 				key: "quote-block",
 				label: "Quote",
 				layoutModeKey: "quote-block",

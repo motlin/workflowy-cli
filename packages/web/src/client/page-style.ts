@@ -81,12 +81,21 @@ export function pageClassName({
 	searching,
 	showCompleted,
 	mobile = false,
+	dashboardPage = false,
 }: {
 	searching: boolean;
 	showCompleted: boolean;
 	mobile?: boolean;
+	/** The zoomed item is a dashboard (upstream's `page:classes`). */
+	dashboardPage?: boolean;
 }): string {
-	return [PAGE_CLASS, mobile && "overflow-x-hidden", searching && "searching", showCompleted && "showCompleted"]
+	return [
+		PAGE_CLASS,
+		mobile && "overflow-x-hidden",
+		searching && "searching",
+		showCompleted && "showCompleted",
+		dashboardPage && "dashboard-page",
+	]
 		.filter(Boolean)
 		.join(" ");
 }

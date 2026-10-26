@@ -14,6 +14,8 @@
  * Styling lives in styles.css keyed on `.project.<class>`. See
  * `.llm/web/node-type-coverage.md` for the upstream capture.
  */
+import {dashboardsOn} from "../dashboard.js";
+
 /** Upstream's divider `.project` classes, in upstream order. */
 export const DIVIDER_CLASSES: readonly string[] = [
 	"divider",
@@ -54,7 +56,10 @@ function rendering(projectClasses: readonly string[], isTodo = false): LayoutMod
  * Resolve the rendering descriptor for a `layoutMode` value. Unknown or default
  * (`null`/`bullets`/`bullet`) values render as a plain bullet.
  */
-export function resolveLayoutMode(layoutMode: string | null | undefined): LayoutModeRendering {
+export function resolveLayoutMode(
+	layoutMode: string | null | undefined,
+	flagOn: boolean = dashboardsOn(),
+): LayoutModeRendering {
 	if (!layoutMode || layoutMode === "bullets" || layoutMode === "bullet") {
 		return rendering([]);
 	}
@@ -78,6 +83,10 @@ export function resolveLayoutMode(layoutMode: string | null | undefined): Layout
 
 	if (layoutMode === "divider") {
 		return rendering(DIVIDER_CLASSES);
+	}
+
+	if (layoutMode === "dashboard") {
+		return rendering(flagOn ? ["dashboard"] : []);
 	}
 
 	if (layoutMode === "board") {

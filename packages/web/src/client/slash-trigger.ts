@@ -3,6 +3,7 @@
  * the `/` symbol predicates (`first`, `standalone`, `propping`).
  */
 
+import {CARD_PLACEHOLDER} from "./dashboard.js";
 import {isPropping} from "./suggest/suggest-engine.js";
 
 export const SLASH_CHIP_CLASS = "slash-input bg-tertiary py-2xs pr-xs pl-xs rounded-s leading-none";
@@ -63,6 +64,8 @@ export interface PlaceholderInput {
 	readonly layoutMode?: string | null | undefined;
 	readonly slashDiscovered?: boolean;
 	readonly isZoomRoot?: boolean;
+	/** The row is a dashboard card: an empty title reads "Add a title" instead of the slash hint. */
+	readonly dashboardCard?: boolean;
 }
 
 /** Upstream draws no placeholder (neither the slash hint nor "Untitled") on these rows. */
@@ -80,9 +83,13 @@ export function placeholderFor({
 	layoutMode,
 	slashDiscovered = true,
 	isZoomRoot = false,
+	dashboardCard = false,
 }: PlaceholderInput): string | undefined {
 	if (!empty || NO_PLACEHOLDER_LAYOUTS.has(layoutMode ?? "")) {
 		return undefined;
+	}
+	if (dashboardCard) {
+		return CARD_PLACEHOLDER;
 	}
 	if (focused && !slashDiscovered && layoutMode !== "divider" && layoutMode !== "numbered") {
 		return SLASH_HINT;

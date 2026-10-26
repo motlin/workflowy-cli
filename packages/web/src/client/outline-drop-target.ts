@@ -24,6 +24,8 @@ export interface DropTargetInput {
 	readonly predecessorId: string | null;
 	readonly movingIds: ReadonlySet<string>;
 	readonly zoomRootId: string;
+	/** Upstream's `can_move_under`: false refuses a drop whose parent is `parentId`. */
+	readonly canMoveUnder?: (parentId: string) => boolean;
 }
 
 export interface DropTarget {
@@ -33,7 +35,14 @@ export interface DropTarget {
 	readonly ambiguous: boolean;
 }
 
-export function resolveDropTarget({x, rows, predecessorId, movingIds, zoomRootId}: DropTargetInput): DropTarget | null {
+export function resolveDropTarget({
+	x,
+	rows,
+	predecessorId,
+	movingIds,
+	zoomRootId,
+	canMoveUnder,
+}: DropTargetInput): DropTarget | null {
 	if (predecessorId === null) {
 		return null;
 	}
@@ -56,7 +65,7 @@ export function resolveDropTarget({x, rows, predecessorId, movingIds, zoomRootId
 	}
 
 	const target = findTarget(x, pred, succ, rows, zoomRootId);
-	if (target === null || isMovingOrInside(target.parentId)) {
+	if (target === null || isMovingOrInside(target.parentId) || canMoveUnder?.(target.parentId) === false) {
 		return null;
 	}
 	return {...target, ambiguous: rows.isCollapsed(target.parentId)};

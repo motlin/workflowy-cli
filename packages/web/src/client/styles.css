@@ -3990,3 +3990,166 @@ body.mobile-sheet-open {
 .is-mobile {
 	background: var(--wf-background-primary);
 }
+
+/* dashboard-layout (upstream wf-base), verbatim from dumps/dashboard-layout-upstream-css.txt */
+.dashboard-add-button-bottom {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--wf-radius-m);
+	width: 64px;
+	height: 64px;
+	font-size: var(--wf-font-size-xl);
+	color: var(--text-secondary);
+}
+.dashboard-add-button-bottom:hover {
+	background: var(--wf-background-tertiary);
+}
+.is-desktop .page.dashboard-page {
+	margin-left: auto;
+	margin-right: auto;
+	max-width: none !important;
+	padding-left: var(--wf-space-3xl);
+	padding-right: var(--wf-space-3xl);
+	margin-top: var(--wf-space-3xl);
+	border-radius: 0;
+	min-height: calc(100vh - 96px);
+}
+.is-desktop .dashboard > .children {
+	display: flex;
+	gap: 24px;
+	padding-top: 24px;
+	flex-wrap: wrap;
+}
+.is-desktop .show-controls-on-hover > .name > .bullet,
+.is-desktop .show-controls-on-hover > .name > .expand,
+.is-desktop .show-controls-on-hover > .name > .itemMenu {
+	transition: opacity 0.2s;
+	opacity: 0;
+}
+.is-desktop .dashboard-card {
+	flex-basis: 343px;
+	max-width: 500px;
+	padding-bottom: 16px;
+	height: 298px;
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 1;
+	box-sizing: border-box;
+	background: var(--wf-background-primary);
+	border: var(--wf-border-width-s) solid var(--wf-border-primary);
+	box-shadow: 0 4px 4px #0000000f;
+	border-radius: 6px;
+	padding-top: 24px;
+	padding-left: 24px;
+	--name-left-overhang: 40px;
+}
+.is-desktop .dashboard-inline > .children {
+	box-sizing: border-box;
+	align-content: flex-start;
+	max-height: 60vh;
+	overflow-x: auto;
+	overflow-y: auto;
+	margin-left: 0;
+	border-left: none;
+	padding-bottom: 16px;
+	padding-right: 24px;
+}
+.is-desktop .dashboard-inline > .children > .dashboard-grid-spacer {
+	flex: 0 0 100%;
+}
+.is-desktop .dashboard-inline > .children > .dashboard-add-button-bottom {
+	flex-shrink: 0;
+}
+.is-desktop .dashboard-card > .name .contentEditablePlaceholder {
+	font-size: 19px;
+}
+.is-desktop .dashboard-card > .notes,
+.is-desktop .dashboard-card > .name {
+	padding-left: calc(var(--name-left-overhang)) !important;
+}
+.is-desktop .dashboard-card .itemMenu {
+	left: calc(100% - 24px);
+}
+.is-desktop .dashboard-card > .name {
+	font-size: 19px;
+	font-weight: 700;
+	line-height: 26;
+	margin-bottom: 0;
+}
+.is-desktop .dashboard-card > .name > .content {
+	padding-right: 62px;
+}
+.is-desktop .dashboard-card > .name > .expand {
+	top: 4px !important;
+	left: 0 !important;
+}
+.is-desktop .dashboard-card > .name > .bullet {
+	top: 6px !important;
+	left: calc(100% - 60px) !important;
+}
+.is-desktop .dashboard-card > .name > .itemMenu {
+	top: 5px !important;
+	left: calc(100% - 32px) !important;
+}
+.is-desktop .dashboard-card > .addChildButton,
+.is-desktop .dashboard-card > .children > .addChildButton {
+	height: 30px;
+	width: 30px;
+	margin-left: -6px;
+	border-radius: 6px;
+}
+.is-desktop .dashboard-card > .addChildButton .circle,
+.is-desktop .dashboard-card > .children > .addChildButton .circle {
+	display: none;
+}
+.is-desktop .dashboard-card > .addChildButton:hover,
+.is-desktop .dashboard-card > .children > .addChildButton:hover {
+	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
+}
+.is-desktop .dashboard-card > .children {
+	border: none;
+	flex-grow: 1;
+	margin-left: -16px;
+	padding-left: 16px;
+	padding-right: 16px;
+	margin-top: 16px;
+	overflow-y: scroll;
+}
+.is-desktop .dashboard-card > .children .children {
+	padding-left: 11px;
+}
+.is-desktop .dashboard-card > .children .project {
+	--name-left-overhang: 40px;
+}
+.is-desktop .dashboard-card > .children .expand {
+	left: calc(var(--name-left-overhang) - 20px);
+}
+.is-desktop .dashboard-card .nameButtons {
+	display: none !important;
+}
+.is-desktop .selected.dashboard .comment-container {
+	width: 90%;
+}
+.is-desktop .dashboard-card.comment-container {
+	width: 100% !important;
+	margin: 0;
+	padding: 16px;
+}
+.is-desktop .dashboard-card.comment-container > .name .bullet {
+	top: 6px;
+}
+.paragraph:not(.root).dashboard-card,
+.header1:not(.root).dashboard-card,
+.header2:not(.root).dashboard-card,
+.header3:not(.root).dashboard-card {
+	margin-top: 0;
+}
+
+/* Local: the generic hover reveal, scoped to cards (upstream applies it to every .name:not(.name--root)). */
+.is-desktop .show-controls-on-hover > .name:hover > .itemMenu,
+.is-desktop .show-controls-on-hover > .name:hover > .expand,
+.is-desktop .show-controls-on-hover > .name:hover > .bullet {
+	opacity: 1 !important;
+}

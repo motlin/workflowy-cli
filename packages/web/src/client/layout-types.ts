@@ -3,6 +3,8 @@
  * plus the rules that decide which types an item may become and which icon the
  * type-menu header shows for the item's current layout.
  */
+import {dashboardsOn} from "./dashboard.js";
+
 export interface ItemType {
 	key: string;
 	label: string;
@@ -32,6 +34,13 @@ export const ITEM_TYPES: readonly ItemType[] = [
 	{key: "board", label: "Board", layoutModeKey: "board", icon: "columns-3", command: "turn_into_board"},
 	{key: "table", label: "Table", layoutModeKey: "table", icon: "table-cells", command: "turn_into_table"},
 	{
+		key: "dashboard",
+		label: "Dashboard",
+		layoutModeKey: "dashboard",
+		icon: "grid-horizontal",
+		command: "turn_into_dashboard",
+	},
+	{
 		key: "quote-block",
 		label: "Quote",
 		layoutModeKey: "quote-block",
@@ -60,15 +69,27 @@ const MAIN_DOCUMENT_ROOT_EXCLUDED = new Set([
 	"divider",
 ]);
 
-const TABLE_CELL_ALLOWED = new Set(["bullets", "todo", "board", "table", "h1", "h2", "h3", "p", "numbered"]);
+const TABLE_CELL_ALLOWED = new Set([
+	"bullets",
+	"todo",
+	"board",
+	"table",
+	"dashboard",
+	"h1",
+	"h2",
+	"h3",
+	"p",
+	"numbered",
+]);
 
 /** Types an item may be turned into, in menu order. */
-export function availableItemTypes(ctx: ItemTypeContext): ItemType[] {
+export function availableItemTypes(ctx: ItemTypeContext, flagOn: boolean = dashboardsOn()): ItemType[] {
 	if (ctx.readOnly) {
 		return [];
 	}
 	return ITEM_TYPES.filter(
 		(type) =>
+			!(type.layoutModeKey === "dashboard" && !flagOn) &&
 			!(ctx.isRoot && type.layoutModeKey === "todo") &&
 			!(ctx.isMainDocumentRoot && MAIN_DOCUMENT_ROOT_EXCLUDED.has(type.layoutModeKey)) &&
 			!(ctx.isTableCell && !TABLE_CELL_ALLOWED.has(type.layoutModeKey)),

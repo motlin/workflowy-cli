@@ -198,8 +198,8 @@ export interface SplitNode {
 	canOutdent: boolean;
 	/** The row's layout mode: Enter in a code or quote block inserts a newline. */
 	layoutMode?: string | null | undefined;
-	/** `"column"` when the parent is a board: Enter at the end creates the column's first card. */
-	role?: "column" | null;
+	/** `"column"` when the parent is a board, `"card"` when it is a dashboard: Enter at the end creates the first child. */
+	role?: "column" | "card" | null;
 }
 
 /** What Enter does: outdent the empty row, insert a newline in a code or quote block, or create a row and rename the current one. */
@@ -301,7 +301,7 @@ export function planSplit({
 	const {start, end} = selection;
 	if (start === end && start >= trimmedPlainLength(html)) {
 		const {before, after} = splitHtml(html, start, end);
-		if (node.role === "column") {
+		if (node.role === "column" || node.role === "card") {
 			return {...create(node.id, 0, after, before, "new"), expand: node.id};
 		}
 		if (node.hasVisibleChildren && node.isExpanded) {

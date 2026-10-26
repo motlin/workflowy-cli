@@ -2,8 +2,11 @@ import {describe, expect, it, vi} from "vite-plus/test";
 import {createElement} from "react";
 import type {ReactNode, ReactPortal} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import {ITEM_TYPES} from "../src/client/layout-types.js";
+import {ITEM_TYPES as ALL_ITEM_TYPES} from "../src/client/layout-types.js";
 import type {ItemType} from "../src/client/layout-types.js";
+
+/** The flag-off picker: Dashboard is a Labs type, hidden by default. */
+const ITEM_TYPES = ALL_ITEM_TYPES.filter((type) => type.key !== "dashboard");
 
 vi.mock(import("react-dom"), async (importOriginal) => ({
 	...(await importOriginal()),

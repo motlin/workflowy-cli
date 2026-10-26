@@ -32,6 +32,7 @@ import {findOrEnsureCalendarNode} from "../today.js";
 import {STRIP_DROP_EVENT, stripDropCellOf, stripDropKey} from "../calendar-strip-model.js";
 import type {StripDropCell, StripDropDetail} from "../calendar-strip-model.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
+import {canMoveUnderDashboard, dashboardsOn} from "../dashboard.js";
 import {readChildren, readNode, removeFoundDates, nodeKeys} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
 import type {DropRows, DropTarget} from "../outline-drop-target.js";
@@ -458,6 +459,13 @@ function startOutlineDrag(queryClient: QueryClient, params: OutlineDragParams): 
 			predecessorId,
 			movingIds: new Set(state.draggingIds),
 			zoomRootId,
+			canMoveUnder: (parentId) => {
+				const grandparentId = readNode(queryClient, parentId)?.parent_id;
+				return canMoveUnderDashboard(
+					grandparentId == null ? null : readNode(queryClient, grandparentId)?.data.layoutMode,
+					dashboardsOn(),
+				);
+			},
 		});
 		const indicator = dropIndicatorFor(
 			target,

@@ -66,7 +66,7 @@ describe("requested menus store", () => {
 describe("pickerItemTypes", () => {
 	it("offers only Bullets and Board at Home, and all twelve types elsewhere", () => {
 		expect(pickerItemTypes(["home"]).map((type) => type.label)).toStrictEqual(["Bullets", "Board"]);
-		expect(pickerItemTypes(["alice"])).toStrictEqual(ITEM_TYPES);
+		expect(pickerItemTypes(["alice"])).toStrictEqual(ITEM_TYPES.filter((type) => type.key !== "dashboard"));
 	});
 });
 

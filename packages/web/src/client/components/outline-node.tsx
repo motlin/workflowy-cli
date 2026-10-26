@@ -46,6 +46,7 @@ import {expandArrow} from "./expand-arrow.js";
 import {DividerLine} from "./divider-line.js";
 import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
 import {resolveLayoutMode} from "./layout-mode.js";
+import {CARD_PLACEHOLDER, dashboardClasses, dashboardsOn} from "../dashboard.js";
 import {itemMenuLeft} from "../item-menu-model.js";
 import {openInPane} from "../pane-commands.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
@@ -193,6 +194,8 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 }
 
 interface NodeNameProps {
+	/** The row is a card of a dashboard. */
+	dashboardCard?: boolean;
 	node: NodeResponse;
 	/** Whether this row's name is being edited in the active pane. */
 	isEditing: boolean;
@@ -245,6 +248,7 @@ function NodeName({
 	number,
 	boardRole,
 	tableCell,
+	dashboardCard = false,
 }: NodeNameProps) {
 	const boardZoomed = useContext(BoardZoomedContext);
 	const search = useOutlineSearchFilter();
@@ -345,7 +349,9 @@ function NodeName({
 						? boardColumnNameClass(boardZoomed)
 						: boardRole === "card"
 							? BOARD_CARD_NAME_CLASS
-							: undefined
+							: dashboardCard
+								? "group/name"
+								: undefined
 					: tableCellNameClass(tableCell.header),
 		}),
 		searchNameClasses,
@@ -373,10 +379,16 @@ function NodeName({
 					<div className="contentEditablePlaceholder">Untitled</div>
 				</div>
 			) : null}
+			{dashboardCard && name === "" && !isDivider ? (
+				<div className="contentEditablePlaceholderWrapper">
+					<div className="contentEditablePlaceholder">{CARD_PLACEHOLDER}</div>
+				</div>
+			) : null}
 			{nodeBullet({
 				board: boardRole,
+				dashboardCard,
 				tableCell: tableCell !== undefined,
-				shared: tableCell !== undefined && isMirrorRoot(node),
+				shared: (tableCell !== undefined || dashboardCard) && isMirrorRoot(node),
 				mobile:
 					mobileMetrics === null
 						? undefined
@@ -476,7 +488,15 @@ function rowProjectClassName(
 	boardZoomed = true,
 	tableCell?: TableCellInfo,
 	tableRenders = false,
+	dashboardCard = false,
 ): string {
+	const flagOn = dashboardsOn();
+	const dashboardExtras = dashboardClasses({
+		layoutMode: node.data.layoutMode,
+		parentLayoutMode: dashboardCard ? "dashboard" : null,
+		isZoomRoot: false,
+		flagOn,
+	}).project.filter((name) => name !== "dashboard");
 	return projectClassName({
 		selectedColumn: boardRole === "column" && boardZoomed,
 		hasChildren,
@@ -493,13 +513,14 @@ function rowProjectClassName(
 		addedToSelection: addedToSelection || tableCell?.rowSelected === true,
 		withImage: isPreviewable(node.attachment),
 		layoutClasses: [
-			...resolveLayoutMode(node.data.layoutMode).projectClasses.flatMap((layoutClass) =>
+			...resolveLayoutMode(node.data.layoutMode, flagOn).projectClasses.flatMap((layoutClass) =>
 				layoutClass === "tableItem"
 					? tableRenders
 						? [isExpanded ? "tableItem " : "tableItem"]
 						: []
 					: [layoutClass],
 			),
+			...dashboardExtras,
 			...(tableCell === undefined
 				? boardRole === "column"
 					? [boardColumnClass(boardZoomed)]
@@ -549,8 +570,11 @@ export const OutlineRow = memo(function OutlineRow({
 	boardRole,
 	columnMode,
 	tableCell,
+	dashboardCard = false,
 }: {
 	node: NodeResponse;
+	/** The row is a direct child of a dashboard: a card. */
+	dashboardCard?: boolean;
 	/** The row's list number when it is a numbered row. */
 	number?: number;
 	depth?: number;
@@ -670,6 +694,7 @@ export const OutlineRow = memo(function OutlineRow({
 					boardZoomed,
 					tableCell,
 					tableRenders,
+					dashboardCard,
 				),
 				rowSearchClasses.project,
 			)}
@@ -698,6 +723,7 @@ export const OutlineRow = memo(function OutlineRow({
 				number={number}
 				boardRole={boardRole}
 				tableCell={tableCell}
+				dashboardCard={dashboardCard}
 			/>
 			{embed === null ? null : <EmbedView key={firstLinkHref(node.name)} embed={embed} />}
 			{previewKind(node.attachment) === "none" ? null : <RowFilePreview node={node} zoomedIn={false} />}

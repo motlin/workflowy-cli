@@ -14,7 +14,9 @@ describe("add-child button styles", () => {
 	it("drops the legacy container and keeps only upstream's svg sizing rule", () => {
 		expect({
 			legacyContainer: preludes.filter((prelude) => prelude.includes(".add-button-container")),
-			addChildSelectors: preludes.filter((prelude) => prelude.includes(".addChildButton")),
+			addChildSelectors: preludes.filter(
+				(prelude) => prelude.includes(".addChildButton") && !prelude.includes(".dashboard-card"),
+			),
 			svg: cssBlock(styles, ".addChildButton svg"),
 		}).toStrictEqual({
 			legacyContainer: [],

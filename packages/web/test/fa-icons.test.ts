@@ -86,6 +86,7 @@ describe("FA_ICONS", () => {
 			"fal:list-ol",
 			"fal:columns-3",
 			"fal:table-cells",
+			"fal:grid-horizontal",
 			"fal:block-quote",
 			"fal:rectangle-code",
 			"fal:horizontal-rule",
