@@ -336,3 +336,34 @@ test("every name-update op documented in a staging command carries --expect-name
 
 	assert.deepStrictEqual(unguarded, []);
 });
+
+test("rejects an email-calendar toolRequest that names the calendar as calendarName, since events_create takes calendar", () => {
+	const result = validateProposal(
+		emailCalendarStaged({
+			proposals: [
+				emailCalendarProposal({
+					toolRequest: {tool: "events_create", arguments: {title: "Book club dinner", calendarName: "Home"}},
+				}),
+			],
+		}),
+	);
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: email-calendar toolRequest stages "calendarName" — events_create takes "calendar"; rename it',
+		],
+	});
+});
+
+test("accepts an email-calendar toolRequest that stages calendar", () => {
+	const result = validateProposal(
+		emailCalendarStaged({
+			proposals: [
+				emailCalendarProposal({
+					toolRequest: {tool: "events_create", arguments: {title: "Book club dinner", calendar: "Home"}},
+				}),
+			],
+		}),
+	);
+	assert.deepStrictEqual(result, {valid: true, errors: []});
+});

@@ -52,6 +52,10 @@ The stable identity is staged as `key` and the alternates as `altKeys` — the e
 }
 ```
 
+## Calendar parameter
+
+When a proposal stages a `toolRequest` for `events_create`, name the target calendar `calendar`, never `calendarName`. The tool ignores unknown parameters, so `calendarName` files the event on the default calendar with no error; the validator rejects it.
+
 ## Source message fields
 
 Stage the source email's coordinates on every proposal so `email-calendar-apply` can trash it on **Reject and delete** without searching for it. `account` is the `<account>` segment of the IMAP MCP server that returned the message (`mcp__gmail-<account>-imap__*`), `mailbox` is the mailbox it was read from, and `messageUid` is its IMAP UID as an integer. Include `uidValidity` whenever the search result reports it, so a UID from a stale mailbox generation fails safely instead of hitting another message. Read the message without marking it seen.

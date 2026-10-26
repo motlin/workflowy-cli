@@ -57,6 +57,24 @@ const validateLedgerKey = (task: unknown, entry: JsonObject, index: number, erro
 	);
 };
 
+// events_create takes the target calendar as `calendar`. Prep once staged `calendarName` in the
+// toolRequest, which the tool silently ignores and so files the event on the default calendar.
+const validateCalendarParam = (task: unknown, entry: JsonObject, index: number, errors: string[]): void => {
+	if (typeof task !== "string" || !LEDGER_KEY_TASKS.has(task)) {
+		return;
+	}
+	const request = entry.toolRequest;
+	if (!isObject(request)) {
+		return;
+	}
+	const args = isObject(request.arguments) ? request.arguments : request;
+	if (args.calendarName !== undefined) {
+		errors.push(
+			`proposals[${index}]: ${task} toolRequest stages "calendarName" — events_create takes "calendar"; rename it`,
+		);
+	}
+};
+
 // "Reject and delete" trashes the source email through the Gmail IMAP MCP, so apply needs the
 // exact message coordinates from prep rather than re-searching the inbox for it.
 const SOURCE_MESSAGE_FIELDS: Record<string, (value: unknown) => boolean> = {
@@ -105,6 +123,7 @@ const validateProposalEntry = (task: unknown, entry: JsonObject, index: number, 
 	validateLedgerKey(task, entry, index, errors);
 	validateSourceMessage(task, entry, index, errors);
 	validateSourceLinks(task, entry, index, errors);
+	validateCalendarParam(task, entry, index, errors);
 
 	const exemptIdFields = (typeof task === "string" ? NON_NODE_ID_FIELDS[task] : undefined) ?? new Set<string>();
 	for (const field of Object.keys(entry)) {
