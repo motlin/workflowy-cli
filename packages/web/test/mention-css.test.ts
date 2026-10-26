@@ -15,9 +15,8 @@ function block(selector: string): string[] {
 
 describe("mention popup css", () => {
 	it("matches upstream's declarations", () => {
-		expect([block(".menu.mention-popup"), block(".flyout.mention-popup"), block(".mention-avatar")]).toStrictEqual([
+		expect([block(".menu.mention-popup"), block(".mention-avatar")]).toStrictEqual([
 			["padding-bottom: 0"],
-			["box-sizing: content-box"],
 			[
 				"border: var(--wf-border-width-s) solid var(--wf-border-primary)",
 				"display: flex",
@@ -28,7 +27,6 @@ describe("mention popup css", () => {
 				"font-size: 10px",
 				"align-items: center",
 				"justify-content: center",
-				"box-sizing: content-box",
 			],
 		]);
 	});

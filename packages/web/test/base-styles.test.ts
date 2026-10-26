@@ -79,7 +79,6 @@ describe("upstream base styles", () => {
 	it("ports FontAwesome svg-core sizing", () => {
 		expect(cssBlock(styles, ".svg-inline--fa")).toStrictEqual({
 			display: "inline-block",
-			"box-sizing": "content-box",
 			height: "1em",
 			overflow: "visible",
 			"vertical-align": "-0.125em",
@@ -222,7 +221,6 @@ describe("upstream button variants and duotone icons", () => {
 			"font-family": "var(--font-code-font-family, var(--wf-font-family-mono))",
 			"line-height": "var(--wf-line-height-s)",
 			"font-size": "var(--font-code-block-font-size, 95%) !important",
-			"box-sizing": "content-box",
 		});
 		expect(cssBlock(styles, ".font-andale code")).toStrictEqual({padding: "0", "font-size": "100%"});
 		expect(hasSelector(styles, /^\s*\.innerContentContainer code\s*$/u)).toBe(false);

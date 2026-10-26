@@ -6,8 +6,8 @@ import {cssBlock, hasSelector} from "./helpers/css-block.js";
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
 describe("flyout surface styles", () => {
-	it("gives the portaled flyout upstream's content-box and body line-height 1", () => {
-		expect(cssBlock(styles, ".wf-menu.flyout")).toStrictEqual({"box-sizing": "content-box", "line-height": "1"});
+	it("gives the portaled flyout body line-height 1 and the default content-box", () => {
+		expect(cssBlock(styles, ".wf-menu.flyout")).toStrictEqual({"line-height": "1"});
 	});
 
 	it("drops the location picker's own line-height restore, now inherited from the flyout rule", () => {

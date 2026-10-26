@@ -42,12 +42,10 @@ describe("date picker calendar button styles", () => {
 		});
 	});
 
-	it("keeps upstream's content-box 26px day cell and lets `h-s` size the 6px found-date dot over FA's 1em", () => {
+	it("lets `h-s` size the 6px found-date dot over FA's 1em", () => {
 		expect({
-			cell: cssBlock(styles, ".date-picker-day-cell"),
 			dot: cssBlock(styles, ".svg-inline--fa.h-s"),
 		}).toStrictEqual({
-			cell: {"box-sizing": "content-box"},
 			dot: {height: "0.375rem"},
 		});
 	});

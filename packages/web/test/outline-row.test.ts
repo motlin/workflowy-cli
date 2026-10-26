@@ -366,7 +366,7 @@ describe("expand arrow CSS", () => {
 
 	it("contains upstream's expand rules", () => {
 		const rules = [
-			".expand{position:absolute;top:0;left:calc(var(--name-left-overhang) - 22px);width:20px;height:var(--line-height);padding:var(--wf-content-padding-top) 0 0;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;background:none;box-sizing:content-box;font:inherit;line-height:inherit}",
+			".expand{position:absolute;top:0;left:calc(var(--name-left-overhang) - 22px);width:20px;height:var(--line-height);padding:var(--wf-content-padding-top) 0 0;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;background:none;font:inherit;line-height:inherit}",
 			".name:not(.name--root):hover>.expand{opacity:1 !important}",
 			".name:hover>.expand{color:var(--wf-text-quaternary)!important}",
 			".header1:not(.root)>.name>.expand,.header2:not(.root)>.name>.expand,.header3:not(.root)>.name>.expand,.paragraph:not(.root)>.name>.expand{color:var(--wf-text-quinary)}",

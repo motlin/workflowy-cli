@@ -6,9 +6,8 @@ import {cssBlock} from "./helpers/css-block.js";
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
 describe("friendly day prefix box model", () => {
-	it("is content-box with line-height 1 like upstream, so a listed row's span is 28px tall", () => {
+	it("is default content-box with line-height 1 like upstream, so a listed row's span is 28px tall", () => {
 		expect(cssBlock(styles, ".name > span.whitespace-nowrap.pr-m")).toStrictEqual({
-			"box-sizing": "content-box",
 			"line-height": "1",
 		});
 	});

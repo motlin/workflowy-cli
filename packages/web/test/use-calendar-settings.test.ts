@@ -5,7 +5,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {CALENDAR_SETTINGS_KEY, toggleCalendarSetting} from "../src/client/hooks/use-calendar-settings.js";
 import type {CalendarSettings} from "../src/client/components/calendar-picker-settings.js";
 import {readJson} from "../src/client/read-json.js";
-import {cssBlock} from "./helpers/css-block.js";
+import {hasSelector} from "./helpers/css-block.js";
 
 type FetchCall = [string, RequestInit | undefined];
 
@@ -127,9 +127,9 @@ describe("toggleCalendarSetting speed", () => {
 });
 
 describe("Toggle styles", () => {
-	it("keeps upstream's content-box track so the 10px knob fits inside its 2px padding", () => {
+	it("leaves the track content-box (no box-sizing override) so the 10px knob fits inside its 2px padding", () => {
 		const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
-		expect(cssBlock(styles, "label.toggle > div")).toStrictEqual({"box-sizing": "content-box"});
+		expect(hasSelector(styles, /^\s*label\.toggle > div\s*$/u)).toBe(false);
 	});
 });

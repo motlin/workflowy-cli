@@ -672,7 +672,7 @@ describe("TopBar show completed toggle", () => {
 });
 
 describe("header CSS", () => {
-	it("ports upstream's .header rule plus content-box sizing", () => {
+	it("ports upstream's .header rule (content-box by default)", () => {
 		expect(cssBlock(styles, ".header")).toStrictEqual({
 			position: "fixed",
 			top: "0",
@@ -684,7 +684,6 @@ describe("header CSS", () => {
 			"align-items": "center",
 			"user-select": "none",
 			color: "var(--wf-text-primary) !important",
-			"box-sizing": "content-box",
 		});
 	});
 

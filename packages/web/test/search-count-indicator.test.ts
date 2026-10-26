@@ -149,10 +149,10 @@ describe("SearchCountIndicator", () => {
 });
 
 describe("match pill CSS", () => {
-	it("sizes the pill with content-box", async () => {
+	it("leaves the pill content-box (the default)", async () => {
 		const {readFileSync} = await import("node:fs");
 		const {cssBlock} = await import("./helpers/css-block.js");
 		const styles = readFileSync(new URL("../src/client/styles.css", import.meta.url), "utf8");
-		expect(cssBlock(styles, ".matching-node")["box-sizing"]).toBe("content-box");
+		expect(cssBlock(styles, ".matching-node")["box-sizing"]).toBeUndefined();
 	});
 });

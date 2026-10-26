@@ -328,11 +328,9 @@ describe("MoveAssistant removal", () => {
 });
 
 describe("picker styles", () => {
-	it("makes the footer rows content-box like upstream", () => {
+	it("leaves the footer rows content-box like upstream", () => {
 		const css = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
-		expect(css).toMatch(
-			/\[data-popper-placement\] > \.flyout a\.menuItem\[style\*="height: 32px"\]\s*\{\s*box-sizing: content-box;\s*\}/u,
-		);
+		expect(css).not.toMatch(/\[data-popper-placement\] > \.flyout a\.menuItem\[style\*="height: 32px"\]/u);
 	});
 });
 

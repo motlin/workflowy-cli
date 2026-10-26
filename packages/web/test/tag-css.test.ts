@@ -61,9 +61,9 @@ describe("tag CSS parity with upstream wf-base", () => {
 });
 
 describe("tag color teaser glyph", () => {
-	it("is a 15px circle (content-box 13px plus border) in the inherited color", () => {
+	it("is a 15px circle (default content-box 13px plus border) in the inherited color", () => {
 		const glyph = cssBlock(styles, ".tag-color-teaser-glyph");
-		expect(glyph["box-sizing"]).toBe("content-box");
+		expect(glyph["box-sizing"]).toBeUndefined();
 		expect(glyph.color).toBe("inherit");
 		expect(JSON.stringify(glyph)).not.toContain("--wf-text-link");
 	});

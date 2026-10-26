@@ -344,9 +344,63 @@
 
 /* Reset and base styles */
 
-*,
-*::before,
-*::after {
+/* Upstream has no global box-sizing reset (every element is content-box). Surfaces that exist only locally were
+   sized under the old border-box reset, so they keep it, at zero specificity so any rule below still wins. */
+:where(
+	.ladder-page,
+	.ladder-ghost,
+	.ladder-preview,
+	.ladder-tree-panel,
+	.related-nodes-panel,
+	.error-notifications,
+	.inline-loading,
+	.loading-spinner,
+	.presentation-overlay,
+	.changes-page,
+	.settings-row
+),
+:where(
+		.ladder-page,
+		.ladder-ghost,
+		.ladder-preview,
+		.ladder-tree-panel,
+		.related-nodes-panel,
+		.error-notifications,
+		.inline-loading,
+		.loading-spinner,
+		.presentation-overlay,
+		.changes-page,
+		.settings-row
+	)
+	*,
+:where(
+		.ladder-page,
+		.ladder-ghost,
+		.ladder-preview,
+		.ladder-tree-panel,
+		.related-nodes-panel,
+		.error-notifications,
+		.inline-loading,
+		.loading-spinner,
+		.presentation-overlay,
+		.changes-page,
+		.settings-row
+	)
+	*::before,
+:where(
+		.ladder-page,
+		.ladder-ghost,
+		.ladder-preview,
+		.ladder-tree-panel,
+		.related-nodes-panel,
+		.error-notifications,
+		.inline-loading,
+		.loading-spinner,
+		.presentation-overlay,
+		.changes-page,
+		.settings-row
+	)
+	*::after {
 	box-sizing: border-box;
 }
 
@@ -431,7 +485,6 @@ body {
 /* FontAwesome 6 svg-core sizing (injected at runtime upstream) */
 .svg-inline--fa {
 	display: inline-block;
-	box-sizing: content-box;
 	height: 1em;
 	overflow: visible;
 	vertical-align: -0.125em;
@@ -594,11 +647,6 @@ body {
 	padding: var(--wf-space-m) var(--wf-space-l);
 }
 
-/* Upstream's day cell is content-box: w-[24px] h-[24px] plus the 1px today border is a 26x26 cell. */
-.date-picker-day-cell {
-	box-sizing: content-box;
-}
-
 /* Upstream's bare .primary / .secondary, scoped to .button so local classes of the same name are untouched. */
 .button.primary {
 	background: var(--wf-background-tint);
@@ -698,7 +746,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
    Top Bar (Header) Styles
    ================================ */
 
-/* Upstream .header (js_wf-base); box-sizing restores upstream's 48px + 1px border under the local border-box reset. */
+/* Upstream .header (js_wf-base): content-box, so 48px plus the 1px border. */
 .header {
 	position: fixed;
 	top: 0;
@@ -710,7 +758,6 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 	align-items: center;
 	user-select: none;
 	color: var(--wf-text-primary) !important;
-	box-sizing: content-box;
 }
 
 .header .pagination {
@@ -1029,11 +1076,6 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 	border-radius: 0.125rem;
 }
 
-/* Upstream's .page uses content-box sizing: its min-height and max-width apply to the content box. */
-.page {
-	box-sizing: content-box;
-}
-
 /* Upstream's .pageContainer clips horizontal overflow of wide content (the document never scrolls sideways)
    and, as a block formatting context, keeps the page's 72px top margin inside it. */
 .pageContainer {
@@ -1042,7 +1084,6 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 /* Upstream's .matching-node count pill: one line tall, its spinner inline after "Still searching". */
 .matching-node {
-	box-sizing: content-box;
 	line-height: 0.889rem;
 }
 
@@ -1356,8 +1397,8 @@ body:not(.moving) .mainTreeRoot > .notes {
 	pointer-events: none;
 }
 
-/* Expand toggle (wf-base). Button reset added locally; content-box keeps the
-   measured 20x24 plus 4px top padding under the local border-box reset. */
+/* Expand toggle (wf-base). Button reset added locally; content-box (the default)
+   gives the measured 20x24 plus 4px top padding. */
 .expand {
 	position: absolute;
 	top: 0;
@@ -1371,7 +1412,6 @@ body:not(.moving) .mainTreeRoot > .notes {
 	cursor: pointer;
 	border: none;
 	background: none;
-	box-sizing: content-box;
 	font: inherit;
 	line-height: inherit;
 }
@@ -1421,8 +1461,8 @@ body.moving .expand {
 
 /* Bullet (wf-base). The anchor is 18px wide via its inline style; --line-height
    and --wf-content-padding-top fall back to the default row metrics until the
-   name/content rows define them. content-box keeps the measured 18x24 plus
-   4px top padding under the local border-box reset. */
+   name/content rows define them. content-box (the default) gives the measured
+   18x24 plus 4px top padding. */
 .bullet {
 	display: flex;
 	position: absolute;
@@ -1431,7 +1471,6 @@ body.moving .expand {
 	height: var(--line-height, var(--font-default-line-height));
 	line-height: var(--line-height, var(--font-default-line-height));
 	padding-top: var(--wf-content-padding-top, 4px);
-	box-sizing: content-box;
 	color: var(--wf-text-secondary);
 	cursor: pointer;
 	text-decoration: none;
@@ -1882,7 +1921,6 @@ time > .bc-pink.bc-pink {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	box-sizing: content-box;
 	width: 13px;
 	height: 13px;
 	border: 1px solid var(--wf-border-primary);
@@ -2195,7 +2233,6 @@ code {
 	font-family: var(--font-code-font-family, var(--wf-font-family-mono));
 	line-height: var(--wf-line-height-s);
 	font-size: var(--font-code-block-font-size, 95%) !important;
-	box-sizing: content-box;
 }
 
 .font-andale code {
@@ -2739,7 +2776,6 @@ body.moving * {
 
 /* Upstream bullet-menu trigger: the ButtonMenu `.itemMenu`, last child of a hovered `.name` */
 .itemMenu {
-	box-sizing: content-box;
 	position: absolute !important;
 	left: var(--item-menu-left);
 	top: 0;
@@ -3486,20 +3522,11 @@ body.moving .itemMenu {
 }
 
 /* DomKit flyout surface, cloned from tailwind + themes. The popoverBox class string's utilities
-   (wf-tailwind.css) and the .wf-menu token scopes above cover the rest; only the box model differs,
-   because the local reset sets border-box on everything. Upstream's flyout is content-box, so
-   max-width 240 gives a 252px border-box (240 + 2*5 padding + 2*1 border). Upstream's css_reset also gives body
+   (wf-tailwind.css) and the .wf-menu token scopes above cover the rest; the flyout is content-box like
+   upstream's, so max-width 240 gives a 252px box (240 + 2*5 padding + 2*1 border). Upstream's css_reset also gives body
    line-height 1, and flyouts are portaled to body, so the surface carries it. */
 .wf-menu.flyout {
-	box-sizing: content-box;
 	line-height: 1;
-}
-
-/* DomKit Toggle (date-picker-popup.tsx). Upstream's track is content-box: w-[20px] h-[10px] plus p-2xs
-   is a 24x14 track holding the 10px knob, which slides exactly 10px when on. Under the local border-box
-   reset the knob overflows a 16x6 content box and the switch reads as a blank pill. */
-label.toggle > div {
-	box-sizing: content-box;
 }
 
 /* The page's .scroller bottom padding must not leak into the MenuBody scroller. */
@@ -3611,23 +3638,14 @@ label.toggle > div {
 	border: var(--wf-border-width-s) solid var(--wf-border-primary);
 }
 
-/* Upstream rows have no global reset, so the friendly day prefix span is content-box: its padding adds to the height. */
+/* The friendly day prefix span: upstream rows have no box-sizing reset, so its padding adds to the height. */
 .name > span.whitespace-nowrap.pr-m {
-	box-sizing: content-box;
 	line-height: 1;
 }
 
-/* Upstream's picker footers are content-box: py-xs and the top border add to the inline 32px height (41px and 40px). */
-[data-popper-placement] > .flyout a.menuItem[style*="height: 32px"] {
-	box-sizing: content-box;
-}
-
-/* The @ mention popup (upstream wf-base `.mention-popup` and `.mention-avatar`); content-box so a long label gives upstream's 242px popup. */
+/* The @ mention popup (upstream wf-base `.mention-popup` and `.mention-avatar`). */
 .menu.mention-popup {
 	padding-bottom: 0;
-}
-.flyout.mention-popup {
-	box-sizing: content-box;
 }
 .mention-avatar {
 	border: var(--wf-border-width-s) solid var(--wf-border-primary);
@@ -3639,7 +3657,6 @@ label.toggle > div {
 	font-size: 10px;
 	align-items: center;
 	justify-content: center;
-	box-sizing: content-box;
 }
 
 /* Board layout (upstream wf-base `.boardCard`, `.boardColumn` and board drop indicators). */

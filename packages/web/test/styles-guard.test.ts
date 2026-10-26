@@ -88,8 +88,8 @@ function normalizedBlocks(css: string, selector: string): string[] {
 }
 
 describe("flyout surface styles guard", () => {
-	it("keeps the flyout content-box so max-width 240 gives a 252px border-box", () => {
-		expect(normalizedBlocks(styles, ".wf-menu.flyout")).toStrictEqual(["box-sizing: content-box;line-height: 1"]);
+	it("leaves the flyout content-box so max-width 240 gives a 252px box", () => {
+		expect(normalizedBlocks(styles, ".wf-menu.flyout")).toStrictEqual(["line-height: 1"]);
 	});
 
 	it("scopes the light and dark .wf-menu tokens", () => {
@@ -219,7 +219,7 @@ describe("item menu trigger styles guard", () => {
 
 	it("has upstream's .itemMenu trigger rules", () => {
 		const rules = [
-			".itemMenu{box-sizing:content-box;position:absolute !important;left:var(--item-menu-left);top:0;height:var(--line-height);padding-top:var(--wf-content-padding-top);display:flex;align-items:center;cursor:pointer;outline:none;transition:opacity 0.2s}",
+			".itemMenu{position:absolute !important;left:var(--item-menu-left);top:0;height:var(--line-height);padding-top:var(--wf-content-padding-top);display:flex;align-items:center;cursor:pointer;outline:none;transition:opacity 0.2s}",
 			".itemMenu>div>span{display:block;width:24px;height:24px;border-radius:12px;color:var(--wf-text-tertiary)}",
 			".itemMenu>div>span:hover,.itemMenu:focus>div>span{background:var(--wf-background-tertiary)}",
 			".itemMenu:focus>div>span{color:var(--wf-text-quaternary)}",
@@ -236,13 +236,13 @@ describe("page layout styles guard", () => {
 		.replaceAll(/\s+/gu, " ")
 		.replaceAll(";}", "}");
 
-	it("sizes .page as content-box and clips overflow in .pageContainer like upstream", () => {
+	it("leaves .page content-box and clips overflow in .pageContainer like upstream", () => {
 		expect({
 			page: declarationsFor(/^\s*\.page\s*$/u),
 			container: declarationsFor(/^\s*\.pageContainer\s*$/u),
 			app: declarationsFor(/^\s*\.app\s*$/u),
 		}).toStrictEqual({
-			page: ["box-sizing: content-box;"],
+			page: [],
 			container: ["overflow: auto;"],
 			app: ["min-height: 100vh;\n\toverflow: hidden;"],
 		});
@@ -477,8 +477,8 @@ describe("node row anatomy styles guard", () => {
 		});
 	});
 
-	it("makes the item menu trigger content-box", () => {
-		expect(cssBlock(styles, ".itemMenu")["box-sizing"]).toBe("content-box");
+	it("leaves the item menu trigger content-box", () => {
+		expect(cssBlock(styles, ".itemMenu")["box-sizing"]).toBeUndefined();
 	});
 
 	it("lets the text span shrink to its text and resets the expand button font and bullet underline", () => {
