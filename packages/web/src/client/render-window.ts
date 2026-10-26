@@ -30,6 +30,11 @@ export function firstPaintRowBudget(viewportHeight: number): number {
 	return Math.max(ROW_STEP, Math.ceil(viewportHeight / MINIMAL_ROW_HEIGHT));
 }
 
+/** Upstream's `appState.printing ? Infinity : maxToRender`: a print renders every row. */
+export function printRowBudget(rows: number, printing: boolean): number {
+	return printing ? Number.POSITIVE_INFINITY : rows;
+}
+
 export function nextRowBudget(current: number): number {
 	return current + ROW_STEP;
 }

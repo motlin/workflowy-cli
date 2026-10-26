@@ -77,6 +77,8 @@ import {
 } from "./use-mirror-to.js";
 import {scheduleCompletionHide, zoomOutDelayMs} from "../completion-animation.js";
 import {presentCommand, printCommand} from "../keys/dispatch.js";
+import {toggleZenMode} from "./use-zen-mode.js";
+import {IS_MOBILE} from "../is-mobile.js";
 import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
 import {renderEditorHtml, serializeEditorHtml} from "../editor-html.js";
@@ -1065,6 +1067,15 @@ export function useCommandRegistry(): CommandRegistry {
 			execute: openColorPopupForItems,
 		},
 		print: printCommand(),
+		toggle_full_width_page: {
+			execute() {
+				useOutlineStore.getState().toggleFullWidthPage();
+			},
+		},
+		zen_mode: {
+			available: () => !IS_MOBILE,
+			execute: toggleZenMode,
+		},
 		present_it: {
 			execute(ctx) {
 				presentCommand({

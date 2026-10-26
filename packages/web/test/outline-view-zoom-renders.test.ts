@@ -195,6 +195,7 @@ describe("55-row OutlineView renders", () => {
 			// Once to mount and once more when the crumbs measure their container: the Home crumb and its icon button.
 			Breadcrumbs: 2,
 			BreadcrumbItem: 2,
+			DocumentTitle: 1,
 			FaIcon: 18,
 			IconButton: 13,
 			NewPaneIcon: 1,
@@ -218,6 +219,8 @@ describe("55-row OutlineView renders", () => {
 		expect(renderMap()).toStrictEqual({
 			...HEADER,
 			BreadcrumbItem: 1,
+			// The tab title follows the zoom.
+			DocumentTitle: 1,
 			FaIcon: 2,
 			IconButton: 13,
 			StarButton: 1,

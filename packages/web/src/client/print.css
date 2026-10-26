@@ -1,0 +1,47 @@
+/*
+ * Upstream's print.css and the print rules of wf-base, for the pieces that no component stylesheet already
+ * carries (`.leftBar`, `.header`, `.name`, `.nameButtons`, `.expand`, `.contentLink`, `.notes > .content` and the
+ * body's left padding print rules sit next to their screen rules in styles.css). A Vite CSS import cannot carry
+ * a `media` attribute, so the whole file sits in one @media block. Imported after styles.css so it wins ties.
+ */
+@media print {
+	.page {
+		border: none !important;
+		margin-top: 0 !important;
+		margin-bottom: 0 !important;
+		padding: 0 !important;
+		min-height: 10px !important;
+		box-shadow: none !important;
+		width: auto !important;
+		max-width: 700px !important;
+		margin-left: auto !important;
+		margin-right: auto !important;
+		left: 0 !important;
+		transform: none !important;
+	}
+
+	.mainTreeRoot {
+		min-height: 0px !important;
+		padding-top: 0 !important;
+		padding-bottom: 0 !important;
+		margin-top: 0 !important;
+		margin-bottom: 0 !important;
+	}
+
+	.children {
+		border-left: none;
+	}
+
+	body {
+		color: #000;
+		background: #fff !important;
+	}
+
+	.bullet {
+		color: var(--wf-text-quaternary);
+	}
+
+	.print\:\!min-h-0 {
+		min-height: 0px !important;
+	}
+}

@@ -48,6 +48,8 @@ import {useCopyCut} from "./hooks/use-copy-cut.js";
 import {activeCommandRegistry, useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {usePaneFocusRequests} from "./hooks/use-pane-focus-requests.js";
 import {usePaneUrlSync} from "./hooks/use-pane-url-sync.js";
+import {DocumentTitle, NonameTitle} from "./hooks/use-document-title.js";
+import {useZenModeListeners} from "./hooks/use-zen-mode.js";
 import {fetchResolvedId, useHashLocationZoom} from "./hooks/use-hash-location-zoom.js";
 import {installContentLinkContextMenu} from "./content-link-click.js";
 import {useContentLinkClicks} from "./hooks/use-content-link-clicks.js";
@@ -76,6 +78,7 @@ import {queryClientDefaults} from "./query-retry.js";
 import "./reset.css";
 import "./wf-tailwind.css";
 import "./styles.css";
+import "./zen-mode.css";
 import "./themes/hacker.css";
 import "./themes/space.css";
 import "./themes/steel.css";
@@ -198,12 +201,13 @@ function MainOutline() {
 		mobileSearchVisible({focused: state.searchFocused, input: state.searchInput, query: state.searchQuery}),
 	);
 	const width = useInnerWidth();
+	const fullWidth = useOutlineStore((state) => state.fullWidthPage);
 	// With a pane open the main outline scrolls itself, like each pane, instead of the document.
 	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
 	if (!panesOpen) {
 		return pageShell({
 			zoomedNodeId,
-			fullWidth: true,
+			fullWidth,
 			width,
 			searching: searchQuery !== "",
 			showCompleted,
@@ -235,6 +239,7 @@ function redoFromHeader(): void {
 }
 
 export const OutlineView = memo(function OutlineView() {
+	useZenModeListeners();
 	const {relatedNodesPanelOpen, paneCount} = useOutlineViewState();
 
 	const containerClasses = [
@@ -246,6 +251,7 @@ export const OutlineView = memo(function OutlineView() {
 		.join(" ");
 	return (
 		<div className={containerClasses}>
+			<DocumentTitle />
 			<PaneWorkspace>
 				<MainPane>
 					{IS_MOBILE ? <MobileTopBar /> : <TopBar onRedo={redoFromHeader} onUndo={undoFromHeader} />}
@@ -353,8 +359,24 @@ export function App() {
 						<div className="app">
 							<Routes>
 								<Route element={<HashLocationRoute />} path="/" />
-								<Route element={<ChangesView />} path="/changes" />
-								<Route element={<LadderView />} path="/ladder" />
+								<Route
+									element={
+										<>
+											<NonameTitle />
+											<ChangesView />
+										</>
+									}
+									path="/changes"
+								/>
+								<Route
+									element={
+										<>
+											<NonameTitle />
+											<LadderView />
+										</>
+									}
+									path="/ladder"
+								/>
 								<Route element={<NodeRedirect />} path="/node/:id" />
 							</Routes>
 						</div>

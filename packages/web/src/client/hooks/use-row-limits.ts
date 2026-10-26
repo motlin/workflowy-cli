@@ -8,6 +8,7 @@ import {
 	firstPaintRowBudget,
 	initialRowBudget,
 	nextRowBudget,
+	printRowBudget,
 	rowBudgetToShow,
 	rowLimits,
 	rowLimitsKey,
@@ -15,6 +16,7 @@ import {
 import {afterNextPaint} from "../after-paint.js";
 import {poppedScrollY} from "../scroll-restoration.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {usePrinting} from "./use-printing.js";
 import {usePaneExpandedIds} from "../components/pane-context.js";
 
 /** The outline's per-parent row limits; null outside an `OutlineTree`, where `.children` render every row. */
@@ -43,6 +45,7 @@ export function useRowLimits(
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
 	const result = search?.result;
+	const printing = usePrinting();
 
 	// A view Back/Forward restores scrolled down mounts rows down to that scroll, so it lands on rows.
 	const firstRows = () => firstPaintRowBudget(viewportHeight() + poppedScrollY(rootId));
@@ -74,7 +77,7 @@ export function useRowLimits(
 	const getChildren = (parentId: string | null) =>
 		queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
 	const view = {expandedIds, showCompleted, animatingCompletionIds, search};
-	const compute = (): RowLimits => rowLimits(getChildren, rootId, budget.rows, view);
+	const compute = (): RowLimits => rowLimits(getChildren, rootId, printRowBudget(budget.rows, printing), view);
 	const budgetToShow = (targetId: string): number =>
 		rowBudgetToShow(getChildren, rootId, budget.rows, view, targetId);
 	const computed = compute();

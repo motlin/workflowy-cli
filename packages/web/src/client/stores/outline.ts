@@ -33,6 +33,7 @@ import {setRightBarLast, shownRightBarPanel} from "../right-bar-panels.js";
 import {hideBanner, showBanner, useBannerStore} from "./banner.js";
 import {SYNC_WARNING_TEXT, SYNC_WARNING_TITLE, syncHealth} from "../sync-health.js";
 import type {SyncEvent} from "../sync-health.js";
+import {readFullWidthPref, writeFullWidthPref} from "../full-width-pref.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
 
 /** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
@@ -371,6 +372,8 @@ interface OutlineState {
 	/** Where the queued picker anchors (the removed slash chip); null anchors it at the caret. */
 	datePickerAnchor: DOMRect | null;
 	showCompleted: boolean;
+	/** Upstream's `full_width_page` feature: the page has no 700px max-width. Kept in this browser. */
+	fullWidthPage: boolean;
 	/** Upstream's account setting `always_visible_controls` (default on): expand arrows are drawn at rest. */
 	alwaysVisibleControls: boolean;
 	/** Completed rows kept visible while their deferred hide runs, though completed rows are hidden. */
@@ -527,6 +530,7 @@ interface OutlineActions {
 	/** Show or hide completed rows: updates `completedMode` and PATCHes the account setting. */
 	setShowCompleted: (showCompleted: boolean) => void;
 	toggleShowCompleted: () => void;
+	toggleFullWidthPage: () => void;
 	/** Take the account's value from `/api/v1/preferences` without writing it back. */
 	adoptShowCompleted: (showCompleted: boolean) => void;
 	startCompletedSlideDown: (ids: string[]) => void;
@@ -1006,6 +1010,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	datePickerRequest: null,
 	datePickerAnchor: null,
 	showCompleted: getInitialShowCompleted(),
+	fullWidthPage: readFullWidthPref(globalThis.localStorage),
 	alwaysVisibleControls: true,
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
@@ -1334,6 +1339,12 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		movingFlashTimer = setTimeout(() => {
 			set({movingIds: []});
 		}, MOVING_FLASH_MS);
+	},
+
+	toggleFullWidthPage: () => {
+		const fullWidthPage = !get().fullWidthPage;
+		set({fullWidthPage});
+		writeFullWidthPref(globalThis.localStorage, fullWidthPage);
 	},
 
 	toggleLeftBar: () => {

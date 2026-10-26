@@ -3,6 +3,8 @@ import {createRoot} from "react-dom/client";
 import {App} from "./app.js";
 import {IS_MOBILE, applyDeviceClass} from "./is-mobile.js";
 import {clearPrepaintBackground} from "./theme-apply.js";
+import "./print.css";
+import {installPrintListeners} from "./hooks/use-printing.js";
 
 const rootElement = document.querySelector("#root");
 if (!rootElement) {
@@ -11,6 +13,8 @@ if (!rootElement) {
 
 // Upstream decides once at boot and never recomputes on resize.
 applyDeviceClass(document.body, IS_MOBILE, navigator.userAgent);
+
+installPrintListeners(window);
 
 const root = createRoot(rootElement);
 root.render(
