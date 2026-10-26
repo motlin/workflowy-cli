@@ -703,3 +703,34 @@ test("a URL in a Things note becomes a link the walk opens", () => {
 	);
 	assert.deepStrictEqual(item.links, ["https://youtube.com/watch?v=abc"]);
 });
+
+test("rows flag #llm-task items so batch pages can exclude them mechanically", () => {
+	const rows = fromWorkflowy(
+		[
+			workflowyRoot({
+				tasks: [
+					dated("Add photos to Status #llm-task", "2026-08-01", "aaaaaaaaaaaa1111"),
+					dated("Call the allergist", "2026-08-01", "bbbbbbbbbbbb2222"),
+				],
+			}),
+		],
+		TODAY,
+	);
+	assert.deepStrictEqual(
+		rows.map((r) => [r.title, r.isLlmTask]),
+		[
+			["Add photos to Status #llm-task", true],
+			["Call the allergist", false],
+		],
+	);
+	assert.deepStrictEqual(
+		fromThings({due: [{id: "t1", title: "Sort album #llm-task", due: "2026-08-01"}]}, TODAY).map(
+			(r) => r.isLlmTask,
+		),
+		[true],
+	);
+	assert.deepStrictEqual(
+		fromReminders({overdue: [{title: "Pay rent", dueDate: "2026-08-01"}]}, TODAY).map((r) => r.isLlmTask),
+		[false],
+	);
+});

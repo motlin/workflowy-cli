@@ -93,6 +93,8 @@ export interface DueRow extends NodeContext {
 	dueSource: "deadline" | "scheduled" | null;
 	overdueByDays: number | null;
 	needsDate: boolean;
+	// True when the item carries `#llm-task`: Claude runs it, so it never belongs on a batch page.
+	isLlmTask: boolean;
 	group: string;
 	url: string | null;
 	ops: DueOps;
@@ -124,6 +126,8 @@ const TIMEFRAME_NAMES = new Set(["Today", "This week", "This month"]);
 function noteOnlyContext(title: string, notes: string | null | undefined): NodeContext {
 	return {note: notes ?? null, modifiedAt: null, childCount: 0, children: [], links: extractLinks(title, notes)};
 }
+
+export const isLlmTaskName = (name: string): boolean => /#llm-task/u.test(name);
 
 const pad = (n: number): string => String(n).padStart(2, "0");
 
@@ -279,6 +283,7 @@ export function fromWorkflowy(roots: WorkflowyRootInput[] | null | undefined, to
 					dueSource: due ? "deadline" : null,
 					overdueByDays: due ? daysBetween(due, todayISO) : null,
 					needsDate: due === null,
+					isLlmTask: isLlmTaskName(node.name),
 					group: group ?? bucket.name,
 					url: workflowyUrl(node.shortId),
 					...nodeContext(node),
@@ -339,6 +344,7 @@ export function fromThings(things: ThingsInput | null | undefined, todayISO: str
 			dueSource,
 			overdueByDays: daysBetween(due, todayISO),
 			needsDate: false,
+			isLlmTask: isLlmTaskName(task.title),
 			group: task.list ?? "Things",
 			url: `things:///show?id=${task.id}`,
 			...noteOnlyContext(task.title, task.notes),
@@ -379,6 +385,7 @@ export function fromReminders(reminders: RemindersInput | null | undefined, toda
 			dueSource: due ? "deadline" : null,
 			overdueByDays: due ? daysBetween(due, todayISO) : null,
 			needsDate: false,
+			isLlmTask: isLlmTaskName(r.title),
 			group: r.list ?? "Reminders",
 			url: null,
 			...noteOnlyContext(r.title, r.notes),
