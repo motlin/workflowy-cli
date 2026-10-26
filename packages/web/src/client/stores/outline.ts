@@ -313,6 +313,8 @@ export interface OpenPaneOptions {
 	index?: number;
 	/** The pane the new one opens from; its expansion seeds the new pane's. Defaults to the active pane. */
 	sourcePaneId?: string;
+	/** The new pane's search query; defaults to none. */
+	query?: string;
 }
 
 /** A pane as the URL names it, for `restorePanes`. */
@@ -1532,7 +1534,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			zoomedId,
 			backLocations: [],
 			forwardLocations: [],
-			query: "",
+			query: options.query ?? "",
 			expandedIds: new Set(paneExpandedIds(get(), source)),
 		};
 		const nextPanes = [...panes.slice(0, index - 1), pane, ...panes.slice(index - 1)];

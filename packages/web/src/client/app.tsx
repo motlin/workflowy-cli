@@ -47,6 +47,7 @@ import {usePaneUrlSync} from "./hooks/use-pane-url-sync.js";
 import {fetchResolvedId, useHashLocationZoom} from "./hooks/use-hash-location-zoom.js";
 import {installContentLinkContextMenu} from "./content-link-click.js";
 import {useContentLinkClicks} from "./hooks/use-content-link-clicks.js";
+import {usePaneClickRouting} from "./hooks/use-pane-click-routing.js";
 import {useSearchEscape} from "./hooks/use-search-escape.js";
 import {usePreferences} from "./hooks/use-preferences.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
@@ -243,6 +244,7 @@ function HashLocationRoute() {
 	usePaneUrlSync(fetchResolvedId);
 	usePaneFocusRequests();
 	useContentLinkClicks(fetchResolvedId);
+	usePaneClickRouting(fetchResolvedId);
 	return <OutlineView />;
 }
 

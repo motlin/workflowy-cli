@@ -17,14 +17,14 @@ function contentLinkOf(event: Event): HTMLAnchorElement | null {
 	return event.target instanceof Element ? event.target.closest<HTMLAnchorElement>(CONTENT_LINK_SELECTOR) : null;
 }
 
-function claim(event: Event): void {
+export function claim(event: Event): void {
 	event.preventDefault();
 	event.stopPropagation();
 	event.stopImmediatePropagation();
 }
 
 /** Commit and leave the edited row, as upstream blurs the focused editor before a link navigates or opens. */
-function blurEditor(): void {
+export function blurEditor(): void {
 	const {editingId, stopEditing} = useOutlineStore.getState();
 	if (editingId !== null) {
 		if (document.activeElement instanceof HTMLElement) {

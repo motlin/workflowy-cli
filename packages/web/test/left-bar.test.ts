@@ -337,7 +337,7 @@ describe("Starred section", () => {
 		nodesById.x = {id: "x", name: "<b>Xname</b>", completedAt: null};
 		expect(rows(renderStarred([star({key: "x_date:past", nodeId: "x", query: "date:past"})]))).toBe(
 			`<div draggable="true" class="relative">` +
-				`<a class="${ROW_CLASS}" draggable="false" href="/#/x?q=date%3Apast" style="padding-left:12px;color:var(--wf-text-tertiary)">${
+				`<a href="/#/x?q=date%3Apast" data-location-url="/#/x?q=date%3Apast" draggable="false" class="${ROW_CLASS}" style="padding-left:12px;color:var(--wf-text-tertiary)">${
 					INNER
 				}<div class="flex shrink-0 items-center justify-center" style="width:20px;height:20px">` +
 				`<svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="magnifying-glass" class="svg-inline--fa fa-magnifying-glass fa-xs " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor"></path></svg></div>` +
@@ -357,7 +357,7 @@ describe("Starred section", () => {
 		nodesById.p = {id: "p", name: "<i>Page</i>", completedAt: null};
 		expect(rows(renderStarred([star({key: "p", nodeId: "p"})]))).toBe(
 			`<div draggable="true" class="relative">` +
-				`<a class="${ROW_CLASS}" draggable="false" href="/#/p" style="padding-left:12px;color:var(--wf-text-tertiary)">${
+				`<a href="/#/p" data-location-url="/#/p" draggable="false" class="${ROW_CLASS}" style="padding-left:12px;color:var(--wf-text-tertiary)">${
 					INNER
 				}${ARROW}<div>TRI</div></div><div class="grow py-xs truncate" data-expanded="false"><span style="pointer-events:none;white-space:nowrap"><span class="innerContentContainer"><i>Page</i></span></span></div>` +
 				`</div></a></div>`,
@@ -379,7 +379,7 @@ describe("Starred section", () => {
 		expect({
 			wrapperStart: html.slice(html.indexOf('<div draggable="true"'), html.indexOf("<a ")),
 			anchorsInWrapper: html.slice(0, wrapperEnd).split("<a ").length - 1,
-			nextIsChildRow: html.slice(wrapperEnd).startsWith('<a class="flex justify-between'),
+			nextIsChildRow: html.slice(wrapperEnd).startsWith('<a href="'),
 			childPadding: html.slice(wrapperEnd).includes("padding-left:24px"),
 		}).toStrictEqual({
 			wrapperStart: '<div draggable="true" class="relative">',

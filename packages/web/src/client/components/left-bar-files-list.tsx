@@ -234,9 +234,10 @@ function leftBarRowLink(
 
 	return (
 		<a
-			className={`flex justify-between items-center pr-m hover:cursor-pointer ${completed ? "hover:line-through" : "hover:no-underline"} left-bar-section-item font-custom `}
-			draggable="false"
 			href={href}
+			data-location-url={href}
+			draggable="false"
+			className={`flex justify-between items-center pr-m hover:cursor-pointer ${completed ? "hover:line-through" : "hover:no-underline"} left-bar-section-item font-custom `}
 			onClick={handleClick}
 			onMouseDown={(event) => {
 				if (

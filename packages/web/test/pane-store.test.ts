@@ -63,6 +63,16 @@ describe("pane store", () => {
 		});
 	});
 
+	it("seeds the new pane's search query from OpenPaneOptions.query", async () => {
+		const store = await loadStore();
+		const first = store.getState().openPane("alice");
+		const second = store.getState().openPane("bob", {index: 2, query: "date:past "});
+		expect(store.getState().panes).toStrictEqual([
+			pane(first, {zoomedId: "alice"}),
+			pane(second, {zoomedId: "bob", query: "date:past "}),
+		]);
+	});
+
 	it("opens a pane at Home for a null zoom", async () => {
 		const store = await loadStore();
 		const id = store.getState().openPane(null);

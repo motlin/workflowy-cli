@@ -3,6 +3,7 @@
  * ⌃-click elsewhere) or ⌥-click, and a plain click inside a side pane navigates that pane.
  */
 import {parseLocationHash} from "./location.js";
+import {paneClickModifier} from "./pane-click-routing.js";
 
 const WORKFLOWY_HOSTS: ReadonlySet<string> = new Set(["workflowy.com", "dev.workflowy.com", "beta.workflowy.com"]);
 
@@ -74,11 +75,7 @@ export function planContentLinkClick(
 	if (loc === null) {
 		return {kind: "open", href};
 	}
-	const alt = event.altKey && !event.ctrlKey && !event.metaKey;
-	const primary = ctx.isMac
-		? event.metaKey && !event.altKey && !event.ctrlKey
-		: event.ctrlKey && !event.altKey && !event.metaKey;
-	if (!event.shiftKey && (alt || primary)) {
+	if (paneClickModifier(event, ctx.isMac) === "open") {
 		return {kind: "open_in_pane", loc};
 	}
 	if (event.altKey || event.ctrlKey || event.metaKey) {
