@@ -109,7 +109,7 @@ import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripMentionChip} from "../mention-trigger.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
 import {dashboardsOn, isDashboard, shouldExpandOnEnter} from "../dashboard.js";
-import {focusCenters, focusScrolls} from "../quiet-focus.js";
+import {focusCenters, focusKeepsScroll, focusScrolls} from "../quiet-focus.js";
 import {scrollToCenter} from "../scroll-reveal.js";
 
 /**
@@ -238,7 +238,12 @@ function EditingText({
 		if (isEditing && contentRef.current) {
 			prefetchPickerMonths(queryClient);
 			const centers = focusCenters(nodeId);
-			contentRef.current.focus({preventScroll: !focusScrolls(nodeId) || centers});
+			contentRef.current.focus({
+				preventScroll:
+					!focusScrolls(nodeId) ||
+					centers ||
+					focusKeepsScroll(contentRef.current.getBoundingClientRect(), window.innerHeight),
+			});
 			if (centers) {
 				scrollToCenter(contentRef.current);
 			}

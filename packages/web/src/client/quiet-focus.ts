@@ -34,3 +34,8 @@ export function focusCenters(id: string): boolean {
 	centerId = null;
 	return true;
 }
+
+/** Whether a row already partly in the view keeps the scroll when it takes focus (upstream `lM4`). */
+export function focusKeepsScroll(rect: {top: number; bottom: number}, viewportHeight: number): boolean {
+	return rect.bottom > 0 && rect.top < viewportHeight;
+}

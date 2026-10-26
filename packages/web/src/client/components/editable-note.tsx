@@ -46,6 +46,7 @@ import {stripMentionChip} from "../mention-trigger.js";
 import {stripSlashChip} from "../slash-trigger.js";
 import {withClasses} from "../search-classes.js";
 import {highlightSearchMatches} from "../highlight-html.js";
+import {focusKeepsScroll} from "../quiet-focus.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -192,7 +193,7 @@ export function EditableNote({
 		if (!isFocused || element === null || document.activeElement === element) {
 			return;
 		}
-		element.focus();
+		element.focus({preventScroll: focusKeepsScroll(element.getBoundingClientRect(), window.innerHeight)});
 		const caret = useOutlineStore.getState().editingNoteCaret;
 		if (caret !== "end" && caret > 0) {
 			placeCaretAtTextOffset(noteTextElement(element), caret);
