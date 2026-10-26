@@ -1,5 +1,5 @@
 ---
-description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, distribute project tasks into each project's .llm/todo.md, rebalance the asap ladders, process the inbox, file loose tasks, group related tasks, walk every dated item that needs handling today, and close by offering to work through the most pressing items together. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
+description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, distribute project tasks into each project's .llm/todo.md, rebalance the asap ladders, process the inbox, file loose tasks, clean up completed tasks, group related tasks, walk every dated item that needs handling today, and close by offering to work through the most pressing items together. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
 ---
 
 # Daily Review
@@ -9,11 +9,11 @@ Run the full daily review: execute overdue LLM tasks, tidy misfiled items off th
 The phases run in dependency order — each one's output feeds the next, ending with the walk that asks what's actually done and then the offer to do the work that remains:
 
 ```text
-LLM Tasks → Relink → Meetings → Overview → Distribute → Rebalance Ladders → Process Inbox → File Loose Tasks → Group Tasks → Recurring Review → Work Together
+LLM Tasks → Relink → Meetings → Overview → Distribute → Rebalance Ladders → Process Inbox → File Loose Tasks → Clean Up Completed → Group Tasks → Recurring Review → Work Together
                                                                (producers of ladder and dated tasks) ────────────────────────────↗
 ```
 
-The Meeting Follow-up Review, Morning Overview, Distribute Project Tasks, Rebalance Ladders, File Loose Tasks, Group Related Tasks, Recurring Review, and Work Together phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:distribute`, `:rebalance`, `:file-tasks`, `:group-tasks`, `:due`, and `:work-together`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
+The Meeting Follow-up Review, Morning Overview, Distribute Project Tasks, Rebalance Ladders, File Loose Tasks, Clean Up Completed, Group Related Tasks, Recurring Review, and Work Together phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:distribute`, `:rebalance`, `:file-tasks`, `:cleanup-completed`, `:group-tasks`, `:due`, and `:work-together`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
 
 ## When a skill breaks, fix the skill first
 
@@ -197,6 +197,12 @@ Invoke `/gtd:refine-inbox`, then `/gtd:inbox` — refine each inbox item with a 
 ## File Loose Tasks
 
 Invoke `/gtd:review:daily:file-tasks` — normalize the Next-Actions trees, then sweep loose tasks under both roots (Work and Personal) into the `⏰ Tasks (due dates)` bucket or a priority tier of the `📌 Tasks (asap)` ladder, and sweep undated Things "Anytime" tasks into the personal ladder. Proposes a destination per task and walks them one at a time for confirmation. Relink already ran, so strays are on the real roots; silent-skip when no loose tasks and no Anytime backlog remain.
+
+## Clean Up Completed
+
+Invoke `/gtd:review:daily:cleanup-completed` — walk every completed item still sitting under the `✅ Tasks` wrapper of both roots and ask, one question each, whether to journal it (un-complete it and move it into the root's `📅 Calendar` on its completion date), delete it permanently, or leave it. Nothing is changed unasked, and delete is never the promoted answer.
+
+Runs after File Loose Tasks so the trees are normalized, and before Group Tasks so completed clutter never lands in a cluster. Silent when nothing is completed.
 
 ## Group Related Tasks
 
