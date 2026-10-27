@@ -262,6 +262,13 @@ export const journal = {
 			tag: "0036_add_local_settings",
 			breakpoints: true,
 		},
+		{
+			idx: 37,
+			version: "6",
+			when: 1_779_753_600_000,
+			tag: "0037_add_file_blobs",
+			breakpoints: true,
+		},
 	],
 } as const;
 
@@ -303,4 +310,5 @@ export const migrations: Record<string, string> = {
 	m0034: '-- 📅 The calendar root\'s `day_prefix` setting (Friendly day names: the\n-- "Yesterday, / Today, / Tomorrow," title prefix). Null when the backup omits it,\n-- which upstream treats as on.\nALTER TABLE calendar_metadata ADD COLUMN day_prefix INTEGER;\n',
 	m0035: "-- Tag colors live in the root node's `metadata.color.tags`, synced with Workflowy;\n-- the local `tags` table is no longer read or written.\nDROP TABLE IF EXISTS tags;\n",
 	m0036: "-- The app's own durable copy of every setting written to workflowy.com, so the\n-- values survive when the app runs without it. Never refreshed from the server.\nCREATE TABLE local_settings (\n\tkey TEXT PRIMARY KEY NOT NULL,\n\tjson TEXT NOT NULL,\n\tupdated_at INTEGER NOT NULL\n);\n",
+	m0037: "-- Local copies of attachment bytes downloaded by `files mirror`: one row per\n-- attachment node, pointing into a content-addressed store on disk (sha256).\n-- Local state, not Workflowy data, so not bitemporal. status is 'ok' or 'error';\n-- an error row keeps the message and is retried on the next run.\nCREATE TABLE file_blobs (\n\tnode_id TEXT PRIMARY KEY NOT NULL,\n\tstatus TEXT NOT NULL,\n\tsha256 TEXT,\n\tsize INTEGER,\n\tcontent_type TEXT,\n\tlocal_path TEXT,\n\terror TEXT,\n\tfetched_at INTEGER NOT NULL\n);\n",
 };

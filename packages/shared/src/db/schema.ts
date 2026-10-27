@@ -365,6 +365,24 @@ export const localSettings = sqliteTable("local_settings", {
 });
 
 /**
+ * file_blobs: local copies of attachment bytes downloaded by `files mirror`.
+ * One row per attachment node; `local_path` is relative to the mirror's store
+ * directory and content-addressed by `sha256`. `status` is "ok" or "error"
+ * (with `error` holding the message); error rows are retried on the next run.
+ * `fetched_at` is Unix ms. Local state, so not bitemporal.
+ */
+export const fileBlobs = sqliteTable("file_blobs", {
+	nodeId: text("node_id").primaryKey(),
+	status: text("status").notNull(),
+	sha256: text("sha256"),
+	size: integer("size"),
+	contentType: text("content_type"),
+	localPath: text("local_path"),
+	error: text("error"),
+	fetchedAt: integer("fetched_at").notNull(),
+});
+
+/**
  * node_internal_metadata: item metadata the public API does not return,
  * imported from the internal API's `/get_tree_data/` (see
  * `importInternalMetadata` in `cache/importer.ts`). `metadata_json` holds only

@@ -11,6 +11,7 @@ import {
 	calendarMetadata,
 	changesMetadata,
 	config,
+	fileBlobs,
 	localSettings,
 	mirrors,
 	nodeContent,
@@ -83,6 +84,7 @@ export const NON_NODE_TABLES: Readonly<Record<string, string>> = {
 	[getTableName(systemClock)]: "single-row clock for system times",
 	[getTableName(accountState)]: "account-level key-value state",
 	[getTableName(localSettings)]: "durable local copy of settings written to workflowy.com",
+	[getTableName(fileBlobs)]: "local copies of attachment bytes, kept after the attachment's node ends",
 };
 
 /** Columns named like node ids that hold something else, with the reason. */

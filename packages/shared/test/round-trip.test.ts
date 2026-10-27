@@ -45,6 +45,7 @@ describe("round-trip test infrastructure", () => {
 				"calendar_metadata",
 				"changes_metadata",
 				"config",
+				"file_blobs",
 				"local_settings",
 				"mirrors",
 				"node_content",
@@ -71,7 +72,7 @@ describe("round-trip test infrastructure", () => {
 
 			const result = database.get<{count: number}>(sql`SELECT COUNT(*) AS count FROM __drizzle_migrations`);
 
-			expect(result.count).toBe(37);
+			expect(result.count).toBe(38);
 
 			sqlite.close();
 		});

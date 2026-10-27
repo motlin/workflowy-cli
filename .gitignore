@@ -80,3 +80,6 @@ artifacts/
 .wrangler/
 .dev.vars
 wrangler.local.jsonc
+
+# Attachment bytes downloaded by `files mirror`
+files-mirror/
