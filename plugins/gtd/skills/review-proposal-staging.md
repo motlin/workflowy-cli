@@ -19,6 +19,16 @@ When no web app is available, use an Artifact only where claude.ai is reachable 
 
 Every UI a review depends on must have checked-in source, a reproducible generator/build, and tests. Never hand-build a replacement in a published Artifact. For the ladder, `rebalance-ui.mts` generates the local app link or launcher by default; `vp run --filter @workflowy/web build` builds the React route. Explicit `--html` generates the tested Queue template for the fallback.
 
+### Decision page
+
+The local web app's generic decision page is the long-walk surface. It renders any staged list of questions at `/decisions/<slug>` and saves each answer as the user makes it. Use it in this order:
+
+- Stage `.llm/gtd/review/decisions/<slug>.json` (create the directory first). Shape: `{"slug", "title", "intro"?, "groups": [{"heading", "link"?, "items": [{"id", "title", "body": ["plain text line"], "links": [{"label", "href"}], "options": [{"value", "label", "description"?}], "default": "<option value>" | null}]}]}`. The `slug` must match the file name and `[a-z0-9-]+`; item ids must be unique and must not be `submittedAt`. Body lines render as plain text, never HTML. `default` only marks an option as suggested; it is not an answer.
+- Get the URL from `node plugins/gtd/scripts/decision-page.mts url <slug>` and put it inside the `AskUserQuestion` that tells the user to open the page and answer.
+- Wait until the user says they submitted. Do not poll.
+- Read the choices with `node plugins/gtd/scripts/decision-page.mts answers <slug>`. It prints `{"<itemId>": {"choice", "note", "answeredAt"}, "submittedAt"}` and exits non-zero when nothing was saved. `choice` is an option value or `null`; `note` is free text that may refine or override the choice.
+- Apply each decision exactly as the `AskUserQuestion` path would, including its persistence and verification. Ask about an unanswered item or an unclear note in a follow-up question rather than guessing. The page only records choices; every Workflowy write stays in the skill.
+
 ## Directory Layout
 
 ```text

@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import {join, resolve} from "node:path";
 import {readLadder, tierLabel} from "./asap-tiers.mts";
 import {isObject, parseJson} from "./json.mts";
+import {webAppUrl} from "./web-app-url.mts";
 
 export interface ModelItem {
 	readonly id: string;
@@ -719,7 +720,7 @@ function main(): void {
 		const outputIndex = args.indexOf("--output");
 		const output = outputIndex === -1 ? null : args.splice(outputIndex, 2)[1];
 		assert.ok(args.length === 0, "Use --html work.json personal.json for an offline or Artifact page");
-		const url = new URL("/ladder", process.env.REBALANCE_WEB_APP_URL ?? "https://workflowy.m4.notlin.com");
+		const url = webAppUrl("/ladder");
 		const page = renderWebAppLauncher(url);
 		if (output) {
 			writeFileSync(output, page);

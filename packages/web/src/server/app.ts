@@ -15,6 +15,7 @@ import {relatedRouter} from "./routes/related.js";
 import {searchRouter} from "./routes/search.js";
 import {createStarsRouter} from "./routes/stars.js";
 import {createTagIndexRouter} from "./routes/tag-index.js";
+import {createDecisionsRouter} from "./routes/decisions.js";
 import {createCustomTreeRouter} from "./routes/custom-tree.js";
 import {createTagsRouter} from "./routes/tags.js";
 import {rebuildTreeSnapshotAfterWrites} from "./tree-snapshot.js";
@@ -65,6 +66,7 @@ export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<Ap
 	app.route("/api/v1/tags", createTagsRouter());
 	app.route("/api/v1/custom-tree", createCustomTreeRouter());
 	app.route("/api/v1/ladder", createLadderRouter());
+	app.route("/api/v1/decisions", createDecisionsRouter());
 	app.route("/api/v1/expansion", createExpansionRouter());
 	app.route("/api/v1/calendar", createCalendarRouter());
 	app.route("/api/v1/stars", createStarsRouter());

@@ -4,6 +4,7 @@ import {CacheService, WorkflowyWriteThroughClient} from "@workflowy/shared/cache
 import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppDatabase} from "@workflowy/shared/db";
 import type {ServerConfig} from "./config.js";
+import type {DecisionStore} from "./decisions.js";
 import type {LadderEventBus} from "./ladder-events.js";
 
 type ServerDatabase = AppDatabase;
@@ -21,6 +22,8 @@ export interface ServerContext {
 	config: ServerConfig;
 	/** Where ladder writes are announced; the ladder socket subscribes to the same instance. */
 	ladderEvents: LadderEventBus;
+	/** Where decision pages are staged and answered, or undefined when the host has no such files. */
+	decisions?: DecisionStore;
 	/** The Workflowy API key, or undefined when write operations are unavailable. */
 	apiKey?: string;
 	/** Internal-API auth (saved session cookie and/or login), or undefined when internal-API routes are unavailable. */
@@ -54,13 +57,15 @@ export interface ServerContextDeps {
 	db: ServerDatabase;
 	config: ServerConfig;
 	ladderEvents: LadderEventBus;
+	/** Undefined when the host keeps no decision-page files. */
+	decisions?: DecisionStore;
 	/** Undefined when the host has no internal-API credentials. */
 	internalAuth?: InternalAuth;
 }
 
 /** Assemble a {@link ServerContext} from host-supplied dependencies, with no process or filesystem access. */
 export function buildServerContext(deps: ServerContextDeps): ServerContext {
-	const {db, config, ladderEvents, internalAuth} = deps;
+	const {db, config, ladderEvents, decisions, internalAuth} = deps;
 	const cacheService = new CacheService(db);
 	const apiKey = config.apiKey;
 	let adapter: WorkflowyInternalAdapter | undefined;
@@ -69,6 +74,7 @@ export function buildServerContext(deps: ServerContextDeps): ServerContext {
 		cacheService,
 		config,
 		ladderEvents,
+		decisions,
 		apiKey,
 		internalAuth,
 		calendarEnsureEnabled: config.calendarEnsureEnabled,

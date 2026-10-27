@@ -22,6 +22,7 @@ import {setTableCellProbe} from "./item-type-select.js";
 import {cachedTableRole} from "./table-cache.js";
 import {CommandPaletteHost} from "./components/command-palette.js";
 import {JumpMenu} from "./components/jump-menu.js";
+import {DecisionsView} from "./components/decisions-view.js";
 import {LadderView} from "./components/ladder-view.js";
 import {LeftBar} from "./components/left-sidebar.js";
 import {LinkPopupHost} from "./components/link-popup-host.js";
@@ -432,6 +433,15 @@ export function App() {
 										</>
 									}
 									path="/ladder"
+								/>
+								<Route
+									element={
+										<>
+											<NonameTitle />
+											<DecisionsView />
+										</>
+									}
+									path="/decisions/:slug"
 								/>
 								<Route element={<NodeRedirect />} path="/node/:id" />
 							</Routes>
