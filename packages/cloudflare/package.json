@@ -12,7 +12,8 @@
 	"dependencies": {
 		"@workflowy/shared": "workspace:*",
 		"@workflowy/web": "workspace:*",
-		"drizzle-orm": "^0.45.3"
+		"drizzle-orm": "^0.45.3",
+		"jose": "^6.2.13"
 	},
 	"devDependencies": {
 		"esbuild": "^0.28.0",

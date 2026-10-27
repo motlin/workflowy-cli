@@ -13,4 +13,6 @@
 		"bindings": [{"name": "USER_STORE", "class_name": "UserStore"}],
 	},
 	"migrations": [{"tag": "v1", "new_sqlite_classes": ["UserStore"]}],
+	// Placeholders: set real values as dashboard secrets/vars. Never set ACCESS_DEV_IDENTITY here; use .dev.vars.
+	"vars": {"ACCESS_TEAM_DOMAIN": "", "ACCESS_AUD": "", "ALLOWED_EMAILS": ""},
 }

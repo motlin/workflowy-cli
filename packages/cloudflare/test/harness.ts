@@ -40,6 +40,7 @@ export async function startHarness(
 	entry: string,
 	className = "UserStore",
 	existingPersistDir?: string,
+	bindings: Record<string, string> = {ACCESS_DEV_IDENTITY: "dev"},
 ): Promise<Harness> {
 	ensureClientBuilt();
 	const script = await bundleWorker(entry);
@@ -49,6 +50,7 @@ export async function startHarness(
 		script,
 		compatibilityDate: "2026-08-01",
 		compatibilityFlags: ["nodejs_compat"],
+		bindings,
 		durableObjects: {USER_STORE: {className, useSQLite: true}},
 		durableObjectsPersist: join(persistDir, "do"),
 		assets: {
