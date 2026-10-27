@@ -8,6 +8,7 @@ import {useEffect, useRef, useState} from "react";
 import {useParams} from "react-router-dom";
 import type {DecisionItem, DecisionPage} from "../../server/decisions.js";
 import "../decisions.css";
+import {hideLoadingScreenOnce} from "../loading-screen.js";
 import {readJson} from "../read-json.js";
 
 const NOTE_DEBOUNCE_MS = 600;
@@ -80,6 +81,11 @@ export function DecisionPageView({slug}: {slug: string}) {
 	// Mirrors `items` so a debounced save sends the choice and note current when it fires.
 	const itemsRef = useRef<Record<string, ItemState>>({});
 	const noteTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+	// Only the outline view dismisses the boot screen; this route never mounts it.
+	useEffect(() => {
+		hideLoadingScreenOnce();
+	}, []);
 
 	useEffect(() => {
 		const controller = new AbortController();

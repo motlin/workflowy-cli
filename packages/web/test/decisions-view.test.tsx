@@ -8,6 +8,9 @@ declare global {
 	var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
+const {hideLoadingScreenOnce} = vi.hoisted(() => ({hideLoadingScreenOnce: vi.fn<() => void>()}));
+vi.mock("../src/client/loading-screen.js", () => ({hideLoadingScreenOnce}));
+
 const {act, createElement} = await import("react");
 const {createRoot} = await import("react-dom/client");
 const {DecisionPageView} = await import("../src/client/components/decisions-view.js");
@@ -121,6 +124,13 @@ function text(selector: string, within: ParentNode | undefined = host): string[]
 }
 
 describe("DecisionPageView", () => {
+	it("dismisses the boot loading screen, which only the outline view hid before", async () => {
+		hideLoadingScreenOnce.mockClear();
+		stubFetch();
+		await mount();
+		expect(hideLoadingScreenOnce.mock.calls).toStrictEqual([[]]);
+	});
+
 	it("renders the staged page with body lines as text, links in new tabs and one radio per option", async () => {
 		stubFetch();
 		await mount();
