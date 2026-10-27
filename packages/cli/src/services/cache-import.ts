@@ -1,7 +1,6 @@
 import {fetchWorkflowyEpoch} from "@workflowy/shared/api";
 import {config, nodeContent, nodeMetadata} from "@workflowy/shared/db";
-import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
-import type * as schema from "@workflowy/shared/db";
+import type {NodeContentType, NodeMetadataType, AppDatabase} from "@workflowy/shared/db";
 import {
 	applyRows,
 	collectItemRelationships,
@@ -314,7 +313,7 @@ export interface ImportBackupResult {
  * @param force Bypass the stale-snapshot watermark guard
  */
 export async function importBackup(
-	database: BetterSQLite3Database<typeof schema>,
+	database: AppDatabase,
 	filePath: string,
 	backupImportFilename: string,
 	verbose = false,

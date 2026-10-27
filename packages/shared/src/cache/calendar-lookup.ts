@@ -5,10 +5,9 @@
  */
 
 import {and, eq, exists, inArray, like, sql} from "drizzle-orm";
-import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {z} from "zod";
 import {parseTimeAttrs} from "../dates/date-markup.js";
-import type * as schema from "../db/schema.js";
+import type {AppDatabase} from "../db/types.js";
 import {nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {CALENDAR_LEVELS, DEFAULT_CALENDAR_LEVELS, calendarDateId, parseDateId} from "../internal/calendar-day.js";
 import type {CalendarDate, CalendarLevel} from "../internal/calendar-day.js";
@@ -19,7 +18,7 @@ import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import type {CacheService} from "./cache-service.js";
 
 export interface CalendarDayDeps {
-	db: BetterSQLite3Database<typeof schema>;
+	db: AppDatabase;
 	cache: CacheService;
 	/** The account's entropy key; without it the deterministic-id lookup is skipped. */
 	entropyKey?: string;

@@ -4,19 +4,18 @@
  * a mirror node (left by old writes to the mirror id), so readers ignore any
  * text on a mirror row and use the original's instead.
  */
-import type * as schema from "../db/schema.js";
+import type {AppDatabase} from "../db/types.js";
 import {mirrors, nodeContent} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
-import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
 import {currentVersion} from "./cache-temporal.js";
 
 // Stay well under SQLite's variable limit (32766).
 const SQL_CHUNK_SIZE = 10_000;
 
-type Database = BetterSQLite3Database<typeof schema>;
+type Database = AppDatabase;
 
 interface TextRow {
 	id: string;

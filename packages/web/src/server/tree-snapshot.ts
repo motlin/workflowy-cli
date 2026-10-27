@@ -3,12 +3,21 @@ import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
 import type {MiddlewareHandler} from "hono";
-import type {getDatabase} from "./db.js";
+import type {AppDatabase} from "@workflowy/shared/db";
+import BetterSqlite3 from "better-sqlite3";
 import {warmSwitcher} from "./switcher-search.js";
 import {changedNodeIds, changesSince, latestSystemTime, readConsistently} from "./system-changes.js";
 import type {TreeSearchRow} from "./tree-search.js";
 
-export type Database = ReturnType<typeof getDatabase>;
+export type Database = AppDatabase;
+
+/** Step 3 removes this `$client` coupling; until then the Node server's database is a better-sqlite3 one. */
+function clientOf(database: AppDatabase): BetterSqlite3.Database {
+	if (!("$client" in database) || !(database.$client instanceof BetterSqlite3)) {
+		throw new Error("The database has no better-sqlite3 client");
+	}
+	return database.$client;
+}
 
 interface TreeSqlRow {
 	id: string;
@@ -120,7 +129,7 @@ function seedsOf(pairs: [id: string, depth: number][]): SQL {
  * ordered by depth then id. References roots and their backlink items are skipped, as are `ai.inChat` items
  * and everything below them. A mirror takes its text from its live original.
  */
-export function loadTreeSearchRows(database: ReturnType<typeof getDatabase>, rootId: string | null): TreeSearchRow[] {
+export function loadTreeSearchRows(database: AppDatabase, rootId: string | null): TreeSearchRow[] {
 	const seeds =
 		rootId === null
 			? TOP_LEVEL_SEEDS
@@ -167,7 +176,7 @@ interface ChangeState {
 }
 
 function changeState(database: Database): ChangeState {
-	const dataVersion: unknown = database.$client.pragma("data_version", {simple: true});
+	const dataVersion: unknown = clientOf(database).pragma("data_version", {simple: true});
 	const {changes} = database.get<{changes: number}>(sql`SELECT total_changes() AS changes`);
 	return {dataVersion: String(dataVersion), changes};
 }
@@ -449,7 +458,7 @@ export function scheduleTreeSnapshotRebuild(database: Database, {restart = true}
 	}
 	const timer = setTimeout(() => {
 		rebuildTimers.delete(database);
-		if (database.$client.open) {
+		if (clientOf(database).open) {
 			warmTreeSnapshot(database);
 		}
 	}, REBUILD_DEBOUNCE_MS);

@@ -1,8 +1,7 @@
-import type * as schema from "../db/schema.js";
+import type {AppDatabase} from "../db/types.js";
 import {nodeContent} from "../db/schema.js";
 import {stripHtmlTags} from "../html/strip-tags.js";
 import {and, inArray} from "drizzle-orm";
-import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {currentVersion} from "./cache-temporal.js";
 import {withMirrorText} from "./mirror-text.js";
 
@@ -23,9 +22,9 @@ interface NodeInfo {
  * walking lives in one place.
  */
 export class PathBuilder {
-	private readonly database: BetterSQLite3Database<typeof schema>;
+	private readonly database: AppDatabase;
 
-	constructor(database: BetterSQLite3Database<typeof schema>) {
+	constructor(database: AppDatabase) {
 		this.database = database;
 	}
 

@@ -2,6 +2,7 @@ import {Hono} from "hono";
 import type {Context} from "hono";
 import {PathBuilder} from "@workflowy/shared/cache";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import type {AppDatabase} from "@workflowy/shared/db";
 import {buildSearchConditions, getScoringTerms, parseSearchQuery, resolveJoinedSec} from "@workflowy/shared/search";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
@@ -34,7 +35,7 @@ interface SearchResult {
 }
 
 // Get all descendant node IDs using a recursive CTE
-function getDescendantIds(database: ReturnType<typeof getDatabase>, parentId: string): string[] {
+function getDescendantIds(database: AppDatabase, parentId: string): string[] {
 	const result = database.all<{id: string}>(sql`
 		WITH RECURSIVE descendants(id) AS (
 			SELECT id FROM node_content
@@ -56,7 +57,7 @@ interface TreeSearchBody {
 }
 
 /** Search helper #tags/@tags of the live descendants of `rootId`, excluding the root (whole tree when empty). */
-export function loadHelperTags(database: ReturnType<typeof getDatabase>, rootId: string): HelperTags {
+export function loadHelperTags(database: AppDatabase, rootId: string): HelperTags {
 	const rows = loadTreeRows(database, rootId === "" ? null : rootId);
 	return collectHelperTags(rows.filter((row) => row.id !== rootId));
 }

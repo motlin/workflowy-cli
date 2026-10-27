@@ -8,9 +8,18 @@
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
-import type {getDatabase} from "./db.js";
+import type {AppDatabase} from "@workflowy/shared/db";
+import BetterSqlite3 from "better-sqlite3";
 
-type Database = ReturnType<typeof getDatabase>;
+type Database = AppDatabase;
+
+/** Step 3 removes this `$client` coupling; until then the Node server's database is a better-sqlite3 one. */
+function clientOf(database: AppDatabase): BetterSqlite3.Database {
+	if (!("$client" in database) || !(database.$client instanceof BetterSqlite3)) {
+		throw new Error("The database has no better-sqlite3 client");
+	}
+	return database.$client;
+}
 
 /**
  * How far before a cache's last system time to look again for changes. A writer in another process can
@@ -88,5 +97,5 @@ export function changedNodeIds(database: Database, since: string, limit: number)
 
 /** Run `read` in one transaction, so every query in it sees the same committed state. */
 export function readConsistently<T>(database: Database, read: () => T): T {
-	return database.$client.transaction(read)();
+	return clientOf(database).transaction(read)();
 }

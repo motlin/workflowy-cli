@@ -1,7 +1,6 @@
 import {and, eq, gte, inArray, lte, ne} from "drizzle-orm";
-import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {mirrors, nodeContent, nodeMetadata} from "../db/schema.js";
-import type * as schema from "../db/schema.js";
+import type {AppDatabase} from "../db/types.js";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "../temporal/constants.js";
 
 const SQL_CHUNK_SIZE = 10_000;
@@ -94,7 +93,7 @@ export function getChangeLabels(change: NodeChange): string[] {
 }
 
 export class ChangeDetector {
-	constructor(private readonly db: BetterSQLite3Database<typeof schema>) {}
+	constructor(private readonly db: AppDatabase) {}
 
 	detectChanges(cutoffDate: Date): ChangeDetectionResult {
 		const cutoffStr = formatTemporalTimestamp(cutoffDate);

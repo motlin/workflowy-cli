@@ -1,8 +1,8 @@
 import type * as schema from "../db/schema.js";
+import type {AppDatabase} from "../db/types.js";
 import {nodeContent} from "../db/schema.js";
 import type {Node} from "../types/node.js";
 import {and, eq, inArray, isNull} from "drizzle-orm";
-import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {currentVersion} from "./cache-temporal.js";
 import {applyMirrorText, loadMirrorOriginals} from "./mirror-text.js";
 
@@ -27,9 +27,9 @@ type ContentWithMetadata = schema.NodeContentType & {
  * DTO — REST handlers compute those from a `Node` plus extra batched queries.
  */
 export class NodeReader {
-	private readonly database: BetterSQLite3Database<typeof schema>;
+	private readonly database: AppDatabase;
 
-	constructor(database: BetterSQLite3Database<typeof schema>) {
+	constructor(database: AppDatabase) {
 		this.database = database;
 	}
 

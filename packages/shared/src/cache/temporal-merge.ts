@@ -1,7 +1,6 @@
 import {and, eq, sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
 import type {BaseSQLiteDatabase, SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
-import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {FAR_FUTURE_DATE} from "../temporal/index.js";
 
 /**
@@ -103,12 +102,12 @@ export interface TemporalMergeConfig<TIncoming, TCurrent> {
 }
 
 /**
- * A synchronous Drizzle SQLite handle: a `BetterSQLite3Database` or the `tx`
+ * A synchronous Drizzle SQLite handle: an `AppDatabase` or the `tx`
  * from its `database.transaction(...)`. The schema generics stay open so this
  * engine is agnostic of the concrete schema.
  */
 // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- schema generics are invariant, so `unknown` would reject concrete schemas
-export type TemporalTransaction = BaseSQLiteDatabase<"sync", ReturnType<BetterSQLite3Database["run"]>, any, any>;
+export type TemporalTransaction = BaseSQLiteDatabase<"sync", any, any, any>;
 
 /**
  * Insert phase-out keys into the `temp_phase_out_ids` scratch table in batches.

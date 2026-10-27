@@ -2,6 +2,7 @@ import {Hono} from "hono";
 import {notAMirror, PathBuilder} from "@workflowy/shared/cache";
 import {and, count, eq, ne, sql} from "drizzle-orm";
 import {nodeContent, nodeEmbeddings} from "@workflowy/shared/db";
+import type {AppDatabase} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {getDatabase} from "../db.js";
@@ -31,7 +32,7 @@ interface RelatedResponse {
 }
 
 /** Fill each node's ancestor path in one batched PathBuilder query. */
-function fillPaths(database: ReturnType<typeof getDatabase>, nodes: RelatedNode[]): void {
+function fillPaths(database: AppDatabase, nodes: RelatedNode[]): void {
 	const parts = new PathBuilder(database).buildFullPathPartsBatch(nodes.map((n) => n.id));
 	for (const node of nodes) {
 		node.path = parts.get(node.id) ?? [];
@@ -39,7 +40,7 @@ function fillPaths(database: ReturnType<typeof getDatabase>, nodes: RelatedNode[
 }
 
 function findSimilarNodes(
-	database: ReturnType<typeof getDatabase>,
+	database: AppDatabase,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,
@@ -83,7 +84,7 @@ function findSimilarNodes(
 }
 
 function findParentCandidates(
-	database: ReturnType<typeof getDatabase>,
+	database: AppDatabase,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,
@@ -168,7 +169,7 @@ function findParentCandidates(
 }
 
 function findLinkTargets(
-	database: ReturnType<typeof getDatabase>,
+	database: AppDatabase,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,

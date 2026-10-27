@@ -1,4 +1,5 @@
 import type * as schema from "../db/schema.js";
+import type {AppDatabase} from "../db/types.js";
 import {backlinks, mirrors, nodeContent, nodeMetadata, referencesRoots, virtualRootIds} from "../db/schema.js";
 import {stripHtmlTags} from "../html/strip-tags.js";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "../temporal/constants.js";
@@ -6,7 +7,6 @@ import type {Node} from "../types/node.js";
 import type {WorkflowyNode} from "../types/workflowy.js";
 import {uuidToShortId} from "../workflowy/constants.js";
 import {and, eq, inArray, isNull, like, notExists, notInArray, or, sql} from "drizzle-orm";
-import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {
 	contentMatches,
 	currentVersion,
@@ -337,10 +337,10 @@ export interface SubtreeMirrors {
 }
 
 export class CacheService {
-	protected database: BetterSQLite3Database<typeof schema>;
+	protected database: AppDatabase;
 	protected nodeReader: NodeReader;
 
-	constructor(database: BetterSQLite3Database<typeof schema>) {
+	constructor(database: AppDatabase) {
 		this.database = database;
 		this.nodeReader = new NodeReader(database);
 	}

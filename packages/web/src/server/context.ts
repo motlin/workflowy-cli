@@ -1,10 +1,10 @@
 import type {InternalAuth} from "@workflowy/shared/api";
 import type {CacheService} from "@workflowy/shared/cache";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {getDatabase} from "./db.js";
+import type {AppDatabase} from "@workflowy/shared/db";
 import type {ServerConfig} from "./config.js";
 
-type ServerDatabase = ReturnType<typeof getDatabase>;
+type ServerDatabase = AppDatabase;
 
 /**
  * The server's composition root: the dependencies a router needs, assembled in

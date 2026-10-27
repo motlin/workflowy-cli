@@ -6,6 +6,7 @@
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
 		"skipLibCheck": true,
+		"types": ["node"],
 		"declaration": true,
 		"composite": true,
 		"outDir": "dist",
