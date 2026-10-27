@@ -2,11 +2,21 @@
  * Outbound HTTP logging for the Node host: wraps `fetch` so every call the
  * server makes to workflowy.com (public API and internal API alike) is logged
  * with method, URL, request headers and body, status, elapsed time and response
- * body. Enabled by `WORKFLOWY_HTTP_LOGGING=true`. Headers are logged verbatim,
- * credentials included, so redact the output before sharing it.
+ * body. Enabled by `WORKFLOWY_HTTP_LOGGING=true`. Credentials are replaced with
+ * {@link REDACTED}: the authorization, cookie and set-cookie headers, and form
+ * fields named like passwords, session ids or tokens. JSON and response bodies
+ * are logged as sent.
  */
 
 const DEFAULT_MAX_BODY_CHARS = 4000;
+
+const REDACTED = "«redacted»";
+
+/** Header names (lowercase, as `Headers` iterates them) whose values are credentials. */
+const CREDENTIAL_HEADERS = new Set(["authorization", "cookie", "set-cookie"]);
+
+/** Form field names whose values are credentials: passwords, session ids, any token. */
+const CREDENTIAL_FIELD = /password|sessionid|token/iu;
 
 export interface LoggingFetchOptions {
 	/** Response bodies longer than this are cut, with a note of how much was cut. */
@@ -43,12 +53,12 @@ export function loggingFetch(
 		const headers = new Headers(init?.headers);
 		log(`[HTTP] >>> ${method} ${url}`);
 		for (const [name, value] of headers) {
-			log(`[HTTP]     header ${name}: ${value}`);
+			log(`[HTTP]     header ${name}: ${CREDENTIAL_HEADERS.has(name) ? REDACTED : value}`);
 		}
 		if (typeof init?.body === "string") {
 			if (headers.get("content-type")?.includes("application/x-www-form-urlencoded")) {
 				for (const [name, value] of new URLSearchParams(init.body)) {
-					log(`[HTTP]     form ${name}=${value}`);
+					log(`[HTTP]     form ${name}=${CREDENTIAL_FIELD.test(name) ? REDACTED : value}`);
 				}
 			} else {
 				log(`[HTTP]     body ${init.body}`);

@@ -34,7 +34,7 @@ describe("loggingFetch", () => {
 		await expect(response.text()).resolves.toBe('{"id":"n1"}');
 		expect(lines).toStrictEqual([
 			"[HTTP] >>> POST https://workflowy.com/api/v1/nodes",
-			"[HTTP]     header authorization: Bearer secret",
+			"[HTTP]     header authorization: «redacted»",
 			"[HTTP]     header content-type: application/json",
 			'[HTTP]     body {"name":"x"}',
 			"[HTTP] <<< 201 Created POST https://workflowy.com/api/v1/nodes (42 ms)",
@@ -58,6 +58,36 @@ describe("loggingFetch", () => {
 			"[HTTP]     form client_id=abc",
 			'[HTTP]     form push_poll_data=[{"a":1}]',
 			"[HTTP] <<< 200 OK GET https://workflowy.com/push_and_poll (0 ms)",
+			"[HTTP]     body ",
+		]);
+	});
+
+	it("redacts credential headers and credential form fields", async () => {
+		const {lines, log} = recorder();
+		const inner: typeof fetch = async () => Promise.resolve(new Response("", {status: 200, statusText: "OK"}));
+		const fetchWithLog = loggingFetch(inner, log, {now: () => 0});
+
+		await fetchWithLog("https://workflowy.com/ajax_login", {
+			method: "POST",
+			headers: {
+				Cookie: "sessionid=placeholder-session",
+				"Set-Cookie": "sessionid=placeholder-session; Path=/",
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body: "username=alice%40example.com&password=placeholder-password&sessionid=placeholder-session&token=placeholder-token&api_token=placeholder-token",
+		});
+
+		expect(lines).toStrictEqual([
+			"[HTTP] >>> POST https://workflowy.com/ajax_login",
+			"[HTTP]     header content-type: application/x-www-form-urlencoded",
+			"[HTTP]     header cookie: «redacted»",
+			"[HTTP]     header set-cookie: «redacted»",
+			"[HTTP]     form username=alice@example.com",
+			"[HTTP]     form password=«redacted»",
+			"[HTTP]     form sessionid=«redacted»",
+			"[HTTP]     form token=«redacted»",
+			"[HTTP]     form api_token=«redacted»",
+			"[HTTP] <<< 200 OK POST https://workflowy.com/ajax_login (0 ms)",
 			"[HTTP]     body ",
 		]);
 	});
