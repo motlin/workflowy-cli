@@ -10,6 +10,7 @@ import {and, eq, inArray, isNull, like, notExists, notInArray, or, sql} from "dr
 import {
 	contentMatches,
 	currentVersion,
+	keepSkewedTimestamps,
 	metadataMatches,
 	normalizeLayoutMode,
 	systemFromToDate,
@@ -157,15 +158,27 @@ function insertContent(
 		.run();
 }
 
-function insertMetadata(db: TemporalTransaction, node: WorkflowyNode, systemFrom: string): void {
+/**
+ * Insert a current node_metadata row for `node`. When `existing` is the version
+ * being replaced, its timestamps win over incoming ones within the one-second skew.
+ */
+function insertMetadata(
+	db: TemporalTransaction,
+	node: WorkflowyNode,
+	systemFrom: string,
+	existing?: NodeMetadataRow,
+): void {
+	const timestamps = {
+		createdAt: timestampToDate(node.createdAt),
+		modifiedAt: timestampToDate(node.modifiedAt),
+		completedAt: timestampToDate(node.completedAt),
+	};
 	db.insert(nodeMetadata)
 		.values({
 			nodeId: node.id,
 			shortId: uuidToShortId(node.id),
 			priority: node.priority,
-			createdAt: timestampToDate(node.createdAt),
-			modifiedAt: timestampToDate(node.modifiedAt),
-			completedAt: timestampToDate(node.completedAt),
+			...(existing ? keepSkewedTimestamps(existing, timestamps) : timestamps),
 			layoutMode: normalizeLayoutMode(node.data?.layoutMode),
 			systemFrom,
 			systemTo: FAR_FUTURE_DATE,
@@ -223,7 +236,7 @@ function upsertNodeVersion(
 			.set({systemTo: systemTime})
 			.where(and(eq(nodeMetadata.nodeId, node.id), currentVersion(nodeMetadata)))
 			.run();
-		insertMetadata(db, node, systemTime);
+		insertMetadata(db, node, systemTime, existingMetadata);
 	}
 }
 

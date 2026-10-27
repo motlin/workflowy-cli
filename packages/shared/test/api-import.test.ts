@@ -4,6 +4,7 @@ import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {applyApiBatch, beginApiImport, finishApiImport, importFromApi} from "../src/cache/api-import.js";
+import {CacheService} from "../src/cache/cache-service.js";
 import * as schema from "../src/db/schema.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/index.js";
 import type {WorkflowyNode} from "../src/types/index.js";
@@ -144,5 +145,99 @@ describe("shared API import", () => {
 			nodesUnchanged: result.nodesUnchanged,
 		}).toStrictEqual({nodesAdded: 0, nodesUpdated: 0, nodesDeleted: 0, nodesUnchanged: 7});
 		expect(snapshot(db).content).toHaveLength(7);
+	});
+
+	describe("one-second timestamp skew between REST and the internal API", () => {
+		// Modeled on a real node: the internal/backup integer second is the floor of
+		// Workflowy's fractional time, REST is its ceiling, so the two sources disagree
+		// by exactly one second on about a quarter of timestamps.
+		const SKEW_NODE = "00000000-0000-0000-0000-00000000s1ew";
+		const floorSide = {createdAt: 1_740_838_291, modifiedAt: 1_758_565_383, completedAt: 1_758_565_380};
+		const ceilSide = {createdAt: 1_740_838_292, modifiedAt: 1_758_565_384, completedAt: 1_758_565_381};
+
+		function metadataVersions(db: ReturnType<typeof createDb>) {
+			return db
+				.select()
+				.from(schema.nodeMetadata)
+				.all()
+				.filter((row) => row.nodeId === SKEW_NODE)
+				.toSorted((x, y) => x.systemFrom.localeCompare(y.systemFrom))
+				.map((row) => ({
+					priority: row.priority,
+					createdAt: row.createdAt?.getTime() ?? null,
+					modifiedAt: row.modifiedAt?.getTime() ?? null,
+					completedAt: row.completedAt?.getTime() ?? null,
+					open: row.systemTo === FAR_FUTURE_DATE,
+				}));
+		}
+
+		it("opens no new version when only the timestamps differ by one second", () => {
+			const db = createDb();
+			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", ...ceilSide})], {timestamp: T0});
+			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", ...floorSide})], {timestamp: T1});
+
+			expect(metadataVersions(db)).toStrictEqual([
+				{
+					priority: 0,
+					createdAt: ceilSide.createdAt * 1000,
+					modifiedAt: ceilSide.modifiedAt * 1000,
+					completedAt: ceilSide.completedAt * 1000,
+					open: true,
+				},
+			]);
+		});
+
+		it("keeps the existing timestamps when a real change opens a new version", () => {
+			const db = createDb();
+			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", priority: 0, ...ceilSide})], {timestamp: T0});
+			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", priority: 100, ...floorSide})], {
+				timestamp: T1,
+			});
+
+			const kept = {
+				createdAt: ceilSide.createdAt * 1000,
+				modifiedAt: ceilSide.modifiedAt * 1000,
+				completedAt: ceilSide.completedAt * 1000,
+			};
+			expect(metadataVersions(db)).toStrictEqual([
+				{priority: 0, ...kept, open: false},
+				{priority: 100, ...kept, open: true},
+			]);
+		});
+
+		it("takes the incoming timestamp when it moved by more than one second", () => {
+			const db = createDb();
+			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", priority: 0, ...ceilSide})], {timestamp: T0});
+			importFromApi(
+				db,
+				[apiNode(SKEW_NODE, {name: "Placeholder", priority: 100, ...floorSide, modifiedAt: 1_758_565_500})],
+				{timestamp: T1},
+			);
+
+			expect(metadataVersions(db).at(-1)).toStrictEqual({
+				priority: 100,
+				createdAt: ceilSide.createdAt * 1000,
+				modifiedAt: 1_758_565_500_000,
+				completedAt: ceilSide.completedAt * 1000,
+				open: true,
+			});
+		});
+
+		it("keeps the existing timestamps when the write-through cache stores a changed child list", () => {
+			const db = createDb();
+			const cache = new CacheService(db);
+			cache.storeApiResponse([apiNode(SKEW_NODE, {name: "Placeholder", priority: 0, ...ceilSide})], null);
+			cache.storeApiResponse([apiNode(SKEW_NODE, {name: "Placeholder", priority: 100, ...floorSide})], null);
+
+			const kept = {
+				createdAt: ceilSide.createdAt * 1000,
+				modifiedAt: ceilSide.modifiedAt * 1000,
+				completedAt: ceilSide.completedAt * 1000,
+			};
+			expect(metadataVersions(db)).toStrictEqual([
+				{priority: 0, ...kept, open: false},
+				{priority: 100, ...kept, open: true},
+			]);
+		});
 	});
 });

@@ -84,12 +84,13 @@ export interface TemporalMergeConfig<TIncoming, TCurrent> {
 	 */
 	contentMatches: (current: TCurrent, incoming: TIncoming) => boolean;
 	/**
-	 * Builds the row to insert for a new or changed incoming row. The returned
-	 * object must NOT include `systemFrom` / `systemTo`; those are appended by
-	 * the merge engine.
+	 * Builds the row to insert for a new or changed incoming row. `current` is the
+	 * row being phased out for a changed key, or undefined for a new key. The
+	 * returned object must NOT include `systemFrom` / `systemTo`; those are
+	 * appended by the merge engine.
 	 */
 	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	buildInsertRow: (incoming: TIncoming) => Record<string, any>;
+	buildInsertRow: (incoming: TIncoming, current: TCurrent | undefined) => Record<string, any>;
 	/**
 	 * Keys that must never be phased out for being absent from `incoming`.
 	 *
@@ -181,7 +182,7 @@ export function temporalMerge<TIncoming, TCurrent>(
 			keysToPhaseOut.push(key);
 		}
 		rowsToInsert.push({
-			...buildInsertRow(row),
+			...buildInsertRow(row, current),
 			systemFrom: importedAt,
 			systemTo: FAR_FUTURE_DATE,
 		});

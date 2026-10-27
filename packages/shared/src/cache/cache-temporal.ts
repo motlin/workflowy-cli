@@ -112,6 +112,41 @@ function timestampsMatch(a: number | null, b: number | null): boolean {
 	return Math.abs(a - b) <= 1;
 }
 
+/** The timestamp fields of a node_metadata row, as Drizzle reads and writes them. */
+interface MetadataTimestamps {
+	createdAt?: Date | null;
+	modifiedAt?: Date | null;
+	completedAt?: Date | null;
+}
+
+/** The existing value when the incoming one is within the one-second skew of it, else the incoming value. */
+function keepWithinSkew(existing: Date | null | undefined, incoming: Date | null | undefined): Date | null | undefined {
+	if (existing === null || existing === undefined || incoming === null || incoming === undefined) {
+		return incoming;
+	}
+	return timestampsMatch(dateToTimestamp(existing), dateToTimestamp(incoming)) ? existing : incoming;
+}
+
+/**
+ * Carry the existing createdAt / modifiedAt / completedAt into a new node_metadata
+ * version wherever the incoming value is within one second of it.
+ *
+ * REST (nodes-export) rounds Workflowy's fractional times up and the internal API
+ * and backup round them down, so the sources disagree by one second on about a
+ * quarter of timestamps. {@link metadataMatches} already ignores that skew when
+ * deciding whether to open a version; this keeps a version opened for a real change
+ * (priority, completion, layout) from also rewriting the timestamps to the other
+ * source's rounding, so history never records a one-second edit that never happened.
+ */
+export function keepSkewedTimestamps<T extends MetadataTimestamps>(existing: MetadataTimestamps, incoming: T): T {
+	return {
+		...incoming,
+		createdAt: keepWithinSkew(existing.createdAt, incoming.createdAt),
+		modifiedAt: keepWithinSkew(existing.modifiedAt, incoming.modifiedAt),
+		completedAt: keepWithinSkew(existing.completedAt, incoming.completedAt),
+	};
+}
+
 /**
  * Check if metadata fields match (does NOT affect embeddings).
  * Used to determine if a new node_metadata temporal version is needed.

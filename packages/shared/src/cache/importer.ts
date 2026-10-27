@@ -29,7 +29,7 @@ import {
 } from "../db/schema.js";
 import type {CalendarLevels, CalendarMetadata, S3File} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/index.js";
-import {contentMatches, metadataMatches} from "./cache-temporal.js";
+import {contentMatches, keepSkewedTimestamps, metadataMatches} from "./cache-temporal.js";
 import type {
 	NormalizedAiMetadataRow,
 	NormalizedCalendarLevelsRow,
@@ -132,7 +132,7 @@ function mergeNodeKeyedTable<TIncoming, TTable extends SQLiteTable>(
 	currentKey: (row: TTable["$inferSelect"]) => string,
 	contentEquals: (current: TTable["$inferSelect"], incoming: TIncoming) => boolean,
 	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	buildInsertRow: (incoming: TIncoming) => Record<string, any>,
+	buildInsertRow: (incoming: TIncoming, current: TTable["$inferSelect"] | undefined) => Record<string, any>,
 	importedAt: string,
 	preserveKeys?: ReadonlySet<string>,
 	onlyKeys?: readonly string[],
@@ -236,7 +236,7 @@ export function applyRows(
 					completedAt: toUnix(incoming.completedAt),
 					layoutMode: incoming.layoutMode ?? null,
 				}),
-			(row) => ({...row}),
+			(row, current) => (current ? keepSkewedTimestamps(current, row) : {...row}),
 			importedAt,
 			preserveNodeIds,
 		);
@@ -474,7 +474,7 @@ export function applyNodeRowsBatch(
 				completedAt: toUnix(incoming.completedAt),
 				layoutMode: incoming.layoutMode ?? null,
 			}),
-		(row) => ({...row}),
+		(row, current) => (current ? keepSkewedTimestamps(current, row) : {...row}),
 		importedAt,
 		undefined,
 		metadataIds,
