@@ -4,6 +4,8 @@
 
 CLI for managing Workflowy nodes via API.
 
+Why this project merges several data sources: see [docs/workflowy-data-sources.md](docs/workflowy-data-sources.md).
+
 <!-- toc -->
 
 - [workflowy-cli](#workflowy-cli)
