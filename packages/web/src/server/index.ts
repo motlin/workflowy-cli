@@ -10,7 +10,6 @@ import {createAccountRouter} from "./routes/account.js";
 import {createCalendarRouter} from "./routes/calendar.js";
 import {createFilesRouter} from "./routes/files.js";
 import {createExpansionRouter} from "./routes/expansion.js";
-import {ladderEvents} from "./ladder-events.js";
 import {ladderSocketHandlers} from "./ladder-socket.js";
 import {createLadderRouter} from "./routes/ladder.js";
 import {homeRouter, nodesRouter} from "./routes/nodes.js";
@@ -78,7 +77,7 @@ app.route("/api/related", relatedRouter);
 const nodeWebSocket = createNodeWebSocket({app});
 app.get(
 	"/api/v1/ladder/events",
-	nodeWebSocket.upgradeWebSocket(() => ladderSocketHandlers(ladderEvents)),
+	nodeWebSocket.upgradeWebSocket(() => ladderSocketHandlers(serverContext.ladderEvents)),
 );
 
 // Health check

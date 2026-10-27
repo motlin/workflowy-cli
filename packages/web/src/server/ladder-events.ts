@@ -95,6 +95,3 @@ export class LadderEventBus {
 		}
 	}
 }
-
-/** Process-wide bus; the server has one ladder. */
-export const ladderEvents = new LadderEventBus();

@@ -5,6 +5,10 @@ import {readInternalAuth} from "@workflowy/shared/node";
 import {readNodeConfig} from "./config.js";
 import type {ServerContext} from "./context.js";
 import {getDatabase} from "./db.js";
+import {LadderEventBus} from "./ladder-events.js";
+
+/** Process-wide bus; the Node server has one ladder. */
+const ladderEvents = new LadderEventBus();
 
 /**
  * Build a {@link ServerContext} from the process database singleton and
@@ -21,6 +25,7 @@ export function createServerContext(): ServerContext {
 		db,
 		cacheService,
 		config,
+		ladderEvents,
 		apiKey,
 		internalAuth,
 		calendarEnsureEnabled: config.calendarEnsureEnabled,

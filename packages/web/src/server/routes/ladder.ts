@@ -13,7 +13,6 @@ import type {NodeTree} from "@workflowy/shared/cache";
 import {Hono} from "hono";
 import {z} from "zod";
 import type {AppEnv, ServerContext} from "../context.js";
-import {ladderEvents} from "../ladder-events.js";
 import {LadderService} from "../ladder-service.js";
 import type {LadderBuckets} from "../ladder-service.js";
 import type {RawNode} from "../ladder-model.js";
@@ -145,7 +144,7 @@ function defaultService(ctx: ServerContext): LadderService {
 			}
 		},
 		completeNode: async (nodeId) => writeClient(ctx).completeNode(nodeId),
-		events: ladderEvents,
+		events: ctx.ladderEvents,
 	});
 }
 

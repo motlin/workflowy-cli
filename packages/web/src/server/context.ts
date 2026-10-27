@@ -3,6 +3,7 @@ import type {CacheService} from "@workflowy/shared/cache";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppDatabase} from "@workflowy/shared/db";
 import type {ServerConfig} from "./config.js";
+import type {LadderEventBus} from "./ladder-events.js";
 
 type ServerDatabase = AppDatabase;
 
@@ -17,6 +18,8 @@ export interface ServerContext {
 	cacheService: CacheService;
 	/** Settings parsed by the host; routers read these instead of `process.env`. */
 	config: ServerConfig;
+	/** Where ladder writes are announced; the ladder socket subscribes to the same instance. */
+	ladderEvents: LadderEventBus;
 	/** The Workflowy API key, or undefined when write operations are unavailable. */
 	apiKey?: string;
 	/** Internal-API auth (saved session cookie and/or login), or undefined when internal-API routes are unavailable. */
