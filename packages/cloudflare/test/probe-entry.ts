@@ -53,6 +53,9 @@ export class ProbeStore extends UserStore {
 					.toArray(),
 			);
 		}
+		if (url.pathname === "/__config") {
+			return Response.json(this.ctx.storage.sql.exec("SELECT key, value FROM config ORDER BY key").toArray());
+		}
 		if (url.pathname === "/__seed") {
 			new CacheService(drizzle(this.ctx.storage, {schema: dbSchema})).insertNode(
 				{

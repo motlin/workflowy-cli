@@ -80,6 +80,13 @@ async function liveIds(h: Harness): Promise<string[]> {
 	return response.json();
 }
 
+async function configRows(h: Harness): Promise<unknown> {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
+	const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
+	const response = await ns.get(ns.idFromName("dev")).fetch("http://localhost/__config");
+	return response.json();
+}
+
 async function internalMetadata(h: Harness): Promise<unknown> {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
 	const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
@@ -116,10 +123,19 @@ describe("sync from a fake upstream", () => {
 						}
 						return Response.json({nodes: current});
 					}
-					if (url.pathname === "/ajax_login" || url.pathname === "/get_tree_data/") {
+					if (
+						url.pathname === "/ajax_login" ||
+						url.pathname === "/get_tree_data/" ||
+						url.pathname === "/get_initialization_data"
+					) {
 						internalCalls.push(url.pathname);
 						if (url.pathname === "/ajax_login") {
 							return new Response("{}", {status: 200, headers: {"set-cookie": "sessionid=abc; Path=/"}});
+						}
+						if (url.pathname === "/get_initialization_data") {
+							return Response.json({
+								projectTreeData: {mainProjectTreeInfo: {dateJoinedTimestampInSeconds: 1_400_000_000}},
+							});
 						}
 						return treeData?.() ?? new Response("no tree data", {status: 500});
 					}
@@ -234,10 +250,34 @@ describe("sync from a fake upstream", () => {
 		const done = await runToIdle(h);
 		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100});
 		expect(done.lastResult?.treeDataError).toBeUndefined();
-		expect(internalCalls).toStrictEqual(["/ajax_login", "/get_tree_data/"]);
+		expect(internalCalls).toStrictEqual([
+			"/ajax_login",
+			"/get_tree_data/",
+			"/ajax_login",
+			"/get_initialization_data",
+		]);
 		await expect(internalMetadata(h)).resolves.toStrictEqual([
 			{node_id: uuid(1), metadata_json: JSON.stringify({numbered_start: 7})},
 		]);
+		await stop(h);
+	}, 60_000);
+
+	it("fills config.workflowy_epoch from the initialization data when internal auth exists and the row is missing", async () => {
+		current = makeNodes(100);
+		treeData = () => Response.json({items: [], most_recent_operation_transaction_id: "1"});
+		const h = await start(undefined, {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"});
+		await expect(configRows(h)).resolves.toStrictEqual([]);
+		const done = await runToIdle(h);
+		expect(done.lastResult).toMatchObject({status: "ok"});
+		await expect(configRows(h)).resolves.toStrictEqual([{key: "workflowy_epoch", value: "1400000000"}]);
+		await stop(h);
+	}, 60_000);
+
+	it("leaves config empty when no internal auth exists", async () => {
+		current = makeNodes(100);
+		const h = await start();
+		await runToIdle(h);
+		await expect(configRows(h)).resolves.toStrictEqual([]);
 		await stop(h);
 	}, 60_000);
 

@@ -27,6 +27,8 @@ export interface SyncDeps {
 	env: SyncEnv;
 	/** Reads the internal tree data when internal auth exists; undefined when it does not. */
 	readTreeData?: () => Promise<InternalTreeItem[]> | undefined;
+	/** Reads the account's Workflowy epoch when internal auth exists; undefined when it does not. */
+	readEpoch?: () => Promise<number> | undefined;
 	now?: () => number;
 }
 
@@ -144,6 +146,28 @@ export class SyncJob {
 				at: this.now(),
 			});
 			await this.scheduleNextRun();
+		}
+	}
+
+	/** Store config.workflowy_epoch once, when internal auth exists; a failure leaves it for the next run. */
+	private async fillEpoch(): Promise<void> {
+		const have = this.sql.exec("SELECT 1 FROM config WHERE key = 'workflowy_epoch'").toArray().length > 0;
+		if (have) {
+			return;
+		}
+		try {
+			const epoch = await this.deps.readEpoch?.();
+			if (epoch !== undefined) {
+				const stamp = new Date(this.now()).toISOString();
+				this.sql.exec(
+					"INSERT OR IGNORE INTO config (key, value, created_at, updated_at) VALUES ('workflowy_epoch', ?, ?, ?)",
+					String(epoch),
+					stamp,
+					stamp,
+				);
+			}
+		} catch {
+			// The epoch only serves backup imports; the sync itself does not depend on it.
 		}
 	}
 
@@ -267,6 +291,7 @@ export class SyncJob {
 			treeItems = undefined;
 			treeDataError = error instanceof Error ? error.message : String(error);
 		}
+		await this.fillEpoch();
 		const result = finishApiImport(state, treeItems);
 		if (treeItems !== undefined) {
 			importInternalMetadata(this.deps.db, treeItems, this.now());
