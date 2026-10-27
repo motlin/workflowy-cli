@@ -12,7 +12,8 @@
 	"durable_objects": {
 		"bindings": [{"name": "USER_STORE", "class_name": "UserStore"}],
 	},
+	"r2_buckets": [{"binding": "SNAPSHOTS", "bucket_name": "workflowy-snapshots"}],
 	"migrations": [{"tag": "v1", "new_sqlite_classes": ["UserStore"]}],
 	// Placeholders: set real values as dashboard secrets/vars. Never set ACCESS_DEV_IDENTITY here; use .dev.vars.
-	"vars": {"ACCESS_TEAM_DOMAIN": "", "ACCESS_AUD": "", "ALLOWED_EMAILS": ""},
+	"vars": {"ACCESS_TEAM_DOMAIN": "", "ACCESS_AUD": "", "ALLOWED_EMAILS": "", "SYNC_INTERVAL_MINUTES": "30"},
 }

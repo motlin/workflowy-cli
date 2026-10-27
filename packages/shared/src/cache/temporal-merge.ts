@@ -8,7 +8,8 @@ import {FAR_FUTURE_DATE} from "../temporal/index.js";
  * Balances memory use against round-trip count, and keeps `sql.join()` argument
  * lists short enough to avoid a stack overflow when joining thousands of items.
  */
-const BULK_BATCH_SIZE = 1000;
+/** Durable Object SQLite allows at most 100 bound parameters in a statement. */
+const BOUND_PARAMS_PER_STATEMENT = 90;
 
 /**
  * Separator for composite merge keys. ASCII unit separator (U+001F) — a control
@@ -110,19 +111,6 @@ export interface TemporalMergeConfig<TIncoming, TCurrent> {
 export type TemporalTransaction = BaseSQLiteDatabase<"sync", any, any, any>;
 
 /**
- * Insert phase-out keys into the `temp_phase_out_ids` scratch table in batches.
- * Batching avoids a stack overflow inside `sql.join()` for large key sets.
- */
-function batchInsertPhaseOutKeys(tx: TemporalTransaction, keys: string[]): void {
-	tx.run(sql`DELETE FROM temp_phase_out_ids`);
-	for (let i = 0; i < keys.length; i += BULK_BATCH_SIZE) {
-		const batch = keys.slice(i, i + BULK_BATCH_SIZE);
-		const values = batch.map((key) => sql`(${key})`);
-		tx.run(sql`INSERT INTO temp_phase_out_ids (node_id) VALUES ${sql.join(values, sql`, `)}`);
-	}
-}
-
-/**
  * Apply the temporal merge-list pattern to a single table.
  *
  * Given the desired set of current rows (`incoming`) and a `systemFrom`
@@ -207,25 +195,30 @@ export function temporalMerge<TIncoming, TCurrent>(
 		}
 	}
 
-	tx.run(sql`CREATE TEMP TABLE IF NOT EXISTS temp_phase_out_ids (node_id TEXT PRIMARY KEY)`);
-
-	if (keysToPhaseOut.length > 0) {
-		batchInsertPhaseOutKeys(tx, keysToPhaseOut);
+	// Chunked IN lists rather than a scratch table: Durable Object SQLite has no temp tables.
+	for (let i = 0; i < keysToPhaseOut.length; i += BOUND_PARAMS_PER_STATEMENT) {
+		const chunk = keysToPhaseOut.slice(i, i + BOUND_PARAMS_PER_STATEMENT);
 		tx.update(table)
 			.set({systemTo: importedAt})
 			.where(
 				and(
 					eq(systemToColumn, FAR_FUTURE_DATE),
-					sql`${keyMatchExpr} IN (SELECT node_id FROM temp_phase_out_ids)`,
+					sql`${keyMatchExpr} IN (${sql.join(
+						chunk.map((key) => sql`${key}`),
+						sql`, `,
+					)})`,
 				),
 			)
 			.run();
 	}
 
-	for (let i = 0; i < rowsToInsert.length; i += BULK_BATCH_SIZE) {
-		const batch = rowsToInsert.slice(i, i + BULK_BATCH_SIZE);
-		if (batch.length > 0) {
-			tx.insert(table).values(batch).run();
+	const firstRow = rowsToInsert[0];
+	if (firstRow !== undefined) {
+		const rowsPerStatement = Math.max(1, Math.floor(BOUND_PARAMS_PER_STATEMENT / Object.keys(firstRow).length));
+		for (let i = 0; i < rowsToInsert.length; i += rowsPerStatement) {
+			tx.insert(table)
+				.values(rowsToInsert.slice(i, i + rowsPerStatement))
+				.run();
 		}
 	}
 

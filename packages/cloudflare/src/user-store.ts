@@ -1,24 +1,28 @@
 import {DurableObject} from "cloudflare:workers";
 import * as schema from "@workflowy/shared/db";
 import {LadderEventBus, bindTreeHost, buildServerContext, createApp} from "@workflowy/web/server-app";
+import {WorkflowyInternalClient} from "@workflowy/shared/api";
 import {drizzle} from "drizzle-orm/durable-sqlite";
 import {migrate} from "drizzle-orm/durable-sqlite/migrator";
 import {doMigrationConfig} from "./do-migrations";
 import {kvSessionStore} from "./session-store";
+import {SyncJob} from "./sync";
+import type {SyncEnv, SyncStatus} from "./sync";
 import {readWorkerConfig, readWorkerInternalAuth} from "./worker-config";
 import type {WorkerSecrets} from "./worker-config";
 
 /** One user's outline: a SQLite-backed Durable Object serving the shared Hono app over its own database. */
-export class UserStore extends DurableObject<Env & WorkerSecrets> {
+export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	/** How many migrations this boot applied; zero when the database was already current. */
 	protected appliedOnBoot = 0;
 	/** Persists the Workflowy session cookie in this object's storage. */
 	protected readonly sessionStore = kvSessionStore(this.ctx.storage.kv, this.env.WORKFLOWY_SESSION_COOKIE);
 	/** Announces ladder writes; every accepted ladder socket receives each event. */
 	protected readonly ladderEvents = new LadderEventBus();
+	private sync!: SyncJob;
 	private app!: {fetch(request: Request): Response | Promise<Response>};
 
-	constructor(ctx: DurableObjectState, env: Env & WorkerSecrets) {
+	constructor(ctx: DurableObjectState, env: Env & WorkerSecrets & SyncEnv) {
 		super(ctx, env);
 		// Rebuilt on every wake, so sockets that survived hibernation are fed again.
 		this.ladderEvents.subscribe((event) => {
@@ -55,6 +59,13 @@ export class UserStore extends DurableObject<Env & WorkerSecrets> {
 				internalAuth: readWorkerInternalAuth(env, this.sessionStore),
 			});
 			this.app = createApp(serverContext);
+			const internalAuth = readWorkerInternalAuth(env, this.sessionStore);
+			this.sync = new SyncJob({
+				storage: ctx.storage,
+				db,
+				env,
+				readTreeData: internalAuth && (async () => new WorkflowyInternalClient(internalAuth).getTreeData()),
+			});
 		});
 	}
 
@@ -63,7 +74,29 @@ export class UserStore extends DurableObject<Env & WorkerSecrets> {
 		socket.close(code === 1005 || code === 1006 ? 1000 : code);
 	}
 
+	/** Start a sync run, or continue the one in progress, on the next alarm. */
+	async syncNow(): Promise<SyncStatus> {
+		return this.sync.syncNow();
+	}
+
+	async syncStatus(): Promise<SyncStatus> {
+		return this.sync.status();
+	}
+
+	override async alarm(): Promise<void> {
+		await this.sync.tick();
+	}
+
 	override async fetch(request: Request): Promise<Response> {
+		if (new URL(request.url).pathname === "/api/admin/sync") {
+			if (request.method === "POST") {
+				return Response.json(await this.syncNow(), {status: 202});
+			}
+			if (request.method === "GET") {
+				return Response.json(await this.syncStatus());
+			}
+			return new Response("Method not allowed", {status: 405});
+		}
 		if (new URL(request.url).pathname === "/api/v1/ladder/events") {
 			if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
 				return new Response("Expected a WebSocket upgrade", {status: 426});

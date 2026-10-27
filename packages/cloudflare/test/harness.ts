@@ -56,6 +56,8 @@ export async function startHarness(
 		...extra,
 		durableObjects: {USER_STORE: {className, useSQLite: true}},
 		durableObjectsPersist: join(persistDir, "do"),
+		r2Buckets: ["SNAPSHOTS"],
+		r2Persist: join(persistDir, "r2"),
 		assets: {
 			directory: clientDir,
 			binding: "ASSETS",

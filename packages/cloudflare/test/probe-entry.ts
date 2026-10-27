@@ -39,6 +39,13 @@ export class ProbeStore extends UserStore {
 			});
 			return Response.json({ok: true});
 		}
+		if (url.pathname === "/__live-ids") {
+			const ids = this.ctx.storage.sql
+				.exec("SELECT id FROM node_content WHERE system_to = '9999-12-31 23:59:59'")
+				.toArray()
+				.flatMap((row) => (typeof row.id === "string" ? [row.id] : []));
+			return Response.json(ids);
+		}
 		if (url.pathname === "/__seed") {
 			new CacheService(drizzle(this.ctx.storage, {schema: dbSchema})).insertNode(
 				{

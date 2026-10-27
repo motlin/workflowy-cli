@@ -37,6 +37,8 @@ describe("user store Durable Object behind the Worker", () => {
 			rows
 				.filter((row) => !row.name.startsWith("_cf_") && !row.name.startsWith("sqlite_"))
 				.filter((row) => row.name !== "__drizzle_migrations")
+				// DO-only bookkeeping for the sync job, created outside the shared schema.
+				.filter((row) => !row.name.startsWith("sync_"))
 				.map((row) => ({type: row.type, name: row.name, sql: row.sql.replaceAll(/\s+/gu, " ")}));
 
 		const node = new Database(":memory:");
