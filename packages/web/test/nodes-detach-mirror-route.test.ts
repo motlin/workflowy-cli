@@ -84,6 +84,7 @@ function setup(expanded: string[] = []) {
 		db,
 		cacheService,
 		apiKey: "test-key",
+		config: {} as ServerContext["config"],
 		internalAuth: {},
 		internalAdapter: () => ({createTreesAt, setExpanded, expansionTest}) as unknown as WorkflowyInternalAdapter,
 	} as unknown as ServerContext;

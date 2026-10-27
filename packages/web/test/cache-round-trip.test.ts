@@ -119,6 +119,7 @@ function server(): Hono<AppEnv> {
 		db,
 		cacheService,
 		apiKey: "test-key",
+		config: {} as ServerContext["config"],
 		internalAuth: {},
 		internalAdapter: () => adapter,
 	} as unknown as ServerContext;

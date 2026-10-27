@@ -3,7 +3,7 @@ import {cors} from "hono/cors";
 import {serve} from "@hono/node-server";
 import {createNodeWebSocket} from "@hono/node-ws";
 import {apiCompression} from "./compression.js";
-import {createServerContext} from "./context.js";
+import {createServerContext} from "./node-context.js";
 import type {AppEnv} from "./context.js";
 import {changesRouter} from "./routes/changes.js";
 import {createAccountRouter} from "./routes/account.js";

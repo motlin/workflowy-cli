@@ -16,7 +16,7 @@ export function createAccountRouter(): Hono<AppEnv> {
 				userId,
 				joinedAt: joinedAt.toISOString(),
 				fullName,
-				email: process.env.WORKFLOWY_USERNAME ?? "",
+				email: c.get("ctx").config.accountEmail,
 			});
 		}),
 	);

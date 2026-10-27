@@ -119,6 +119,7 @@ function setup(configured: boolean, rootLayoutMode?: string) {
 		db,
 		cacheService,
 		apiKey: "test-key",
+		config: {} as ServerContext["config"],
 		internalAuth: configured ? {} : undefined,
 		internalAdapter: () => (configured ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;

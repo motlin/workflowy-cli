@@ -63,6 +63,7 @@ function setup(meta: Record<string, unknown> | undefined, settings: Record<strin
 	const ctx = {
 		db,
 		cacheService: new CacheService(db),
+		config: {accountEmail: ""} as ServerContext["config"],
 		internalAdapter: () => (meta ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();

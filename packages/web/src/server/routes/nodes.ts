@@ -244,7 +244,7 @@ function loadInternalMetadataFields(ctx: ServerContext, nodeIds: string[]): Map<
  * is configured (read-only mode).
  */
 function getApiClient(ctx: ServerContext): WorkflowyApiClient | undefined {
-	return ctx.apiKey ? new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL) : undefined;
+	return ctx.apiKey ? new WorkflowyApiClient(ctx.apiKey, undefined, ctx.config.apiUrl) : undefined;
 }
 
 function getWriteClient(ctx: ServerContext): WorkflowyWriteThroughClient | undefined {

@@ -5,20 +5,22 @@ import type {Logger as DrizzleLogger} from "drizzle-orm";
  * READ operations (SELECT): debug severity
  * WRITE operations (INSERT, UPDATE, DELETE): info severity
  *
- * SQL logging is controlled by the WORKFLOWY_SQL_QUERY_LOGGING environment variable.
+ * Logging is enabled by the host (`ServerConfig.sqlQueryLogging`).
  */
-export const sqlLogger: DrizzleLogger = {
-	logQuery(query: string, params: unknown[]): void {
-		if (process.env.WORKFLOWY_SQL_QUERY_LOGGING !== "true") {
-			return;
-		}
+export function createSqlLogger(enabled: boolean): DrizzleLogger {
+	return {
+		logQuery(query: string, params: unknown[]): void {
+			if (!enabled) {
+				return;
+			}
 
-		const isWrite = /^\s*(INSERT|UPDATE|DELETE)/iu.test(query);
+			const isWrite = /^\s*(INSERT|UPDATE|DELETE)/iu.test(query);
 
-		if (isWrite) {
-			console.info("[SQL]", query, params);
-		} else {
-			console.debug("[SQL]", query, params);
-		}
-	},
-};
+			if (isWrite) {
+				console.info("[SQL]", query, params);
+			} else {
+				console.debug("[SQL]", query, params);
+			}
+		},
+	};
+}

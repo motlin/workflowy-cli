@@ -7,7 +7,7 @@ import type {CacheService} from "@workflowy/shared/cache";
 import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {fileSessionStore} from "@workflowy/shared/node";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createServerContext} from "../src/server/context.js";
+import {createServerContext} from "../src/server/node-context.js";
 import {internalApiRequired} from "../src/server/internal-api.js";
 
 vi.mock("../src/server/db.js", () => ({getDatabase: () => ({})}));

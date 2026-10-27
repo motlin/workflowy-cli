@@ -72,7 +72,12 @@ function setup() {
 		return Promise.resolve(apiNode(id, parent, 0, at));
 	});
 
-	const ctx = {db, cacheService, apiKey: "test-key"} as unknown as ServerContext;
+	const ctx = {
+		db,
+		cacheService,
+		apiKey: "test-key",
+		config: {} as ServerContext["config"],
+	} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {
 		c.set("ctx", ctx);

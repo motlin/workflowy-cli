@@ -18,7 +18,11 @@ vi.mock("@workflowy/shared/cache", async (importOriginal) => {
 const {nodesRouter} = await import("../src/server/routes/nodes.js");
 
 function makeApp() {
-	const ctx = {apiKey: "test-key", cacheService: {getChildren: () => []}} as unknown as ServerContext;
+	const ctx = {
+		apiKey: "test-key",
+		config: {} as ServerContext["config"],
+		cacheService: {getChildren: () => []},
+	} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {
 		c.set("ctx", ctx);

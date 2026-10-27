@@ -70,7 +70,7 @@ function setup() {
 			cacheService.insertNode(n, n.parent_id ?? null);
 		}
 	};
-	const ctx = {db, cacheService, apiKey: "k"} as unknown as ServerContext;
+	const ctx = {db, cacheService, apiKey: "k", config: {} as ServerContext["config"]} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {
 		c.set("ctx", ctx);

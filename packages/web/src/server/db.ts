@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 import * as schema from "@workflowy/shared/db";
 import {join} from "node:path";
-import {sqlLogger} from "./sql-logger.js";
+import {createSqlLogger} from "./sql-logger.js";
 
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
@@ -24,7 +24,7 @@ export function getDatabase() {
 
 	dbInstance = drizzle(sqlite, {
 		schema,
-		logger: sqlLogger,
+		logger: createSqlLogger(process.env.WORKFLOWY_SQL_QUERY_LOGGING === "true"),
 	});
 
 	if (process.env.WORKFLOWY_SKIP_MIGRATIONS !== "true") {

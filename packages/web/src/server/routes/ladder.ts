@@ -153,7 +153,7 @@ function apiClient(ctx: ServerContext): WorkflowyApiClient {
 	if (!ctx.apiKey) {
 		throw new Error("WORKFLOWY_API_KEY environment variable is required");
 	}
-	return new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL);
+	return new WorkflowyApiClient(ctx.apiKey, undefined, ctx.config.apiUrl);
 }
 
 function writeClient(ctx: ServerContext): WorkflowyWriteThroughClient {
