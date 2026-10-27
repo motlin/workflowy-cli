@@ -1,73 +1,16 @@
-import {Hono} from "hono";
-import {cors} from "hono/cors";
 import {serve} from "@hono/node-server";
 import {createNodeWebSocket} from "@hono/node-ws";
-import {apiCompression} from "./compression.js";
+import {createApp} from "./app.js";
 import {createServerContext} from "./node-context.js";
-import type {AppEnv} from "./context.js";
-import {changesRouter} from "./routes/changes.js";
-import {createAccountRouter} from "./routes/account.js";
-import {createCalendarRouter} from "./routes/calendar.js";
-import {createFilesRouter} from "./routes/files.js";
-import {createExpansionRouter} from "./routes/expansion.js";
 import {ladderSocketHandlers} from "./ladder-socket.js";
-import {createLadderRouter} from "./routes/ladder.js";
-import {homeRouter, nodesRouter} from "./routes/nodes.js";
-import {createFeaturesRouter} from "./routes/features.js";
-import {createPreferencesRouter} from "./routes/preferences.js";
 import {resolvePort} from "./port.js";
-import {relatedRouter} from "./routes/related.js";
-import {searchRouter} from "./routes/search.js";
-import {createStarsRouter} from "./routes/stars.js";
-import {createTagIndexRouter} from "./routes/tag-index.js";
-import {createCustomTreeRouter} from "./routes/custom-tree.js";
-import {createTagsRouter} from "./routes/tags.js";
-import {getDatabase} from "./db.js";
-import {rebuildTreeSnapshotAfterWrites, warmTreeSnapshot} from "./tree-snapshot.js";
+import {warmTreeSnapshot} from "./tree-snapshot.js";
 
 process.title = "workflowy-web-server";
 
-const app = new Hono<AppEnv>();
-
-// CORS for Vite dev server
-app.use(
-	"/*",
-	cors({
-		origin: "http://localhost:5173",
-		allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-		allowHeaders: ["Content-Type", "Authorization"],
-	}),
-);
-
 // Composition root: build the server context once and expose it to every router.
 const serverContext = createServerContext();
-app.use("/*", async (c, next) => {
-	c.set("ctx", serverContext);
-	await next();
-});
-
-app.use("/api/*", apiCompression());
-
-// Rebuild the search tree snapshot in the background after each write, so searches rarely wait on the ~800ms reload.
-app.use("/api/*", rebuildTreeSnapshotAfterWrites(getDatabase));
-
-// Mount API routes
-app.route("/api/changes", changesRouter);
-app.route("/api/v1/nodes", nodesRouter);
-app.route("/api/v1/home", homeRouter);
-app.route("/api/v1/tags/autocomplete", createTagIndexRouter());
-app.route("/api/v1/tags", createTagsRouter());
-app.route("/api/v1/custom-tree", createCustomTreeRouter());
-app.route("/api/v1/ladder", createLadderRouter());
-app.route("/api/v1/expansion", createExpansionRouter());
-app.route("/api/v1/calendar", createCalendarRouter());
-app.route("/api/v1/stars", createStarsRouter());
-app.route("/api/v1/preferences", createPreferencesRouter());
-app.route("/api/v1/features", createFeaturesRouter());
-app.route("/api/v1/account", createAccountRouter());
-app.route("/api/v1/files", createFilesRouter());
-app.route("/api/search", searchRouter);
-app.route("/api/related", relatedRouter);
+const app = createApp(serverContext, {corsOrigin: "http://localhost:5173"});
 
 /**
  * Every ladder write, streamed as one frame per write. Monitor's `ws:` source
@@ -80,9 +23,6 @@ app.get(
 	nodeWebSocket.upgradeWebSocket(() => ladderSocketHandlers(serverContext.ladderEvents)),
 );
 
-// Health check
-app.get("/health", (c) => c.json({status: "ok"}));
-
 const port = resolvePort(process.env);
 
 // Logged from the listening callback, so a port clash reports EADDRINUSE
@@ -91,7 +31,7 @@ const server = serve({fetch: app.fetch, hostname: "127.0.0.1", port}, (info) => 
 	console.log(`Server running at http://127.0.0.1:${info.port}`);
 	// After listening, so the first search/switcher request finds the whole-tree snapshot already built.
 	setImmediate(() => {
-		warmTreeSnapshot(getDatabase());
+		warmTreeSnapshot(serverContext.db);
 	});
 });
 nodeWebSocket.injectWebSocket(server);

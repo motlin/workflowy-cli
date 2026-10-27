@@ -5,6 +5,18 @@
 	"type": "module",
 	"main": "dist/server/index.js",
 	"types": "dist/server/index.d.ts",
+	"exports": {
+		".": {
+			"source": "./src/server/index.ts",
+			"types": "./dist/server/index.d.ts",
+			"import": "./dist/server/index.js"
+		},
+		"./server-app": {
+			"source": "./src/server/app.ts",
+			"types": "./dist/server/app.d.ts",
+			"import": "./dist/server/app.js"
+		}
+	},
 	"scripts": {
 		"dev": "concurrently \"vp run dev:server\" \"vp run dev:client\"",
 		"dev:server": "tsx watch --conditions=source src/server/index.ts",

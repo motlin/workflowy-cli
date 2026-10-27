@@ -1,6 +1,7 @@
+import {WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
 import type {InternalAuth} from "@workflowy/shared/api";
-import type {CacheService} from "@workflowy/shared/cache";
-import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import {CacheService, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppDatabase} from "@workflowy/shared/db";
 import type {ServerConfig} from "./config.js";
 import type {LadderEventBus} from "./ladder-events.js";
@@ -46,4 +47,47 @@ export interface ServerContext {
 /** Hono environment: routers read the {@link ServerContext} via `c.get('ctx')`. */
 export interface AppEnv {
 	Variables: {ctx: ServerContext};
+}
+
+/** What a host supplies; {@link buildServerContext} derives the rest. */
+export interface ServerContextDeps {
+	db: ServerDatabase;
+	config: ServerConfig;
+	ladderEvents: LadderEventBus;
+	/** Undefined when the host has no internal-API credentials. */
+	internalAuth?: InternalAuth;
+}
+
+/** Assemble a {@link ServerContext} from host-supplied dependencies, with no process or filesystem access. */
+export function buildServerContext(deps: ServerContextDeps): ServerContext {
+	const {db, config, ladderEvents, internalAuth} = deps;
+	const cacheService = new CacheService(db);
+	const apiKey = config.apiKey;
+	let adapter: WorkflowyInternalAdapter | undefined;
+	return {
+		db,
+		cacheService,
+		config,
+		ladderEvents,
+		apiKey,
+		internalAuth,
+		calendarEnsureEnabled: config.calendarEnsureEnabled,
+		calendarLayoutEnabled: config.calendarLayoutEnabled,
+		internalAdapter: () => {
+			if (!adapter && internalAuth) {
+				adapter = new WorkflowyInternalAdapter({
+					client: new WorkflowyInternalClient(internalAuth),
+					db,
+					// Tree writes refresh the cache through the public API, which needs the key.
+					writeThrough: apiKey
+						? new WorkflowyWriteThroughClient(
+								new WorkflowyApiClient(apiKey, undefined, config.apiUrl),
+								cacheService,
+							)
+						: undefined,
+				});
+			}
+			return adapter;
+		},
+	};
 }
