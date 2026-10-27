@@ -13,7 +13,7 @@
  * temporal merge-list pattern anymore.
  */
 
-import {eq} from "drizzle-orm";
+import {and, eq, inArray} from "drizzle-orm";
 import type {BaseSQLiteDatabase, SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
 import type {InternalTreeItem} from "../api/workflowy-internal-client.js";
 import {
@@ -114,6 +114,9 @@ function calendarLevelsMatches(current: CalendarLevels, incoming: NormalizedCale
 	);
 }
 
+/** Bound-parameter chunk for `id IN (...)` lookups; Durable Object SQLite caps a statement at 100. */
+const LOOKUP_CHUNK_SIZE = 90;
+
 /**
  * Merge one node-keyed temporal table. Loads the table's current rows, runs the
  * temporal merge, and returns the result. The `nodeId` accessor and a
@@ -132,12 +135,27 @@ function mergeNodeKeyedTable<TIncoming, TTable extends SQLiteTable>(
 	buildInsertRow: (incoming: TIncoming) => Record<string, any>,
 	importedAt: string,
 	preserveKeys?: ReadonlySet<string>,
+	onlyKeys?: readonly string[],
 ): TemporalMergeResult {
-	const currentRows: TTable["$inferSelect"][] = tx
-		.select()
-		.from(table)
-		.where(eq(systemToColumn, FAR_FUTURE_DATE))
-		.all();
+	const currentRows: TTable["$inferSelect"][] = [];
+	if (onlyKeys === undefined) {
+		currentRows.push(...tx.select().from(table).where(eq(systemToColumn, FAR_FUTURE_DATE)).all());
+	} else {
+		for (let start = 0; start < onlyKeys.length; start += LOOKUP_CHUNK_SIZE) {
+			currentRows.push(
+				...tx
+					.select()
+					.from(table)
+					.where(
+						and(
+							eq(systemToColumn, FAR_FUTURE_DATE),
+							inArray(keyColumn, onlyKeys.slice(start, start + LOOKUP_CHUNK_SIZE)),
+						),
+					)
+					.all(),
+			);
+		}
+	}
 	return temporalMerge(
 		tx,
 		{
@@ -406,4 +424,60 @@ export function importInternalMetadata(
 		}
 	});
 	return result;
+}
+
+/**
+ * Merge one batch of node rows without ending anything absent from it.
+ *
+ * Unlike {@link applyRows}, this looks up only the batch's own ids and never
+ * phases out other nodes; the caller ends nodes unseen by every batch itself.
+ */
+export function applyNodeRowsBatch(
+	unitOfWork: UnitOfWork,
+	rows: {nodeContent: NormalizedNodeContentRow[]; nodeMetadata: NormalizedNodeMetadataRow[]},
+): {nodeContent: TemporalMergeResult; nodeMetadata: TemporalMergeResult} {
+	const {tx, systemTime: importedAt} = unitOfWork;
+	const contentIds = rows.nodeContent.map((row) => row.id);
+	const metadataIds = rows.nodeMetadata.map((row) => row.nodeId);
+	const content = mergeNodeKeyedTable(
+		tx,
+		nodeContent,
+		nodeContent.id,
+		nodeContent.systemTo,
+		rows.nodeContent,
+		(row) => row.id,
+		(row) => row.id,
+		(current, incoming) =>
+			contentMatches(current, {
+				name: incoming.name ?? null,
+				note: incoming.note ?? null,
+				parentId: incoming.parentId ?? null,
+			}),
+		(row) => ({...row}),
+		importedAt,
+		undefined,
+		contentIds,
+	);
+	const metadata = mergeNodeKeyedTable(
+		tx,
+		nodeMetadata,
+		nodeMetadata.nodeId,
+		nodeMetadata.systemTo,
+		rows.nodeMetadata,
+		(row) => row.nodeId,
+		(row) => row.nodeId,
+		(current, incoming) =>
+			metadataMatches(current, {
+				priority: incoming.priority ?? null,
+				createdAt: toUnix(incoming.createdAt),
+				modifiedAt: toUnix(incoming.modifiedAt),
+				completedAt: toUnix(incoming.completedAt),
+				layoutMode: incoming.layoutMode ?? null,
+			}),
+		(row) => ({...row}),
+		importedAt,
+		undefined,
+		metadataIds,
+	);
+	return {nodeContent: content, nodeMetadata: metadata};
 }

@@ -1,4 +1,14 @@
 export {
+	type ApiImportState,
+	applyApiBatch,
+	beginApiImport,
+	finishApiImport,
+	importFromApi,
+	type ImportApiResult,
+	type ImportFromApiOptions,
+	type ImportLogger,
+} from "./api-import.js";
+export {
 	CacheService,
 	type BacklinkItem,
 	type BacklinkSyncRecord,
@@ -23,6 +33,7 @@ export {
 } from "./cache-temporal.js";
 export {
 	type ApplyRowsResult,
+	applyNodeRowsBatch,
 	applyRows,
 	type ImportInternalMetadataResult,
 	importInternalMetadata,
