@@ -8,7 +8,6 @@ import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {notReferencesContent} from "../backlinks.js";
-import {getDatabase} from "../db.js";
 import {collectHelperTags} from "../helper-tags.js";
 import type {HelperTags} from "../helper-tags.js";
 import type {AppEnv} from "../context.js";
@@ -63,7 +62,7 @@ export function loadHelperTags(database: AppDatabase, rootId: string): HelperTag
 }
 
 // GET /api/search/helpers?rootId= - Subtree tags for the search helper's #TAGS / @TAGS sections
-searchRouter.get("/helpers", (c) => c.json(loadHelperTags(getDatabase(), c.req.query("rootId") ?? "")));
+searchRouter.get("/helpers", (c) => c.json(loadHelperTags(c.get("ctx").db, c.req.query("rootId") ?? "")));
 
 /** The account's stored date format (so strict `date:` queries parse it), or null when unset or unavailable. */
 async function loadDateFormat(c: Context<AppEnv>): Promise<string | null> {
@@ -97,8 +96,8 @@ async function loadWeekStartDay(c: Context<AppEnv>): Promise<0 | 1 | null> {
 searchRouter.post("/tree", async (c) => {
 	const {query, rootId} = await c.req.json<TreeSearchBody>();
 	const rows = queryNeedsBacklinks(query)
-		? loadTreeRowsWithBacklinks(getDatabase(), rootId)
-		: loadTreeRows(getDatabase(), rootId);
+		? loadTreeRowsWithBacklinks(c.get("ctx").db, rootId)
+		: loadTreeRows(c.get("ctx").db, rootId);
 	const dateFormat = await loadDateFormat(c);
 	const weekStartDay = await loadWeekStartDay(c);
 	return c.json(
@@ -146,7 +145,7 @@ async function loadJoinedSec(c: Context<AppEnv>, rows: TreeSearchRow[]): Promise
 // POST /api/search/switcher - Upstream jump-menu search: word-start matches ranked by staticScore x textFactor
 searchRouter.post("/switcher", async (c) => {
 	const {query, offset = 0, limit = 20, starredIds = [], showCompleted} = await c.req.json<SwitcherBody>();
-	const rows = loadTreeRows(getDatabase(), null);
+	const rows = loadTreeRows(c.get("ctx").db, null);
 	const joinedSec = await loadJoinedSec(c, rows);
 	return c.json(
 		rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {joinedSec, offset, limit, showCompleted}),
@@ -165,7 +164,7 @@ interface LocationsBody {
 // POST /api/search/locations - Upstream move-to location picker: switcher matching without completed nodes or excludeId
 searchRouter.post("/locations", async (c) => {
 	const {query, offset = 0, limit = 20, excludeId, starredIds, showCompleted} = await c.req.json<LocationsBody>();
-	const rows = loadTreeRows(getDatabase(), null);
+	const rows = loadTreeRows(c.get("ctx").db, null);
 	const joinedSec = await loadJoinedSec(c, rows);
 	// Typing supersedes earlier keystrokes; the client aborts them, so skip ranking for a request nobody waits on.
 	if (c.req.raw.signal.aborted) {
@@ -183,7 +182,7 @@ searchRouter.post("/", async (c) => {
 		return c.json({results: [], totalCount: 0});
 	}
 
-	const database = getDatabase();
+	const database = c.get("ctx").db;
 	const parsed = parseSearchQuery(query);
 	const {contentConditions, metadataConditions, needsMetadataJoin} = buildSearchConditions(parsed);
 	// References roots and their backlink items are never search or jump hits.

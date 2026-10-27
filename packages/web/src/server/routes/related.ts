@@ -5,9 +5,9 @@ import {nodeContent, nodeEmbeddings} from "@workflowy/shared/db";
 import type {AppDatabase} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
-import {getDatabase} from "../db.js";
+import type {AppEnv} from "../context.js";
 
-export const relatedRouter = new Hono();
+export const relatedRouter = new Hono<AppEnv>();
 
 type RelatedType = "similar" | "parent-candidates" | "link-targets";
 
@@ -245,7 +245,12 @@ relatedRouter.post("/", async (c) => {
 		return c.json({error: `type must be one of: ${validTypes.join(", ")}`}, 400);
 	}
 
-	const database = getDatabase();
+	// Without embeddings (no vector extension) there is nothing to rank: the empty result clients already handle.
+	const {db: database, config} = c.get("ctx");
+	if (!config.features.embeddings) {
+		const empty: RelatedResponse = {results: []};
+		return c.json(empty);
+	}
 
 	// Get the source node's embedding
 	const sourceEmbedding = database
