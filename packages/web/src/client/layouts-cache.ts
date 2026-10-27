@@ -42,7 +42,9 @@ export function cachedCanRender(
 	zoomedId: string | null = activePaneView().zoomedNodeId,
 ): boolean {
 	const node = readNode(queryClient, nodeId);
-	if (node === undefined) {
+	// Callers ask whether the node draws AS this layout; a layout the flag leaves unregistered (dashboard, flag off) is
+	// not "complex", so canRenderLayout would answer true for any node.
+	if (node === undefined || (node.data.layoutMode ?? null) !== layout) {
 		return false;
 	}
 	const {layouts, reachedRoot} = cachedAncestorLayouts(queryClient, nodeId, zoomedId);
