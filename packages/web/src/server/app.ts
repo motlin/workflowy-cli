@@ -77,3 +77,10 @@ export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<Ap
 
 	return app;
 }
+
+// The host-neutral pieces a Worker or Durable Object needs to assemble its own context.
+export {buildServerContext} from "./context.js";
+export type {ServerContext, ServerContextDeps} from "./context.js";
+export type {ServerConfig} from "./config.js";
+export {LadderEventBus} from "./ladder-events.js";
+export {bindTreeHost} from "./tree-snapshot.js";

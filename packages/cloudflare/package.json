@@ -9,6 +9,11 @@
 		"typecheck": "tsc --noEmit",
 		"types": "wrangler types"
 	},
+	"dependencies": {
+		"@workflowy/shared": "workspace:*",
+		"@workflowy/web": "workspace:*",
+		"drizzle-orm": "^0.45.3"
+	},
 	"devDependencies": {
 		"esbuild": "^0.28.0",
 		"miniflare": "4.20260730.0",

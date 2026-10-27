@@ -73,6 +73,7 @@ test-plugins:
 typecheck: build-shared
     vp run typecheck
     vp run --filter @workflowy/web typecheck
+    vp run --filter @workflowy/web build:types
     vp run --filter @workflowy/cloudflare typecheck
 
 # Remove all dist dirs and tsbuildinfo to prevent stale artifacts (used by git-test)
