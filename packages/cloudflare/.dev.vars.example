@@ -1,0 +1,7 @@
+# Names only. Copy to .dev.vars and fill in locally; never commit values.
+WORKFLOWY_API_KEY=
+WORKFLOWY_USERNAME=
+WORKFLOWY_PASSWORD=
+WORKFLOWY_SESSION_COOKIE=
+# WORKFLOWY_API_URL=
+# ACCESS_DEV_IDENTITY=dev

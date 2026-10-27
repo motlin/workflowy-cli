@@ -4,6 +4,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {build} from "esbuild";
 import {Miniflare} from "miniflare";
+import type {MiniflareOptions} from "miniflare";
 
 const clientDir = new URL("../../web/dist/client", import.meta.url).pathname;
 
@@ -41,6 +42,7 @@ export async function startHarness(
 	className = "UserStore",
 	existingPersistDir?: string,
 	bindings: Record<string, string> = {ACCESS_DEV_IDENTITY: "dev"},
+	extra: {outboundService?: Extract<MiniflareOptions, {modules: true}>["outboundService"]} = {},
 ): Promise<Harness> {
 	ensureClientBuilt();
 	const script = await bundleWorker(entry);
@@ -51,6 +53,7 @@ export async function startHarness(
 		compatibilityDate: "2026-08-01",
 		compatibilityFlags: ["nodejs_compat"],
 		bindings,
+		...extra,
 		durableObjects: {USER_STORE: {className, useSQLite: true}},
 		durableObjectsPersist: join(persistDir, "do"),
 		assets: {
@@ -95,9 +98,9 @@ export interface ProbeResult {
 }
 
 /** GET the probe path straight from the "dev" Durable Object, which the Worker does not route. */
-export async function probeStore(mf: Miniflare): Promise<ProbeResult> {
+export async function probeStore<T = ProbeResult>(mf: Miniflare, path = "/__probe"): Promise<T> {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
 	const ns = (await mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
-	const response = await ns.get(ns.idFromName("dev")).fetch("http://localhost/__probe");
+	const response = await ns.get(ns.idFromName("dev")).fetch(`http://localhost${path}`);
 	return response.json();
 }

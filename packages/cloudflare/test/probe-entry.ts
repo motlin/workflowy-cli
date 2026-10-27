@@ -1,3 +1,6 @@
+import {CacheService} from "@workflowy/shared/cache";
+import * as dbSchema from "@workflowy/shared/db";
+import {drizzle} from "drizzle-orm/durable-sqlite";
 import {UserStore} from "../src/user-store";
 import worker from "../src/worker";
 
@@ -17,6 +20,28 @@ export class ProbeStore extends UserStore {
 				this.ctx.storage.sql.exec("SELECT count(*) AS n FROM __drizzle_migrations").one().n,
 			);
 			return Response.json({names, schema, migrations, appliedOnBoot: this.appliedOnBoot});
+		}
+		if (url.pathname === "/__session") {
+			const write = url.searchParams.get("write");
+			if (write !== null) {
+				this.sessionStore.write(write);
+			}
+			return Response.json({cookie: this.sessionStore.read() ?? null});
+		}
+		if (url.pathname === "/__seed") {
+			new CacheService(drizzle(this.ctx.storage, {schema: dbSchema})).insertNode(
+				{
+					id: "seed-node",
+					name: "seeded",
+					note: null,
+					parent_id: null,
+					priority: 100,
+					createdAt: 1,
+					modifiedAt: 1,
+				},
+				null,
+			);
+			return Response.json({ok: true});
 		}
 		return super.fetch(request);
 	}
