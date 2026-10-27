@@ -6,8 +6,9 @@
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
 		"noEmit": true,
+		"allowImportingTsExtensions": true,
 		"skipLibCheck": true,
 		"types": []
 	},
-	"include": ["src/**/*", "test/**/*", "worker-configuration.d.ts"]
+	"include": ["src/**/*", "test/**/*", "smoke/**/*", "worker-configuration.d.ts"]
 }

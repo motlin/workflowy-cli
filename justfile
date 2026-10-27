@@ -62,6 +62,30 @@ test *args: build-shared
 cf-test: build-shared
     vp test run --project cloudflare
 
+# Run the Worker locally in workerd (R2 and Durable Objects simulated, no Cloudflare account needed) with a fixed dev identity; state persists in packages/cloudflare/.wrangler/state
+[group('web')]
+cf-dev port="8787": build-shared
+    vp run --filter @workflowy/web build
+    cd packages/cloudflare && vp exec wrangler dev --port {{ port }} --persist-to .wrangler/state --var ACCESS_DEV_IDENTITY:dev
+
+# Browser smoke test against a fresh cf-dev with a fake upstream (outside verify, like the evals)
+[group('test')]
+cf-smoke: build-shared
+    vp run --filter @workflowy/web build
+    node packages/cloudflare/smoke/run-smoke.ts
+
+# Deploy the Worker to Cloudflare; refuses unless CONFIRM_DEPLOY=1 and is never part of verify
+[group('web')]
+cf-deploy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "${CONFIRM_DEPLOY:-}" != "1" ]; then
+        echo "cf-deploy refused: set CONFIRM_DEPLOY=1 to deploy (see packages/cloudflare/README.md)" >&2
+        exit 1
+    fi
+    vp run --filter @workflowy/web build
+    cd packages/cloudflare && vp exec wrangler deploy
+
 # Run the plugin script tests, which vitest does not glob
 [group('test')]
 test-plugins:

@@ -79,3 +79,4 @@ artifacts/
 # Cloudflare
 .wrangler/
 .dev.vars
+wrangler.local.jsonc

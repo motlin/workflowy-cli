@@ -13,6 +13,8 @@
 		"packages/web/src/client/dev-reload.ts",
 		// Bundled by esbuild in the Worker tests rather than imported.
 		"packages/cloudflare/test/probe-entry.ts",
+		// Run by `just cf-smoke`, outside verify.
+		"packages/cloudflare/smoke/run-smoke.ts",
 		"bin/**/*.js",
 		"plugins/gtd/scripts/**/*.mts",
 		"test/evals/**/*.eval.ts",
