@@ -14,10 +14,23 @@ export class UserStore extends DurableObject<Env & WorkerSecrets> {
 	protected appliedOnBoot = 0;
 	/** Persists the Workflowy session cookie in this object's storage. */
 	protected readonly sessionStore = kvSessionStore(this.ctx.storage.kv, this.env.WORKFLOWY_SESSION_COOKIE);
+	/** Announces ladder writes; every accepted ladder socket receives each event. */
+	protected readonly ladderEvents = new LadderEventBus();
 	private app!: {fetch(request: Request): Response | Promise<Response>};
 
 	constructor(ctx: DurableObjectState, env: Env & WorkerSecrets) {
 		super(ctx, env);
+		// Rebuilt on every wake, so sockets that survived hibernation are fed again.
+		this.ladderEvents.subscribe((event) => {
+			const frame = this.ladderEvents.format(event);
+			for (const socket of ctx.getWebSockets("ladder")) {
+				try {
+					socket.send(frame);
+				} catch {
+					// A socket that just closed must not stop the others.
+				}
+			}
+		});
 		void ctx.blockConcurrencyWhile(async () => {
 			const db = drizzle(ctx.storage, {schema});
 			const before = countApplied(ctx);
@@ -38,14 +51,27 @@ export class UserStore extends DurableObject<Env & WorkerSecrets> {
 			const serverContext = buildServerContext({
 				db,
 				config: readWorkerConfig(env),
-				ladderEvents: new LadderEventBus(),
+				ladderEvents: this.ladderEvents,
 				internalAuth: readWorkerInternalAuth(env, this.sessionStore),
 			});
 			this.app = createApp(serverContext);
 		});
 	}
 
+	override webSocketClose(socket: WebSocket, code: number): void {
+		// 1005 and 1006 are reserved and cannot be echoed back in a close frame.
+		socket.close(code === 1005 || code === 1006 ? 1000 : code);
+	}
+
 	override async fetch(request: Request): Promise<Response> {
+		if (new URL(request.url).pathname === "/api/v1/ladder/events") {
+			if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+				return new Response("Expected a WebSocket upgrade", {status: 426});
+			}
+			const pair = new WebSocketPair();
+			this.ctx.acceptWebSocket(pair[1], ["ladder"]);
+			return new Response(null, {status: 101, webSocket: pair[0]});
+		}
 		return this.app.fetch(request);
 	}
 }

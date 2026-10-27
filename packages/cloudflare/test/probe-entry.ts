@@ -28,6 +28,17 @@ export class ProbeStore extends UserStore {
 			}
 			return Response.json({cookie: this.sessionStore.read() ?? null});
 		}
+		if (url.pathname === "/__publish") {
+			this.ladderEvents.publish({
+				verb: "move",
+				nodeId: "node-1",
+				name: "Write the report",
+				fromTier: "3",
+				toTier: "1",
+				at: "2026-10-27T00:00:00.000Z",
+			});
+			return Response.json({ok: true});
+		}
 		if (url.pathname === "/__seed") {
 			new CacheService(drizzle(this.ctx.storage, {schema: dbSchema})).insertNode(
 				{
