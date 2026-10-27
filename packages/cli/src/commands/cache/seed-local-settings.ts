@@ -17,6 +17,14 @@ export default class SeedLocalSettings extends Command {
 
 	static override flags = {
 		url: Flags.string({description: "Worker base URL to seed", required: true}),
+		"access-client-id": Flags.string({
+			description: "Cloudflare Access service token client id (sent as CF-Access-Client-Id)",
+			env: "CF_ACCESS_CLIENT_ID",
+		}),
+		"access-client-secret": Flags.string({
+			description: "Cloudflare Access service token client secret (sent as CF-Access-Client-Secret)",
+			env: "CF_ACCESS_CLIENT_SECRET",
+		}),
 	};
 
 	public async run(): Promise<SeedLocalSettingsResult> {
@@ -28,9 +36,16 @@ export default class SeedLocalSettings extends Command {
 			.all()
 			.map(({key, json, updatedAt}) => ({key, json, updatedAt}));
 
+		const headers: Record<string, string> = {"content-type": "application/json"};
+		const clientId = flags["access-client-id"];
+		const clientSecret = flags["access-client-secret"];
+		if (clientId && clientSecret) {
+			headers["CF-Access-Client-Id"] = clientId;
+			headers["CF-Access-Client-Secret"] = clientSecret;
+		}
 		const response = await fetch(new URL("/api/admin/local-settings", flags.url), {
 			method: "PUT",
-			headers: {"content-type": "application/json"},
+			headers,
 			body: JSON.stringify(rows),
 		});
 		if (!response.ok) {

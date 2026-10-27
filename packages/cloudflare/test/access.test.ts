@@ -9,6 +9,7 @@ const env: AccessEnv = {
 	ACCESS_TEAM_DOMAIN: "team.example.com",
 	ACCESS_AUD: "aud-123",
 	ALLOWED_EMAILS: "Alice@example.com, bob@example.com",
+	ALLOWED_SERVICE_TOKENS: "client-1.access=Alice@example.com, client-2.access = bob@example.com",
 };
 
 describe("resolveIdentity", () => {
@@ -24,7 +25,7 @@ describe("resolveIdentity", () => {
 	});
 
 	async function token(
-		claims: {email?: string},
+		claims: {email?: string; common_name?: string},
 		options: {aud?: string; iss?: string; exp?: string | number; key?: CryptoKey} = {},
 	): Promise<string> {
 		return new SignJWT(claims)
@@ -98,5 +99,36 @@ describe("resolveIdentity", () => {
 	it("fails closed when Access is not configured", async () => {
 		const jwt = await token({email: "bob@example.com"});
 		await expect(resolveIdentity(request(jwt), {}, keys)).resolves.toStrictEqual({status: 403});
+	});
+
+	describe("service tokens", () => {
+		it("maps an allowlisted client id to its lowercased identity", async () => {
+			const jwt = await token({common_name: "client-1.access"});
+			await expect(resolveIdentity(request(jwt), env, keys)).resolves.toStrictEqual({email: "alice@example.com"});
+			const second = await token({common_name: "client-2.access"});
+			await expect(resolveIdentity(request(second), env, keys)).resolves.toStrictEqual({
+				email: "bob@example.com",
+			});
+		});
+
+		it("returns 403 for an unmapped client id", async () => {
+			const jwt = await token({common_name: "client-9.access"});
+			await expect(resolveIdentity(request(jwt), env, keys)).resolves.toStrictEqual({status: 403});
+		});
+
+		it("returns 403 when no service tokens are configured", async () => {
+			const jwt = await token({common_name: "client-1.access"});
+			await expect(
+				resolveIdentity(request(jwt), {...env, ALLOWED_SERVICE_TOKENS: ""}, keys),
+			).resolves.toStrictEqual({status: 403});
+			await expect(
+				resolveIdentity(request(jwt), {...env, ALLOWED_SERVICE_TOKENS: undefined}, keys),
+			).resolves.toStrictEqual({status: 403});
+		});
+
+		it("returns 403 for a bad signature even when the client id is mapped", async () => {
+			const jwt = await token({common_name: "client-1.access"}, {key: otherKey});
+			await expect(resolveIdentity(request(jwt), env, keys)).resolves.toStrictEqual({status: 403});
+		});
 	});
 });

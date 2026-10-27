@@ -16,4 +16,8 @@ describe("wrangler.jsonc", () => {
 	it("raises the CPU limit so the alarm-driven import is not cut off at 30 s", () => {
 		expect(readWranglerConfig().limits).toStrictEqual({cpu_ms: 300_000});
 	});
+
+	it("keeps empty placeholders for the Access vars", () => {
+		expect(readWranglerConfig().vars).toMatchObject({ALLOWED_EMAILS: "", ALLOWED_SERVICE_TOKENS: ""});
+	});
 });

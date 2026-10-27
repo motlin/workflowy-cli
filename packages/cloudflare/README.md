@@ -17,7 +17,7 @@ Run `vp run --filter @workflowy/cloudflare types` after changing `wrangler.jsonc
 ### Names
 
 - Secrets (`wrangler secret put`): `WORKFLOWY_API_KEY`, `WORKFLOWY_USERNAME`, `WORKFLOWY_PASSWORD`, optionally `WORKFLOWY_SESSION_COOKIE` (copy from `.llm/workflowy-session`; avoids password login from datacenter IPs).
-- Vars in `wrangler.jsonc`: `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_EMAILS`, `SYNC_INTERVAL_MINUTES`; optional `TREE_SNAPSHOT=false` to serve search from SQL.
+- Vars in `wrangler.jsonc`: `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_EMAILS`, `ALLOWED_SERVICE_TOKENS`, `SYNC_INTERVAL_MINUTES`; optional `TREE_SNAPSHOT=false` to serve search from SQL.
 - R2 bucket `workflowy-snapshots`; Durable Object class `UserStore`.
 
 ### Deploy (Craig only)
@@ -25,6 +25,7 @@ Run `vp run --filter @workflowy/cloudflare types` after changing `wrangler.jsonc
 - `wrangler login` from `packages/cloudflare`; put the `account_id` in the gitignored `wrangler.local.jsonc` or pass `CLOUDFLARE_ACCOUNT_ID`.
 - Create the bucket: `wrangler r2 bucket create workflowy-snapshots`.
 - Zero Trust: create an Access self-hosted application for the Worker hostname with a policy allowing only `motlin1@gmail.com`. Copy the team domain and the AUD tag into `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Disable the `workers.dev` route if using a custom domain so Access cannot be bypassed.
+- Admin calls from the CLI or curl: in Zero Trust create a service token (Access > Service Auth), add a Service Auth policy for it on the application, and set `ALLOWED_SERVICE_TOKENS="<client-id>=motlin1@gmail.com"` (comma-separated pairs; the identity is the user whose Durable Object the token reaches; an unmapped token gets 403). Pass the credentials with `--access-client-id`/`--access-client-secret` or `CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET`; for curl send `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers.
 - Set the secrets above with `wrangler secret put`.
 - `CONFIRM_DEPLOY=1 just cf-deploy` (refuses without it; never part of `verify`).
 - Seed the durable settings, which the sync does not copy: `just cf-seed-settings https://<worker-host>` reads `local_settings` from the local cache and PUTs it to `/api/admin/local-settings` (an Access-protected admin route; `GET` lists what is stored). Run it through an Access-authenticated path, or try it first against `just cf-dev`.

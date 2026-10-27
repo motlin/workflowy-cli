@@ -6,6 +6,8 @@ export interface AccessEnv {
 	ACCESS_TEAM_DOMAIN?: string;
 	ACCESS_AUD?: string;
 	ALLOWED_EMAILS?: string;
+	/** Comma-separated `<client-id>=<email>` pairs: the identity each Access service token acts as. */
+	ALLOWED_SERVICE_TOKENS?: string;
 	ACCESS_DEV_IDENTITY?: string;
 }
 
@@ -20,6 +22,22 @@ function remoteKeysFor(teamDomain: string): JWTVerifyGetKey {
 		remoteKeys.set(teamDomain, keys);
 	}
 	return keys;
+}
+
+function serviceTokenIdentities(raw: string | undefined): Map<string, string> {
+	const identities = new Map<string, string>();
+	for (const entry of (raw ?? "").split(",")) {
+		const separator = entry.indexOf("=");
+		const clientId = entry.slice(0, separator).trim();
+		const identity = entry
+			.slice(separator + 1)
+			.trim()
+			.toLowerCase();
+		if (separator > 0 && clientId !== "" && identity !== "") {
+			identities.set(clientId, identity);
+		}
+	}
+	return identities;
 }
 
 /** Verify the Cloudflare Access JWT and the email allowlist; the identity is the lowercased email. */
@@ -44,6 +62,10 @@ export async function resolveIdentity(
 			audience,
 			issuer: `https://${teamDomain}`,
 		});
+		if (typeof payload.email !== "string" && typeof payload.common_name === "string") {
+			const acting = serviceTokenIdentities(env.ALLOWED_SERVICE_TOKENS).get(payload.common_name);
+			return acting === undefined ? {status: 403} : {email: acting};
+		}
 		const email = typeof payload.email === "string" ? payload.email.toLowerCase() : undefined;
 		const allowed = (env.ALLOWED_EMAILS ?? "")
 			.split(",")
