@@ -1,5 +1,6 @@
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
+import {nodeTreeHost} from "../src/server/node-host.js";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {mkdtempSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
@@ -20,6 +21,7 @@ import {
 	rebuildTreeSnapshotAfterWrites,
 	scheduleTreeSnapshotRebuild,
 	warmTreeSnapshot,
+	bindTreeHost,
 } from "../src/server/tree-snapshot.js";
 import {computeTreeSearch} from "../src/server/tree-search.js";
 import {peekSwitcherText} from "../src/server/switcher-search.js";
@@ -73,13 +75,16 @@ function tempPath(): string {
 function connect(path: string) {
 	const sqlite = new DatabaseConstructor(path);
 	open.push(sqlite);
-	return drizzle(sqlite, {schema});
+	const db = drizzle(sqlite, {schema});
+	bindTreeHost(db, nodeTreeHost(sqlite));
+	return db;
 }
 
 function setup(path = ":memory:") {
 	const sqlite = new DatabaseConstructor(path);
 	open.push(sqlite);
 	const db = drizzle(sqlite, {schema});
+	bindTreeHost(db, nodeTreeHost(sqlite));
 	migrate(db, {migrationsFolder});
 	TREE.forEach(([id, parentId, name], priority) => {
 		db.insert(nodeContent)

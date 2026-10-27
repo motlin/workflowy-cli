@@ -1,6 +1,8 @@
 import {describe, expect, it} from "vite-plus/test";
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
+import {nodeTreeHost} from "../src/server/node-host.js";
+import {bindTreeHost} from "../src/server/tree-snapshot.js";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {Hono} from "hono";
 import {join} from "node:path";
@@ -132,6 +134,7 @@ describe("mergeFallback", () => {
 function setupDb() {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
+	bindTreeHost(db, nodeTreeHost(sqlite));
 	migrate(db, {migrationsFolder: join(import.meta.dirname, "../../shared/src/db/migrations")});
 	const seededAt = "2026-01-01 00:00:00.000";
 	const rows: {id: string; parentId: string | null; name: string; systemTo?: string}[] = [

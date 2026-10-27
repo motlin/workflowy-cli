@@ -4,19 +4,44 @@ import {sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
 import type {MiddlewareHandler} from "hono";
 import type {AppDatabase} from "@workflowy/shared/db";
-import BetterSqlite3 from "better-sqlite3";
 import {warmSwitcher} from "./switcher-search.js";
 import {changedNodeIds, changesSince, latestSystemTime, readConsistently} from "./system-changes.js";
 import type {TreeSearchRow} from "./tree-search.js";
 
 export type Database = AppDatabase;
 
-/** Step 3 removes this `$client` coupling; until then the Node server's database is a better-sqlite3 one. */
-function clientOf(database: AppDatabase): BetterSqlite3.Database {
-	if (!("$client" in database) || !(database.$client instanceof BetterSqlite3)) {
-		throw new Error("The database has no better-sqlite3 client");
+/** What tells the snapshot another connection committed, and whether the database is still usable. */
+export interface ChangeSource {
+	/** Changes whenever a connection other than this server's commits to the database. */
+	dataVersion(): string;
+	/** False once the database is closed, so a pending rebuild is skipped. */
+	isOpen(): boolean;
+}
+
+/** Timers for the debounced background rebuild, so a host without `setTimeout().unref()` can supply its own. */
+export interface TreeScheduler {
+	/** Runs `run` once after `delayMs`; the returned function cancels it. */
+	setTimer(run: () => void, delayMs: number): () => void;
+}
+
+export interface TreeHost {
+	changeSource: ChangeSource;
+	scheduler: TreeScheduler;
+}
+
+const hosts = new WeakMap<Database, TreeHost>();
+
+/** Attach the host's change source and scheduler to `database`; the snapshot cannot be read before this. */
+export function bindTreeHost(database: Database, host: TreeHost): void {
+	hosts.set(database, host);
+}
+
+function hostOf(database: Database): TreeHost {
+	const host = hosts.get(database);
+	if (host === undefined) {
+		throw new Error("No tree host is bound to the database; call bindTreeHost first");
 	}
-	return database.$client;
+	return host;
 }
 
 interface TreeSqlRow {
@@ -166,7 +191,7 @@ const REBUILD_DEBOUNCE_MS = 500;
 const PATCH_LIMIT = 1000;
 
 const snapshots = new WeakMap<Database, TreeSnapshot>();
-const rebuildTimers = new WeakMap<Database, ReturnType<typeof setTimeout>>();
+const rebuildTimers = new WeakMap<Database, () => void>();
 
 interface ChangeState {
 	/** Bumped by commits from any other connection (another process's cache refresh). */
@@ -176,9 +201,9 @@ interface ChangeState {
 }
 
 function changeState(database: Database): ChangeState {
-	const dataVersion: unknown = clientOf(database).pragma("data_version", {simple: true});
+	const dataVersion = hostOf(database).changeSource.dataVersion();
 	const {changes} = database.get<{changes: number}>(sql`SELECT total_changes() AS changes`);
-	return {dataVersion: String(dataVersion), changes};
+	return {dataVersion, changes};
 }
 
 /**
@@ -423,9 +448,16 @@ function patchSnapshot(database: Database, snapshot: TreeSnapshot, state: Change
 }
 
 /** Bring the snapshot up to date: patch it when there is one, else (or when the patch is too big) reload it. */
+function clearPending(database: Database): void {
+	const pending = rebuildTimers.get(database);
+	if (pending !== undefined) {
+		pending();
+		rebuildTimers.delete(database);
+	}
+}
+
 function refreshSnapshot(database: Database, state: ChangeState): TreeSnapshot {
-	clearTimeout(rebuildTimers.get(database));
-	rebuildTimers.delete(database);
+	clearPending(database);
 	const previous = snapshots.get(database);
 	const snapshot =
 		(previous === undefined ? null : patchSnapshot(database, previous, state)) ?? fullSnapshot(database, state);
@@ -454,15 +486,15 @@ export function scheduleTreeSnapshotRebuild(database: Database, {restart = true}
 		if (!restart) {
 			return;
 		}
-		clearTimeout(pending);
+		clearPending(database);
 	}
-	const timer = setTimeout(() => {
+	const {changeSource, scheduler} = hostOf(database);
+	const timer = scheduler.setTimer(() => {
 		rebuildTimers.delete(database);
-		if (clientOf(database).open) {
+		if (changeSource.isOpen()) {
 			warmTreeSnapshot(database);
 		}
 	}, REBUILD_DEBOUNCE_MS);
-	timer.unref();
 	rebuildTimers.set(database, timer);
 }
 

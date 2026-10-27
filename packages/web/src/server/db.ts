@@ -4,7 +4,9 @@ import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 import * as schema from "@workflowy/shared/db";
 import {join} from "node:path";
+import {nodeTreeHost} from "./node-host.js";
 import {createSqlLogger} from "./sql-logger.js";
+import {bindTreeHost} from "./tree-snapshot.js";
 
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
@@ -26,6 +28,8 @@ export function getDatabase() {
 		schema,
 		logger: createSqlLogger(process.env.WORKFLOWY_SQL_QUERY_LOGGING === "true"),
 	});
+
+	bindTreeHost(dbInstance, nodeTreeHost(sqlite));
 
 	if (process.env.WORKFLOWY_SKIP_MIGRATIONS !== "true") {
 		const migrationsFolder = join(import.meta.dirname, "../../../shared/dist/db/migrations");

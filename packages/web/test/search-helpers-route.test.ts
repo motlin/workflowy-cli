@@ -1,5 +1,7 @@
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
+import {nodeTreeHost} from "../src/server/node-host.js";
+import {bindTreeHost} from "../src/server/tree-snapshot.js";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
@@ -83,6 +85,7 @@ function setup() {
 	const sqlite = new DatabaseConstructor(":memory:");
 	open.push(sqlite);
 	const db = drizzle(sqlite, {schema});
+	bindTreeHost(db, nodeTreeHost(sqlite));
 	migrate(db, {migrationsFolder});
 	for (const [id, parentId, name] of TREE) {
 		db.insert(nodeContent)
