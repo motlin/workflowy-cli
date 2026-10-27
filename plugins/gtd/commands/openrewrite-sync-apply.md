@@ -1,6 +1,6 @@
 ---
 name: openrewrite-sync-apply
-description: Apply half of the OpenRewrite fork sync — show which fork mains were rebased and built, ask which to push, push the approved ones with --force-with-lease, and report repos whose rebase or build failed.
+description: Apply half of the OpenRewrite fork sync — show which fork mains were rebased and built, hand the user the push command, verify the pushes, and report repos whose rebase or build failed.
 ---
 
 # OpenRewrite Fork Sync Apply
@@ -13,13 +13,18 @@ Read `.llm/gtd/review/proposals/openrewrite-sync.json` and act on its status.
 - `error`: surface the error and return failure. Do not advance the date.
 - `ready`: present the repos, push what the user approves, and report failures (below).
 
-## Ask which forks to push
+## Hand the push to the user
 
-When any proposal has an `applyOps` push, ask with AskUserQuestion (`multiSelect: true`). Put everything the user needs inside the question, because console output scrolls away: each repo, its local commit count, and that the push is a `--force-with-lease` rewrite of the fork's `main`. Options: push all, one option per repo when there are three or fewer, and not now.
+Never push `main` yourself: a guard hook forbids pushing to `main`, and the user runs those pushes. When any proposal has an `applyOps` push, show each repo and its local commit count, then ask with AskUserQuestion. Put the command inside the question, because console output scrolls away:
 
-- Run each approved applyOp verbatim. The staged SHAs pin exactly what prep built; never substitute the current `main`.
-- A lease rejection means the fork moved since prep. Report it and leave that repo for the next run; never retry with `--force`.
-- Verify each push with `git -C <repo> ls-remote origin refs/heads/main` matching the staged SHA.
+```text
+! openrewrite-sync --no-build
+```
+
+It pushes every fork `main` that differs, each with `--force-with-lease`, and skips the rebuild prep already did. Options: pushed, not now.
+
+- On "pushed", verify each staged repo with `git -C ~/projects/<repo> ls-remote origin refs/heads/main` matching the staged SHA. A mismatch because the fork moved since prep (lease rejection) is reported and left for the next run.
+- On "not now", return skipped.
 
 ## Report failures
 
@@ -31,8 +36,8 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/launch-herdr-tab.mts --label <repo> -- bash -
 
 ## Result
 
-- Return success when every approved push is verified, even if some repos failed to rebase or build: those reappear on the next run.
-- Return skipped when the user chose "not now" for all pushes; the date stays unchanged.
-- Return failure when an approved push could not be verified for a reason other than a lease rejection.
+- Return success when every staged push is verified, even if some repos failed to rebase or build: those reappear on the next run.
+- Return skipped when the user chose "not now"; the date stays unchanged.
+- Return failure when a push the user ran could not be verified for a reason other than a lease rejection.
 
 The apply command never updates the task date. The Phase 0 executor owns it.
