@@ -10,6 +10,8 @@ import type {DecisionItem, DecisionPage} from "../../server/decisions.js";
 import "../decisions.css";
 import {hideLoadingScreenOnce} from "../loading-screen.js";
 import {readJson} from "../read-json.js";
+import {fetchThroughRestarts} from "../restart-retry.js";
+import type {FetchedText} from "../restart-retry.js";
 
 const NOTE_DEBOUNCE_MS = 600;
 
@@ -25,9 +27,12 @@ interface ItemState {
 
 type SubmitState = {kind: "idle"} | {kind: "submitting"} | {kind: "submitted"} | {kind: "error"; message: string};
 
-async function errorOf(response: Response): Promise<string> {
-	const body = await readJson<{error: string}>(response);
-	return body.error;
+async function errorOf(response: FetchedText): Promise<string> {
+	try {
+		return (await readJson<{error: string}>(new Response(response.text))).error;
+	} catch {
+		return `HTTP ${response.status}`;
+	}
 }
 
 const STATUS_TEXT: Record<Exclude<SaveStatus["kind"], "error">, string> = {idle: "", saving: "Saving…", saved: "Saved"};
@@ -43,8 +48,10 @@ function messageOf(error: unknown): string {
 /** The staged page, or the reason it could not be loaded. */
 async function loadPage(url: string, signal: AbortSignal): Promise<{page: DecisionPage} | {error: string}> {
 	try {
-		const response = await fetch(url, {signal});
-		return response.ok ? {page: await readJson<DecisionPage>(response)} : {error: await errorOf(response)};
+		const response = await fetchThroughRestarts(url, {signal});
+		return response.ok
+			? {page: await readJson<DecisionPage>(new Response(response.text))}
+			: {error: await errorOf(response)};
 	} catch (error) {
 		return {error: messageOf(error)};
 	}
@@ -126,7 +133,7 @@ export function DecisionPageView({slug}: {slug: string}) {
 	async function save(id: string): Promise<void> {
 		const {choice, note} = update(id, {status: {kind: "saving"}});
 		try {
-			const response = await fetch(`${base}/${encodeURIComponent(id)}`, {
+			const response = await fetchThroughRestarts(`${base}/${encodeURIComponent(id)}`, {
 				method: "PUT",
 				headers: {"content-type": "application/json"},
 				body: JSON.stringify({choice, note}),
@@ -167,7 +174,7 @@ export function DecisionPageView({slug}: {slug: string}) {
 	async function submitPage(): Promise<void> {
 		setSubmit({kind: "submitting"});
 		try {
-			const response = await fetch(`${base}/submit`, {method: "POST"});
+			const response = await fetchThroughRestarts(`${base}/submit`, {method: "POST"});
 			setSubmit(response.ok ? {kind: "submitted"} : {kind: "error", message: await errorOf(response)});
 		} catch (error) {
 			setSubmit({kind: "error", message: messageOf(error)});

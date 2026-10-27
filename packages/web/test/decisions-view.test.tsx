@@ -124,6 +124,26 @@ function text(selector: string, within: ParentNode | undefined = host): string[]
 }
 
 describe("DecisionPageView", () => {
+	it("retries the page load through a dev API restart instead of showing a JSON parse error", async () => {
+		let gets = 0;
+		vi.stubGlobal("fetch", async () => {
+			gets++;
+			return Promise.resolve(gets === 1 ? new Response("", {status: 200}) : Response.json(PAGE));
+		});
+		await mount();
+		await act(async () => {
+			await new Promise((resolve) => {
+				setTimeout(resolve, 400);
+			});
+		});
+		await flush();
+		expect({gets, title: text("h1"), errors: text("[role=alert]")}).toStrictEqual({
+			gets: 2,
+			title: ["Meeting follow-ups"],
+			errors: [],
+		});
+	});
+
 	it("dismisses the boot loading screen, which only the outline view hid before", async () => {
 		hideLoadingScreenOnce.mockClear();
 		stubFetch();
