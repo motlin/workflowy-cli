@@ -93,6 +93,11 @@
 			"source": "./src/tags/index.ts",
 			"types": "./dist/tags/index.d.ts",
 			"import": "./dist/tags/index.js"
+		},
+		"./db-migrations-bundle": {
+			"source": "./src/db/migrations-bundle.generated.ts",
+			"types": "./dist/db/migrations-bundle.generated.d.ts",
+			"import": "./dist/db/migrations-bundle.generated.js"
 		}
 	},
 	"scripts": {

@@ -24,6 +24,7 @@
 	"scripts": {
 		"preinstall": "npx only-allow pnpm",
 		"build": "shx rm -rf dist && tsc -b",
+		"gen:migrations": "node scripts/gen-migrations-bundle.mjs && vp fmt packages/shared/src/db/migrations-bundle.generated.ts",
 		"oxlint": "vp lint . --fix",
 		"oxlint:ci": "vp lint . --format github",
 		"fmt": "vp fmt",
