@@ -262,6 +262,52 @@ describe("sync from a fake upstream", () => {
 		await stop(h);
 	}, 60_000);
 
+	it("resolves a calendar day from node_internal_metadata.calendar when calendar_metadata and calendar_levels are empty", async () => {
+		const node = (n: number, name: string, parent: number | null) => ({
+			id: uuid(n),
+			name,
+			note: null,
+			parent_id: parent === null ? null : uuid(parent),
+			priority: n,
+			createdAt: 1,
+			modifiedAt: 2,
+		});
+		current = [
+			node(1, "📆 Calendar", null),
+			node(2, "2026", 1),
+			node(3, "10", 2),
+			node(4, '<time startYear="2026" startMonth="10" startDay="27">Tue, Oct 27, 2026</time>', 3),
+			node(5, "journal entry", 4),
+		];
+		const item = (n: number, parent: number | null, calendar: Record<string, unknown>) => ({
+			id: uuid(n),
+			prnt: parent === null ? null : uuid(parent),
+			pr: n,
+			nm: current[n - 1]?.name,
+			ct: 1,
+			lm: 2,
+			metadata: {calendar},
+		});
+		treeData = () =>
+			Response.json({
+				items: [
+					item(1, null, {root: true}),
+					item(2, 1, {level: "year", dateId: 20_260_000}),
+					item(3, 2, {level: "month", dateId: 20_261_000}),
+					item(4, 3, {level: "day", dateId: 20_261_027}),
+					{id: uuid(5), prnt: uuid(4), pr: 5, nm: "journal entry", ct: 1, lm: 2},
+				],
+				most_recent_operation_transaction_id: "1",
+			});
+		const h = await start(undefined, {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"});
+		const done = await runToIdle(h);
+		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 5});
+		const response = await h.mf.dispatchFetch("http://localhost/api/v1/calendar/day/20261027");
+		expect(response.status).toBe(200);
+		await expect(readJson(response)).resolves.toStrictEqual({id: uuid(4), firstChildId: uuid(5)});
+		await stop(h);
+	}, 60_000);
+
 	it("fills config.workflowy_epoch from the initialization data when internal auth exists and the row is missing", async () => {
 		current = makeNodes(100);
 		treeData = () => Response.json({items: [], most_recent_operation_transaction_id: "1"});
