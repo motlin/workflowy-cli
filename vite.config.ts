@@ -3,7 +3,11 @@ import {defineConfig} from "vite-plus";
 export default defineConfig({
 	fmt: {
 		// Verbatim upstream copy; the byte-for-byte guard in wf-tailwind.test.ts breaks if it is reformatted.
-		ignorePatterns: ["packages/web/src/client/wf-tailwind.css", "packages/web/src/client/reset.css"],
+		ignorePatterns: [
+			"packages/cloudflare/worker-configuration.d.ts",
+			"packages/web/src/client/wf-tailwind.css",
+			"packages/web/src/client/reset.css",
+		],
 		semi: true,
 		singleQuote: false,
 		useTabs: true,

@@ -32,6 +32,14 @@ export default defineConfig({
 					],
 				},
 			},
+			{
+				// Worker tests run the bundled Worker in Miniflare from plain Node vitest: @cloudflare/vitest-pool-workers requires vitest ^4.1 and the catalog is on 5.0.5.
+				extends: true,
+				test: {
+					name: "cloudflare",
+					include: ["packages/cloudflare/test/**/*.test.ts"],
+				},
+			},
 		],
 	},
 });

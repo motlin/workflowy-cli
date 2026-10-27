@@ -57,6 +57,11 @@ check *args: build-shared
 test *args: build-shared
     CHAI_TRUNCATE_THRESHOLD=0 vp run --cache test:run {{ args }}
 
+# Run the Worker tests (also part of `test`)
+[group('test')]
+cf-test: build-shared
+    vp test run --project cloudflare
+
 # Run the plugin script tests, which vitest does not glob
 [group('test')]
 test-plugins:
@@ -68,6 +73,7 @@ test-plugins:
 typecheck: build-shared
     vp run typecheck
     vp run --filter @workflowy/web typecheck
+    vp run --filter @workflowy/cloudflare typecheck
 
 # Remove all dist dirs and tsbuildinfo to prevent stale artifacts (used by git-test)
 [group('build')]

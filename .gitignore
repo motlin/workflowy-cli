@@ -75,3 +75,7 @@ storybook-static
 __pycache__/
 artifacts/
 .fallow/
+
+# Cloudflare
+.wrangler/
+.dev.vars

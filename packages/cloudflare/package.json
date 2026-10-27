@@ -1,0 +1,18 @@
+{
+	"name": "@workflowy/cloudflare",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Cloudflare Worker host for the Workflowy web app",
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev",
+		"typecheck": "tsc --noEmit",
+		"types": "wrangler types"
+	},
+	"devDependencies": {
+		"esbuild": "^0.28.0",
+		"miniflare": "4.20260730.0",
+		"typescript": "^7.0.2",
+		"wrangler": "4.152.0"
+	}
+}

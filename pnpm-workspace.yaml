@@ -33,3 +33,4 @@ allowBuilds:
   tree-sitter-python: false
   tree-sitter-rust: false
   tree-sitter-typescript: false
+  workerd: true
