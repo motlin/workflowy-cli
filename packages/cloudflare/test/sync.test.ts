@@ -36,6 +36,8 @@ interface SyncStatus {
 		nodesUnchanged?: number;
 		nodesPhasedOut?: number;
 		exportKey?: string;
+		treeDataError?: string;
+		durationMs?: number;
 	} | null;
 }
 
@@ -78,10 +80,19 @@ async function liveIds(h: Harness): Promise<string[]> {
 	return response.json();
 }
 
+async function internalMetadata(h: Harness): Promise<unknown> {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
+	const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
+	const response = await ns.get(ns.idFromName("dev")).fetch("http://localhost/__internal-metadata");
+	return response.json();
+}
+
 describe("sync from a fake upstream", () => {
 	let current = makeNodes(5000);
 	let exportCalls = 0;
 	let rateLimit = false;
+	let treeData: (() => Response) | undefined;
+	const internalCalls: string[] = [];
 	const auths: (string | null)[] = [];
 	const open = new Set<Harness>();
 	const stop = async (h: Harness, keepData = false): Promise<void> => {
@@ -104,6 +115,13 @@ describe("sync from a fake upstream", () => {
 							return new Response("slow down", {status: 429, headers: {"retry-after": "120"}});
 						}
 						return Response.json({nodes: current});
+					}
+					if (url.pathname === "/ajax_login" || url.pathname === "/get_tree_data/") {
+						internalCalls.push(url.pathname);
+						if (url.pathname === "/ajax_login") {
+							return new Response("{}", {status: 200, headers: {"set-cookie": "sessionid=abc; Path=/"}});
+						}
+						return treeData?.() ?? new Response("no tree data", {status: 500});
 					}
 					return new Response(`unexpected ${url.pathname}`, {status: 500});
 				},
@@ -200,4 +218,78 @@ describe("sync from a fake upstream", () => {
 		await stop(second);
 		rmSync(persistDir, {recursive: true, force: true});
 	}, 180_000);
+
+	it("imports internal metadata from get_tree_data when internal auth exists", async () => {
+		current = makeNodes(100);
+		treeData = () =>
+			Response.json({
+				items: [
+					{id: uuid(1), prnt: null, pr: 0, nm: "node 0", ct: 1, lm: 2, metadata: {numbered_start: 7}},
+					{id: uuid(2), prnt: null, pr: 1, nm: "node 1", ct: 1, lm: 2},
+				],
+				most_recent_operation_transaction_id: "1",
+			});
+		internalCalls.length = 0;
+		const h = await start(undefined, {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"});
+		const done = await runToIdle(h);
+		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100});
+		expect(done.lastResult?.treeDataError).toBeUndefined();
+		expect(internalCalls).toStrictEqual(["/ajax_login", "/get_tree_data/"]);
+		await expect(internalMetadata(h)).resolves.toStrictEqual([
+			{node_id: uuid(1), metadata_json: JSON.stringify({numbered_start: 7})},
+		]);
+		await stop(h);
+	}, 60_000);
+
+	it("skips internal metadata when no internal auth exists", async () => {
+		current = makeNodes(100);
+		internalCalls.length = 0;
+		const h = await start();
+		const done = await runToIdle(h);
+		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100});
+		expect(done.lastResult?.treeDataError).toBeUndefined();
+		expect(internalCalls).toStrictEqual([]);
+		await expect(internalMetadata(h)).resolves.toStrictEqual([]);
+		await stop(h);
+	}, 60_000);
+
+	it("completes the public import but reports a get_tree_data failure in the sync status", async () => {
+		current = makeNodes(100);
+		treeData = () => new Response("boom", {status: 500});
+		const h = await start(undefined, {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"});
+		const done = await runToIdle(h);
+		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100, nodesAdded: 100});
+		expect(done.lastResult?.treeDataError).toMatch(/\S/u);
+		await expect(liveIds(h)).resolves.toHaveLength(100);
+		await expect(internalMetadata(h)).resolves.toStrictEqual([]);
+		await stop(h);
+	}, 60_000);
+});
+
+describe.skipIf(process.env.CF_SLOW !== "1")("slow: 165k-node export (CF_SLOW=1)", () => {
+	it("imports and reports the CPU time", async () => {
+		const nodes = makeNodes(165_000);
+		const h = await startHarness(
+			"./probe-entry.ts",
+			"ProbeStore",
+			undefined,
+			{...bindings, SYNC_BATCHES_PER_TICK: "5"},
+			{
+				outboundService: (request: Request): Response =>
+					new URL(request.url).pathname === "/api/v1/nodes-export"
+						? Response.json({nodes})
+						: new Response("unexpected", {status: 500}),
+			},
+		);
+		try {
+			const started = performance.now();
+			const done = await runToIdle(h);
+			const wallMs = Math.round(performance.now() - started);
+			// oxlint-disable-next-line no-console -- the report is the point of this opt-in test
+			console.log(`165k-node sync: wall ${wallMs} ms, in-DO duration ${String(done.lastResult?.durationMs)} ms`);
+			expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 165_000, nodesAdded: 165_000});
+		} finally {
+			await h.dispose();
+		}
+	}, 1_800_000);
 });

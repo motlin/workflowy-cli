@@ -49,7 +49,10 @@ export type SyncResult =
 	| ({status: "ok"; exportKey: string; finishedAt: number; durationMs: number} & Omit<
 			ImportApiResult,
 			"importTimestamp"
-	  >)
+	  > & {
+				/** Set when get_tree_data failed: the public import still completed, internal metadata did not. */
+				treeDataError?: string;
+			})
 	| {status: "rate_limited" | "error"; message: string; at: number};
 
 export interface SyncStatus {
@@ -256,11 +259,13 @@ export class SyncJob {
 		}
 
 		let treeItems: InternalTreeItem[] | undefined;
+		let treeDataError: string | undefined;
 		try {
 			treeItems = await this.deps.readTreeData?.();
-		} catch {
+		} catch (error) {
 			// The public export alone is still a complete import; metadata catches up on the next run.
 			treeItems = undefined;
+			treeDataError = error instanceof Error ? error.message : String(error);
 		}
 		const result = finishApiImport(state, treeItems);
 		if (treeItems !== undefined) {
@@ -273,6 +278,7 @@ export class SyncJob {
 			finishedAt: this.now(),
 			durationMs: this.now() - job.startedAt,
 			...counts,
+			...(treeDataError === undefined ? {} : {treeDataError}),
 		});
 		await this.scheduleNextRun();
 	}

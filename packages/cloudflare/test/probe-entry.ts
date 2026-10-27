@@ -46,6 +46,13 @@ export class ProbeStore extends UserStore {
 				.flatMap((row) => (typeof row.id === "string" ? [row.id] : []));
 			return Response.json(ids);
 		}
+		if (url.pathname === "/__internal-metadata") {
+			return Response.json(
+				this.ctx.storage.sql
+					.exec("SELECT node_id, metadata_json FROM node_internal_metadata ORDER BY node_id")
+					.toArray(),
+			);
+		}
 		if (url.pathname === "/__seed") {
 			new CacheService(drizzle(this.ctx.storage, {schema: dbSchema})).insertNode(
 				{
