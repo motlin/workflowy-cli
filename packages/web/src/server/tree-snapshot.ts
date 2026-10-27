@@ -575,8 +575,12 @@ const REFERENCES_SEEDS = sql`SELECT id, 0 FROM node_content WHERE system_to = ${
  * {@link loadTreeRows} plus the references roots and backlink items under the loaded rows, for a query that
  * searches backlinks. The roots carry no text and the items are mirrors of their sources, so only the items match.
  */
-export function loadTreeRowsWithBacklinks(database: Database, rootId: string | null): TreeSearchRow[] {
-	const rows = loadTreeRows(database, rootId);
+export function loadTreeRowsWithBacklinks(
+	database: Database,
+	rootId: string | null,
+	load: (database: Database, rootId: string | null) => TreeSearchRow[] = loadTreeRows,
+): TreeSearchRow[] {
+	const rows = load(database, rootId);
 	const ids = new Set(rows.map((row) => row.id));
 	const references = selectTreeRows(database, REFERENCES_SEEDS, false);
 	const roots = new Set(

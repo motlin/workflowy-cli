@@ -1,9 +1,16 @@
 import {DurableObject} from "cloudflare:workers";
 import * as schema from "@workflowy/shared/db";
-import {LadderEventBus, bindTreeHost, buildServerContext, createApp} from "@workflowy/web/server-app";
+import {
+	LadderEventBus,
+	bindTreeHost,
+	buildServerContext,
+	createApp,
+	peekTreeSnapshotRows,
+} from "@workflowy/web/server-app";
 import {WorkflowyInternalClient} from "@workflowy/shared/api";
 import {drizzle} from "drizzle-orm/durable-sqlite";
 import {migrate} from "drizzle-orm/durable-sqlite/migrator";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {doMigrationConfig} from "./do-migrations";
 import {kvSessionStore} from "./session-store";
 import {SyncJob} from "./sync";
@@ -20,6 +27,8 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	/** Announces ladder writes; every accepted ladder socket receives each event. */
 	protected readonly ladderEvents = new LadderEventBus();
 	private sync!: SyncJob;
+	private db!: ReturnType<typeof drizzle<typeof schema>>;
+	private treeSnapshotEnabled = true;
 	private app!: {fetch(request: Request): Response | Promise<Response>};
 
 	constructor(ctx: DurableObjectState, env: Env & WorkerSecrets & SyncEnv) {
@@ -37,6 +46,8 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 		});
 		void ctx.blockConcurrencyWhile(async () => {
 			const db = drizzle(ctx.storage, {schema});
+			this.db = db;
+			this.treeSnapshotEnabled = readWorkerConfig(env).features.treeSnapshot;
 			const before = countApplied(ctx);
 			await migrate(db, doMigrationConfig);
 			this.appliedOnBoot = countApplied(ctx) - before;
@@ -83,11 +94,29 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 		return this.sync.status();
 	}
 
+	/** Database size, live node count, the last sync result and whether the in-memory tree snapshot is held. */
+	async adminStatus(): Promise<AdminStatus> {
+		const count = this.ctx.storage.sql
+			.exec("SELECT count(*) AS n FROM node_content WHERE system_to = ?", FAR_FUTURE_DATE)
+			.one().n;
+		return {
+			databaseSize: this.ctx.storage.sql.databaseSize,
+			nodeCount: Number(count),
+			lastSync: (await this.sync.status()).lastResult,
+			snapshot: {enabled: this.treeSnapshotEnabled, warm: peekTreeSnapshotRows(this.db) !== undefined},
+		};
+	}
+
 	override async alarm(): Promise<void> {
 		await this.sync.tick();
 	}
 
 	override async fetch(request: Request): Promise<Response> {
+		if (new URL(request.url).pathname === "/api/admin/status") {
+			return request.method === "GET"
+				? Response.json(await this.adminStatus())
+				: new Response("Method not allowed", {status: 405});
+		}
 		if (new URL(request.url).pathname === "/api/admin/sync") {
 			if (request.method === "POST") {
 				return Response.json(await this.syncNow(), {status: 202});
@@ -107,6 +136,13 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 		}
 		return this.app.fetch(request);
 	}
+}
+
+export interface AdminStatus {
+	databaseSize: number;
+	nodeCount: number;
+	lastSync: SyncStatus["lastResult"];
+	snapshot: {enabled: boolean; warm: boolean};
 }
 
 function countApplied(ctx: DurableObjectState): number {

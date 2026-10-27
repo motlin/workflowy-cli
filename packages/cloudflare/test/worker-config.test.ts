@@ -40,6 +40,13 @@ describe("readWorkerConfig", () => {
 		).toMatchObject({apiKey: "k", apiUrl: "http://upstream.test", accountEmail: "a@example.com"});
 	});
 
+	it("turns the tree snapshot off when TREE_SNAPSHOT is false", () => {
+		expect(readWorkerConfig({TREE_SNAPSHOT: "false"}).features).toStrictEqual({
+			embeddings: false,
+			treeSnapshot: false,
+		});
+	});
+
 	it("treats empty bindings as unset", () => {
 		expect(readWorkerConfig({WORKFLOWY_API_KEY: "", WORKFLOWY_API_URL: ""})).toMatchObject({
 			apiKey: undefined,

@@ -50,10 +50,12 @@ export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<Ap
 	app.use("/api/*", apiCompression());
 
 	// Rebuild the search tree snapshot in the background after each write, so searches rarely wait on the ~800ms reload.
-	app.use(
-		"/api/*",
-		rebuildTreeSnapshotAfterWrites(() => ctx.db),
-	);
+	if (ctx.config.features.treeSnapshot) {
+		app.use(
+			"/api/*",
+			rebuildTreeSnapshotAfterWrites(() => ctx.db),
+		);
+	}
 
 	// Mount API routes
 	app.route("/api/changes", changesRouter);
@@ -83,4 +85,4 @@ export {buildServerContext} from "./context.js";
 export type {ServerContext, ServerContextDeps} from "./context.js";
 export type {ServerConfig} from "./config.js";
 export {LadderEventBus} from "./ladder-events.js";
-export {bindTreeHost} from "./tree-snapshot.js";
+export {bindTreeHost, peekTreeSnapshotRows} from "./tree-snapshot.js";

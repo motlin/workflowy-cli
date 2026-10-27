@@ -25,18 +25,26 @@ const LOOKBACK_MS = 5000;
  */
 const CLOSED = sql.raw(`system_to < '${FAR_FUTURE_DATE}'`);
 
-/** The newest system time any node, metadata, mirror, references-root or AI-metadata row was opened or closed at. */
+/**
+ * The newest system time any node, metadata, mirror, references-root or AI-metadata row was opened or closed at.
+ * One query per table and column: a Durable Object's SQLite rejects compound selects with more than a few terms.
+ */
 export function latestSystemTime(database: Database): string {
-	const tables = ["node_content", "node_metadata", "mirrors", "references_roots", "ai_metadata"].map(
-		(table) => sql`
-			SELECT max(system_from) AS at FROM ${sql.identifier(table)}
-			UNION ALL SELECT max(system_to) FROM ${sql.identifier(table)} WHERE ${CLOSED}
-		`,
-	);
-	const {at} = database.get<{at: string | null}>(
-		sql`SELECT max(at) AS at FROM (${sql.join(tables, sql` UNION ALL `)})`,
-	);
-	return at ?? "";
+	let latest = "";
+	for (const table of ["node_content", "node_metadata", "mirrors", "references_roots", "ai_metadata"]) {
+		const name = sql.identifier(table);
+		const {opened, closed} = database.get<{opened: string | null; closed: string | null}>(sql`
+			SELECT
+				(SELECT max(system_from) FROM ${name}) AS opened,
+				(SELECT max(system_to) FROM ${name} WHERE ${CLOSED}) AS closed
+		`);
+		for (const at of [opened, closed]) {
+			if (at !== null && at > latest) {
+				latest = at;
+			}
+		}
+	}
+	return latest;
 }
 
 /** The system time to read changes from for a cache built at `latest`. */
@@ -58,32 +66,34 @@ function changedIn(table: string, column: string, since: string): SQL {
 	`;
 }
 
-/** The distinct ids `query` returns, or undefined when it returns more than `limit` rows. */
-function distinctIds(database: Database, query: SQL, limit: number): Set<string> | undefined {
-	const rows = database.all<{id: string}>(sql`${query} LIMIT ${limit + 1}`);
-	return rows.length > limit ? undefined : new Set(rows.map(({id}) => id));
-}
-
 /**
  * Ids of nodes whose search row may have changed after `since`, or undefined when more than `limit` did:
  * changed content, metadata, mirror links, references roots or AI metadata, plus live mirrors of a changed original
- * (a mirror shows its original's text).
+ * (a mirror shows its original's text). Each leg is its own query, because a Durable Object's SQLite rejects
+ * compound selects with more than a few terms.
  */
 export function changedNodeIds(database: Database, since: string, limit: number): Set<string> | undefined {
-	return distinctIds(
-		database,
-		sql`
-			WITH content(id) AS (${changedIn("node_content", "id", since)})
-			SELECT id FROM content
-			UNION ALL SELECT mirror_id FROM mirrors
-				WHERE system_to = ${FAR_FUTURE_DATE} AND original_id IN (SELECT id FROM content)
-			UNION ALL ${changedIn("node_metadata", "node_id", since)}
-			UNION ALL ${changedIn("mirrors", "mirror_id", since)}
-			UNION ALL ${changedIn("references_roots", "node_id", since)}
-			UNION ALL ${changedIn("ai_metadata", "node_id", since)}
-		`,
-		limit,
-	);
+	const ids = new Set<string>();
+	const collect = (query: SQL): boolean => {
+		const rows = database.all<{id: string}>(sql`${query} LIMIT ${limit + 1}`);
+		for (const {id} of rows) {
+			ids.add(id);
+		}
+		return rows.length <= limit && ids.size <= limit;
+	};
+	const content = changedIn("node_content", "id", since);
+	return collect(content) &&
+		collect(sql`
+			WITH content(id) AS (${content})
+			SELECT mirror_id AS id FROM mirrors
+			WHERE system_to = ${FAR_FUTURE_DATE} AND original_id IN (SELECT id FROM content)
+		`) &&
+		collect(changedIn("node_metadata", "node_id", since)) &&
+		collect(changedIn("mirrors", "mirror_id", since)) &&
+		collect(changedIn("references_roots", "node_id", since)) &&
+		collect(changedIn("ai_metadata", "node_id", since))
+		? ids
+		: undefined;
 }
 
 /** Run `read` in one transaction, so every query in it sees the same committed state. */

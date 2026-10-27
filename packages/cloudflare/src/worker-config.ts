@@ -9,6 +9,8 @@ export interface WorkerSecrets {
 	WORKFLOWY_SESSION_COOKIE?: string;
 	/** Var; tests point it at a fake upstream. */
 	WORKFLOWY_API_URL?: string;
+	/** Var; "false" serves search from SQL instead of an in-memory whole-tree snapshot. */
+	TREE_SNAPSHOT?: string;
 }
 
 /** Parse {@link ServerConfig} from Worker bindings; an empty binding counts as unset. */
@@ -20,7 +22,7 @@ export function readWorkerConfig(env: WorkerSecrets): ServerConfig {
 		sqlQueryLogging: false,
 		calendarEnsureEnabled: true,
 		calendarLayoutEnabled: true,
-		features: {embeddings: false, treeSnapshot: true},
+		features: {embeddings: false, treeSnapshot: env.TREE_SNAPSHOT !== "false"},
 	};
 }
 

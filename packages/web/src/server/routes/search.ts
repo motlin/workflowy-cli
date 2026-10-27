@@ -15,7 +15,14 @@ import {filterLocations} from "../location-search.js";
 import {rankSwitcher} from "../switcher-search.js";
 import {computeTreeSearch} from "../tree-search.js";
 import type {TreeSearchRow} from "../tree-search.js";
-import {loadTreeRows, loadTreeRowsWithBacklinks, queryNeedsBacklinks} from "../tree-snapshot.js";
+import {loadTreeRows, loadTreeRowsWithBacklinks, loadTreeSearchRows, queryNeedsBacklinks} from "../tree-snapshot.js";
+
+type TreeLoader = (database: AppDatabase, rootId: string | null) => TreeSearchRow[];
+
+/** The snapshot loader, or the SQL subtree query when `features.treeSnapshot` is off (no whole tree held in memory). */
+function treeLoader(c: Context<AppEnv>): TreeLoader {
+	return c.get("ctx").config.features.treeSnapshot ? loadTreeRows : loadTreeSearchRows;
+}
 
 export const searchRouter = new Hono<AppEnv>();
 
@@ -56,13 +63,15 @@ interface TreeSearchBody {
 }
 
 /** Search helper #tags/@tags of the live descendants of `rootId`, excluding the root (whole tree when empty). */
-export function loadHelperTags(database: AppDatabase, rootId: string): HelperTags {
-	const rows = loadTreeRows(database, rootId === "" ? null : rootId);
+export function loadHelperTags(database: AppDatabase, rootId: string, load: TreeLoader = loadTreeRows): HelperTags {
+	const rows = load(database, rootId === "" ? null : rootId);
 	return collectHelperTags(rows.filter((row) => row.id !== rootId));
 }
 
 // GET /api/search/helpers?rootId= - Subtree tags for the search helper's #TAGS / @TAGS sections
-searchRouter.get("/helpers", (c) => c.json(loadHelperTags(c.get("ctx").db, c.req.query("rootId") ?? "")));
+searchRouter.get("/helpers", (c) =>
+	c.json(loadHelperTags(c.get("ctx").db, c.req.query("rootId") ?? "", treeLoader(c))),
+);
 
 /** The account's stored date format (so strict `date:` queries parse it), or null when unset or unavailable. */
 async function loadDateFormat(c: Context<AppEnv>): Promise<string | null> {
@@ -95,9 +104,10 @@ async function loadWeekStartDay(c: Context<AppEnv>): Promise<0 | 1 | null> {
 // POST /api/search/tree - In-place search of the zoomed subtree, driven by the upstream query AST
 searchRouter.post("/tree", async (c) => {
 	const {query, rootId} = await c.req.json<TreeSearchBody>();
+	const load = treeLoader(c);
 	const rows = queryNeedsBacklinks(query)
-		? loadTreeRowsWithBacklinks(c.get("ctx").db, rootId)
-		: loadTreeRows(c.get("ctx").db, rootId);
+		? loadTreeRowsWithBacklinks(c.get("ctx").db, rootId, load)
+		: load(c.get("ctx").db, rootId);
 	const dateFormat = await loadDateFormat(c);
 	const weekStartDay = await loadWeekStartDay(c);
 	return c.json(
@@ -145,7 +155,7 @@ async function loadJoinedSec(c: Context<AppEnv>, rows: TreeSearchRow[]): Promise
 // POST /api/search/switcher - Upstream jump-menu search: word-start matches ranked by staticScore x textFactor
 searchRouter.post("/switcher", async (c) => {
 	const {query, offset = 0, limit = 20, starredIds = [], showCompleted} = await c.req.json<SwitcherBody>();
-	const rows = loadTreeRows(c.get("ctx").db, null);
+	const rows = treeLoader(c)(c.get("ctx").db, null);
 	const joinedSec = await loadJoinedSec(c, rows);
 	return c.json(
 		rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {joinedSec, offset, limit, showCompleted}),
@@ -164,7 +174,7 @@ interface LocationsBody {
 // POST /api/search/locations - Upstream move-to location picker: switcher matching without completed nodes or excludeId
 searchRouter.post("/locations", async (c) => {
 	const {query, offset = 0, limit = 20, excludeId, starredIds, showCompleted} = await c.req.json<LocationsBody>();
-	const rows = loadTreeRows(c.get("ctx").db, null);
+	const rows = treeLoader(c)(c.get("ctx").db, null);
 	const joinedSec = await loadJoinedSec(c, rows);
 	// Typing supersedes earlier keystrokes; the client aborts them, so skip ranking for a request nobody waits on.
 	if (c.req.raw.signal.aborted) {
