@@ -550,36 +550,84 @@ test("guessWorkouts is empty when today already has a workout or there is no his
 	);
 });
 
-test("guessWorkouts treats a bare program hashtag without #exercise as a logged day", () => {
+test("guessWorkouts fills bare program-hashtag stubs in place instead of counting them as logged", () => {
+	const stubWithTag = {id: uuid(), name: "💪 #ProgramX #exercise"};
+	const bareStub = {id: uuid(), name: "#programx "};
+	const oct21 = uuid();
+	const oct22 = uuid();
 	const tree = calendar(firstPass(), [
-		dayNode("2026-03-10", "Tue, Mar 10, 2026", ["Took the day off", "#programx "]),
+		dayNode("2026-10-20", "Tue, Oct 20, 2026", ["💪 #ProgramX phase 1, week 2, day 2, Legs 1 #exercise"]),
+		{id: oct21, name: timeElement("2026-10-21", "Wed, Oct 21, 2026"), children: [stubWithTag]},
+		{
+			id: oct22,
+			name: timeElement("2026-10-22", "Thu, Oct 22, 2026"),
+			children: [{id: uuid(), name: "Took the day off"}, bareStub],
+		},
 	]);
 
-	assert.deepStrictEqual(
-		guessWorkouts({
-			tree,
-			today: "2026-03-10",
-			template: TEMPLATE,
-			programs: ["#ProgramX"],
-			restDays: [],
-			maxDays: 7,
-			generatedAt: "x",
-		}),
-		{
-			task: "workout-guess",
-			generatedAt: "x",
-			status: "empty",
-			presentation: "Guess workout",
-			summary: {
-				lastLogged: {
-					date: "2026-03-09",
-					text: "💪 #ProgramX phase 2, week 1, day 2, Arms, Core, and Calves #exercise",
-				},
-				daysUnlogged: 0,
-				proposalsStaged: 0,
-				remainingDays: 0,
-			},
-			proposals: [],
+	const staged = guessWorkouts({
+		tree,
+		today: "2026-10-22",
+		template: TEMPLATE,
+		programs: ["#ProgramX"],
+		restDays: [],
+		maxDays: 7,
+		generatedAt: "x",
+	});
+
+	const pull = "💪 #ProgramX phase 1, week 2, day 3, Pull 1 #exercise";
+	const finisher = "💪 #ProgramX phase 1, week 2, day 4, The Finisher #exercise";
+	assert.deepStrictEqual(staged, {
+		task: "workout-guess",
+		generatedAt: "x",
+		status: "ready",
+		presentation: "Guess workout",
+		summary: {
+			lastLogged: {date: "2026-10-20", text: "💪 #ProgramX phase 1, week 2, day 2, Legs 1 #exercise"},
+			daysUnlogged: 2,
+			proposalsStaged: 2,
+			remainingDays: 0,
 		},
-	);
+		proposals: [
+			{
+				nodeId: stubWithTag.id,
+				header: "Oct 21",
+				date: "2026-10-21",
+				dayNode: "existing",
+				basis: "history",
+				before: stubWithTag.name,
+				after: pull,
+				changes: [
+					{
+						type: "fill",
+						icon: "💪",
+						detail: 'history: after "phase 1, week 2, day 2, Legs 1" came this 1 of 1 times; fills the bare stub',
+					},
+				],
+				applyOps: [
+					`./bin/run.js node update --id ${stubWithTag.id} --name '${pull}' --expect-name '${stubWithTag.name}'`,
+				],
+			},
+			{
+				nodeId: bareStub.id,
+				header: "Oct 22",
+				date: "2026-10-22",
+				dayNode: "existing",
+				basis: "history",
+				before: bareStub.name,
+				after: finisher,
+				changes: [
+					{
+						type: "fill",
+						icon: "💪",
+						detail: 'history: after "phase 1, week 2, day 3, Pull 1" came this 1 of 1 times; chained on the Oct 21 guess; fills the bare stub',
+					},
+				],
+				applyOps: [
+					`./bin/run.js node update --id ${bareStub.id} --name '${finisher}' --expect-name '${bareStub.name}'`,
+				],
+			},
+		],
+	});
+	assert.deepStrictEqual(validateProposal(staged), {valid: true, errors: []});
 });

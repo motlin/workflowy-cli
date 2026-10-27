@@ -18,7 +18,7 @@ This command runs inside a Phase 0 prep subagent:
 
 ## Why it runs after the calendar journal refinements
 
-Place it last in `Serial: Calendar journal`, after `Refine #exercise` when that task exists, otherwise after `Refine calendar journal`. Otter and journal ingestion can create the day's entries first, so a workout logged by an earlier task in the chain is seen and not re-guessed. Staged rewrites from those tasks are not applied yet, but the guesser parses raw text, so an unformatted entry still counts as logged.
+Place it last in `Serial: Calendar journal`, after `Refine #exercise` when that task exists, otherwise after `Refine calendar journal`. Otter and journal ingestion can create the day's entries first, so a workout logged by an earlier task in the chain is seen and not re-guessed. Staged rewrites from those tasks are not applied yet, but the guesser parses raw text, so an unformatted entry with workout details still counts as logged.
 
 ## Load the personal format spec
 
@@ -62,7 +62,8 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/guess-workouts.mts \
 
 What it does, so the staged output can be explained:
 
-- **Logged days.** Any entry carrying a listed program hashtag marks its day as logged, even a bare `#ProgramX` with no workout text and no `#exercise`, so a half-written entry is never guessed over with a duplicate.
+- **Logged days.** An entry carrying a listed program hashtag plus any workout detail (phase, week, day, or a workout name) marks its day as logged.
+- **Stubs.** A bare program hashtag with no workout detail (`#ProgramX`, or `💪 #ProgramX #exercise` after refinement) means the user worked out but did not say which workout. Its day is guessed like an unlogged day, and the proposal fills the stub in place with `node update --expect-name` instead of creating a duplicate entry.
 - **Sessions.** Every direct child of a day node (or an entry carrying its own `<time>`) that has `#exercise` and a listed program hashtag. Raw formats are tolerated: missing emoji, lowercase tags, colons, trailing periods, spelled-out numbers, Roman-numeral phases, iteration notes, and free-text commentary after the workout name.
 - **Unlogged days.** Every day after the last session through today that has no `#exercise` or listed-program entry at all and is not in the rest-days ledger. A day with a different `#exercise` entry (a run, say) is logged and gets no guess.
 - **Prediction.** The successor most often observed after the last session's slot in earlier history. Failing that, the program structure: the next day of the week, then week + 1 day 1, then the next phase's first day, each only if history has seen it, with the workout name taken from history for that slot. Each later day's guess chains on the previous guess.

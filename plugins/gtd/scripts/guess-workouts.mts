@@ -389,6 +389,8 @@ interface Calendar {
 	lastText: Map<Session, string>;
 	exerciseDates: Set<string>;
 	dayNodes: Map<string, string>;
+	/** Bare program-hashtag entries ("#ProgramX ") per date: a workout logged without saying which. */
+	stubs: Map<string, {id: string; name: string}>;
 }
 
 const isoFromTime = (name: string): string | null => {
@@ -410,7 +412,9 @@ function readCalendar(tree: CalendarNode, programs: readonly string[]): Calendar
 	const lastText = new Map<Session, string>();
 	const exerciseDates = new Set<string>();
 	const dayNodes = new Map<string, string>();
-	// A bare program hashtag ("#ProgramX ") is a workout the user logged but did not finish writing up.
+	const stubs = new Map<string, {id: string; name: string}>();
+	// A bare program hashtag ("#ProgramX ") is a workout the user logged but did not finish writing up,
+	// so its day is guessed and the guess fills the stub in place rather than adding a duplicate.
 	const programTags = new Set(programs.map((tag) => tag.replace(/^#/u, "").toLowerCase()));
 	const hasProgramTag = (name: string): boolean =>
 		[...name.matchAll(/#([A-Za-z][\w-]*)/gu)].some((match) => programTags.has(match[1]?.toLowerCase() ?? ""));
@@ -431,12 +435,24 @@ function readCalendar(tree: CalendarNode, programs: readonly string[]): Calendar
 			}
 		} else if (date !== null || isoFromTime(name) !== null) {
 			const entryDate = isoFromTime(name) ?? date;
-			if (entryDate !== null && hasProgramTag(name)) {
+			if (entryDate === null) {
+				continue;
+			}
+			const parsed = parseEntry(name, programs);
+			const bare =
+				parsed === null ||
+				(parsed.phase === null && parsed.week === null && parsed.day === null && parsed.tail === "");
+			if (hasProgramTag(name) && bare) {
+				if (item.node.id !== undefined && !stubs.has(entryDate)) {
+					stubs.set(entryDate, {id: item.node.id, name});
+				}
+				continue;
+			}
+			if (hasProgramTag(name)) {
 				exerciseDates.add(entryDate);
 			}
-			if (entryDate !== null && /#exercise\b/iu.test(name)) {
+			if (/#exercise\b/iu.test(name)) {
 				exerciseDates.add(entryDate);
-				const parsed = parseEntry(name, programs);
 				if (parsed !== null) {
 					const session = {...parsed, date: entryDate};
 					sessions.push({session, order: order++});
@@ -450,7 +466,7 @@ function readCalendar(tree: CalendarNode, programs: readonly string[]): Calendar
 		}
 	}
 	sessions.sort((a, b) => a.session.date.localeCompare(b.session.date) || a.order - b.order);
-	return {rootId: tree.id ?? "", sessions: sessions.map((s) => s.session), lastText, exerciseDates, dayNodes};
+	return {rootId: tree.id ?? "", sessions: sessions.map((s) => s.session), lastText, exerciseDates, dayNodes, stubs};
 }
 
 const addDays = (iso: string, days: number): string => {
@@ -548,11 +564,14 @@ export function guessWorkouts(options: GuessOptions): StagedGuess {
 	let previousDate: string | null = null;
 	for (const date of unlogged.slice(0, options.maxDays)) {
 		const dayId = calendar.dayNodes.get(date);
+		const stub = calendar.stubs.get(date);
 		const timeElement = buildTimeElement(date);
 		const target =
-			dayId === undefined
-				? {nodeId: calendar.rootId, dayNode: "create" as const, timeElement}
-				: {nodeId: dayId, dayNode: "existing" as const};
+			stub === undefined
+				? dayId === undefined
+					? {nodeId: calendar.rootId, dayNode: "create" as const, timeElement}
+					: {nodeId: dayId, dayNode: "existing" as const}
+				: {nodeId: stub.id, dayNode: "existing" as const};
 		const prediction = predictNext(calendar.sessions, current);
 		if (prediction === null) {
 			proposals.push({
@@ -595,10 +614,15 @@ export function guessWorkouts(options: GuessOptions): StagedGuess {
 		if (target.dayNode === "create") {
 			notes.push(`creates the ${longLabel(date)} day node`);
 		}
+		if (stub !== undefined) {
+			notes.push("fills the bare stub");
+		}
 		const op =
-			target.dayNode === "create"
-				? `./bin/run.js node create --parent-id ${target.nodeId} --json ${shellQuote(JSON.stringify({name: timeElement, children: [{name: after}]}))} --position bottom`
-				: `./bin/run.js node create --parent-id ${target.nodeId} --name ${shellQuote(after)} --position bottom`;
+			stub === undefined
+				? target.dayNode === "create"
+					? `./bin/run.js node create --parent-id ${target.nodeId} --json ${shellQuote(JSON.stringify({name: timeElement, children: [{name: after}]}))} --position bottom`
+					: `./bin/run.js node create --parent-id ${target.nodeId} --name ${shellQuote(after)} --position bottom`
+				: `./bin/run.js node update --id ${stub.id} --name ${shellQuote(after)} --expect-name ${shellQuote(stub.name)}`;
 		proposals.push({
 			nodeId: target.nodeId,
 			header: shortLabel(date),
@@ -606,9 +630,9 @@ export function guessWorkouts(options: GuessOptions): StagedGuess {
 			dayNode: target.dayNode,
 			...(target.dayNode === "create" ? {timeElement} : {}),
 			basis: prediction.basis,
-			before: "",
+			before: stub?.name ?? "",
 			after,
-			changes: [{type: "create", icon: "💪", detail: notes.join("; ")}],
+			changes: [{type: stub === undefined ? "create" : "fill", icon: "💪", detail: notes.join("; ")}],
 			applyOps: [op],
 		});
 		current = slot;
