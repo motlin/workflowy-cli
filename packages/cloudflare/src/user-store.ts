@@ -107,6 +107,35 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 		};
 	}
 
+	/** GET lists the durable local settings; PUT upserts a JSON array of `{key, json, updatedAt}` rows by key. */
+	private async localSettingsRoute(request: Request): Promise<Response> {
+		if (request.method === "GET") {
+			return Response.json(this.db.select().from(schema.localSettings).orderBy(schema.localSettings.key).all());
+		}
+		if (request.method !== "PUT") {
+			return new Response("Method not allowed", {status: 405});
+		}
+		const body: unknown = await request.json().catch(() => {});
+		const rows = Array.isArray(body) ? body.map(parseLocalSettingRow) : undefined;
+		if (!rows || rows.some((row) => row === undefined)) {
+			return new Response("Expected a JSON array of {key, json, updatedAt} rows", {status: 400});
+		}
+		this.db.transaction((tx) => {
+			for (const row of rows) {
+				if (row) {
+					tx.insert(schema.localSettings)
+						.values(row)
+						.onConflictDoUpdate({
+							target: schema.localSettings.key,
+							set: {json: row.json, updatedAt: row.updatedAt},
+						})
+						.run();
+				}
+			}
+		});
+		return Response.json({upserted: rows.length});
+	}
+
 	override async alarm(): Promise<void> {
 		await this.sync.tick();
 	}
@@ -116,6 +145,9 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 			return request.method === "GET"
 				? Response.json(await this.adminStatus())
 				: new Response("Method not allowed", {status: 405});
+		}
+		if (new URL(request.url).pathname === "/api/admin/local-settings") {
+			return this.localSettingsRoute(request);
 		}
 		if (new URL(request.url).pathname === "/api/admin/sync") {
 			if (request.method === "POST") {
@@ -143,6 +175,19 @@ export interface AdminStatus {
 	nodeCount: number;
 	lastSync: SyncStatus["lastResult"];
 	snapshot: {enabled: boolean; warm: boolean};
+}
+
+function parseLocalSettingRow(value: unknown): {key: string; json: string; updatedAt: number} | undefined {
+	if (typeof value !== "object" || value === null) {
+		return undefined;
+	}
+	if (!("key" in value && "json" in value && "updatedAt" in value)) {
+		return undefined;
+	}
+	const {key, json, updatedAt} = value;
+	return typeof key === "string" && typeof json === "string" && typeof updatedAt === "number"
+		? {key, json, updatedAt}
+		: undefined;
 }
 
 function countApplied(ctx: DurableObjectState): number {

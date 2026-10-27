@@ -74,6 +74,11 @@ cf-smoke: build-shared
     vp run --filter @workflowy/web build
     node packages/cloudflare/smoke/run-smoke.ts
 
+# Seed the local_settings rows into a Worker's Durable Object (post-deploy step; pass the Worker URL)
+[group('web')]
+cf-seed-settings url:
+    ./bin/run.js cache seed-local-settings --url {{ url }}
+
 # Deploy the Worker to Cloudflare; refuses unless CONFIRM_DEPLOY=1 and is never part of verify
 [group('web')]
 cf-deploy:

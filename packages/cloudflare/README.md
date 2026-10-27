@@ -27,5 +27,6 @@ Run `vp run --filter @workflowy/cloudflare types` after changing `wrangler.jsonc
 - Zero Trust: create an Access self-hosted application for the Worker hostname with a policy allowing only `motlin1@gmail.com`. Copy the team domain and the AUD tag into `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Disable the `workers.dev` route if using a custom domain so Access cannot be bypassed.
 - Set the secrets above with `wrangler secret put`.
 - `CONFIRM_DEPLOY=1 just cf-deploy` (refuses without it; never part of `verify`).
+- Seed the durable settings, which the sync does not copy: `just cf-seed-settings https://<worker-host>` reads `local_settings` from the local cache and PUTs it to `/api/admin/local-settings` (an Access-protected admin route; `GET` lists what is stored). Run it through an Access-authenticated path, or try it first against `just cf-dev`.
 - `POST /api/admin/sync`, then watch `GET /api/admin/status`. Record CPU time and peak memory from Workers Logs; if the import hits the memory limit, lower the batch size or split the export across ticks.
 - Spot-check against the local app: node counts match, and a write from the Cloudflare UI shows up on workflowy.com and later in the local cache.
