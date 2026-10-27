@@ -3,6 +3,7 @@
 	"main": "src/worker.ts",
 	"compatibility_date": "2026-08-01",
 	"compatibility_flags": ["nodejs_compat"],
+	"limits": {"cpu_ms": 300000},
 	"assets": {
 		"directory": "../web/dist/client",
 		"binding": "ASSETS",
