@@ -7,12 +7,9 @@ import {createFilesRouter} from "./routes/files.js";
 import {createExpansionRouter} from "./routes/expansion.js";
 import {createLadderRouter} from "./routes/ladder.js";
 import {homeRouter, nodesRouter} from "./routes/nodes.js";
-import {createPreferencesRouter} from "./routes/preferences.js";
 import {relatedRouter} from "./routes/related.js";
 import {searchRouter} from "./routes/search.js";
-import {createStarsRouter} from "./routes/stars.js";
 import {createDecisionsRouter} from "./routes/decisions.js";
-import {createTagsRouter} from "./routes/tags.js";
 import {rebuildTreeSnapshotAfterWrites} from "./tree-snapshot.js";
 
 export interface AppOptions {
@@ -56,13 +53,10 @@ export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<Ap
 	// Mount API routes
 	app.route("/api/v1/nodes", nodesRouter);
 	app.route("/api/v1/home", homeRouter);
-	app.route("/api/v1/tags", createTagsRouter());
 	app.route("/api/v1/ladder", createLadderRouter());
 	app.route("/api/v1/decisions", createDecisionsRouter());
 	app.route("/api/v1/expansion", createExpansionRouter());
 	app.route("/api/v1/calendar", createCalendarRouter());
-	app.route("/api/v1/stars", createStarsRouter());
-	app.route("/api/v1/preferences", createPreferencesRouter());
 	app.route("/api/v1/files", createFilesRouter());
 	app.route("/api/search", searchRouter);
 	app.route("/api/related", relatedRouter);

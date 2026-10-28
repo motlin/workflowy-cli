@@ -3,13 +3,11 @@ import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
 import {describe, expect, it, vi} from "vite-plus/test";
-import {Hono} from "hono";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
+import type {ServerContext} from "../src/server/context.js";
 import {httpAppFor} from "./http-app-for.js";
-import {createPreferencesRouter} from "../src/server/routes/preferences.js";
 
 const NOT_CONFIGURED =
 	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
@@ -66,13 +64,7 @@ function setup(meta: Record<string, unknown> | undefined, settings: Record<strin
 		config: {accountEmail: ""} as ServerContext["config"],
 		internalAdapter: () => (meta ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;
-	const app = new Hono<AppEnv>();
-	app.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	app.route("/api/v1/preferences", createPreferencesRouter());
-	app.route("/", httpAppFor(ctx));
+	const app = httpAppFor(ctx);
 	const request = async (method: string, path: string, body?: unknown) => {
 		const res = await app.fetch(
 			new Request(`http://x/api/v1${path}`, {
@@ -343,8 +335,10 @@ describe("PATCH /api/v1/preferences", () => {
 		const {adapter, request} = setup({});
 		adapter.setRootMetaValues.mockRejectedValueOnce(new Error("boom"));
 
-		// The failure answers a non-JSON 500, which the helper cannot parse.
-		await expect(request("PATCH", "/preferences", {dateFormat: "MMM D"})).rejects.toThrow(SyntaxError);
+		await expect(request("PATCH", "/preferences", {dateFormat: "MMM D"})).resolves.toStrictEqual({
+			status: 500,
+			body: "Internal Server Error",
+		});
 
 		expect(adapter.saveLocalSettings.mock.calls).toStrictEqual([]);
 	});

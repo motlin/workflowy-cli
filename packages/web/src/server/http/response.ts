@@ -26,6 +26,11 @@ export function toResponse(result: OpResult<unknown>): Response {
 	if (meta?.notModified === true) {
 		return new Response(null, {status: 304, headers});
 	}
+	if (meta?.created === true) {
+		return result.value === null
+			? new Response(null, {status: 201, headers})
+			: Response.json(result.value, {status: 201, headers});
+	}
 	if (result.value === null) {
 		return new Response(null, {status: 204, headers});
 	}

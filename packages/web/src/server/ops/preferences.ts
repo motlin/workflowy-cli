@@ -7,12 +7,11 @@
  * A `null` removes the stored value.
  */
 
-import {Hono} from "hono";
 import {z} from "zod";
 import type {ServerSetting, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {AppEnv} from "../context.js";
 import {reapplyWeekLayout} from "../calendar-layout.js";
-import {withAdapter} from "../internal-api.js";
+import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
+import {defineOp, fail, jsonOf, ok} from "./define.js";
 
 const PreferencesPatchSchema = z
 	.object({
@@ -130,55 +129,60 @@ async function readPreferences(adapter: WorkflowyInternalAdapter): Promise<Prefe
 	};
 }
 
-export function createPreferencesRouter(): Hono<AppEnv> {
-	const router = new Hono<AppEnv>();
+const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 
-	router.get(
-		"/",
-		withAdapter(async (c, adapter) => c.json(await readPreferences(adapter))),
-	);
+/** The account-global preferences. */
+export const preferencesGet = defineOp({
+	input: z.object({}),
+	async run(ctx) {
+		const adapter = ctx.internalAdapter?.();
+		return adapter ? ok(jsonOf(await readPreferences(adapter))) : notConfigured();
+	},
+});
 
-	router.patch(
-		"/",
-		withAdapter(async (c, adapter) => {
-			const body = PreferencesPatchSchema.safeParse(await c.req.json().catch(() => {}));
-			if (!body.success) {
-				return c.json({error: body.error.message}, 400);
+/** Applies any subset of preferences (a `null` removes one) and answers the full preferences; the patch is validated here so the 400 carries zod's message. */
+export const preferencesPatch = defineOp({
+	input: z.object({patch: z.unknown()}),
+	async run(ctx, input) {
+		const adapter = ctx.internalAdapter?.();
+		if (!adapter) {
+			return notConfigured();
+		}
+		const body = PreferencesPatchSchema.safeParse(input.patch);
+		if (!body.success) {
+			return fail(400, {error: body.error.message});
+		}
+		const patch = body.data;
+		const previousWeekStartDay =
+			patch.weekStartDay === undefined ? undefined : await adapter.getRootMeta(PATHS.weekStartDay);
+		const changes = KEYS.filter((key) => key in patch).map((key) => ({
+			path: PATHS[key],
+			value: patch[key] ?? undefined,
+		}));
+		if (changes.length > 0) {
+			await adapter.setRootMetaValues(changes);
+			// The durable local copy, so the value outlives workflowy.com.
+			adapter.saveLocalSettings(
+				Object.fromEntries(
+					KEYS.filter((key) => key in patch).map((key) => [`root:${key}`, patch[key] ?? null]),
+				),
+			);
+		}
+		for (const key of FLAG_KEYS) {
+			const value = patch[key];
+			if (value !== undefined) {
+				await adapter.setSetting(SETTINGS[key], value);
 			}
-			const patch = body.data;
-			const previousWeekStartDay =
-				patch.weekStartDay === undefined ? undefined : await adapter.getRootMeta(PATHS.weekStartDay);
-			const changes = KEYS.filter((key) => key in patch).map((key) => ({
-				path: PATHS[key],
-				value: patch[key] ?? undefined,
-			}));
-			if (changes.length > 0) {
-				await adapter.setRootMetaValues(changes);
-				// The durable local copy, so the value outlives workflowy.com.
-				adapter.saveLocalSettings(
-					Object.fromEntries(
-						KEYS.filter((key) => key in patch).map((key) => [`root:${key}`, patch[key] ?? null]),
-					),
-				);
-			}
-			for (const key of FLAG_KEYS) {
-				const value = patch[key];
-				if (value !== undefined) {
-					await adapter.setSetting(SETTINGS[key], value);
-				}
-			}
-			if (patch.theme !== undefined) {
-				await adapter.setSetting(STRING_SETTINGS.theme, patch.theme);
-			}
-			if (
-				patch.weekStartDay !== undefined &&
-				(patch.weekStartDay ?? undefined) !== (previousWeekStartDay ?? undefined)
-			) {
-				await reapplyWeekLayout(c.get("ctx"), adapter);
-			}
-			return c.json(await readPreferences(adapter));
-		}),
-	);
-
-	return router;
-}
+		}
+		if (patch.theme !== undefined) {
+			await adapter.setSetting(STRING_SETTINGS.theme, patch.theme);
+		}
+		if (
+			patch.weekStartDay !== undefined &&
+			(patch.weekStartDay ?? undefined) !== (previousWeekStartDay ?? undefined)
+		) {
+			await reapplyWeekLayout(ctx, adapter);
+		}
+		return ok(jsonOf(await readPreferences(adapter)));
+	},
+});

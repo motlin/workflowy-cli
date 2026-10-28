@@ -1,8 +1,7 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {Hono} from "hono";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createTagsRouter} from "../src/server/routes/tags.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const NOT_CONFIGURED =
 	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
@@ -15,12 +14,7 @@ function setup(tagMeta: Record<string, unknown> | undefined) {
 	const ctx = {
 		internalAdapter: () => (tagMeta === undefined ? undefined : (adapter as unknown as WorkflowyInternalAdapter)),
 	} as unknown as ServerContext;
-	const app = new Hono<AppEnv>();
-	app.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	app.route("/api/v1/tags", createTagsRouter());
+	const app = httpAppFor(ctx);
 	const request = async (method: string, path: string, body?: unknown) => {
 		const res = await app.fetch(
 			new Request(`http://x/api/v1/tags${path}`, {

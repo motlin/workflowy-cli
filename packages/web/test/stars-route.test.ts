@@ -1,8 +1,10 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {Hono} from "hono";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createStarsRouter} from "../src/server/routes/stars.js";
+import {createHttpApp} from "../src/server/http/app.js";
+import {Ops} from "../src/server/ops/index.js";
+import {starsListWith} from "../src/server/ops/stars.js";
+import {inProcessStore} from "../src/server/store.js";
+import type {ServerContext} from "../src/server/context.js";
 import type {NodeResponse} from "../src/node-types.js";
 
 const NOT_CONFIGURED =
@@ -26,15 +28,11 @@ function setup(meta: Record<string, unknown> | undefined) {
 		internalAuth: meta ? {} : undefined,
 		internalAdapter: () => (meta ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;
-	const app = new Hono<AppEnv>();
-	app.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	// A stand-in for the REST node read: just the cached node's id and name.
 	const readNode = async (_ctx: ServerContext, id: string) =>
 		Promise.resolve(cacheService.getNode(id) as unknown as NodeResponse | undefined);
-	app.route("/api/v1/stars", createStarsRouter(readNode));
+	const app = createHttpApp({
+		resolveStore: () => inProcessStore(ctx, {...Ops, "stars.list": starsListWith(readNode)}),
+	});
 	const request = async (method: string, path = "", body?: unknown) => {
 		const res = await app.fetch(
 			new Request(`http://x/api/v1/stars${path}`, {

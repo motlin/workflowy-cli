@@ -3,7 +3,10 @@ import {accountGet} from "./account.js";
 import {changesList} from "./changes.js";
 import {customTreeGet} from "./custom-tree.js";
 import {featuresGet, featuresSet} from "./features.js";
+import {preferencesGet, preferencesPatch} from "./preferences.js";
+import {starsList, starsOrder, starsRemove, starsRename, starsSet} from "./stars.js";
 import {tagIndexAutocomplete} from "./tag-index.js";
+import {tagsClear, tagsList, tagsSet} from "./tags.js";
 import type {Json, OpDefinition, OpResult} from "./define.js";
 
 /** The operation registry; routers move into it one at a time. */
@@ -13,7 +16,17 @@ export const Ops = {
 	"customTree.get": customTreeGet,
 	"features.get": featuresGet,
 	"features.set": featuresSet,
+	"preferences.get": preferencesGet,
+	"preferences.patch": preferencesPatch,
+	"stars.list": starsList,
+	"stars.order": starsOrder,
+	"stars.remove": starsRemove,
+	"stars.rename": starsRename,
+	"stars.set": starsSet,
 	"tagIndex.autocomplete": tagIndexAutocomplete,
+	"tags.clear": tagsClear,
+	"tags.list": tagsList,
+	"tags.set": tagsSet,
 } satisfies Record<string, OpDefinition<z.ZodType, Json>>;
 
 export type OpRegistry = typeof Ops;

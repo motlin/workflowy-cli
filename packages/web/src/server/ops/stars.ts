@@ -1,0 +1,133 @@
+/**
+ * Stars (starred pages and saved searches), stored in upstream's account-global root
+ * metadata through the internal API, so they match workflowy.com.
+ */
+
+import {z} from "zod";
+import {locationKey} from "@workflowy/shared";
+import type {Star} from "@workflowy/shared";
+import {stripHtmlTags} from "@workflowy/shared/html";
+import {orderChanges, renameChanges, starChanges, starsFromRootMeta, unstarChanges} from "@workflowy/shared/internal";
+import type {StarNodes, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import type {ServerContext} from "../context.js";
+import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
+import type {NodeResponse} from "../../node-types.js";
+import {readNodeDto} from "../routes/nodes.js";
+import {defineOp, fail, jsonOf, ok} from "./define.js";
+import type {OpResult} from "./define.js";
+
+type ReadNode = (ctx: ServerContext, id: string) => Promise<NodeResponse | undefined>;
+
+function starNodes(ctx: ServerContext): StarNodes {
+	return {
+		exists: (nodeId) => ctx.cacheService.getNode(nodeId) !== undefined,
+		nameText: (nodeId) =>
+			nodeId === null ? "Home" : stripHtmlTags(ctx.cacheService.getNode(nodeId)?.name ?? null),
+	};
+}
+
+async function readStars(ctx: ServerContext, adapter: WorkflowyInternalAdapter) {
+	return starsFromRootMeta(await adapter.getRootMeta([]), starNodes(ctx));
+}
+
+const RecordSchema = z.record(z.string(), z.unknown());
+
+function getIn(meta: unknown, path: string[]): unknown {
+	return path.reduce<unknown>((current, key) => RecordSchema.safeParse(current).data?.[key], meta);
+}
+
+/**
+ * The app's own durable copy of the star state, in `local_settings`: upstream's raw starring metadata, so the
+ * stars outlive workflowy.com and a re-import never overwrites them.
+ */
+async function saveStarsLocally(adapter: WorkflowyInternalAdapter): Promise<unknown> {
+	const meta = await adapter.getRootMeta([]);
+	adapter.saveLocalSettings({
+		"root:starring.locations": getIn(meta, ["starring", "locations"]) ?? null,
+		"root:starring.order": getIn(meta, ["starring", "order"]) ?? null,
+		"root:location.renamed": getIn(meta, ["location", "renamed"]) ?? null,
+	});
+	return meta;
+}
+
+/** Each starred node once, in star order, skipping Home and nodes the cache no longer holds. */
+async function starredNodes(ctx: ServerContext, stars: readonly Star[], readNode: ReadNode): Promise<NodeResponse[]> {
+	const ids = [...new Set(stars.flatMap((star) => (star.nodeId === null ? [] : [star.nodeId])))];
+	const nodes = await Promise.all(ids.map(async (id) => readNode(ctx, id)));
+	return nodes.filter((node) => node !== undefined);
+}
+
+/** Runs `body` with the internal adapter, or answers 503 when it is not configured. */
+async function withAdapter<T extends Parameters<typeof ok>[0]>(
+	ctx: ServerContext,
+	body: (adapter: WorkflowyInternalAdapter) => Promise<OpResult<T>>,
+): Promise<OpResult<T>> {
+	const adapter = ctx.internalAdapter?.();
+	return adapter ? body(adapter) : fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
+}
+
+/** `{stars, nodes}`: each starred node once, as `GET /nodes/:id` returns it, so the left bar's rows need no request of their own. */
+export function starsListWith(readNode: ReadNode) {
+	return defineOp({
+		input: z.object({}),
+		async run(ctx) {
+			return withAdapter(ctx, async (adapter) => {
+				const stars = await readStars(ctx, adapter);
+				return ok(jsonOf({stars, nodes: await starredNodes(ctx, stars, readNode)}));
+			});
+		},
+	});
+}
+
+export const starsList = starsListWith(readNodeDto);
+
+export const starsOrder = defineOp({
+	input: z.object({keys: z.array(z.string())}),
+	async run(ctx, {keys}) {
+		return withAdapter(ctx, async (adapter) => {
+			await adapter.setRootMetaValues(orderChanges(keys));
+			await saveStarsLocally(adapter);
+			return ok(null);
+		});
+	},
+});
+
+/** Stars a location; `key` must be the location key of `{nodeId, query}`. Answers the new star, created. */
+export const starsSet = defineOp({
+	input: z.object({key: z.string(), nodeId: z.string().nullable(), query: z.string().nullable()}),
+	async run(ctx, {key, nodeId, query}) {
+		return withAdapter(ctx, async (adapter) => {
+			if (locationKey({nodeId, query}) !== key) {
+				return fail(400, {error: "key must equal the location key of {nodeId, query}"});
+			}
+			if (nodeId !== null && !starNodes(ctx).exists(nodeId)) {
+				return fail(404, {error: `Node not found: ${nodeId}`});
+			}
+			await adapter.setRootMetaValues(starChanges(await adapter.getRootMeta([]), key));
+			const star = starsFromRootMeta(await saveStarsLocally(adapter), starNodes(ctx)).find((s) => s.key === key);
+			return ok(jsonOf(star ?? null), {created: true});
+		});
+	},
+});
+
+export const starsRemove = defineOp({
+	input: z.object({key: z.string()}),
+	async run(ctx, {key}) {
+		return withAdapter(ctx, async (adapter) => {
+			await adapter.setRootMetaValues(unstarChanges(await adapter.getRootMeta([]), key));
+			await saveStarsLocally(adapter);
+			return ok(null);
+		});
+	},
+});
+
+export const starsRename = defineOp({
+	input: z.object({key: z.string(), name: z.string().nullable()}),
+	async run(ctx, {key, name}) {
+		return withAdapter(ctx, async (adapter) => {
+			await adapter.setRootMetaValues(renameChanges(key, name));
+			await saveStarsLocally(adapter);
+			return ok(null);
+		});
+	},
+});

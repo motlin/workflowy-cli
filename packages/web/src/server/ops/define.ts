@@ -7,6 +7,7 @@ export type OpFailureStatus = 400 | 403 | 404 | 409 | 422 | 500 | 503;
 
 /** Response details an op can ask the HTTP layer for; the op itself never builds a Response. */
 export interface OpMeta {
+	created?: true;
 	etag?: string;
 	notModified?: true;
 	redirect?: string;

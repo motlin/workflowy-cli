@@ -1,15 +1,14 @@
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
-import {Hono} from "hono";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createPreferencesRouter} from "../src/server/routes/preferences.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 
@@ -58,12 +57,7 @@ function app(
 		calendarLayoutEnabled: layoutEnabled,
 		internalAdapter: () => adapter as unknown as WorkflowyInternalAdapter,
 	} as unknown as ServerContext;
-	const hono = new Hono<AppEnv>();
-	hono.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	hono.route("/api/v1/preferences", createPreferencesRouter());
+	const hono = httpAppFor(ctx);
 	const patch = async (body: unknown) =>
 		hono.fetch(
 			new Request("http://x/api/v1/preferences", {

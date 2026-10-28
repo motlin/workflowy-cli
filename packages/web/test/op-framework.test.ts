@@ -38,6 +38,16 @@ describe("toResponse", () => {
 		});
 	});
 
+	it("returns 201 with the JSON body for a created resource", async () => {
+		await expect(summary(toResponse(ok({key: "k"}, {created: true})))).resolves.toStrictEqual({
+			status: 201,
+			body: '{"key":"k"}',
+			etag: null,
+			location: null,
+			timing: null,
+		});
+	});
+
 	it("returns 302 with a Location for a redirect", async () => {
 		await expect(summary(toResponse(ok(null, {redirect: "/elsewhere"})))).resolves.toStrictEqual({
 			status: 302,
