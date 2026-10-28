@@ -39,14 +39,14 @@ import {
 	planCalendarLayout,
 } from "@workflowy/shared/internal";
 import type {CalendarLevel, LayoutTimings} from "@workflowy/shared/internal";
-import {Hono} from "hono";
 import {z} from "zod";
 import {findCalendarDay, findCalendarDays, findTaggedCalendarRoot, readCalendarSettings} from "../calendar-day.js";
 import {foundDaysInMonth} from "../calendar-found.js";
 import {loadCalendarLayout} from "../calendar-layout.js";
 import type {CalendarDayDeps} from "../calendar-day.js";
-import type {AppEnv, ServerContext} from "../context.js";
-import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
+import type {ServerContext} from "../context.js";
+import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
+import {defineOp, fail, jsonOf, ok} from "./define.js";
 
 const ENSURE_DISABLED = "Calendar day ensure is disabled (CALENDAR_ENSURE_ENABLED=false)";
 const INVALID_DATE_ID = "dateId must be a YYYYMMDD calendar day";
@@ -155,37 +155,65 @@ function firstDayChild(deps: CalendarDayDeps, dayId: string): string | null {
 	return deps.cache.getChildrenWithMergedData(dayId).find((child) => child.referencesRoot == null)?.id ?? null;
 }
 
-export function createCalendarRouter(): Hono<AppEnv> {
-	const router = new Hono<AppEnv>();
+const DayInput = z.object({dateId: z.string(), level: z.string().optional()});
+const DaysInput = z.object({
+	year: z.string().optional(),
+	month: z.string().optional(),
+	found: z.string().optional(),
+});
+const DotsInput = z.object({from: z.string().optional(), to: z.string().optional()});
+const EnsureInput = z.object({
+	dateId: z.string(),
+	level: z.string().optional(),
+	createChild: z.string().optional(),
+});
+/** A request body the HTTP layer passes through untouched; each op checks it and answers its own 400. */
+const BodyInput = z.object({body: z.unknown().optional()});
 
-	router.get("/day/:dateId", async (c) => {
-		const dateId = dayDateId(c.req.param("dateId"));
+const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
+
+/** The root's picker toggles, each default true. */
+const calendarSettingsGet = defineOp({
+	input: z.object({}),
+	run(ctx) {
+		return ok(jsonOf(readCalendarSettings({db: ctx.db, cache: ctx.cacheService})));
+	},
+});
+
+/** `{id, firstChildId}` for a day (or the week, month or year holding it), 404 when it is not found. */
+const calendarDay = defineOp({
+	input: DayInput,
+	async run(ctx, input) {
+		const dateId = dayDateId(input.dateId);
 		if (dateId === undefined) {
-			return c.json({error: INVALID_DATE_ID}, 400);
+			return fail(400, {error: INVALID_DATE_ID});
 		}
-		const level = levelParam(c.req.query("level"));
+		const level = levelParam(input.level);
 		if (level === undefined) {
-			return c.json({error: INVALID_LEVEL}, 400);
+			return fail(400, {error: INVALID_LEVEL});
 		}
-		const ctx = c.get("ctx");
 		const deps = await calendarDayDeps(ctx);
 		const weekStartDay = level === "week" ? await accountWeekStartDay(ctx) : undefined;
 		const id = findCalendarDay(weekStartDay === undefined ? deps : {...deps, weekStartDay}, dateId, level);
 		return id === null
-			? c.json({error: "Calendar day not found"}, 404)
-			: c.json({id, firstChildId: firstDayChild(deps, id)});
-	});
+			? fail(404, {error: "Calendar day not found"})
+			: ok({id, firstChildId: firstDayChild(deps, id)});
+	},
+});
 
-	router.get("/days", async (c) => {
-		const year = intParam(c.req.query("year"), 1, 9999);
-		const month = intParam(c.req.query("month"), 1, 12);
+/** The month's days with journal content, for the date picker's event dots. */
+const calendarDays = defineOp({
+	input: DaysInput,
+	async run(ctx, input) {
+		const year = intParam(input.year, 1, 9999);
+		const month = intParam(input.month, 1, 12);
 		if (year === undefined || month === undefined) {
-			return c.json({error: INVALID_MONTH}, 400);
+			return fail(400, {error: INVALID_MONTH});
 		}
-		const deps = await calendarDayDeps(c.get("ctx"));
+		const deps = await calendarDayDeps(ctx);
 		// Upstream `S10`: a found date dots only a day whose node exists.
 		const found =
-			c.req.query("found") === "1" && readCalendarSettings(deps).foundDates
+			input.found === "1" && readCalendarSettings(deps).foundDates
 				? foundDaysInMonth(deps, year, month)
 				: new Set<number>();
 		const length = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -196,17 +224,15 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		const days = [...dayIds]
 			.filter(([dateId, id]) => hasJournalContent(deps, id) || found.has(dateId % 100))
 			.map(([dateId]) => dateId % 100);
-		return c.json({days});
-	});
+		return ok({days});
+	},
+});
 
-	router.get("/settings", (c) => {
-		const ctx = c.get("ctx");
-		return c.json(readCalendarSettings({db: ctx.db, cache: ctx.cacheService}));
-	});
-
-	router.put("/settings", async (c) => {
-		const ctx = c.get("ctx");
-		const body = SettingsBody.safeParse(await c.req.json().catch(() => null));
+/** Writes the root's `calendar.found_dates` / `calendar.day_prefix` metadata. */
+const calendarSettingsPut = defineOp({
+	input: BodyInput,
+	async run(ctx, input) {
+		const body = SettingsBody.safeParse(input.body);
 		const changes = body.success
 			? [
 					...(body.data.foundDates === undefined
@@ -218,51 +244,59 @@ export function createCalendarRouter(): Hono<AppEnv> {
 				]
 			: [];
 		if (changes.length === 0) {
-			return c.json({error: INVALID_SETTINGS}, 400);
+			return fail(400, {error: INVALID_SETTINGS});
 		}
 		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 		if (!adapter) {
-			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+			return notConfigured();
 		}
 		const rootId = findTaggedCalendarRoot({db: ctx.db});
 		if (rootId === undefined) {
-			return c.json({error: ROOT_METADATA_MISSING}, 409);
+			return fail(409, {error: ROOT_METADATA_MISSING});
 		}
 		await adapter.setNodeMetaValues(rootId, changes);
-		return c.json(readCalendarSettings({db: ctx.db, cache: ctx.cacheService}));
-	});
+		return ok(jsonOf(readCalendarSettings({db: ctx.db, cache: ctx.cacheService})));
+	},
+});
 
-	router.get("/layout", async (c) => {
-		const ctx = c.get("ctx");
+/** What the Calendar Layout dialog opens with. */
+const calendarLayoutGet = defineOp({
+	input: z.object({}),
+	async run(ctx) {
 		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService});
 		if (snapshot === undefined) {
-			return c.json({error: ROOT_METADATA_MISSING}, 409);
+			return fail(409, {error: ROOT_METADATA_MISSING});
 		}
-		return c.json({
-			levels: snapshot.levels ?? DEFAULT_LAYOUT_LEVELS,
-			customLevels: calendarLayoutCustomLevels(snapshot.root, await accountDateFormat(ctx)),
-			needsConfirm: calendarLayoutNeedsConfirm(snapshot.root),
-			applyEnabled: ctx.calendarLayoutEnabled !== false,
-		});
-	});
+		return ok(
+			jsonOf({
+				levels: snapshot.levels ?? DEFAULT_LAYOUT_LEVELS,
+				customLevels: calendarLayoutCustomLevels(snapshot.root, await accountDateFormat(ctx)),
+				needsConfirm: calendarLayoutNeedsConfirm(snapshot.root),
+				applyEnabled: ctx.calendarLayoutEnabled !== false,
+			}),
+		);
+	},
+});
 
-	router.put("/layout", async (c) => {
-		const ctx = c.get("ctx");
+/** Restructures the calendar in one push, reporting each phase's time in `Server-Timing`. */
+const calendarLayoutPut = defineOp({
+	input: BodyInput,
+	async run(ctx, input) {
 		if (ctx.calendarLayoutEnabled === false) {
-			return c.json({error: LAYOUT_DISABLED}, 403);
+			return fail(403, {error: LAYOUT_DISABLED});
 		}
-		const body = LayoutBody.safeParse(await c.req.json().catch(() => null));
+		const body = LayoutBody.safeParse(input.body);
 		if (!body.success) {
-			return c.json({error: INVALID_LEVELS}, 400);
+			return fail(400, {error: INVALID_LEVELS});
 		}
 		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 		if (!adapter) {
-			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+			return notConfigured();
 		}
 		const {levels} = body.data;
 		const rootId = resolveLayoutRoot(ctx, body.data.rootId);
 		if (rootId === undefined) {
-			return c.json({error: LAYOUT_ROOT_MISSING}, 409);
+			return fail(409, {error: LAYOUT_ROOT_MISSING});
 		}
 		console.info(`calendar layout: applying under root ${rootId}`);
 		const timings: LayoutTimings = {};
@@ -276,45 +310,50 @@ export function createCalendarRouter(): Hono<AppEnv> {
 			console.info(
 				`calendar layout: ${applied.writes} writes under root ${applied.rootId} (${phases.join(", ")})`,
 			);
-			c.header("Server-Timing", phases.join(", "));
-			return c.json(applied);
+			return ok(jsonOf(applied), {timing: phases});
 		} catch (error) {
 			if (error instanceof CalendarRootMissing) {
-				return c.json({error: error.message}, 409);
+				return fail(409, {error: error.message});
 			}
 			throw error;
 		}
-	});
+	},
+});
 
-	router.post("/layout/undo", async (c) => {
-		const ctx = c.get("ctx");
+/** Undoes the last applied layout once. */
+const calendarLayoutUndo = defineOp({
+	input: BodyInput,
+	async run(ctx, input) {
 		if (ctx.calendarLayoutEnabled === false) {
-			return c.json({error: LAYOUT_DISABLED}, 403);
+			return fail(403, {error: LAYOUT_DISABLED});
 		}
 		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 		if (!adapter) {
-			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+			return notConfigured();
 		}
-		const body = UndoBody.safeParse(await c.req.json().catch(() => ({})));
+		const body = UndoBody.safeParse(input.body ?? {});
 		const rootId = resolveLayoutRoot(ctx, body.data?.rootId);
 		if (rootId === undefined) {
-			return c.json({error: LAYOUT_ROOT_MISSING}, 409);
+			return fail(409, {error: LAYOUT_ROOT_MISSING});
 		}
 		console.info(`calendar layout: undoing under root ${rootId}`);
 		const undone = await adapter.undoCalendarLayout(rootId);
-		return undone === undefined ? c.json({error: NOTHING_TO_UNDO}, 409) : c.json(undone);
-	});
+		return undone === undefined ? fail(409, {error: NOTHING_TO_UNDO}) : ok(jsonOf(undone));
+	},
+});
 
-	router.post("/layout/preview", async (c) => {
-		const ctx = c.get("ctx");
-		const body = LayoutBody.safeParse(await c.req.json().catch(() => null));
+/** The steps the layout would take; nothing is written. */
+const calendarLayoutPreview = defineOp({
+	input: BodyInput,
+	async run(ctx, input) {
+		const body = LayoutBody.safeParse(input.body);
 		if (!body.success) {
-			return c.json({error: INVALID_LEVELS}, 400);
+			return fail(400, {error: INVALID_LEVELS});
 		}
 		const {rootId} = body.data;
 		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService}, rootId);
 		if (snapshot === undefined) {
-			return c.json({error: ROOT_METADATA_MISSING}, 409);
+			return fail(409, {error: ROOT_METADATA_MISSING});
 		}
 		// An explicit (sandbox) root gets random ids, as applying it does: deterministic ids belong to the real calendar.
 		const {entropyKey} = rootId === undefined ? await calendarDayDeps(ctx) : {entropyKey: undefined};
@@ -325,52 +364,70 @@ export function createCalendarRouter(): Hono<AppEnv> {
 			...(weekStartDay === undefined ? {} : {weekStartDay}),
 			...(entropyKey === undefined ? {} : {entropyKey}),
 		});
-		return c.json({steps});
-	});
+		return ok(jsonOf({steps}));
+	},
+});
 
-	router.get("/dots", async (c) => {
-		const from = dayDateId(c.req.query("from") ?? "");
-		const to = dayDateId(c.req.query("to") ?? "");
+/** The days in a range with journal content, for the day strip's dots. */
+const calendarDots = defineOp({
+	input: DotsInput,
+	async run(ctx, input) {
+		const from = dayDateId(input.from ?? "");
+		const to = dayDateId(input.to ?? "");
 		const days = from === undefined || to === undefined ? undefined : dayRange(from, to);
 		if (days === undefined) {
-			return c.json({error: INVALID_RANGE}, 400);
+			return fail(400, {error: INVALID_RANGE});
 		}
-		const deps = await calendarDayDeps(c.get("ctx"));
+		const deps = await calendarDayDeps(ctx);
 		const dateIds = [...findCalendarDays(deps, days)]
 			.filter(([, id]) => hasJournalContent(deps, id))
 			.map(([dateId]) => dateId);
-		return c.json({dateIds});
-	});
+		return ok({dateIds});
+	},
+});
 
-	router.post("/day/:dateId/ensure", async (c) => {
-		const ctx = c.get("ctx");
+/** Creates the day (and its ancestors) the way upstream's Today does. */
+const calendarEnsure = defineOp({
+	input: EnsureInput,
+	async run(ctx, input) {
 		if (ctx.calendarEnsureEnabled !== true) {
-			return c.json({error: ENSURE_DISABLED}, 403);
+			return fail(403, {error: ENSURE_DISABLED});
 		}
 		// Tree writes refresh the cache through the public API, so they need its key too.
 		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 		if (!adapter) {
-			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+			return notConfigured();
 		}
-		const dateId = dayDateId(c.req.param("dateId"));
+		const dateId = dayDateId(input.dateId);
 		if (dateId === undefined) {
-			return c.json({error: INVALID_DATE_ID}, 400);
+			return fail(400, {error: INVALID_DATE_ID});
 		}
-		const stopAt = levelParam(c.req.query("level"));
+		const stopAt = levelParam(input.level);
 		if (stopAt === undefined) {
-			return c.json({error: INVALID_LEVEL}, 400);
+			return fail(400, {error: INVALID_LEVEL});
 		}
 		try {
-			return c.json(
-				await adapter.ensureCalendarDay(dateId, {stopAt, createChild: c.req.query("createChild") !== "false"}),
+			return ok(
+				jsonOf(await adapter.ensureCalendarDay(dateId, {stopAt, createChild: input.createChild !== "false"})),
 			);
 		} catch (error) {
 			if (error instanceof CalendarRootMissing) {
-				return c.json({error: error.message}, 409);
+				return fail(409, {error: error.message});
 			}
 			throw error;
 		}
-	});
+	},
+});
 
-	return router;
-}
+export const calendarOps = {
+	"calendar.day": calendarDay,
+	"calendar.days": calendarDays,
+	"calendar.dots": calendarDots,
+	"calendar.ensure": calendarEnsure,
+	"calendar.layoutGet": calendarLayoutGet,
+	"calendar.layoutPreview": calendarLayoutPreview,
+	"calendar.layoutPut": calendarLayoutPut,
+	"calendar.layoutUndo": calendarLayoutUndo,
+	"calendar.settingsGet": calendarSettingsGet,
+	"calendar.settingsPut": calendarSettingsPut,
+};

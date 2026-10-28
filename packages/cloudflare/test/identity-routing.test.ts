@@ -148,5 +148,15 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		await expect(ladderViaWorker.json()).resolves.toStrictEqual({
 			error: "root, node_id and to_tier are required",
 		});
+
+		const calendarViaDo = await stub.fetch("http://localhost/api/v1/calendar/dots?from=bad&to=bad");
+		const calendarViaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/calendar/dots?from=bad&to=bad", {
+			headers: {"Cf-Access-Jwt-Assertion": jwt},
+		});
+		expect(calendarViaDo.status).toBe(404);
+		expect(calendarViaWorker.status).toBe(400);
+		await expect(calendarViaWorker.json()).resolves.toStrictEqual({
+			error: "from and to must be YYYYMMDD days at most 100 days apart, from first",
+		});
 	});
 });

@@ -1,7 +1,6 @@
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
-import {Hono} from "hono";
 import {join} from "node:path";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {z} from "zod";
@@ -10,8 +9,8 @@ import * as schema from "@workflowy/shared/db";
 import {calendarNodeId} from "@workflowy/shared/internal";
 import type {CalendarLayoutSnapshot, LayoutTimings, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createCalendarRouter} from "../src/server/routes/calendar.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 
@@ -115,12 +114,7 @@ function app({
 		calendarLayoutEnabled: layoutEnabled,
 		internalAdapter: () => fake as unknown as WorkflowyInternalAdapter,
 	} as unknown as ServerContext;
-	const hono = new Hono<AppEnv>();
-	hono.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	hono.route("/api/v1/calendar", createCalendarRouter());
+	const hono = httpAppFor(ctx);
 	const request = async (path: string, init?: RequestInit) => {
 		const res = await hono.fetch(new Request(`http://x/api/v1/calendar/${path}`, init));
 		return {status: res.status, body: (await res.json()) as unknown};

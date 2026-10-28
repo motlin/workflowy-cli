@@ -1,9 +1,8 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {Hono} from "hono";
 import {CalendarRootMissing} from "@workflowy/shared/internal";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createCalendarRouter} from "../src/server/routes/calendar.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const NOT_CONFIGURED =
 	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
@@ -23,12 +22,7 @@ function setup(
 		calendarEnsureEnabled: options.enabled ?? true,
 		internalAdapter: () => (configured ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;
-	const app = new Hono<AppEnv>();
-	app.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	app.route("/api/v1/calendar", createCalendarRouter());
+	const app = httpAppFor(ctx);
 	const ensure = async (dateId: string, query = "") => {
 		const res = await app.fetch(
 			new Request(`http://x/api/v1/calendar/day/${dateId}/ensure${query}`, {method: "POST"}),

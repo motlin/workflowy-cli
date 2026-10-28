@@ -1,7 +1,6 @@
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
-import {Hono} from "hono";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {CacheService} from "@workflowy/shared/cache";
@@ -10,8 +9,8 @@ import {calendarNodeId} from "@workflowy/shared/internal";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {findCalendarDay, findCalendarDays} from "../src/server/calendar-day.js";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createCalendarRouter} from "../src/server/routes/calendar.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const KEY = "k";
@@ -206,12 +205,7 @@ describe("GET /api/v1/calendar/day/:dateId", () => {
 			internalAdapter: () =>
 				entropyKey === undefined ? undefined : (adapter as unknown as WorkflowyInternalAdapter),
 		} as unknown as ServerContext;
-		const hono = new Hono<AppEnv>();
-		hono.use("*", async (c, next) => {
-			c.set("ctx", ctx);
-			await next();
-		});
-		hono.route("/api/v1/calendar", createCalendarRouter());
+		const hono = httpAppFor(ctx);
 		return async (dateId: string, query = "") => {
 			const res = await hono.fetch(new Request(`http://x/api/v1/calendar/day/${dateId}${query}`));
 			return {status: res.status, body: (await res.json()) as unknown};
