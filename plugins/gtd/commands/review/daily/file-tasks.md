@@ -8,7 +8,7 @@ Sweep every Next-Actions root for **loose tasks** — actionable items that aren
 
 The asap bucket is an ordinal ladder (`1st`, `2nd`, `3rd`, …) with a halving capacity cap, not a set of category folders. Read `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md` before proposing any asap destination — it owns the capacity rule, the rule that filing never moves another item, and the category-to-`#tag` migration.
 
-Scope is **both** roots linked from `Metadata > ☑️ Next Actions` (`d81ba063-5604-49a5-bb87-0d0fe59d0a48`) — Work and Personal — discovered by link resolution, never hardcoded.
+Scope is **both** roots linked from `Metadata > ☑️ Next Actions` (id: `nextActionsId` from `.llm/gtd/config.json`, asking once and saving it when missing) — Work and Personal — discovered by link resolution, never hardcoded.
 
 ## Do not use the built-in task list
 
@@ -26,13 +26,13 @@ Resolve both roots from the metadata anchor — each child is a navigation link 
 
 ```bash
 mkdir -p .llm/gtd/review/proposals
-./bin/run.js node get --id d81ba063-5604-49a5-bb87-0d0fe59d0a48 --depth 1 --json \
+./bin/run.js node get --id "$(jq -r .nextActionsId .llm/gtd/config.json)" --depth 1 --json \
   --fields name,shortId,id,children,linkTargets > .llm/gtd/review/next-actions-meta.json
 ```
 
 **Resolve every destination from these roots, and never from a mirror.** The `⏰` and `📌` buckets are mirrored under `Personal > 🔄 Review > 🔄 Daily Review > Set goals for today`, and a mirror lists its original's children — so tier ids read off a mirror look right. The bucket id itself does not: `node move --parent-id <mirror-uuid>` parents the task **under the mirror**, dropping a one-shot task inside the recurring tree where the due walk then reports it as overdue. Check `mirror.isMirror` is false on any node you are about to write into.
 
-Read `linkTargets[0].id` for each child to get each root's **full UUID** (`☑️ Next (Work)` → `720f876e-fd89-daa9-e341-797f911b8295`, `☑️ Next (Personal)` → `9f832009-a6ad-458e-d9fa-999aabc40472`). Fetch each root deep enough to reach the tasks filed inside the bucket tiers:
+Read `linkTargets[0].id` for each child to get each root's **full UUID** (`☑️ Next (Work)` and `☑️ Next (Personal)`; cache them as `nextWorkId` and `nextPersonalId` in `.llm/gtd/config.json`). Fetch each root deep enough to reach the tasks filed inside the bucket tiers:
 
 ```bash
 ./bin/run.js node get --id <rootUuid> --depth 4 --json \

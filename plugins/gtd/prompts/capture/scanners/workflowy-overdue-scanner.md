@@ -176,7 +176,7 @@ Each item includes `children` with provenance info. Strip `<time>` HTML tags fro
 {
 	"source": "workflowy-overdue",
 	"scannedAt": "2026-01-04T10:00:00Z",
-	"reviewNodeId": "f0ddeda2-a20c-571c-58d8-26154eb7e55d",
+	"reviewNodeId": "00000000-0000-0000-0000-000000000000",
 	"items": [
 		{
 			"id": "workflowy-overdue-abc123def456",

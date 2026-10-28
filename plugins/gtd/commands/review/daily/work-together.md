@@ -6,7 +6,7 @@ description: Close the daily review by offering to do real work together — on 
 
 The rest of the review sorts, ranks, and dates work. This phase does some of it. With the ladders ranked and the dated items walked, look at what is left and offer to work on the items where Claude can actually help, right now, in this session.
 
-Scope is **both** roots linked from `Metadata > ☑️ Next Actions` (`d81ba063-5604-49a5-bb87-0d0fe59d0a48`), Work and Personal, discovered by link resolution and never hardcoded, plus Things 3 and Apple Reminders for the dated category.
+Scope is **both** roots linked from `Metadata > ☑️ Next Actions` (id: `nextActionsId` from `.llm/gtd/config.json`, asking once and saving it when missing), Work and Personal, discovered by link resolution and never hardcoded, plus Things 3 and Apple Reminders for the dated category.
 
 ## Do not use the built-in task list
 

@@ -116,7 +116,7 @@ For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to
 - No `📊 Confidence:` -> Treat as `low` confidence
 - No `✏️ Text:` -> Keep original item text
 - No `📜 Provenance:` -> Set to null
-- `📍 Move to:` names `📋 Meeting agendas` (`f3bfcfbb-a904-62e6-06aa-29bda59a1f54`) or a node under it -> an older refinement; replace it with the bottom tier of the Work `📌 Tasks (asap)` ladder (per `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`) and mark the item `isAgenda`
+- `📍 Move to:` names `📋 Meeting agendas` (id: `meetingAgendasId` from `.llm/gtd/config.json`, asking once and saving it when missing) or a node under it -> an older refinement; replace it with the bottom tier of the Work `📌 Tasks (asap)` ladder (per `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`) and mark the item `isAgenda`
 - `📍 Move to:` names `📄 Drafts` or a node under it -> an older refinement; replace it with the bottom tier of the matching `📌 Tasks (asap)` ladder (Work for a Work `📄 Drafts`, Personal for a Personal one, per `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`) and append `#drafts` to `suggestedText` when it does not already carry it.
 - `🔀 Alternative:` names `📄 Drafts` or a node under it -> an older refinement; set `alternativePath` to null
 
@@ -190,7 +190,7 @@ Options:
 
 **File in both.** When the item has an `alternativePath` or is `isAgenda`, add a **File in both** option right after Accept. It files the item at the primary destination exactly as Accept does and then creates a mirror of it at the second destination:
 
-- The second destination is `alternativePath` when one was staged, otherwise (for an agenda item) the Work `📋 Meeting agendas` node (`f3bfcfbb-a904-62e6-06aa-29bda59a1f54`).
+- The second destination is `alternativePath` when one was staged, otherwise (for an agenda item) the Work `📋 Meeting agendas` node (id: `meetingAgendasId` from `.llm/gtd/config.json`, asking once and saving it when missing).
 - Name both places in the option description, e.g. `File in both` (`📌 Tasks (asap) > 4th` + mirror in `📋 Meeting agendas`).
 
 ```text

@@ -21,7 +21,12 @@ import {join} from "node:path";
 import {isObject} from "./json.mts";
 
 const MAX_TEXT = 2000;
-const DEFAULT_DIR = join(homedir(), ".claude/projects/-Users-craig-projects-workflowy");
+/** Claude Code names a project transcript directory after the cwd with every non-alphanumeric character as a dash. */
+export function projectDirFor(cwd: string): string {
+	return join(homedir(), ".claude/projects", cwd.replaceAll(/[^A-Za-z0-9]/gu, "-"));
+}
+
+const DEFAULT_DIR = projectDirFor(process.cwd());
 
 export interface FeedbackTurn {
 	ts: unknown;

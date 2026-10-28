@@ -50,7 +50,7 @@ Skip all-day events and obvious non-meetings (holidays, focus blocks) when match
 
 ## Read queued topics
 
-Read the `📋 Meeting agendas` node (short id `29bda59a1f54`, full `f3bfcfbb-a904-62e6-06aa-29bda59a1f54`):
+Read the `📋 Meeting agendas` node (id: `meetingAgendasId` from `.llm/gtd/config.json`, asking once and saving it when missing):
 
 ```bash
 ./bin/run.js node get --id 29bda59a1f54 --depth 2 --json

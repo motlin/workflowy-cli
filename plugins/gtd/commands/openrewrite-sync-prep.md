@@ -16,7 +16,7 @@ mkdir -p .llm/gtd/review/proposals
 openrewrite-sync --no-push --summary-json .llm/gtd/review/proposals/openrewrite-sync.raw.json
 ```
 
-The script lives at `~/.local/bin/openrewrite-sync`. For each repo in dependency order (`rewrite`, `rewrite-static-analysis`, `rewrite-cucumber-jvm`, `rewrite-logging-frameworks`, `rewrite-github-actions`, `rewrite-joda`, `rewrite-jenkins`, `rewrite-migrate-java`, `rewrite-testing-frameworks`, `rewrite-polyglot`, `rewrite-maven-plugin` under `~/projects`) it fetches, rebases `main` onto `upstream/main`, and builds and publishes the SNAPSHOT when `main` changed. A rebase conflict aborts that repo's rebase and leaves `main` unchanged. It writes one JSON object per repo: `repo`, `status` (`ok` or `failed`), `detail`, `localCommits`, `forkMainDiffers`, and `log`.
+The script lives at `~/.local/bin/openrewrite-sync`. For each repo in dependency order (the `openrewriteRepos` array in `.llm/gtd/config.json`, with the checkouts under `projectsDirectory`; when missing, ask once and save) it fetches, rebases `main` onto `upstream/main`, and builds and publishes the SNAPSHOT when `main` changed. A rebase conflict aborts that repo's rebase and leaves `main` unchanged. It writes one JSON object per repo: `repo`, `status` (`ok` or `failed`), `detail`, `localCommits`, `forkMainDiffers`, and `log`.
 
 - A non-zero exit with a summary file means some repos failed; that is a normal `ready` result, not a prep error.
 - A missing summary file, a missing script, or `Another openrewrite-sync is running` is a prep error.

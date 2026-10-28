@@ -6,7 +6,7 @@ description: Group related tasks — cluster open tasks on both asap ladders by 
 
 The ladders fill up with siblings that are really one piece of work: three separate "@Alice onboarding" tasks in three tiers, a "renew passport" next to "book passport photo", a build-time task on the ladder and the same topic sitting in `📋 Meeting agendas`. Ranking them separately spreads one project across the ladder. This phase finds those clusters and pulls each under a single parent, one confirmed move at a time.
 
-Scope is **both** roots linked from `Metadata > ☑️ Next Actions` (`d81ba063-5604-49a5-bb87-0d0fe59d0a48`) — Work and Personal — discovered by link resolution, never hardcoded.
+Scope is **both** roots linked from `Metadata > ☑️ Next Actions` (id: `nextActionsId` from `.llm/gtd/config.json`, asking once and saving it when missing) — Work and Personal — discovered by link resolution, never hardcoded.
 
 ## Do not use the built-in task list
 

@@ -23,7 +23,7 @@
 
 import {execFileSync, spawnSync} from "node:child_process";
 import type {ExecFileSyncOptionsWithStringEncoding} from "node:child_process";
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync} from "node:fs";
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync} from "node:fs";
 import {homedir, tmpdir} from "node:os";
 import {join} from "node:path";
 import {isObject} from "./json.mts";
@@ -394,6 +394,16 @@ export function ghGraphql(exec: GhExec = execFileSync, ghCommand: string = proce
 	return JSON.parse(out);
 }
 
+/** PRs to skip from `rebaseSkip` (array of owner/repo#N) in .llm/gtd/config.json, when that file exists. */
+function configuredSkips(configPath = ".llm/gtd/config.json"): string[] {
+	if (!existsSync(configPath)) {
+		return [];
+	}
+	const config: unknown = JSON.parse(readFileSync(configPath, "utf8"));
+	const skip = isObject(config) ? config.rebaseSkip : undefined;
+	return Array.isArray(skip) ? skip.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
 function parseArgs(argv: readonly string[]) {
 	const options = {
 		apply: false,
@@ -401,7 +411,7 @@ function parseArgs(argv: readonly string[]) {
 		waitMinutes: 30,
 		roots: [] as string[],
 		worktreeRoot: "",
-		skip: ["motlin/forbid-merge-commits-action#30"],
+		skip: configuredSkips(),
 	};
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];

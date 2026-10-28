@@ -55,7 +55,7 @@ unix_timestamp = backup_timestamp + WORKFLOWY_EPOCH;
 
 ```json
 {
-	"id": "2347b137-859e-2a76-1fd3-c37b0c6ae59b",
+	"id": "00000000-0000-0000-0000-000000000001",
 	"nm": "<span class=\"colored c-green\">Personal</span>",
 	"ct": 9437457,
 	"lm": 405904342,
@@ -72,7 +72,7 @@ unix_timestamp = backup_timestamp + WORKFLOWY_EPOCH;
 
 ```json
 {
-	"id": "2347b137-859e-2a76-1fd3-c37b0c6ae59b",
+	"id": "00000000-0000-0000-0000-000000000001",
 	"name": "<span class=\"colored c-green\">Personal</span>",
 	"priority": 400,
 	"completed": false,

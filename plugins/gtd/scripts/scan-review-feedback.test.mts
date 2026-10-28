@@ -9,6 +9,7 @@ import {
 	hasCommandInvocation,
 	isAskUserQuestionAnswer,
 	isHumanUserMessage,
+	projectDirFor,
 	userText,
 } from "./scan-review-feedback.mts";
 import {at} from "./test-helpers.mts";
@@ -244,4 +245,13 @@ test("extractFeedback caps very long turn text so the extract stays compact", ()
 	const {turns} = extractFeedback([long]);
 	assert.ok(at(turns, 0).text.length <= 2050);
 	assert.match(at(turns, 0).text, /…$/u);
+});
+
+test("projectDirFor encodes the cwd the way Claude Code names transcript directories", () => {
+	assert.strictEqual(
+		projectDirFor(["", "home", "alice", "projects", "my.repo"].join("/")).endsWith(
+			".claude/projects/-home-alice-projects-my-repo",
+		),
+		true,
+	);
 });

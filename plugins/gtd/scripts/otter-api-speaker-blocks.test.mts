@@ -64,7 +64,7 @@ const SPEECH = {
 		title: "1:1 Alice",
 		start_time: 1_790_000_000,
 		speakers: [
-			{id: 1, speaker_name: "Craig", self_speaker: true},
+			{id: 1, speaker_name: "Bob", self_speaker: true},
 			{id: 2, speaker_name: "Speaker 2", self_speaker: false},
 		],
 		transcripts: [

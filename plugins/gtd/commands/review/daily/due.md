@@ -36,7 +36,7 @@ mkdir -p .llm/gtd/review
 **Workflowy Next-Actions roots** (Segment 2) — resolve both roots from the metadata anchor, then dump each deep enough to reach the tasks:
 
 ```bash
-./bin/run.js node get --id d81ba063-5604-49a5-bb87-0d0fe59d0a48 --depth 1 --json \
+./bin/run.js node get --id "$(jq -r .nextActionsId .llm/gtd/config.json)" --depth 1 --json \
   --fields name,shortId,id,children,linkTargets > .llm/gtd/review/next-actions-meta.json
 ```
 

@@ -346,7 +346,7 @@ test("fromThings leaves an undated task outside the Today list undated", () => {
 });
 
 test("fromThings stages an AppleScript completion keyed on the stable id", () => {
-	const item = at(fromThings({due: [{id: "JMwVZ", title: "Craig's task", due: "2026-08-01"}], today: []}, TODAY), 0);
+	const item = at(fromThings({due: [{id: "JMwVZ", title: "Alice's task", due: "2026-08-01"}], today: []}, TODAY), 0);
 
 	assert.match(item.ops.complete, /Things3/u);
 	assert.match(item.ops.complete, /JMwVZ/u);
