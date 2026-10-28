@@ -518,13 +518,20 @@ export function rebuildTreeSnapshotAfterWrites(getDatabase: () => Database): Mid
 			await next();
 			return;
 		}
-		const database = getDatabase();
-		const before = changeState(database).changes;
-		await next();
+		await withTreeSnapshotRebuild(getDatabase(), next);
+	};
+}
+
+/** Runs `run`, then schedules a background snapshot rebuild when it changed the database (the RPC path has no HTTP method to key on). */
+export async function withTreeSnapshotRebuild<T>(database: Database, run: () => Promise<T>): Promise<T> {
+	const before = changeState(database).changes;
+	try {
+		return await run();
+	} finally {
 		if (changeState(database).changes !== before) {
 			scheduleTreeSnapshotRebuild(database);
 		}
-	};
+	}
 }
 
 /**

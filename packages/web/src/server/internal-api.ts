@@ -3,8 +3,9 @@ import {createMiddleware} from "hono/factory";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv} from "./context.js";
 
-export const INTERNAL_API_NOT_CONFIGURED =
-	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
+import {INTERNAL_API_NOT_CONFIGURED} from "./internal-api-error.js";
+
+export {INTERNAL_API_NOT_CONFIGURED};
 
 /**
  * Gate a route on Workflowy internal-API auth: answers 503 when neither

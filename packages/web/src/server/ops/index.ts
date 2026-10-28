@@ -1,8 +1,11 @@
 import type {z} from "zod";
-import type {OpDefinition, OpResult} from "./define.js";
+import {accountGet} from "./account.js";
+import type {Json, OpDefinition, OpResult} from "./define.js";
 
 /** The operation registry; routers move into it one at a time. */
-export const Ops = {} satisfies Record<string, OpDefinition<z.ZodType, never>>;
+export const Ops = {
+	"account.get": accountGet,
+} satisfies Record<string, OpDefinition<z.ZodType, Json>>;
 
 export type OpRegistry = typeof Ops;
 export type OpName = keyof OpRegistry;

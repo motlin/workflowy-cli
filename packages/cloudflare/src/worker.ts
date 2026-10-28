@@ -1,9 +1,13 @@
+import {createHttpApp} from "@workflowy/web/server-app";
+import type {StoreClient} from "@workflowy/web/server-app";
+import {Hono} from "hono";
+import {createMiddleware} from "hono/factory";
 import {resolveIdentity} from "./access";
 import type {AccessEnv} from "./access";
+import {storeClient} from "./store-client";
+import type {UserStore} from "./user-store";
 
 export {UserStore} from "./user-store";
-
-const dynamicRoutes = [new URLPattern({pathname: "/health"}), new URLPattern({pathname: "/api/*"})];
 
 /**
  * The app already compresses API responses. Without `encodeBody: "manual"` the runtime assumes a response's body is plain and
@@ -21,16 +25,53 @@ function passEncodedBody(response: Response): Response {
 	});
 }
 
-export default {
-	async fetch(request, env): Promise<Response> {
-		if (dynamicRoutes.some((pattern) => pattern.test(request.url))) {
-			const identity = await resolveIdentity(request, env);
-			if ("status" in identity) {
-				return new Response(identity.status === 401 ? "Unauthorized" : "Forbidden", {status: identity.status});
+type WorkerEnv = Env & AccessEnv;
+interface WorkerApp {
+	Bindings: WorkerEnv;
+	Variables: {stub: DurableObjectStub<UserStore>};
+}
+
+const app = new Hono<WorkerApp>();
+/** The store for the request being served; `createHttpApp` asks for it by the raw request. */
+const stores = new WeakMap<Request, StoreClient>();
+
+app.use("*", async (c, next) => {
+	await next();
+	c.res = passEncodedBody(c.res);
+});
+
+// Access gates everything dynamic; the identity names the user's Durable Object.
+const identity = createMiddleware<WorkerApp>(async (c, next) => {
+	const result = await resolveIdentity(c.req.raw, c.env);
+	if ("status" in result) {
+		return new Response(result.status === 401 ? "Unauthorized" : "Forbidden", {status: result.status});
+	}
+	const stub = c.env.USER_STORE.get(c.env.USER_STORE.idFromName(result.email));
+	c.set("stub", stub);
+	stores.set(c.req.raw, storeClient(stub));
+	return next();
+});
+
+app.use("/health", identity);
+app.use("/api/*", identity);
+
+// Migrated routes are answered here over RPC.
+app.route(
+	"/",
+	createHttpApp({
+		resolveStore: (request) => {
+			const store = stores.get(request);
+			if (!store) {
+				throw new Error("No store resolved for this request");
 			}
-			const stub = env.USER_STORE.get(env.USER_STORE.idFromName(identity.email));
-			return passEncodedBody(await stub.fetch(request));
-		}
-		return env.ASSETS.fetch(request);
-	},
-} satisfies ExportedHandler<Env & AccessEnv>;
+			return store;
+		},
+	}),
+);
+
+// Strangler fallback: routes not migrated yet are still served by the Durable Object's own app.
+app.all("/api/*", async (c) => c.var.stub.fetch(c.req.raw));
+
+app.all("*", async (c) => c.env.ASSETS.fetch(c.req.raw));
+
+export default app satisfies ExportedHandler<WorkerEnv>;

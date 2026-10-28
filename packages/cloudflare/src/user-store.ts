@@ -5,8 +5,11 @@ import {
 	bindTreeHost,
 	buildServerContext,
 	createApp,
+	inProcessStore,
 	peekTreeSnapshotRows,
+	withTreeSnapshotRebuild,
 } from "@workflowy/web/server-app";
+import type {OpInput, OpName, OpOutput, OpResult, StoreClient} from "@workflowy/web/server-app";
 import {WorkflowyInternalClient} from "@workflowy/shared/api";
 import {drizzle} from "drizzle-orm/durable-sqlite";
 import {migrate} from "drizzle-orm/durable-sqlite/migrator";
@@ -29,6 +32,7 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	private sync!: SyncJob;
 	private db!: ReturnType<typeof drizzle<typeof schema>>;
 	private treeSnapshotEnabled = true;
+	private store!: StoreClient;
 	private app!: {fetch(request: Request): Response | Promise<Response>};
 
 	constructor(ctx: DurableObjectState, env: Env & WorkerSecrets & SyncEnv) {
@@ -70,6 +74,10 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 				internalAuth: readWorkerInternalAuth(env, this.sessionStore),
 			});
 			this.app = createApp(serverContext);
+			const store = inProcessStore(serverContext);
+			this.store = this.treeSnapshotEnabled
+				? {call: async (op, input) => withTreeSnapshotRebuild(db, async () => store.call(op, input))}
+				: store;
 			const internalAuth = readWorkerInternalAuth(env, this.sessionStore);
 			this.sync = new SyncJob({
 				storage: ctx.storage,
@@ -84,6 +92,12 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	override webSocketClose(socket: WebSocket, code: number): void {
 		// 1005 and 1006 are reserved and cannot be echoed back in a close frame.
 		socket.close(code === 1005 || code === 1006 ? 1000 : code);
+	}
+
+	/** The one entry point for app operations: runs an op over this object's database; errors come back as values. */
+	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC through `storeClient`
+	async call<K extends OpName>(op: K, input: OpInput<K>): Promise<OpResult<OpOutput<K>>> {
+		return this.store.call(op, input);
 	}
 
 	/** Start a sync run, or continue the one in progress, on the next alarm. */

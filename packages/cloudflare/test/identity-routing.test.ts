@@ -2,6 +2,8 @@ import {afterAll, beforeAll, describe, expect, it} from "vite-plus/test";
 import {SignJWT, exportJWK, generateKeyPair} from "jose";
 import {startHarness} from "./harness";
 import type {Harness} from "./harness";
+import {storeClient} from "../src/store-client";
+import type {UserStore} from "../src/user-store";
 
 const teamDomain = "team.example.com";
 const audience = "aud-routing";
@@ -69,5 +71,27 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		await expect(named("dev")).resolves.toStrictEqual([]);
 		await expect(as("bob@example.com")).resolves.toStrictEqual([]);
 		await expect(as("alice@example.com")).resolves.toStrictEqual([row]);
+	});
+
+	it("reaches a migrated op over RPC under the Access identity, and the DO answers the op itself", async () => {
+		const jwt = await new SignJWT({email: "alice@example.com"})
+			.setProtectedHeader({alg: "RS256"})
+			.setAudience(audience)
+			.setIssuer(`https://${teamDomain}`)
+			.setIssuedAt()
+			.setExpirationTime("1h")
+			.sign(privateKey);
+		const viaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/account", {
+			headers: {"Cf-Access-Jwt-Assertion": jwt},
+		});
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
+		const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace<UserStore>;
+		const viaRpc = await storeClient(ns.get(ns.idFromName("alice@example.com"))).call("account.get", {});
+
+		const body: unknown = await viaWorker.json();
+		expect(viaWorker.status).toBe(503);
+		// The RPC result is built in another realm, so compare it as JSON.
+		expect(JSON.stringify(viaRpc)).toBe(JSON.stringify({ok: false, status: 503, body}));
+		expect(JSON.stringify(body)).toContain("internal API is not configured");
 	});
 });

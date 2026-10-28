@@ -25,7 +25,7 @@ export function inProcessStore(ctx: ServerContext, ops: AnyOps = Ops): StoreClie
 			try {
 				const definition = ops[op];
 				if (definition === undefined) {
-					return typed<K>(fail(404, {error: `Unknown op ${String(op)}`}));
+					return typed<K>(fail(404, {error: `Unknown op ${op}`}));
 				}
 				return typed<K>(await definition.run(ctx, input));
 			} catch {

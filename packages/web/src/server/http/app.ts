@@ -62,5 +62,9 @@ export function createHttpApp(options: HttpAppOptions): Hono {
 	}
 	app.use("/api/*", apiCompression());
 	app.get("/health", (c) => c.json({status: "ok"}));
+	app.get("/api/v1/account", async (c) => {
+		const store = await options.resolveStore(c.req.raw);
+		return toResponse(await store.call("account.get", {}));
+	});
 	return app;
 }
