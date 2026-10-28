@@ -6,7 +6,7 @@
 
 import {Hono} from "hono";
 import type {Context} from "hono";
-import type {AppEnv} from "../context.js";
+import type {AppEnv, ServerContext} from "../context.js";
 import {
 	DECISION_SLUG,
 	DecisionAnswerInputSchema,
@@ -30,6 +30,17 @@ class DecisionRequestError extends Error {
 	) {
 		super(message);
 	}
+}
+
+/** The decision pages on their own app, with the context middleware they read; the Node host mounts it beside the Worker's HTTP layer. */
+export function createDecisionsApp(ctx: ServerContext): Hono<AppEnv> {
+	const app = new Hono<AppEnv>();
+	app.use("/*", async (c, next) => {
+		c.set("ctx", ctx);
+		await next();
+	});
+	app.route("/api/v1/decisions", createDecisionsRouter());
+	return app;
 }
 
 export function createDecisionsRouter(options: DecisionsRouterOptions = {}): Hono<AppEnv> {

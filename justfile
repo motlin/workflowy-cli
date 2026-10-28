@@ -32,8 +32,8 @@ ensure-sqlite-native:
         node -e 'const Database = require(process.argv[1]); new Database(":memory:").close();' "$package_dir"
     done
 
-# Run dev server (shared code live from source; see `web`)
-dev *args: build-shared
+# Run dev server, node host (shared code live from source; see `web`)
+dev-node *args: build-shared
     WORKFLOWY_DB_PATH={{ justfile_directory() }}/workflowy.sqlite vp run --filter @workflowy/web dev {{ args }}
 
 # Run linter
@@ -62,17 +62,17 @@ test *args: build-shared
 cf-test: build-shared
     vp test run --project cloudflare
 
-# Run the SPA and the Worker together in local workerd (Cloudflare Vite plugin; R2 and Durable Objects simulated, no Cloudflare account needed) with a fixed dev identity; state persists in packages/cloudflare/.wrangler/state
+# Run the SPA and the Worker together in local workerd (Cloudflare Vite plugin; R2 and Durable Objects simulated, no Cloudflare account needed) with a fixed dev identity; state persists in packages/cloudflare/.wrangler/state. `dev-node` keeps the two-process Node host over workflowy.sqlite
 [group('web')]
-cf-dev: build-shared
-    cd packages/web && ACCESS_DEV_IDENTITY="${ACCESS_DEV_IDENTITY:-dev}" vp dev -c vite.worker.config.ts
+dev *args: build-shared
+    cd packages/web && ACCESS_DEV_IDENTITY="${ACCESS_DEV_IDENTITY:-dev}" vp dev -c vite.worker.config.ts {{ args }}
 
 # Build the client and the Worker with the Cloudflare Vite plugin; writes packages/web/dist/workflowy/worker/wrangler.json for cf-deploy
 [group('web')]
 cf-build: build-shared
     cd packages/web && vp build -c vite.worker.config.ts
 
-# Browser smoke test against a fresh cf-dev with a fake upstream (outside verify, like the evals)
+# Browser smoke test against a fresh `just dev` with a fake upstream (outside verify, like the evals)
 [group('test')]
 cf-smoke: build-shared
     node packages/cloudflare/smoke/run-smoke.ts

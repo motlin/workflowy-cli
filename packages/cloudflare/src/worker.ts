@@ -111,8 +111,7 @@ app.get("/api/v1/ladder/events", async (c) => {
 	return c.var.stub.fetch(c.req.raw);
 });
 
-// Strangler fallback: the decision pages are still served by the Durable Object's own fetch.
-app.all("/api/*", async (c) => c.var.stub.fetch(c.req.raw));
+app.all("/api/*", () => new Response("Not found", {status: 404}));
 
 app.all("*", async (c) => c.env.ASSETS.fetch(c.req.raw));
 

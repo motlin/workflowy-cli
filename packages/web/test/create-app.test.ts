@@ -4,7 +4,7 @@ import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
 import {describe, expect, it} from "vite-plus/test";
 import * as schema from "@workflowy/shared/db";
-import {createApp} from "../src/server/app.js";
+import * as serverApp from "../src/server/app.js";
 import type {ServerConfig} from "../src/server/config.js";
 import {buildServerContext} from "../src/server/context.js";
 import {LadderEventBus} from "../src/server/ladder-events.js";
@@ -25,14 +25,17 @@ function memoryDb() {
 	return db;
 }
 
-describe("createApp", () => {
-	it("answers /health over an in-memory database context", async () => {
-		const ctx = buildServerContext({db: memoryDb(), config: baseConfig, ladderEvents: new LadderEventBus()});
-		const response = await createApp(ctx).fetch(new Request("http://localhost/health"));
-		expect({status: response.status, body: await response.json()}).toStrictEqual({
-			status: 200,
-			body: {status: "ok"},
-		});
+describe("server-app exports", () => {
+	it("are the ops, store, http and context pieces only, with no Hono app of their own", () => {
+		// oxlint-disable-next-line unicorn/no-array-sort -- the test tsconfig lib has no toSorted
+		expect(Object.keys(serverApp).sort()).toStrictEqual([
+			"LadderEventBus",
+			"bindTreeHost",
+			"buildServerContext",
+			"createHttpApp",
+			"inProcessStore",
+			"peekTreeSnapshotRows",
+		]);
 	});
 });
 

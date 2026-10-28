@@ -4,7 +4,6 @@ import {
 	LadderEventBus,
 	bindTreeHost,
 	buildServerContext,
-	createApp,
 	inProcessStore,
 	peekTreeSnapshotRows,
 } from "@workflowy/web/server-app";
@@ -20,7 +19,7 @@ import type {SyncEnv, SyncStatus} from "./sync";
 import {readWorkerConfig, readWorkerInternalAuth} from "./worker-config";
 import type {WorkerSecrets} from "./worker-config";
 
-/** One user's outline: a SQLite-backed Durable Object serving the shared Hono app over its own database. */
+/** One user's outline: a SQLite-backed Durable Object answering RPC over its own database, plus the ladder WebSocket upgrade. */
 export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	/** How many migrations this boot applied; zero when the database was already current. */
 	protected appliedOnBoot = 0;
@@ -32,7 +31,6 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	private db!: ReturnType<typeof drizzle<typeof schema>>;
 	private treeSnapshotEnabled = true;
 	private store!: StoreClient;
-	private app!: {fetch(request: Request): Response | Promise<Response>};
 
 	constructor(ctx: DurableObjectState, env: Env & WorkerSecrets & SyncEnv) {
 		super(ctx, env);
@@ -72,7 +70,6 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 				ladderEvents: this.ladderEvents,
 				internalAuth: readWorkerInternalAuth(env, this.sessionStore),
 			});
-			this.app = createApp(serverContext);
 			this.store = inProcessStore(serverContext, undefined, {keepSnapshotWarm: this.treeSnapshotEnabled});
 			const internalAuth = readWorkerInternalAuth(env, this.sessionStore);
 			this.sync = new SyncJob({
@@ -148,7 +145,7 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 		await this.sync.tick();
 	}
 
-	override async fetch(request: Request): Promise<Response> {
+	override fetch(request: Request): Response {
 		if (
 			new URL(request.url).pathname === "/api/v1/ladder/events" &&
 			request.headers.get("Upgrade")?.toLowerCase() === "websocket"
@@ -158,7 +155,7 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 			this.ctx.acceptWebSocket(pair[1], ["ladder"]);
 			return new Response(null, {status: 101, webSocket: pair[0]});
 		}
-		return this.app.fetch(request);
+		return new Response("Not found", {status: 404});
 	}
 }
 

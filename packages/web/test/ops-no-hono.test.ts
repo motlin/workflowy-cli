@@ -20,4 +20,11 @@ describe("host-neutral ops", () => {
 			: [];
 		expect(offenders).toStrictEqual([]);
 	});
+
+	it("do not import cloudflare:* modules", () => {
+		const offenders = existsSync(opsDir)
+			? sourceFiles(opsDir).filter((file) => /from\s+["']cloudflare:/u.test(readFileSync(file, "utf8")))
+			: [];
+		expect(offenders).toStrictEqual([]);
+	});
 });

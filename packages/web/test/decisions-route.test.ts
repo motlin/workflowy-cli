@@ -2,7 +2,7 @@ import {describe, expect, it} from "vite-plus/test";
 import {Hono} from "hono";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import type {DecisionStore} from "../src/server/decisions.js";
-import {createDecisionsRouter} from "../src/server/routes/decisions.js";
+import {createDecisionsApp, createDecisionsRouter} from "../src/server/routes/decisions.js";
 
 const NOW = new Date("2026-10-27T15:00:00.000Z");
 
@@ -296,5 +296,13 @@ describe("POST /api/v1/decisions/:slug/submit", () => {
 			status: 404,
 			body: {error: "No decision page staged as meetings"},
 		});
+	});
+});
+
+describe("createDecisionsApp", () => {
+	it("serves the decision pages under /api/v1/decisions with the context set", async () => {
+		const ctx = {decisions: memoryStore({})} as unknown as ServerContext;
+		const response = await createDecisionsApp(ctx).fetch(new Request("http://x/api/v1/decisions/missing"));
+		expect(response.status).toBe(404);
 	});
 });

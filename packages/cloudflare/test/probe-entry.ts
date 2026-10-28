@@ -6,7 +6,7 @@ import worker from "../src/worker";
 
 /** Test-only subclass exposing the DO's raw SQLite state. */
 export class ProbeStore extends UserStore {
-	override async fetch(request: Request): Promise<Response> {
+	override fetch(request: Request): Response {
 		const url = new URL(request.url);
 		if (url.pathname === "/__probe") {
 			const names = this.ctx.storage.sql

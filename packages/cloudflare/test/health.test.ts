@@ -13,6 +13,11 @@ describe("worker /health", () => {
 		await harness.dispose();
 	});
 
+	it("answers an unrouted API path with 404 from the Worker, not from the Durable Object", async () => {
+		const response = await harness.mf.dispatchFetch("http://localhost/api/v1/decisions/meetings");
+		expect({status: response.status, body: await response.text()}).toStrictEqual({status: 404, body: "Not found"});
+	});
+
 	it("returns 200 with status ok", async () => {
 		const response = await harness.mf.dispatchFetch("http://localhost/health");
 		expect(response.status).toBe(200);
