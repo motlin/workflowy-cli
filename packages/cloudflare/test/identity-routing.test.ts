@@ -115,6 +115,7 @@ describe("worker routes each Access email to its own Durable Object", () => {
 			"/api/v1/tags",
 			"/api/v1/stars",
 			"/api/v1/preferences",
+			"/api/v1/expansion",
 		];
 
 		const viaDo = await Promise.all(
@@ -129,8 +130,8 @@ describe("worker routes each Access email to its own Durable Object", () => {
 			}),
 		);
 
-		expect(viaDo).toStrictEqual([404, 404, 404, 404, 404, 404, 404, 404]);
-		expect(viaWorker.map(({status}) => status)).toStrictEqual([200, 200, 200, 200, 503, 503, 503]);
+		expect(viaDo).toStrictEqual([404, 404, 404, 404, 404, 404, 404, 404, 404]);
+		expect(viaWorker.map(({status}) => status)).toStrictEqual([200, 200, 200, 200, 503, 503, 503, 503]);
 		expect(viaWorker[0]?.body).toStrictEqual({visible: [], enabled: {}, available: false});
 		expect(viaWorker[1]?.body).toMatchObject({rootId: null, rootChildren: []});
 		expect(viaWorker[3]?.body).toStrictEqual({tags: []});

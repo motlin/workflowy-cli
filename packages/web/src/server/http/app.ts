@@ -4,6 +4,7 @@ import {apiCompression} from "../compression.js";
 import {accountRoutes} from "./routes/account.js";
 import {changesRoutes} from "./routes/changes.js";
 import {customTreeRoutes} from "./routes/custom-tree.js";
+import {expansionRoutes} from "./routes/expansion.js";
 import {featuresRoutes} from "./routes/features.js";
 import {preferencesRoutes} from "./routes/preferences.js";
 import {starsRoutes} from "./routes/stars.js";
@@ -29,6 +30,7 @@ export function createHttpRoutes(resolveStore: ResolveStore): Hono {
 	routes.route("/api/changes", changesRoutes(resolveStore));
 	routes.route("/api/v1/tags/autocomplete", tagIndexRoutes(resolveStore));
 	routes.route("/api/v1/tags", tagsRoutes(resolveStore));
+	routes.route("/api/v1/expansion", expansionRoutes(resolveStore));
 	routes.route("/api/v1/stars", starsRoutes(resolveStore));
 	routes.route("/api/v1/preferences", preferencesRoutes(resolveStore));
 	return routes;

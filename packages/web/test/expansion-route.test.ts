@@ -1,8 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
-import {Hono} from "hono";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createExpansionRouter} from "../src/server/routes/expansion.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const NOT_CONFIGURED =
 	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
@@ -24,12 +23,7 @@ function setup(configured: boolean) {
 		internalAuth: configured ? {} : undefined,
 		internalAdapter: () => (configured ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;
-	const app = new Hono<AppEnv>();
-	app.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	app.route("/api/v1/expansion", createExpansionRouter());
+	const app = httpAppFor(ctx);
 	const request = async (
 		method: string,
 		body?: unknown,
