@@ -104,6 +104,27 @@ export class NodeTreeReader {
 		return this.buildTrees(rootRows, options);
 	}
 
+	/**
+	 * Read the children of many parents (Home for `null`) at depth 0, keyed by the requested parent. One joined
+	 * query covers every non-null parent and one lookup resolves every mirror in the whole batch, so the statement
+	 * count does not grow with the number of parents.
+	 */
+	readChildrenOfMany(parentIds: (string | null)[]): Map<string | null, NodeTree[]> {
+		const unique = [...new Set(parentIds)];
+		const byParent = this.cache.getChildrenForMultipleParents(unique.filter((id): id is string => id !== null));
+		const result = new Map<string | null, NodeTree[]>();
+		for (const parentId of unique) {
+			const rows =
+				parentId === null ? this.cache.getChildrenWithMergedData(null) : (byParent.get(parentId) ?? []);
+			result.set(
+				parentId,
+				rows.map((row) => rawToTree(row)),
+			);
+		}
+		this.resolveMirrorContent([...result.values()].flat());
+		return result;
+	}
+
 	/** Read the given nodes as subtrees to the requested depth, preserving caller order. */
 	async readNodes(nodeIds: string[], options: ReadTreeOptions): Promise<NodeTree[]> {
 		if (nodeIds.length === 0) {

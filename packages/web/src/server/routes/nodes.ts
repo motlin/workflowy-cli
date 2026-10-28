@@ -39,6 +39,7 @@ import {
 	childFlags,
 	currentBacklinkSources,
 	findReferencesRoot,
+	findReferencesRoots,
 	notReferencesRoot,
 	referencesRootLabel,
 } from "../backlinks.js";
@@ -63,6 +64,12 @@ export function resolveNodeId(ctx: ServerContext, id: string): string | null {
 		return id;
 	}
 	return ctx.cacheService.resolveShortIdToUuid(id);
+}
+
+/** {@link resolveMirrorToOriginal} for many ids at once: two queries however many ids. */
+function resolveMirrorsToOriginals(ctx: ServerContext, nodeIds: string[]): Map<string, string> {
+	const nodes = new NodeReader(ctx.db).getMany(nodeIds);
+	return new Map(nodeIds.map((id) => [id, nodes.get(id)?.mirror.originalNodeId ?? id]));
 }
 
 /**
@@ -308,50 +315,63 @@ export async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeR
 }
 
 /** A parent's children (Home's for `null`) as the REST API returns them, read from the cache. */
-async function readChildDtos(ctx: ServerContext, parentId: string | null): Promise<NodeResponse[]> {
+function readChildDtos(ctx: ServerContext, parentId: string | null): NodeResponse[] {
+	return readChildDtoLists(ctx, [parentId]).get(parentId) ?? [];
+}
+
+/**
+ * Many parents' children (Home's for `null`) as the REST API returns them, keyed by parent. Every concern is read
+ * once for the whole id set (children, mirrors, child flags, attachments, internal metadata, calendar), so the
+ * statement count does not grow with the number of parents.
+ */
+function readChildDtoLists(ctx: ServerContext, parentIds: (string | null)[]): Map<string | null, NodeResponse[]> {
 	// NodeTreeReader gives each mirror its original's name and note. A references
 	// root is never a row: its backlinks render as the parent's Backlinks section.
 	// Neither is an `ai.inChat` item (upstream's "AI Messages" mailbox).
-	const nodes = (await new NodeTreeReader(ctx.cacheService).readChildren(parentId, {depth: 0})).filter(
-		(node) => !node.hasReferencesRoot && !node.inChat,
-	);
+	const byParent = new NodeTreeReader(ctx.cacheService).readChildrenOfMany(parentIds);
+	const lists = new Map<string | null, NodeResponse[]>();
+	const nodesByParent = new Map<string | null, Node[]>();
+	for (const [parentId, trees] of byParent) {
+		nodesByParent.set(
+			parentId,
+			trees.filter((node) => !node.hasReferencesRoot && !node.inChat),
+		);
+	}
+	const nodes = [...nodesByParent.values()].flat();
+	const ids = nodes.map((node) => node.id);
 	// Determine which nodes have children (single query for efficiency)
 	const flags = childFlags(
 		ctx.db,
 		nodes.map((node) => node.mirror.originalNodeId ?? node.id),
 	);
-	const mirrored = originalsWithMirrors(
-		ctx,
-		nodes.map((node) => node.id),
-	);
+	const mirrored = originalsWithMirrors(ctx, ids);
 	// Batch-load file attachments for all returned nodes.
-	const attachments = loadAttachments(
-		ctx,
-		nodes.map((node) => node.id),
-	);
-	const metadata = loadInternalMetadataFields(
-		ctx,
-		nodes.map((node) => node.id),
-	);
+	const attachments = loadAttachments(ctx, ids);
+	const metadata = loadInternalMetadataFields(ctx, ids);
 	const calendar = loadCalendarInfo({db: ctx.db, cache: ctx.cacheService}, nodes);
-	return nodes.map((node) =>
-		nodeToRestDto(node, {
-			hasMirrors: !node.mirror.isMirror && mirrored.has(node.id),
-			hasChildren: flags.withChildren.has(node.mirror.originalNodeId ?? node.id),
-			hasUncompletedChildren: flags.withUncompletedChildren.has(node.mirror.originalNodeId ?? node.id),
-			name: node.name,
-			note: node.note,
-			attachment: attachments.get(node.id) ?? null,
-			metadata: metadata.get(node.id),
-			calendar: calendar.get(node.id),
-		}),
-	);
+	for (const [parentId, parentNodes] of nodesByParent) {
+		lists.set(
+			parentId,
+			parentNodes.map((node) =>
+				nodeToRestDto(node, {
+					hasMirrors: !node.mirror.isMirror && mirrored.has(node.id),
+					hasChildren: flags.withChildren.has(node.mirror.originalNodeId ?? node.id),
+					hasUncompletedChildren: flags.withUncompletedChildren.has(node.mirror.originalNodeId ?? node.id),
+					name: node.name,
+					note: node.note,
+					attachment: attachments.get(node.id) ?? null,
+					metadata: metadata.get(node.id),
+					calendar: calendar.get(node.id),
+				}),
+			),
+		);
+	}
+	return lists;
 }
 
 /** The refreshed children of every affected parent, in order, as one list. */
-async function readSiblingDtos(ctx: ServerContext, parentIds: (string | null)[]): Promise<NodeResponse[]> {
-	const lists = await Promise.all([...new Set(parentIds)].map(async (parentId) => readChildDtos(ctx, parentId)));
-	return lists.flat();
+function readSiblingDtos(ctx: ServerContext, parentIds: (string | null)[]): NodeResponse[] {
+	return [...readChildDtoLists(ctx, parentIds).values()].flat();
 }
 
 type ParentResult = {ok: true; parentId: string | null} | {ok: false; status: 400 | 404; error: string};
@@ -426,7 +446,7 @@ const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 export const nodesRouter = new Hono<AppEnv>();
 
 // GET /api/v1/nodes - List children (or root nodes if no parent_id; accepts short IDs)
-nodesRouter.get("/", async (c) => {
+nodesRouter.get("/", (c) => {
 	const ctx = c.get("ctx");
 	const parentIdParam = c.req.query("parent_id");
 
@@ -443,7 +463,7 @@ nodesRouter.get("/", async (c) => {
 		parentId = resolveMirrorToOriginal(ctx, resolved);
 	}
 
-	return c.json({nodes: await readChildDtos(ctx, parentId)});
+	return c.json({nodes: readChildDtos(ctx, parentId)});
 });
 
 // POST /api/v1/nodes/children - The children of many parents in one round trip, keyed by the requested id. A
@@ -455,15 +475,23 @@ nodesRouter.post("/children", async (c) => {
 	if (!Array.isArray(parentIds) || !parentIds.every((id) => typeof id === "string")) {
 		return c.json({error: "parentIds must be an array of strings"}, 400);
 	}
-	const entries = await Promise.all(
-		[...new Set(parentIds)].map(async (requested) => {
-			const resolved = resolveNodeId(ctx, requested);
-			return resolved === null
-				? undefined
-				: ([requested, await readChildDtos(ctx, resolveMirrorToOriginal(ctx, resolved))] as const);
-		}),
+	const requestedToResolved = new Map<string, string>();
+	for (const requested of new Set(parentIds)) {
+		const resolved = resolveNodeId(ctx, requested);
+		if (resolved !== null) {
+			requestedToResolved.set(requested, resolved);
+		}
+	}
+	const originals = resolveMirrorsToOriginals(ctx, [...requestedToResolved.values()]);
+	const requestedToParent = new Map(
+		[...requestedToResolved].map(([requested, resolved]) => [requested, originals.get(resolved) ?? resolved]),
 	);
-	return c.json({children: Object.fromEntries(entries.filter((entry) => entry !== undefined))});
+	const lists = readChildDtoLists(ctx, [...requestedToParent.values()]);
+	return c.json({
+		children: Object.fromEntries(
+			[...requestedToParent].map(([requested, parent]) => [requested, lists.get(parent) ?? []]),
+		),
+	});
 });
 
 // POST /api/v1/nodes/view - Everything an outline view under `rootId` first renders, in one round trip: the root's
@@ -494,6 +522,11 @@ nodesRouter.post("/view", async (c) => {
 	const isExpanded = await viewExpansionTest(ctx, body.data.expandedIds);
 	const lists: OutlineViewList[] = [];
 	let used = 0;
+	// Each list read for the view, by the node whose children it holds (a mirror's original), filled a level at a
+	// time so the statement count follows the view's depth, not its row count.
+	const prefetched = new Map<string | null, {nodes: NodeResponse[]; backlinks: BacklinksResponse | null}>();
+	const originalOfId = new Map<string, string>();
+	await prefetchViewLevels(ctx, resolvedRoot, isExpanded, {limit, showCompleted}, prefetched, originalOfId);
 	// A parent's list is sent once however often it repeats, and a cyclical mirror instance is not expanded.
 	const listed = new Set<string | null>();
 	const visit = async (
@@ -501,10 +534,17 @@ nodesRouter.post("/view", async (c) => {
 		resolved: string | null,
 		instance: MirrorInstance | null,
 	): Promise<void> => {
-		const nodes = await readChildDtos(ctx, resolved === null ? null : resolveMirrorToOriginal(ctx, resolved));
+		const original =
+			resolved === null ? null : (originalOfId.get(resolved) ?? resolveMirrorToOriginal(ctx, resolved));
+		const hit = prefetched.get(original);
+		const nodes = hit?.nodes ?? readChildDtos(ctx, original);
 		if (!listed.has(parentId)) {
 			listed.add(parentId);
-			lists.push({parentId, nodes, backlinks: resolved === null ? null : await readBacklinks(ctx, resolved)});
+			lists.push({
+				parentId,
+				nodes,
+				backlinks: resolved === null ? null : (hit?.backlinks ?? (await readBacklinks(ctx, resolved))),
+			});
 		}
 		for (const node of nodes) {
 			if (used >= limit) {
@@ -531,6 +571,67 @@ nodesRouter.post("/view", async (c) => {
 	};
 	return c.json(response);
 });
+
+/**
+ * Read the lists a view will show one level at a time: all of a level's parents in one batch, then the expanded rows
+ * among their children as the next level, until the row budget is spent. {@link visit} then finds each list ready.
+ */
+async function prefetchViewLevels(
+	ctx: ServerContext,
+	rootResolved: string | null,
+	isExpanded: (id: string) => boolean,
+	{limit, showCompleted}: {limit: number; showCompleted: boolean},
+	prefetched: Map<string | null, {nodes: NodeResponse[]; backlinks: BacklinksResponse | null}>,
+	originalOfId: Map<string, string>,
+): Promise<void> {
+	let level: {resolved: string | null; instance: MirrorInstance | null}[] = [
+		{resolved: rootResolved, instance: null},
+	];
+	let seen = 0;
+	while (level.length > 0 && seen < limit) {
+		const resolvedIds = [...new Set(level.flatMap(({resolved}) => resolved ?? []))];
+		const originals = resolveMirrorsToOriginals(ctx, resolvedIds);
+		for (const [id, original] of originals) {
+			originalOfId.set(id, original);
+		}
+		const originalOf = (resolved: string | null) =>
+			resolved === null ? null : (originals.get(resolved) ?? resolved);
+		const toRead = [...new Set(level.map(({resolved}) => originalOf(resolved)))].filter(
+			(original) => !prefetched.has(original),
+		);
+		const lists = readChildDtoLists(ctx, toRead);
+		const roots = findReferencesRoots(
+			ctx.db,
+			toRead.flatMap((original) => original ?? []),
+		);
+		for (const original of toRead) {
+			const rootId = original === null ? undefined : roots.get(original);
+			prefetched.set(original, {
+				nodes: lists.get(original) ?? [],
+				// Home has no Backlinks section; a node with no references root has an empty one.
+				backlinks:
+					original === null
+						? null
+						: rootId === undefined
+							? {rootId: null, items: []}
+							: await readBacklinks(ctx, original),
+			});
+		}
+		const next: typeof level = [];
+		for (const {resolved, instance} of level) {
+			for (const node of prefetched.get(originalOf(resolved))?.nodes ?? []) {
+				seen += 1;
+				if (!showCompleted && node.completedAt !== null) {
+					continue;
+				}
+				if (isExpanded(expansionId(node.id, instance))) {
+					next.push({resolved: node.id, instance: childInstance(node, instance)});
+				}
+			}
+		}
+		level = next;
+	}
+}
 
 /** The requested expanded ids, or for null the account's expansion (nothing without the internal API). */
 async function viewExpansionTest(ctx: ServerContext, expandedIds: string[] | null): Promise<(id: string) => boolean> {
@@ -1861,7 +1962,7 @@ async function moveNodes(
 		}
 	}
 
-	return c.json({nodes: await readSiblingDtos(ctx, [...oldParents, parentId])});
+	return c.json({nodes: readSiblingDtos(ctx, [...oldParents, parentId])});
 }
 
 export const homeRouter = new Hono<AppEnv>();
