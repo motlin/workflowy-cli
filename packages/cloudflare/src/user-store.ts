@@ -97,15 +97,18 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	}
 
 	/** Start a sync run, or continue the one in progress, on the next alarm. */
+	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC
 	async syncNow(): Promise<SyncStatus> {
 		return this.sync.syncNow();
 	}
 
+	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC
 	async syncStatus(): Promise<SyncStatus> {
 		return this.sync.status();
 	}
 
 	/** Database size, live node count, the last sync result and whether the in-memory tree snapshot is held. */
+	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC
 	async adminStatus(): Promise<AdminStatus> {
 		const count = this.ctx.storage.sql
 			.exec("SELECT count(*) AS n FROM node_content WHERE system_to = ?", FAR_FUTURE_DATE)
@@ -118,33 +121,27 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 		};
 	}
 
-	/** GET lists the durable local settings; PUT upserts a JSON array of `{key, json, updatedAt}` rows by key. */
-	private async localSettingsRoute(request: Request): Promise<Response> {
-		if (request.method === "GET") {
-			return Response.json(this.db.select().from(schema.localSettings).orderBy(schema.localSettings.key).all());
-		}
-		if (request.method !== "PUT") {
-			return new Response("Method not allowed", {status: 405});
-		}
-		const body: unknown = await request.json().catch(() => {});
-		const rows = Array.isArray(body) ? body.map(parseLocalSettingRow) : undefined;
-		if (!rows || rows.some((row) => row === undefined)) {
-			return new Response("Expected a JSON array of {key, json, updatedAt} rows", {status: 400});
-		}
+	/** The durable local settings rows, ordered by key. */
+	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC
+	listLocalSettings(): LocalSettingRow[] {
+		return this.db.select().from(schema.localSettings).orderBy(schema.localSettings.key).all();
+	}
+
+	/** Upsert rows by key, keeping their timestamps. */
+	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC
+	putLocalSettings(rows: LocalSettingRow[]): {upserted: number} {
 		this.db.transaction((tx) => {
 			for (const row of rows) {
-				if (row) {
-					tx.insert(schema.localSettings)
-						.values(row)
-						.onConflictDoUpdate({
-							target: schema.localSettings.key,
-							set: {json: row.json, updatedAt: row.updatedAt},
-						})
-						.run();
-				}
+				tx.insert(schema.localSettings)
+					.values(row)
+					.onConflictDoUpdate({
+						target: schema.localSettings.key,
+						set: {json: row.json, updatedAt: row.updatedAt},
+					})
+					.run();
 			}
 		});
-		return Response.json({upserted: rows.length});
+		return {upserted: rows.length};
 	}
 
 	override async alarm(): Promise<void> {
@@ -152,23 +149,6 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	}
 
 	override async fetch(request: Request): Promise<Response> {
-		if (new URL(request.url).pathname === "/api/admin/status") {
-			return request.method === "GET"
-				? Response.json(await this.adminStatus())
-				: new Response("Method not allowed", {status: 405});
-		}
-		if (new URL(request.url).pathname === "/api/admin/local-settings") {
-			return this.localSettingsRoute(request);
-		}
-		if (new URL(request.url).pathname === "/api/admin/sync") {
-			if (request.method === "POST") {
-				return Response.json(await this.syncNow(), {status: 202});
-			}
-			if (request.method === "GET") {
-				return Response.json(await this.syncStatus());
-			}
-			return new Response("Method not allowed", {status: 405});
-		}
 		if (new URL(request.url).pathname === "/api/v1/ladder/events") {
 			if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
 				return new Response("Expected a WebSocket upgrade", {status: 426});
@@ -181,24 +161,17 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	}
 }
 
+export interface LocalSettingRow {
+	key: string;
+	json: string;
+	updatedAt: number;
+}
+
 export interface AdminStatus {
 	databaseSize: number;
 	nodeCount: number;
 	lastSync: SyncStatus["lastResult"];
 	snapshot: {enabled: boolean; warm: boolean};
-}
-
-function parseLocalSettingRow(value: unknown): {key: string; json: string; updatedAt: number} | undefined {
-	if (typeof value !== "object" || value === null) {
-		return undefined;
-	}
-	if (!("key" in value && "json" in value && "updatedAt" in value)) {
-		return undefined;
-	}
-	const {key, json, updatedAt} = value;
-	return typeof key === "string" && typeof json === "string" && typeof updatedAt === "number"
-		? {key, json, updatedAt}
-		: undefined;
 }
 
 function countApplied(ctx: DurableObjectState): number {

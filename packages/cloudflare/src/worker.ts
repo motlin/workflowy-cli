@@ -5,7 +5,7 @@ import {createMiddleware} from "hono/factory";
 import {resolveIdentity} from "./access";
 import type {AccessEnv} from "./access";
 import {storeClient} from "./store-client";
-import type {UserStore} from "./user-store";
+import type {LocalSettingRow, UserStore} from "./user-store";
 
 export {UserStore} from "./user-store";
 
@@ -69,7 +69,41 @@ app.route(
 	}),
 );
 
-// Strangler fallback: the admin routes (step 6) and the decision pages are still served by the Durable Object's own fetch.
+const methodNotAllowed = () => new Response("Method not allowed", {status: 405});
+
+app.get("/api/admin/status", async (c) => c.json(await c.var.stub.adminStatus()));
+app.all("/api/admin/status", methodNotAllowed);
+
+app.post("/api/admin/sync", async (c) => c.json(await c.var.stub.syncNow(), 202));
+app.get("/api/admin/sync", async (c) => c.json(await c.var.stub.syncStatus()));
+app.all("/api/admin/sync", methodNotAllowed);
+
+app.get("/api/admin/local-settings", async (c) => c.json(await c.var.stub.listLocalSettings()));
+// PUT upserts a JSON array of `{key, json, updatedAt}` rows by key.
+app.put("/api/admin/local-settings", async (c) => {
+	const body: unknown = await c.req.json().catch(() => {});
+	const rows = Array.isArray(body) ? body.map(parseLocalSettingRow) : undefined;
+	if (!rows || !rows.every((row) => row !== undefined)) {
+		return new Response("Expected a JSON array of {key, json, updatedAt} rows", {status: 400});
+	}
+	return c.json(await c.var.stub.putLocalSettings(rows));
+});
+app.all("/api/admin/local-settings", methodNotAllowed);
+
+function parseLocalSettingRow(value: unknown): LocalSettingRow | undefined {
+	if (typeof value !== "object" || value === null) {
+		return undefined;
+	}
+	if (!("key" in value && "json" in value && "updatedAt" in value)) {
+		return undefined;
+	}
+	const {key, json, updatedAt} = value;
+	return typeof key === "string" && typeof json === "string" && typeof updatedAt === "number"
+		? {key, json, updatedAt}
+		: undefined;
+}
+
+// Strangler fallback: the decision pages are still served by the Durable Object's own fetch.
 app.all("/api/*", async (c) => c.var.stub.fetch(c.req.raw));
 
 app.all("*", async (c) => c.env.ASSETS.fetch(c.req.raw));

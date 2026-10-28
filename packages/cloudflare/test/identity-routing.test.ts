@@ -56,8 +56,8 @@ describe("worker routes each Access email to its own Durable Object", () => {
 
 	async function named(name: string): Promise<unknown> {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
-		const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
-		return (await ns.get(ns.idFromName(name)).fetch(url)).json();
+		const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace<UserStore>;
+		return ns.get(ns.idFromName(name)).listLocalSettings();
 	}
 
 	it("stores a valid token's writes in the DO named by the lowercased email, not dev, and keeps emails separate", async () => {
@@ -93,6 +93,18 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		// The RPC result is built in another realm, so compare it as JSON.
 		expect(JSON.stringify(viaRpc)).toBe(JSON.stringify({ok: false, status: 503, body}));
 		expect(JSON.stringify(body)).toContain("internal API is not configured");
+	});
+
+	it("serves the admin routes from the Worker only: the Durable Object's own fetch answers 404", async () => {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
+		const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
+		const stub = ns.get(ns.idFromName("alice@example.com"));
+		const viaDo = await Promise.all(
+			["status", "sync", "local-settings"].map(
+				async (name) => (await stub.fetch(`http://localhost/api/admin/${name}`)).status,
+			),
+		);
+		expect(viaDo).toStrictEqual([404, 404, 404]);
 	});
 
 	it("serves the migrated routers from the Worker only: the Durable Object's own app answers 404", async () => {
