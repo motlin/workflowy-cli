@@ -228,3 +228,20 @@ test("sync-since requires the boundary otid", () => {
 	assert.match(stderr, /sync-since requires/u);
 	assert.deepStrictEqual(urls, []);
 });
+
+test("sync-since drops trashed meetings that a modified_after page returns with deleted: true", () => {
+	const sb = sandbox({
+		first: {last_load_ts: 1100, end_of_list: false, speeches: [speech("new2", 1200)]},
+		1100: {
+			last_load_ts: 900,
+			end_of_list: false,
+			speeches: [{...speech("trashed", 1150, null), deleted: true}, speech("new1", 1100), speech("seen", 1000)],
+		},
+	});
+	const {status, stdout, urls} = syncSince(sb, "seen", "1");
+	assert.equal(status, 0);
+	assert.deepStrictEqual(
+		{otids: outputOtids(stdout), actions: actionOtids(urls)},
+		{otids: ["new2", "new1"], actions: ["new2", "new1"]},
+	);
+});

@@ -482,7 +482,7 @@ sync_meetings() {
     raw_response=$(fetch_speeches_page "$page_size" "$cursor" "$modified_after") || return
 
     local result
-    result=$(echo "$raw_response" | jq "{last_load_ts, end_of_list, speeches: [(.speeches // [])[] | $SPEECH_FIELDS]}")
+    result=$(echo "$raw_response" | jq "{last_load_ts, end_of_list, speeches: [(.speeches // [])[] | select(.deleted != true) | $SPEECH_FIELDS]}")
 
     attach_action_items "$result"
     log_timing "sync: done"
@@ -513,10 +513,11 @@ sync_since() {
 
         local page_result
         page_result=$(echo "$raw_response" | jq -c --arg stop "$stop_otid" "
-            [(.speeches // [])[] | $SPEECH_FIELDS] as \$all
-            | ([\$all[].otid] | index(\$stop)) as \$idx
+            (.speeches // []) as \$raw
+            | ([\$raw[].otid] | index(\$stop)) as \$idx
             | {
-                speeches: (if \$idx == null then \$all else \$all[:\$idx] end),
+                # Trashed meetings come back flagged deleted on modified_after pages; they still mark the boundary.
+                speeches: [(if \$idx == null then \$raw else \$raw[:\$idx] end)[] | select(.deleted != true) | $SPEECH_FIELDS],
                 boundary_found: (\$idx != null),
                 end_of_list: (.end_of_list == true),
                 last_load_ts
