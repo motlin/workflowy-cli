@@ -137,9 +137,10 @@ function mergeNodeKeyedTable<TIncoming, TTable extends SQLiteTable>(
 	preserveKeys?: ReadonlySet<string>,
 	onlyKeys?: readonly string[],
 ): TemporalMergeResult {
-	const currentRows: TTable["$inferSelect"][] = [];
+	let currentRows: TTable["$inferSelect"][] = [];
 	if (onlyKeys === undefined) {
-		currentRows.push(...tx.select().from(table).where(eq(systemToColumn, FAR_FUTURE_DATE)).all());
+		// Assigned, not spread into push(): a full table has more rows than one call's argument list allows.
+		currentRows = tx.select().from(table).where(eq(systemToColumn, FAR_FUTURE_DATE)).all();
 	} else {
 		for (let start = 0; start < onlyKeys.length; start += LOOKUP_CHUNK_SIZE) {
 			currentRows.push(
