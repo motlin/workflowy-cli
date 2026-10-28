@@ -28,7 +28,7 @@ export interface HttpAppOptions {
 }
 
 /** Every migrated route, without middleware, so a host can mount them inside an app that already has its own. */
-export function createHttpRoutes(resolveStore: ResolveStore): Hono {
+function createHttpRoutes(resolveStore: ResolveStore): Hono {
 	const routes = new Hono();
 	routes.route("/api/v1/account", accountRoutes(resolveStore));
 	routes.route("/api/v1/features", featuresRoutes(resolveStore));

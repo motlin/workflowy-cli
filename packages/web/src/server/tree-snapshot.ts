@@ -2,7 +2,6 @@ import {aiMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
-import type {MiddlewareHandler} from "hono";
 import type {AppDatabase} from "@workflowy/shared/db";
 import {warmSwitcher} from "./switcher-search.js";
 import {changedNodeIds, changesSince, latestSystemTime, readConsistently} from "./system-changes.js";
@@ -506,20 +505,6 @@ export function peekTreeSnapshotRows(database: Database): TreeSearchRow[] | unde
 /** Whether the current snapshot was last reloaded whole or patched, for tests. */
 export function peekTreeSnapshotBuild(database: Database): TreeSnapshot["build"] | undefined {
 	return snapshots.get(database)?.build;
-}
-
-/**
- * Middleware scheduling a background refresh after every request that wrote through this server,
- * so the next search usually finds the snapshot already warm.
- */
-export function rebuildTreeSnapshotAfterWrites(getDatabase: () => Database): MiddlewareHandler {
-	return async (c, next) => {
-		if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS") {
-			await next();
-			return;
-		}
-		await withTreeSnapshotRebuild(getDatabase(), next);
-	};
 }
 
 /** Runs `run`, then schedules a background snapshot rebuild when it changed the database (the RPC path has no HTTP method to key on). */

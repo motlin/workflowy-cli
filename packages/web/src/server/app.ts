@@ -1,57 +1,19 @@
 import {Hono} from "hono";
-import {cors} from "hono/cors";
-import {apiCompression} from "./compression.js";
 import type {AppEnv, ServerContext} from "./context.js";
 import {createDecisionsRouter} from "./routes/decisions.js";
-import {rebuildTreeSnapshotAfterWrites} from "./tree-snapshot.js";
-
-export interface AppOptions {
-	/** Browser origin allowed by CORS (the Vite dev server); omitted when the page is served same-origin. */
-	corsOrigin?: string;
-	/**
-	 * The migrated HTTP routes, mounted ahead of the remaining routers: `POST /nodes/:id` would otherwise answer
-	 * the fixed paths (`/children`, `/view`, `/export-tree`) that the migrated routes own.
-	 */
-	httpRoutes?: Hono;
-}
 
 /**
- * The host-neutral Hono app: every router, the context middleware and the health check.
+ * The host-neutral Hono app for what the ops layer does not own: the context middleware, decision pages and the health check.
  * It touches no Node-only module, so a Worker or Durable Object can serve it.
  */
-export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<AppEnv> {
+export function createApp(ctx: ServerContext): Hono<AppEnv> {
 	const app = new Hono<AppEnv>();
-
-	if (options.corsOrigin !== undefined) {
-		app.use(
-			"/*",
-			cors({
-				origin: options.corsOrigin,
-				allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-				allowHeaders: ["Content-Type", "Authorization"],
-			}),
-		);
-	}
 
 	app.use("/*", async (c, next) => {
 		c.set("ctx", ctx);
 		await next();
 	});
 
-	app.use("/api/*", apiCompression());
-
-	// Rebuild the search tree snapshot in the background after each write, so searches rarely wait on the ~800ms reload.
-	if (ctx.config.features.treeSnapshot) {
-		app.use(
-			"/api/*",
-			rebuildTreeSnapshotAfterWrites(() => ctx.db),
-		);
-	}
-
-	// Mount API routes
-	if (options.httpRoutes !== undefined) {
-		app.route("/", options.httpRoutes);
-	}
 	app.route("/api/v1/decisions", createDecisionsRouter());
 
 	app.get("/health", (c) => c.json({status: "ok"}));
@@ -64,8 +26,8 @@ export {buildServerContext} from "./context.js";
 export type {ServerContext, ServerContextDeps} from "./context.js";
 export type {ServerConfig} from "./config.js";
 export {LadderEventBus} from "./ladder-events.js";
-export {bindTreeHost, peekTreeSnapshotRows, withTreeSnapshotRebuild} from "./tree-snapshot.js";
-export {createHttpApp, createHttpRoutes} from "./http/app.js";
+export {bindTreeHost, peekTreeSnapshotRows} from "./tree-snapshot.js";
+export {createHttpApp} from "./http/app.js";
 export type {HttpAppOptions} from "./http/app.js";
 export {inProcessStore} from "./store.js";
 export type {StoreClient} from "./store.js";

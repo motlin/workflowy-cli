@@ -7,7 +7,6 @@ import {
 	createApp,
 	inProcessStore,
 	peekTreeSnapshotRows,
-	withTreeSnapshotRebuild,
 } from "@workflowy/web/server-app";
 import type {OpInput, OpName, OpOutput, OpResult, StoreClient} from "@workflowy/web/server-app";
 import {WorkflowyInternalClient} from "@workflowy/shared/api";
@@ -74,10 +73,7 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 				internalAuth: readWorkerInternalAuth(env, this.sessionStore),
 			});
 			this.app = createApp(serverContext);
-			const store = inProcessStore(serverContext);
-			this.store = this.treeSnapshotEnabled
-				? {call: async (op, input) => withTreeSnapshotRebuild(db, async () => store.call(op, input))}
-				: store;
+			this.store = inProcessStore(serverContext, undefined, {keepSnapshotWarm: this.treeSnapshotEnabled});
 			const internalAuth = readWorkerInternalAuth(env, this.sessionStore);
 			this.sync = new SyncJob({
 				storage: ctx.storage,

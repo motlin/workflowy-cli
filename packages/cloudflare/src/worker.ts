@@ -10,7 +10,7 @@ import type {UserStore} from "./user-store";
 export {UserStore} from "./user-store";
 
 /**
- * The app already compresses API responses. Without `encodeBody: "manual"` the runtime assumes a response's body is plain and
+ * `createHttpApp` compresses API responses in this Worker. Without `encodeBody: "manual"` the runtime assumes a response's body is plain and
  * encodes it again to match `Content-Encoding`, so browsers decode one layer and read gzip bytes as JSON.
  */
 function passEncodedBody(response: Response): Response {
@@ -69,7 +69,7 @@ app.route(
 	}),
 );
 
-// Strangler fallback: routes not migrated yet are still served by the Durable Object's own app.
+// Strangler fallback: the admin routes (step 6) and the decision pages are still served by the Durable Object's own fetch.
 app.all("/api/*", async (c) => c.var.stub.fetch(c.req.raw));
 
 app.all("*", async (c) => c.env.ASSETS.fetch(c.req.raw));

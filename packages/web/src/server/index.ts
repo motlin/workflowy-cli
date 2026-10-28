@@ -1,7 +1,7 @@
 import {serve} from "@hono/node-server";
 import {createNodeWebSocket} from "@hono/node-ws";
 import {createApp} from "./app.js";
-import {createHttpRoutes} from "./http/app.js";
+import {createHttpApp} from "./http/app.js";
 import {inProcessStore} from "./store.js";
 import {httpLoggingEnabled, loggingFetch} from "./http-logger.js";
 import {createServerContext} from "./node-context.js";
@@ -19,11 +19,9 @@ if (httpLoggingEnabled(process.env)) {
 
 // Composition root: build the server context once and expose it to every router.
 const serverContext = createServerContext();
-const store = inProcessStore(serverContext);
-const app = createApp(serverContext, {
-	corsOrigin: "http://localhost:5173",
-	httpRoutes: createHttpRoutes(() => store),
-});
+const store = inProcessStore(serverContext, undefined, {keepSnapshotWarm: serverContext.config.features.treeSnapshot});
+const app = createHttpApp({resolveStore: () => store, corsOrigin: "http://localhost:5173"});
+app.route("/", createApp(serverContext));
 
 /**
  * Every ladder write, streamed as one frame per write. Monitor's `ws:` source

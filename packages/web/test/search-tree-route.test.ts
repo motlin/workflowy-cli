@@ -6,7 +6,11 @@ import {mkdtempSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
-import {Hono} from "hono";
+import {z} from "zod";
+import {buildServerContext} from "../src/server/context.js";
+import {LadderEventBus} from "../src/server/ladder-events.js";
+import {defineOp, ok} from "../src/server/ops/define.js";
+import {inProcessStore} from "../src/server/store.js";
 import * as schema from "@workflowy/shared/db";
 import {aiMetadata, mirrors, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
@@ -18,7 +22,6 @@ import {
 	queryNeedsBacklinks,
 	peekTreeSnapshotBuild,
 	peekTreeSnapshotRows,
-	rebuildTreeSnapshotAfterWrites,
 	scheduleTreeSnapshotRebuild,
 	warmTreeSnapshot,
 	bindTreeHost,
@@ -369,26 +372,40 @@ describe("loadTreeRows", () => {
 		expect(idSet(loadTreeRows(db, null))).toStrictEqual(new Set(["a", "a1", "mirror", "other", "root"]));
 	});
 
-	it("schedules a rebuild after a request that wrote, not after one that only read", async () => {
+	it("schedules a rebuild after an op that wrote, not after one that only read", async () => {
 		vi.useFakeTimers();
 		const path = tempPath();
 		const db = setup(path);
 		const other = connect(path);
-		const app = new Hono();
-		app.use(
-			"/*",
-			rebuildTreeSnapshotAfterWrites(() => db),
+		const store = inProcessStore(
+			buildServerContext({
+				db,
+				config: {
+					accountEmail: "",
+					sqlQueryLogging: false,
+					calendarEnsureEnabled: false,
+					calendarLayoutEnabled: false,
+					features: {embeddings: false, treeSnapshot: true},
+				},
+				ladderEvents: new LadderEventBus(),
+			}),
+			{
+				read: defineOp({input: z.object({}), run: () => ok(loadTreeRows(db, null).length)}),
+				write: defineOp({
+					input: z.object({}),
+					run: () => {
+						insertNode(db, "mine", "root", "Mine");
+						return ok(null);
+					},
+				}),
+			},
+			{keepSnapshotWarm: true},
 		);
-		app.post("/read", (c) => c.json(loadTreeRows(db, null).length));
-		app.post("/write", (c) => {
-			insertNode(db, "mine", "root", "Mine");
-			return c.body(null, 204);
-		});
 		const first = loadTreeRows(db, null);
 		insertNode(other, "theirs", "root", "Theirs");
-		await app.request("/read", {method: "POST"});
+		await store.call("read" as never, {} as never);
 		vi.advanceTimersByTime(400);
-		await app.request("/write", {method: "POST"});
+		await store.call("write" as never, {} as never);
 		vi.advanceTimersByTime(400);
 		expect(peekTreeSnapshotRows(db)).toBe(first);
 		vi.advanceTimersByTime(100);
