@@ -9,6 +9,7 @@ import * as schema from "@workflowy/shared/db";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const createNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["createNode"]>());
 const moveNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["moveNode"]>());
@@ -103,6 +104,7 @@ function setup(configured: boolean) {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	const post = async (path: string, body: unknown) =>
 		app.fetch(

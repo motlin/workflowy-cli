@@ -10,6 +10,7 @@ import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {nodesRouter} from "../src/server/routes/nodes.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 
@@ -46,6 +47,7 @@ function setup() {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	return app;
 }

@@ -6,6 +6,7 @@ import {Hono} from "hono";
 import {join} from "node:path";
 import * as schema from "@workflowy/shared/db";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const {CacheService} = await import("@workflowy/shared/cache");
 const {nodesRouter} = await import("../src/server/routes/nodes.js");
@@ -30,6 +31,7 @@ describe("GET /api/v1/nodes/:id with a virtual location id", () => {
 			c.set("ctx", ctx);
 			await next();
 		});
+		app.route("/", httpAppFor(ctx));
 		app.route("/api/v1/nodes", nodesRouter);
 
 		const res = await app.fetch(new Request(`http://x/api/v1/nodes/v_c910f3eac9b3_${MIRROR.slice(-12)}_0e9f`));
@@ -71,6 +73,7 @@ describe("GET /api/v1/nodes/:id/ancestors with a virtual location id", () => {
 			c.set("ctx", ctx);
 			await next();
 		});
+		app.route("/", httpAppFor(ctx));
 		app.route("/api/v1/nodes", nodesRouter);
 		const ids = async (id: string) => {
 			const res = await app.fetch(new Request(`http://x/api/v1/nodes/${id}/ancestors`));

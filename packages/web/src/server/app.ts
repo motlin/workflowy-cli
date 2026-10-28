@@ -2,13 +2,18 @@ import {Hono} from "hono";
 import {cors} from "hono/cors";
 import {apiCompression} from "./compression.js";
 import type {AppEnv, ServerContext} from "./context.js";
-import {homeRouter, nodesRouter} from "./routes/nodes.js";
+import {nodesRouter} from "./routes/nodes.js";
 import {createDecisionsRouter} from "./routes/decisions.js";
 import {rebuildTreeSnapshotAfterWrites} from "./tree-snapshot.js";
 
 export interface AppOptions {
 	/** Browser origin allowed by CORS (the Vite dev server); omitted when the page is served same-origin. */
 	corsOrigin?: string;
+	/**
+	 * The migrated HTTP routes, mounted ahead of the remaining routers: `POST /nodes/:id` would otherwise answer
+	 * the fixed paths (`/children`, `/view`, `/export-tree`) that the migrated routes own.
+	 */
+	httpRoutes?: Hono;
 }
 
 /**
@@ -45,8 +50,10 @@ export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<Ap
 	}
 
 	// Mount API routes
+	if (options.httpRoutes !== undefined) {
+		app.route("/", options.httpRoutes);
+	}
 	app.route("/api/v1/nodes", nodesRouter);
-	app.route("/api/v1/home", homeRouter);
 	app.route("/api/v1/decisions", createDecisionsRouter());
 
 	app.get("/health", (c) => c.json({status: "ok"}));

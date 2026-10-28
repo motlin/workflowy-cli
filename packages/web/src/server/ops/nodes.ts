@@ -1,0 +1,733 @@
+import {z} from "zod";
+import {NodeReader, NodeTreeReader, effectiveCompletedAt} from "@workflowy/shared/cache";
+import {mirrors as mirrorsTable, nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import type {Node} from "@workflowy/shared/types";
+import {HOME_TARGET} from "@workflowy/shared/types";
+import {isShortId, parseVirtualShortId} from "@workflowy/shared/workflowy";
+import {and, eq} from "drizzle-orm";
+import type {
+	BacklinkCrumb,
+	BacklinksResponse,
+	FoundDatesResponse,
+	NodeChangesResponse,
+	NodeResponse,
+	OutlineViewList,
+	OutlineViewResponse,
+} from "../../node-types.js";
+import {
+	childFlags,
+	currentBacklinkSources,
+	findReferencesRoot,
+	findReferencesRoots,
+	notReferencesRoot,
+	referencesRootLabel,
+} from "../backlinks.js";
+import {loadCalendarInfo} from "../calendar-day.js";
+import {findFoundDates} from "../calendar-found.js";
+import type {ServerContext} from "../context.js";
+import type {MirrorInstance} from "../../mirror-path.js";
+import {childInstance, expansionId} from "../../mirror-path.js";
+import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
+import {changedNodeIds, changedPlacement, changesSince, latestSystemTime, readConsistently} from "../system-changes.js";
+import {defineOp, fail, jsonOf, ok} from "./define.js";
+import {
+	getAdapter,
+	getWriteClient,
+	loadInternalMetadataFields,
+	nodeToRestDto,
+	readChildDtoLists,
+	readChildDtos,
+	readNodeDto,
+	resolveMirrorToOriginal,
+	resolveMirrorsToOriginals,
+	resolveNodeId,
+	toUnixSeconds,
+} from "./nodes-shared.js";
+
+const IdInput = z.object({id: z.string()});
+
+// GET /api/v1/nodes - List children (or root nodes if no parent_id; accepts short IDs)
+export const nodesList = defineOp({
+	input: z.object({parentId: z.string().optional()}),
+	run(ctx, {parentId: parentIdParam}) {
+		// Workflowy API accepts "None" for top-level nodes, or omitting the param
+		let parentId = parentIdParam === "None" || parentIdParam === "" ? null : (parentIdParam ?? null);
+
+		// Resolve short ID to full UUID if needed
+		if (parentId) {
+			const resolved = resolveNodeId(ctx, parentId);
+			if (!resolved) {
+				return fail(404, {error: "Parent node not found"});
+			}
+			// If the node is a mirror, fetch the original's children
+			parentId = resolveMirrorToOriginal(ctx, resolved);
+		}
+
+		return ok(jsonOf({nodes: readChildDtos(ctx, parentId)}));
+	},
+});
+
+// POST /api/v1/nodes/children - The children of many parents in one round trip, keyed by the requested id. A
+// mirror lists its original's children; an unresolvable short id is left out. Spares the client one GET per expanded row.
+export const nodesChildren = defineOp({
+	input: z.object({parentIds: z.array(z.string())}),
+	run(ctx, {parentIds}) {
+		const requestedToResolved = new Map<string, string>();
+		for (const requested of new Set(parentIds)) {
+			const resolved = resolveNodeId(ctx, requested);
+			if (resolved !== null) {
+				requestedToResolved.set(requested, resolved);
+			}
+		}
+		const originals = resolveMirrorsToOriginals(ctx, [...requestedToResolved.values()]);
+		const requestedToParent = new Map(
+			[...requestedToResolved].map(([requested, resolved]) => [requested, originals.get(resolved) ?? resolved]),
+		);
+		const lists = readChildDtoLists(ctx, [...requestedToParent.values()]);
+		return ok(
+			jsonOf({
+				children: Object.fromEntries(
+					[...requestedToParent].map(([requested, parent]) => [requested, lists.get(parent) ?? []]),
+				),
+			}),
+		);
+	},
+});
+
+/** The most changed nodes a changes read lists; past it the client refetches everything. */
+const CHANGES_LIMIT = 500;
+
+/**
+ * What changed after the high-water mark `since` (none: only the mark): the changed ids, which of them are gone, and
+ * the refreshed children of every parent they sit under now or left. One consistent read, and every concern is read
+ * once for the whole id set, so the statement count does not grow with how much changed.
+ */
+function readNodeChanges(ctx: ServerContext, since: string | undefined): NodeChangesResponse {
+	return readConsistently(ctx.db, () => {
+		const latest = latestSystemTime(ctx.db);
+		const none = {latest, reset: false, changedIds: [], deletedIds: [], children: []};
+		if (since === undefined) {
+			return none;
+		}
+		const from = changesSince(since);
+		const changed = changedNodeIds(ctx.db, from, CHANGES_LIMIT);
+		if (changed === undefined) {
+			return {...none, reset: true};
+		}
+		const changedIds = [...changed];
+		const {parents, formerParents} = changedPlacement(ctx.db, changedIds, from);
+		const deletedIds = changedIds.filter((id) => !parents.has(id));
+		const gone = new Set(deletedIds);
+		const parentIds = [...new Set([...parents.values(), ...formerParents])].filter(
+			(id) => id === null || !gone.has(id),
+		);
+		const lists = readChildDtoLists(ctx, parentIds);
+		return {
+			latest,
+			reset: false,
+			changedIds,
+			deletedIds,
+			children: parentIds.map((parentId) => ({parentId, nodes: lists.get(parentId) ?? []})),
+		};
+	});
+}
+
+// GET /api/v1/nodes/changes?since=<mark> - What changed in the tree after a high-water mark (see `readNodeChanges`).
+// The client asks this after each write instead of refetching every node query; with no `since` it answers the mark.
+export const nodesChanges = defineOp({
+	input: z.object({since: z.string().optional()}),
+	run(ctx, {since}) {
+		return ok(jsonOf(readNodeChanges(ctx, since === "" ? undefined : since)));
+	},
+});
+
+// POST /api/v1/nodes/view - Everything an outline view under `rootId` first renders, in one round trip: the root's
+// children and, depth-first in document order, those of every expanded row the row budget reaches, each with its
+// Backlinks section (Home has none). Spares the client one children request per depth level and one backlinks GET
+// per expanded row, so a zoom swaps in the whole expanded view at once; a day page's view carries its Found Dates too.
+// `expandedIds: null` expands the account's expanded rows (none without the internal API) and answers which of the
+// listed rows those are, so the page load's first view need not wait on the client fetching the account's whole
+// expanded set.
+const ViewSchema = z.object({
+	rootId: z.string().nullable(),
+	expandedIds: z.array(z.string()).nullable(),
+	limit: z.number().int().nonnegative(),
+	showCompleted: z.boolean(),
+});
+
+export const nodesView = defineOp({
+	input: ViewSchema,
+	async run(ctx, body) {
+		const {rootId, limit, showCompleted} = body;
+		const resolvedRoot = rootId === null ? null : resolveNodeId(ctx, rootId);
+		if (rootId !== null && resolvedRoot === null) {
+			return fail(404, {error: "Node not found"});
+		}
+		const isExpanded = await viewExpansionTest(ctx, body.expandedIds);
+		const lists: OutlineViewList[] = [];
+		let used = 0;
+		// Each list read for the view, by the node whose children it holds (a mirror's original), filled a level at a
+		// time so the statement count follows the view's depth, not its row count.
+		const prefetched = new Map<string | null, {nodes: NodeResponse[]; backlinks: BacklinksResponse | null}>();
+		const originalOfId = new Map<string, string>();
+		await prefetchViewLevels(ctx, resolvedRoot, isExpanded, {limit, showCompleted}, prefetched, originalOfId);
+		// A parent's list is sent once however often it repeats, and a cyclical mirror instance is not expanded.
+		const listed = new Set<string | null>();
+		const visit = async (
+			parentId: string | null,
+			resolved: string | null,
+			instance: MirrorInstance | null,
+		): Promise<void> => {
+			const original =
+				resolved === null ? null : (originalOfId.get(resolved) ?? resolveMirrorToOriginal(ctx, resolved));
+			const hit = prefetched.get(original);
+			const nodes = hit?.nodes ?? readChildDtos(ctx, original);
+			if (!listed.has(parentId)) {
+				listed.add(parentId);
+				lists.push({
+					parentId,
+					nodes,
+					backlinks: resolved === null ? null : (hit?.backlinks ?? (await readBacklinks(ctx, resolved))),
+				});
+			}
+			for (const node of nodes) {
+				if (used >= limit) {
+					return;
+				}
+				if (!showCompleted && node.completedAt !== null) {
+					continue;
+				}
+				used += 1;
+				if (isExpanded(expansionId(node.id, instance))) {
+					await visit(node.id, node.id, childInstance(node, instance));
+				}
+			}
+		};
+		await visit(rootId, resolvedRoot, null);
+		const rootNode = resolvedRoot === null ? undefined : ctx.cacheService.getNode(resolvedRoot);
+		const foundDates = rootNode === undefined ? null : await readFoundDates(ctx, rootNode);
+		const response: OutlineViewResponse = {
+			lists,
+			...(body.expandedIds === null
+				? {expandedIds: lists.flatMap((list) => list.nodes.map((node) => node.id).filter(isExpanded))}
+				: {}),
+			...(foundDates === null ? {} : {foundDates}),
+		};
+		return ok(jsonOf(response));
+	},
+});
+
+/**
+ * Read the lists a view will show one level at a time: all of a level's parents in one batch, then the expanded rows
+ * among their children as the next level, until the row budget is spent. {@link visit} then finds each list ready.
+ */
+async function prefetchViewLevels(
+	ctx: ServerContext,
+	rootResolved: string | null,
+	isExpanded: (id: string) => boolean,
+	{limit, showCompleted}: {limit: number; showCompleted: boolean},
+	prefetched: Map<string | null, {nodes: NodeResponse[]; backlinks: BacklinksResponse | null}>,
+	originalOfId: Map<string, string>,
+): Promise<void> {
+	let level: {resolved: string | null; instance: MirrorInstance | null}[] = [
+		{resolved: rootResolved, instance: null},
+	];
+	let seen = 0;
+	while (level.length > 0 && seen < limit) {
+		const resolvedIds = [...new Set(level.flatMap(({resolved}) => resolved ?? []))];
+		const originals = resolveMirrorsToOriginals(ctx, resolvedIds);
+		for (const [id, original] of originals) {
+			originalOfId.set(id, original);
+		}
+		const originalOf = (resolved: string | null) =>
+			resolved === null ? null : (originals.get(resolved) ?? resolved);
+		const toRead = [...new Set(level.map(({resolved}) => originalOf(resolved)))].filter(
+			(original) => !prefetched.has(original),
+		);
+		const lists = readChildDtoLists(ctx, toRead);
+		const roots = findReferencesRoots(
+			ctx.db,
+			toRead.flatMap((original) => original ?? []),
+		);
+		for (const original of toRead) {
+			const rootId = original === null ? undefined : roots.get(original);
+			prefetched.set(original, {
+				nodes: lists.get(original) ?? [],
+				// Home has no Backlinks section; a node with no references root has an empty one.
+				backlinks:
+					original === null
+						? null
+						: rootId === undefined
+							? {rootId: null, items: []}
+							: await readBacklinks(ctx, original),
+			});
+		}
+		const next: typeof level = [];
+		for (const {resolved, instance} of level) {
+			for (const node of prefetched.get(originalOf(resolved))?.nodes ?? []) {
+				seen += 1;
+				if (!showCompleted && node.completedAt !== null) {
+					continue;
+				}
+				if (isExpanded(expansionId(node.id, instance))) {
+					next.push({resolved: node.id, instance: childInstance(node, instance)});
+				}
+			}
+		}
+		level = next;
+	}
+}
+
+/** The requested expanded ids, or for null the account's expansion (nothing without the internal API). */
+async function viewExpansionTest(ctx: ServerContext, expandedIds: string[] | null): Promise<(id: string) => boolean> {
+	if (expandedIds !== null) {
+		const ids = new Set(expandedIds);
+		return (id) => ids.has(id);
+	}
+	const adapter = ctx.internalAdapter?.();
+	return adapter === undefined ? () => false : adapter.expansionTest();
+}
+
+/** Fetch a node missing from the cache through the write-through client, cache it with its parent chain, and read it. */
+async function readUncachedNodeLive(ctx: ServerContext, id: string): Promise<NodeResponse | undefined> {
+	const client = getWriteClient(ctx);
+	if (client === undefined) {
+		return undefined;
+	}
+	try {
+		const live = await client.liveNode(id);
+		const parentId = live.parent_id ?? null;
+		if (parentId === null) {
+			ctx.cacheService.insertNode(live, null);
+		} else {
+			await client.refreshChain([parentId]);
+		}
+	} catch {
+		return undefined;
+	}
+	return readNodeDto(ctx, id);
+}
+
+// GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
+export const nodesGet = defineOp({
+	input: IdInput,
+	async run(ctx, {id: rawId}) {
+		const id = resolveNodeId(ctx, rawId);
+		if (!id) {
+			return fail(404, {error: "Node not found"});
+		}
+
+		let nodeResponse = await readNodeDto(ctx, id);
+		// A full uuid the cache lacks (a pasted link, a backlink to a node made elsewhere) is read live and cached with
+		// its parent chain. The API cannot resolve short ids, so those stay cache-only; a real 404 stays a 404.
+		if (nodeResponse === undefined && id === rawId && !isShortId(rawId)) {
+			nodeResponse = await readUncachedNodeLive(ctx, id);
+		}
+		if (nodeResponse === undefined) {
+			return fail(404, {error: "Node not found"});
+		}
+
+		// Wrap in { node: ... } to match Workflowy API format
+		return ok(jsonOf({node: nodeResponse}));
+	},
+});
+
+/** One node of `POST /export-tree`: the raw stored text and the fields the export formatters read. */
+interface ExportTreeItem {
+	id: string;
+	name: string;
+	note: string;
+	layoutMode: string | null;
+	numberedStart: number | null;
+	completed: boolean;
+	children: ExportTreeItem[];
+}
+
+/**
+ * `ids` and everything below them as export items. A mirror takes its original's text and children, and a mirror
+ * inside its own original's subtree stops there. Completed descendants are dropped unless `includeCompleted`;
+ * the roots always stay.
+ */
+async function readExportTree(ctx: ServerContext, ids: string[], includeCompleted: boolean): Promise<ExportTreeItem[]> {
+	const reader = new NodeTreeReader(ctx.cacheService);
+	const toItems = async (nodes: Node[], path: ReadonlySet<string>): Promise<ExportTreeItem[]> => {
+		const metadata = loadInternalMetadataFields(
+			ctx,
+			nodes.map((node) => node.id),
+		);
+		const items: ExportTreeItem[] = [];
+		for (const node of nodes) {
+			const fetchId = node.mirror.originalNodeId ?? node.id;
+			const below = new Set([...path, fetchId]);
+			const children = path.has(fetchId)
+				? []
+				: (await reader.readChildren(fetchId, {depth: 0})).filter(
+						(child) =>
+							!child.hasReferencesRoot &&
+							!child.inChat &&
+							(includeCompleted || child.completedAt === null),
+					);
+			items.push({
+				id: node.id,
+				name: node.name ?? "",
+				note: node.note ?? "",
+				layoutMode: node.layoutMode,
+				numberedStart: metadata.get(node.id)?.numberedStart ?? null,
+				completed: node.completedAt !== null,
+				children: await toItems(children, below),
+			});
+		}
+		return items;
+	};
+	return toItems(await reader.readNodes(ids, {depth: 0}), new Set());
+}
+
+// POST /api/v1/nodes/export-tree - The subtrees the export dialog formats, in one round trip
+export const nodesExportTree = defineOp({
+	input: z.object({ids: z.array(z.string()), includeCompleted: z.unknown().optional()}),
+	async run(ctx, {ids, includeCompleted}) {
+		const resolved = ids.flatMap((id) => resolveNodeId(ctx, id) ?? []);
+		return ok(jsonOf({items: await readExportTree(ctx, resolved, includeCompleted === true)}));
+	},
+});
+
+/** One descendant row of `GET /:id/subtree-ids`; `parentId` is the row it renders under (a mirror, not its original). */
+interface SubtreeItem {
+	id: string;
+	parentId: string | null;
+	completed: boolean;
+	hasChildren: boolean;
+}
+
+/** Every current node's parent and completion in sibling order, plus each mirror's original, in two queries. */
+function readTreeShape(ctx: ServerContext) {
+	const rows = ctx.db
+		.select({
+			id: nodeContent.id,
+			parentId: nodeContent.parentId,
+			completedAt: effectiveCompletedAt(nodeContent.id, nodeMetadata.completedAt),
+		})
+		.from(nodeContent)
+		.leftJoin(
+			nodeMetadata,
+			and(eq(nodeMetadata.nodeId, nodeContent.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+		)
+		.where(and(eq(nodeContent.systemTo, FAR_FUTURE_DATE), notReferencesRoot()))
+		.orderBy(nodeMetadata.priority, nodeMetadata.createdAt)
+		.all();
+	const children = new Map<string | null, {id: string; completed: boolean}[]>();
+	for (const row of rows) {
+		const siblings = children.get(row.parentId) ?? [];
+		siblings.push({id: row.id, completed: row.completedAt !== null});
+		children.set(row.parentId, siblings);
+	}
+	const originals = new Map(
+		ctx.db
+			.select({mirrorId: mirrorsTable.mirrorId, originalId: mirrorsTable.originalId})
+			.from(mirrorsTable)
+			.where(eq(mirrorsTable.systemTo, FAR_FUTURE_DATE))
+			.all()
+			.map((row) => [row.mirrorId, row.originalId]),
+	);
+	return {children, originals};
+}
+
+/** Every cached descendant of `rootId` (Home's tree for null) in depth-first outline order. */
+function readSubtreeItems(ctx: ServerContext, rootId: string | null): SubtreeItem[] {
+	const {children, originals} = readTreeShape(ctx);
+	const items: SubtreeItem[] = [];
+	// `path` holds the originals on the way down, so a mirror inside its own original's subtree stops there.
+	const walk = (parentId: string | null, childrenOf: string | null, path: ReadonlySet<string>) => {
+		for (const child of children.get(childrenOf) ?? []) {
+			const original = originals.get(child.id) ?? child.id;
+			const hasChildren = children.has(original);
+			items.push({id: child.id, parentId, completed: child.completed, hasChildren});
+			if (hasChildren && !path.has(original)) {
+				walk(child.id, original, new Set([...path, original]));
+			}
+		}
+	};
+	const rootOriginal = rootId === null ? null : (originals.get(rootId) ?? rootId);
+	walk(rootId, rootOriginal, new Set(rootOriginal === null ? [] : [rootOriginal]));
+	return items;
+}
+
+// GET /api/v1/nodes/:id/subtree-ids - Every cached descendant of the node ("home" = the whole tree), for Expand/Collapse all
+export const nodesSubtreeIds = defineOp({
+	input: IdInput,
+	run(ctx, {id: rawId}) {
+		if (rawId === HOME_TARGET) {
+			return ok(jsonOf({items: readSubtreeItems(ctx, null)}));
+		}
+		const id = resolveNodeId(ctx, rawId);
+		if (id === null || ctx.cacheService.getNode(id) === undefined) {
+			return fail(404, {error: "Node not found"});
+		}
+		return ok(jsonOf({items: readSubtreeItems(ctx, id)}));
+	},
+});
+
+// GET /api/v1/nodes/:id/ancestors - Get all ancestors from root to node
+export const nodesAncestors = defineOp({
+	input: IdInput,
+	run(ctx, {id: rawId}) {
+		const id = resolveNodeId(ctx, rawId);
+		if (!id) {
+			return fail(404, {error: "Node not found"});
+		}
+
+		const reader = new NodeReader(ctx.db);
+
+		// Build ancestor chain by following parent_id pointers
+		type Chain = NonNullable<ReturnType<NodeReader["getById"]>>[];
+		const chainTo = (nodeId: string): Chain => {
+			const links: Chain = [];
+			let currentId: string | null = nodeId;
+			while (currentId !== null) {
+				const node = reader.getById(currentId);
+				if (!node) {
+					break;
+				}
+				links.unshift(node);
+				currentId = node.parentId;
+			}
+			return links;
+		};
+		let chain = chainTo(id);
+
+		// A row inside a mirror (`v_<child12>_<mirror12>[_<path>]`): the mirror's ancestors and the mirror, then the rows
+		// below its original down to the row.
+		const virtual = parseVirtualShortId(rawId);
+		const mirrorId = virtual === null ? null : ctx.cacheService.resolveShortIdToUuid(virtual.mirrorShortId);
+		const originalId = mirrorId === null ? null : ctx.cacheService.getMirrorOriginal(mirrorId);
+		if (mirrorId !== null && originalId !== null) {
+			const originalIndex = chain.findIndex((node) => node.id === originalId);
+			if (originalIndex !== -1) {
+				chain = [...chainTo(mirrorId), ...chain.slice(originalIndex + 1)];
+			}
+		}
+
+		// A day page reads the calendar root's settings (Friendly day names) from its ancestors.
+		const calendar = loadCalendarInfo({db: ctx.db, cache: ctx.cacheService}, chain);
+		const ancestors: NodeResponse[] = chain.map((node) => ({
+			...nodeToRestDto(node, {
+				hasChildren: true,
+				hasUncompletedChildren: true,
+				// A references root reads "N Backlinks", never "Untitled" (upstream `displayLabel`).
+				name: referencesRootLabel(ctx.db, node.id) ?? node.name,
+				note: node.note,
+				calendar: calendar.get(node.id),
+			}),
+			isMirror: false,
+			originalNodeId: null,
+		}));
+
+		return ok(jsonOf({ancestors}));
+	},
+});
+
+// GET /api/v1/nodes/:id/backlinks - The item's Backlinks section: its references root
+// and the backlink items whose source is current, each with the source's text and crumbs.
+export const nodesBacklinks = defineOp({
+	input: IdInput,
+	async run(ctx, {id: rawId}) {
+		const id = resolveNodeId(ctx, rawId);
+		if (!id) {
+			return fail(404, {error: "Node not found"});
+		}
+		return ok(jsonOf(await readBacklinks(ctx, id)));
+	},
+});
+
+/** The Backlinks section of the resolved node `id` (a mirror shows its original's). */
+async function readBacklinks(ctx: ServerContext, id: string): Promise<BacklinksResponse> {
+	const {db} = ctx;
+	const rootId = findReferencesRoot(db, resolveMirrorToOriginal(ctx, id));
+	if (rootId === null) {
+		return {rootId: null, items: []};
+	}
+
+	const sourceByItem = currentBacklinkSources(db, rootId);
+	const entries = (await new NodeTreeReader(ctx.cacheService).readChildren(rootId, {depth: 0})).flatMap((item) => {
+		const sourceId = sourceByItem.get(item.id);
+		return sourceId === undefined ? [] : [{item, sourceId}];
+	});
+	const sourceIds = entries.map(({sourceId}) => sourceId);
+	const sources = new Map(
+		(await new NodeTreeReader(ctx.cacheService).readNodes(sourceIds, {depth: 0})).map((source) => [
+			source.id,
+			source,
+		]),
+	);
+	const flags = childFlags(db, sourceIds);
+	const reader = new NodeReader(db);
+
+	const crumbsOf = (sourceId: string): BacklinkCrumb[] => {
+		const crumbs: BacklinkCrumb[] = [];
+		let currentId = reader.getById(sourceId)?.parentId ?? null;
+		while (currentId !== null) {
+			const ancestor = reader.getById(currentId);
+			if (!ancestor) {
+				break;
+			}
+			crumbs.unshift({id: ancestor.id, name: referencesRootLabel(db, ancestor.id) ?? ancestor.name ?? ""});
+			currentId = ancestor.parentId;
+		}
+		return crumbs;
+	};
+
+	const body: BacklinksResponse = {
+		rootId,
+		items: entries.flatMap(({item, sourceId}) => {
+			const source = sources.get(sourceId);
+			if (!source) {
+				return [];
+			}
+			return [
+				{
+					node: {
+						...nodeToRestDto(item, {
+							hasChildren: flags.withChildren.has(sourceId),
+							hasUncompletedChildren: flags.withUncompletedChildren.has(sourceId),
+							name: source.name,
+							note: source.note,
+						}),
+						completedAt: toUnixSeconds(source.completedAt),
+						isMirror: true,
+						originalNodeId: sourceId,
+					},
+					sourceId,
+					crumbs: crumbsOf(sourceId),
+				},
+			];
+		}),
+	};
+	return body;
+}
+
+// GET /api/v1/nodes/:id/found-dates - A day page's Found Dates section: the nodes
+// elsewhere whose <time> covers the day, each as a mirror row of itself with its crumbs.
+export const nodesFoundDates = defineOp({
+	input: IdInput,
+	async run(ctx, {id: rawId}) {
+		const id = resolveNodeId(ctx, rawId);
+		const node = id === null ? undefined : ctx.cacheService.getNode(id);
+		if (!node) {
+			return fail(404, {error: "Node not found"});
+		}
+		return ok(jsonOf((await readFoundDates(ctx, node)) ?? {items: []}));
+	},
+});
+
+/** `node`'s Found Dates section when it is a day page, else null. */
+async function readFoundDates(ctx: ServerContext, node: Node): Promise<FoundDatesResponse | null> {
+	const deps = {db: ctx.db, cache: ctx.cacheService};
+	const calendar = loadCalendarInfo(deps, [node]).get(node.id);
+	if (calendar?.level !== "day") {
+		return null;
+	}
+	const found = calendar.dateId === null ? [] : findFoundDates(deps, node.id, calendar.dateId);
+	const ids = found.map((item) => item.id);
+	const trees = new Map(
+		(await new NodeTreeReader(ctx.cacheService).readNodes(ids, {depth: 0})).map((tree) => [tree.id, tree]),
+	);
+	const flags = childFlags(ctx.db, ids);
+	return {
+		items: found.flatMap(({id: foundId, crumbs}) => {
+			const tree = trees.get(foundId);
+			return tree
+				? [
+						{
+							node: {
+								...nodeToRestDto(tree, {
+									hasChildren: flags.withChildren.has(foundId),
+									hasUncompletedChildren: flags.withUncompletedChildren.has(foundId),
+									name: tree.name,
+									note: tree.note,
+								}),
+								isMirror: true,
+								originalNodeId: foundId,
+							},
+							crumbs,
+						},
+					]
+				: [];
+		}),
+	};
+}
+
+// GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)
+export const nodesMirrors = defineOp({
+	input: IdInput,
+	run(ctx, {id: rawId}) {
+		const id = resolveNodeId(ctx, rawId);
+		if (!id) {
+			return fail(404, {error: "Node not found"});
+		}
+
+		const {db} = ctx;
+		const reader = new NodeReader(db);
+
+		// First, resolve to the original node (in case we were given a mirror ID)
+		const originalId = resolveMirrorToOriginal(ctx, id);
+
+		// Find all mirrors of the original node
+		const mirrorRows = db
+			.select({mirrorId: mirrorsTable.mirrorId})
+			.from(mirrorsTable)
+			.where(and(eq(mirrorsTable.originalId, originalId), eq(mirrorsTable.systemTo, FAR_FUTURE_DATE)))
+			.all();
+
+		// Collect all node IDs: the original + all mirrors
+		const allIds = [originalId, ...mirrorRows.map((r) => r.mirrorId)];
+
+		// A mirror's text always comes from its original.
+		const nodeName = (reader.getById(originalId)?.name ?? "") || "Untitled";
+
+		// Helper to build ancestor breadcrumb path for a node
+		function getAncestorPath(nodeId: string): {id: string; name: string}[] {
+			const path: {id: string; name: string}[] = [];
+			let currentId: string | null = nodeId;
+			while (currentId !== null) {
+				const node = reader.getById(currentId);
+				if (!node) {
+					break;
+				}
+				path.unshift({id: node.id, name: node.name ?? "Untitled"});
+				currentId = node.parentId;
+			}
+			return path;
+		}
+
+		// For each location, build the full ancestor path
+		const locations = [];
+		for (const nodeId of allIds) {
+			const path = getAncestorPath(nodeId);
+			locations.push({
+				id: nodeId,
+				path,
+				isOriginal: nodeId === originalId,
+			});
+		}
+
+		return ok({
+			mirrors: locations,
+			originalId,
+			nodeName,
+		});
+	},
+});
+
+// GET /api/v1/home - Home's layoutMode, read from the root metadata ("bullets" when unset)
+export const homeGet = defineOp({
+	input: z.object({}),
+	async run(ctx) {
+		const adapter = getAdapter(ctx);
+		if (!adapter) {
+			return fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
+		}
+		const layoutMode = await adapter.getRootMeta(["layoutMode"]);
+		return ok(jsonOf({layoutMode: typeof layoutMode === "string" ? layoutMode : "bullets"}));
+	},
+});

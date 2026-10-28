@@ -9,6 +9,7 @@ import * as schema from "@workflowy/shared/db";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const updateNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["updateNode"]>());
 const deleteNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["deleteNode"]>());
@@ -25,7 +26,7 @@ vi.mock("@workflowy/shared/cache", async (importOriginal) => {
 });
 
 const {CacheService} = await import("@workflowy/shared/cache");
-const {homeRouter, nodesRouter} = await import("../src/server/routes/nodes.js");
+const {nodesRouter} = await import("../src/server/routes/nodes.js");
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const NOT_CONFIGURED =
@@ -128,8 +129,8 @@ function setup(configured: boolean, rootLayoutMode?: string) {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
-	app.route("/api/v1/home", homeRouter);
 	const request = async (method: string, path: string, body?: unknown) => {
 		const res = await app.fetch(
 			new Request(`http://x/api/v1${path}`, {

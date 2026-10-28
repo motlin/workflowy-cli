@@ -7,7 +7,7 @@
 import {z} from "zod";
 import type {NodeAttachment} from "../../node-types.js";
 import type {ServerContext} from "../context.js";
-import {loadAttachments, resolveNodeId} from "../routes/nodes.js";
+import {loadAttachments, resolveNodeId} from "./nodes-shared.js";
 import {defineOp, fail, ok} from "./define.js";
 
 const SIGNED_URL_TTL_MS = 10 * 60_000;

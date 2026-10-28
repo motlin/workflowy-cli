@@ -2,6 +2,7 @@ import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {Hono} from "hono";
 import type * as SharedCache from "@workflowy/shared/cache";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const createNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["createNode"]>());
 
@@ -28,6 +29,7 @@ function makeApp() {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	return app;
 }

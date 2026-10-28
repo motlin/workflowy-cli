@@ -12,7 +12,7 @@ import type {StarNodes, WorkflowyInternalAdapter} from "@workflowy/shared/intern
 import type {ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
 import type {NodeResponse} from "../../node-types.js";
-import {readNodeDto} from "../routes/nodes.js";
+import {readNodeDto} from "./nodes-shared.js";
 import {defineOp, fail, jsonOf, ok} from "./define.js";
 import type {OpResult} from "./define.js";
 

@@ -9,6 +9,7 @@ import {formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import type {NodeChangesResponse} from "../src/node-types.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const {CacheService} = await import("@workflowy/shared/cache");
 const {nodesRouter} = await import("../src/server/routes/nodes.js");
@@ -45,6 +46,7 @@ function setup(parents: number) {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	const changes = async (since: string | null) => {
 		const before = statements;

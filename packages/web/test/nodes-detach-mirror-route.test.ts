@@ -10,6 +10,7 @@ import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const deleteNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["deleteNode"]>());
 
@@ -93,6 +94,7 @@ function setup(expanded: string[] = []) {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	const post = async (path: string) => app.fetch(new Request(`http://x/api/v1/nodes${path}`, {method: "POST"}));
 	return {createTreesAt, setExpanded, cacheService, post};

@@ -8,6 +8,7 @@ import * as schema from "@workflowy/shared/db";
 import type * as SharedCache from "@workflowy/shared/cache";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const FULL = "11111111-2222-3333-4444-555555555555";
 const GONE = "99999999-2222-3333-4444-555555555555";
@@ -76,6 +77,7 @@ function setup() {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	return {cacheService, get: async (id: string) => app.fetch(new Request(`http://x/api/v1/nodes/${id}`))};
 }

@@ -28,6 +28,7 @@ import {applyOps, whenUndoSettled} from "../src/client/undo-batch.js";
 import {previewUndoOps} from "../src/client/undo-cache.js";
 import {undoHistory} from "../src/client/undo-history.js";
 import {fakeAdapter, resetFakeWorkflowy} from "./helpers/fake-workflowy.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const outlineState = {
 	zoomedNodeId: null,
@@ -128,6 +129,7 @@ function server(): Hono<AppEnv> {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	return app;
 }

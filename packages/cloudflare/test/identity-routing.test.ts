@@ -180,5 +180,22 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		expect(relatedViaDo.status).toBe(404);
 		expect(relatedViaWorker.status).toBe(400);
 		await expect(relatedViaWorker.json()).resolves.toStrictEqual({error: "nodeId is required"});
+
+		const nodesViaDo = await stub.fetch("http://localhost/api/v1/nodes");
+		const nodesViaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/nodes", {
+			headers: {"Cf-Access-Jwt-Assertion": jwt},
+		});
+		expect(nodesViaDo.status).toBe(404);
+		expect(nodesViaWorker.status).toBe(200);
+		await expect(nodesViaWorker.json()).resolves.toStrictEqual({nodes: []});
+		const viewViaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/nodes/view", {
+			method: "POST",
+			headers: {"content-type": "application/json", "Cf-Access-Jwt-Assertion": jwt},
+			body: JSON.stringify({rootId: null, expandedIds: null, limit: 10}),
+		});
+		expect(viewViaWorker.status).toBe(400);
+		await expect(viewViaWorker.json()).resolves.toStrictEqual({
+			error: "body must be {rootId, expandedIds, limit, showCompleted}",
+		});
 	});
 });

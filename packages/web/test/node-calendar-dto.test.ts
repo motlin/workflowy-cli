@@ -9,6 +9,7 @@ import * as schema from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {nodesRouter} from "../src/server/routes/nodes.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 
@@ -86,6 +87,7 @@ function setup({taggedRoot = true}: {taggedRoot?: boolean} = {}) {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	return async (path: string): Promise<unknown> =>
 		(await app.fetch(new Request(`http://x/api/v1${path}`))).json() as Promise<unknown>;

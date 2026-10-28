@@ -7,6 +7,20 @@ import {expansionGet, expansionLeftBarGet, expansionLeftBarPatch, expansionPatch
 import {filesSignedUrl} from "./files.js";
 import {featuresGet, featuresSet} from "./features.js";
 import {ladderOps} from "./ladder.js";
+import {
+	homeGet,
+	nodesAncestors,
+	nodesBacklinks,
+	nodesChanges,
+	nodesChildren,
+	nodesExportTree,
+	nodesFoundDates,
+	nodesGet,
+	nodesList,
+	nodesMirrors,
+	nodesSubtreeIds,
+	nodesView,
+} from "./nodes.js";
 import {preferencesGet, preferencesPatch} from "./preferences.js";
 import {relatedFind} from "./related.js";
 import {searchHelpers, searchLocations, searchSwitcher, searchText, searchTree} from "./search.js";
@@ -28,7 +42,19 @@ export const Ops = {
 	"files.signedUrl": filesSignedUrl,
 	"features.get": featuresGet,
 	"features.set": featuresSet,
+	"home.get": homeGet,
 	...ladderOps,
+	"nodes.ancestors": nodesAncestors,
+	"nodes.backlinks": nodesBacklinks,
+	"nodes.changes": nodesChanges,
+	"nodes.children": nodesChildren,
+	"nodes.exportTree": nodesExportTree,
+	"nodes.foundDates": nodesFoundDates,
+	"nodes.get": nodesGet,
+	"nodes.list": nodesList,
+	"nodes.mirrors": nodesMirrors,
+	"nodes.subtreeIds": nodesSubtreeIds,
+	"nodes.view": nodesView,
 	"preferences.get": preferencesGet,
 	"preferences.patch": preferencesPatch,
 	"related.find": relatedFind,

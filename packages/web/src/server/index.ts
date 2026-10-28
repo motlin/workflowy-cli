@@ -19,12 +19,11 @@ if (httpLoggingEnabled(process.env)) {
 
 // Composition root: build the server context once and expose it to every router.
 const serverContext = createServerContext();
-const app = createApp(serverContext, {corsOrigin: "http://localhost:5173"});
 const store = inProcessStore(serverContext);
-app.route(
-	"/",
-	createHttpRoutes(() => store),
-);
+const app = createApp(serverContext, {
+	corsOrigin: "http://localhost:5173",
+	httpRoutes: createHttpRoutes(() => store),
+});
 
 /**
  * Every ladder write, streamed as one frame per write. Monitor's `ws:` source

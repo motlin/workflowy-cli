@@ -8,6 +8,7 @@ import * as schema from "@workflowy/shared/db";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const {CacheService} = await import("@workflowy/shared/cache");
 const {WorkflowyApiClient} = await import("@workflowy/shared/api");
@@ -83,6 +84,7 @@ function setup() {
 		c.set("ctx", ctx);
 		await next();
 	});
+	app.route("/", httpAppFor(ctx));
 	app.route("/api/v1/nodes", nodesRouter);
 	const request = async (method: string, path: string) => {
 		const res = await app.fetch(new Request(`http://x/api/v1/nodes${path}`, {method}));
