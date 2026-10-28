@@ -147,6 +147,100 @@ describe("shared API import", () => {
 		expect(snapshot(db).content).toHaveLength(7);
 	});
 
+	describe("sibling priority numbering schemes", () => {
+		// Backup imports number siblings 0,100,200 while REST numbers them 0,1,2 for the
+		// same order; re-importing one scheme over the other must not open versions.
+		const parent = apiNode("p", {priority: 0});
+		const backupScheme = [
+			parent,
+			apiNode("x", {parent_id: "p", priority: 0}),
+			apiNode("y", {parent_id: "p", priority: 100}),
+			apiNode("z", {parent_id: "p", priority: 200}),
+		];
+		const restScheme = [
+			parent,
+			apiNode("x", {parent_id: "p", priority: 0}),
+			apiNode("y", {parent_id: "p", priority: 1}),
+			apiNode("z", {parent_id: "p", priority: 2}),
+		];
+
+		function priorities(db: ReturnType<typeof createDb>) {
+			return db
+				.select()
+				.from(schema.nodeMetadata)
+				.all()
+				.filter((row) => row.systemTo === FAR_FUTURE_DATE && row.nodeId !== "p")
+				.toSorted((x, y) => x.nodeId.localeCompare(y.nodeId))
+				.map((row) => [row.nodeId, row.priority]);
+		}
+
+		function versionCount(db: ReturnType<typeof createDb>) {
+			return db.select().from(schema.nodeMetadata).all().length;
+		}
+
+		it("opens no version when the same sibling order arrives in another numbering", () => {
+			const db = createDb();
+			importFromApi(db, backupScheme, {timestamp: T0});
+			const result = importFromApi(db, restScheme, {timestamp: T1});
+
+			expect({
+				versions: versionCount(db),
+				priorities: priorities(db),
+				metadataUpdated: result.metadataUpdated,
+			}).toStrictEqual({
+				versions: 4,
+				priorities: [
+					["x", 0],
+					["y", 100],
+					["z", 200],
+				],
+				metadataUpdated: 0,
+			});
+		});
+
+		it("opens no version going the other way either", () => {
+			const db = createDb();
+			importFromApi(db, restScheme, {timestamp: T0});
+			importFromApi(db, backupScheme, {timestamp: T1});
+
+			expect(versionCount(db)).toBe(4);
+		});
+
+		it("takes the incoming numbers when the sibling order really changed", () => {
+			const db = createDb();
+			importFromApi(db, backupScheme, {timestamp: T0});
+			importFromApi(
+				db,
+				[
+					parent,
+					apiNode("x", {parent_id: "p", priority: 2}),
+					apiNode("y", {parent_id: "p", priority: 0}),
+					apiNode("z", {parent_id: "p", priority: 1}),
+				],
+				{timestamp: T1},
+			);
+
+			expect(priorities(db)).toStrictEqual([
+				["x", 2],
+				["y", 0],
+				["z", 1],
+			]);
+		});
+
+		it("takes the incoming numbers when a sibling is new", () => {
+			const db = createDb();
+			importFromApi(db, backupScheme, {timestamp: T0});
+			importFromApi(db, [...restScheme, apiNode("n", {parent_id: "p", priority: 3})], {timestamp: T1});
+
+			expect(priorities(db)).toStrictEqual([
+				["n", 3],
+				["x", 0],
+				["y", 1],
+				["z", 2],
+			]);
+		});
+	});
+
 	describe("one-second timestamp skew between REST and the internal API", () => {
 		// Modeled on a real node: the internal/backup integer second is the floor of
 		// Workflowy's fractional time, REST is its ceiling, so the two sources disagree
@@ -189,8 +283,8 @@ describe("shared API import", () => {
 
 		it("keeps the existing timestamps when a real change opens a new version", () => {
 			const db = createDb();
-			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", priority: 0, ...ceilSide})], {timestamp: T0});
-			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", priority: 100, ...floorSide})], {
+			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", ...ceilSide})], {timestamp: T0});
+			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", data: {layoutMode: "todo"}, ...floorSide})], {
 				timestamp: T1,
 			});
 
@@ -201,21 +295,28 @@ describe("shared API import", () => {
 			};
 			expect(metadataVersions(db)).toStrictEqual([
 				{priority: 0, ...kept, open: false},
-				{priority: 100, ...kept, open: true},
+				{priority: 0, ...kept, open: true},
 			]);
 		});
 
 		it("takes the incoming timestamp when it moved by more than one second", () => {
 			const db = createDb();
-			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", priority: 0, ...ceilSide})], {timestamp: T0});
+			importFromApi(db, [apiNode(SKEW_NODE, {name: "Placeholder", ...ceilSide})], {timestamp: T0});
 			importFromApi(
 				db,
-				[apiNode(SKEW_NODE, {name: "Placeholder", priority: 100, ...floorSide, modifiedAt: 1_758_565_500})],
+				[
+					apiNode(SKEW_NODE, {
+						name: "Placeholder",
+						data: {layoutMode: "todo"},
+						...floorSide,
+						modifiedAt: 1_758_565_500,
+					}),
+				],
 				{timestamp: T1},
 			);
 
 			expect(metadataVersions(db).at(-1)).toStrictEqual({
-				priority: 100,
+				priority: 0,
 				createdAt: ceilSide.createdAt * 1000,
 				modifiedAt: 1_758_565_500_000,
 				completedAt: ceilSide.completedAt * 1000,

@@ -1,4 +1,4 @@
-import {and, eq, inArray} from "drizzle-orm";
+import {and, eq, inArray, isNull} from "drizzle-orm";
 import type {InternalTreeItem} from "../api/workflowy-internal-client.js";
 import {nodeContent, nodeMetadata} from "../db/schema.js";
 import type {NodeContentType, NodeMetadataType} from "../db/schema.js";
@@ -141,6 +141,94 @@ export function beginApiImport(
 	};
 }
 
+/** The ids ordered by priority, ties by id, as one comparable string. */
+function siblingOrder(items: {id: string; priority: number}[]): string {
+	return items
+		.toSorted((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
+		.map((item) => item.id)
+		.join("\n");
+}
+
+/**
+ * Keep each parent's stored sibling numbers when the incoming ones only renumber
+ * the same order.
+ *
+ * REST numbers siblings 0,1,2 while backup imports space them 100 apart, so
+ * importing one over the other would open a node_metadata version per sibling
+ * with no change to the order. When a batch carries every current child of a
+ * parent, all of them already known, and their order by priority is unchanged,
+ * the stored priorities replace the incoming ones. A new, removed or reordered
+ * sibling takes the incoming numbers as before.
+ */
+function keepEquivalentPriorities(
+	tx: UnitOfWork["tx"],
+	nodes: ProcessedNode[],
+	existingMetadata: Map<string, NodeMetadataType>,
+): void {
+	const incomingByParent = new Map<string | null, ProcessedNode[]>();
+	for (const node of nodes) {
+		const siblings = incomingByParent.get(node.parentId) ?? [];
+		siblings.push(node);
+		incomingByParent.set(node.parentId, siblings);
+	}
+
+	const currentChildren = new Map<string | null, Set<string>>();
+	const addChildren = (rows: {id: string; parentId: string | null}[]) => {
+		for (const row of rows) {
+			const children = currentChildren.get(row.parentId) ?? new Set<string>();
+			children.add(row.id);
+			currentChildren.set(row.parentId, children);
+		}
+	};
+	const parentIds = [...incomingByParent.keys()].filter((parentId) => parentId !== null);
+	for (let start = 0; start < parentIds.length; start += LOOKUP_CHUNK_SIZE) {
+		addChildren(
+			tx
+				.select({id: nodeContent.id, parentId: nodeContent.parentId})
+				.from(nodeContent)
+				.where(
+					and(
+						eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+						inArray(nodeContent.parentId, parentIds.slice(start, start + LOOKUP_CHUNK_SIZE)),
+					),
+				)
+				.all(),
+		);
+	}
+	if (incomingByParent.has(null)) {
+		addChildren(
+			tx
+				.select({id: nodeContent.id, parentId: nodeContent.parentId})
+				.from(nodeContent)
+				.where(and(eq(nodeContent.systemTo, FAR_FUTURE_DATE), isNull(nodeContent.parentId)))
+				.all(),
+		);
+	}
+
+	for (const [parentId, siblings] of incomingByParent) {
+		const current = currentChildren.get(parentId) ?? new Set<string>();
+		if (siblings.length !== current.size || siblings.some((node) => !current.has(node.id))) {
+			continue;
+		}
+		const stored = siblings.map((node) => ({id: node.id, priority: existingMetadata.get(node.id)?.priority}));
+		const known = stored.flatMap((item) =>
+			item.priority === null || item.priority === undefined ? [] : [{...item, priority: item.priority}],
+		);
+		if (
+			known.length !== siblings.length ||
+			siblingOrder(known) !== siblingOrder(siblings.map((node) => ({id: node.id, priority: node.priority})))
+		) {
+			continue;
+		}
+		for (const item of known) {
+			const node = siblings.find((sibling) => sibling.id === item.id);
+			if (node) {
+				node.priority = item.priority;
+			}
+		}
+	}
+}
+
 function applyBatchIn(unitOfWork: UnitOfWork, state: ApiImportState, apiNodes: WorkflowyNode[]): void {
 	const nodes = processNodes(state, apiNodes);
 	const {tx} = unitOfWork;
@@ -166,6 +254,7 @@ function applyBatchIn(unitOfWork: UnitOfWork, state: ApiImportState, apiNodes: W
 			existingMetadata.set(row.nodeId, row);
 		}
 	}
+	keepEquivalentPriorities(tx, nodes, existingMetadata);
 	for (const node of nodes) {
 		const content = existingContent.get(node.id);
 		const metadata = existingMetadata.get(node.id);
