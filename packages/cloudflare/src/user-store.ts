@@ -149,10 +149,11 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	}
 
 	override async fetch(request: Request): Promise<Response> {
-		if (new URL(request.url).pathname === "/api/v1/ladder/events") {
-			if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
-				return new Response("Expected a WebSocket upgrade", {status: 426});
-			}
+		if (
+			new URL(request.url).pathname === "/api/v1/ladder/events" &&
+			request.headers.get("Upgrade")?.toLowerCase() === "websocket"
+		) {
+			// The Worker has already checked auth and the upgrade header; hibernation needs the DO to accept the socket.
 			const pair = new WebSocketPair();
 			this.ctx.acceptWebSocket(pair[1], ["ladder"]);
 			return new Response(null, {status: 101, webSocket: pair[0]});

@@ -46,6 +46,13 @@ describe("the ladder WebSocket on the Durable Object", () => {
 		expect(response.status).toBe(426);
 	});
 
+	it("answers a non-upgrade request to the Durable Object itself with 404, since the 426 check lives in the Worker", async () => {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
+		const ns = (await harness.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
+		const response = await ns.get(ns.idFromName("dev")).fetch("http://localhost/api/v1/ladder/events");
+		expect(response.status).toBe(404);
+	});
+
 	it("sends exactly one frame per event and nothing after close", async () => {
 		const response = await harness.mf.dispatchFetch("http://localhost/api/v1/ladder/events", {
 			headers: {Upgrade: "websocket"},

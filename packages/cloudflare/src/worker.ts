@@ -103,6 +103,14 @@ function parseLocalSettingRow(value: unknown): LocalSettingRow | undefined {
 		: undefined;
 }
 
+// The one HTTP surface the DO keeps: a WebSocket cannot cross RPC, and hibernation needs the DO to accept it.
+app.get("/api/v1/ladder/events", async (c) => {
+	if (c.req.header("Upgrade")?.toLowerCase() !== "websocket") {
+		return new Response("Expected a WebSocket upgrade", {status: 426});
+	}
+	return c.var.stub.fetch(c.req.raw);
+});
+
 // Strangler fallback: the decision pages are still served by the Durable Object's own fetch.
 app.all("/api/*", async (c) => c.var.stub.fetch(c.req.raw));
 
