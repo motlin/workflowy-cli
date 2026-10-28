@@ -7,7 +7,6 @@ import {afterEach, describe, expect, it} from "vite-plus/test";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {nodesRouter} from "../src/server/routes/nodes.js";
 import type {FoundDatesResponse} from "../src/node-types.js";
 import {httpAppFor} from "./http-app-for.js";
 
@@ -76,7 +75,6 @@ function setup(rootMetadata?: Record<string, unknown>) {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	const get = async (id: string) => {
 		const res = await app.fetch(new Request(`http://x/api/v1/nodes/${id}/found-dates`));
 		const body = (await res.json()) as Partial<FoundDatesResponse>;

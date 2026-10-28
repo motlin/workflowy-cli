@@ -16,8 +16,6 @@ vi.mock("@workflowy/shared/cache", async (importOriginal) => {
 	};
 });
 
-const {nodesRouter} = await import("../src/server/routes/nodes.js");
-
 function makeApp() {
 	const ctx = {
 		apiKey: "test-key",
@@ -30,7 +28,6 @@ function makeApp() {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	return app;
 }
 

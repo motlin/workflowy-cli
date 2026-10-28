@@ -11,7 +11,6 @@ import {backlinks, mirrors, nodeContent, nodeMetadata, referencesRoots} from "@w
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {notReferencesContent} from "../src/server/backlinks.js";
-import {nodesRouter} from "../src/server/routes/nodes.js";
 import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
@@ -96,7 +95,6 @@ function setup() {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	return {app, db};
 }
 

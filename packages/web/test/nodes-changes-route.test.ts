@@ -12,7 +12,6 @@ import type {NodeChangesResponse} from "../src/node-types.js";
 import {httpAppFor} from "./http-app-for.js";
 
 const {CacheService} = await import("@workflowy/shared/cache");
-const {nodesRouter} = await import("../src/server/routes/nodes.js");
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 
@@ -47,7 +46,6 @@ function setup(parents: number) {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	const changes = async (since: string | null) => {
 		const before = statements;
 		const query = since === null ? "" : `?since=${encodeURIComponent(since)}`;

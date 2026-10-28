@@ -43,7 +43,6 @@ vi.mock("@workflowy/shared/cache", async (importOriginal) => {
 });
 
 const {CacheService} = await import("@workflowy/shared/cache");
-const {nodesRouter} = await import("../src/server/routes/nodes.js");
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 
 function apiNode(id: string, parentId: string | null): WorkflowyNode {
@@ -78,7 +77,6 @@ function setup() {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	return {cacheService, get: async (id: string) => app.fetch(new Request(`http://x/api/v1/nodes/${id}`))};
 }
 

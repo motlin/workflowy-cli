@@ -2,7 +2,6 @@ import {Hono} from "hono";
 import {cors} from "hono/cors";
 import {apiCompression} from "./compression.js";
 import type {AppEnv, ServerContext} from "./context.js";
-import {nodesRouter} from "./routes/nodes.js";
 import {createDecisionsRouter} from "./routes/decisions.js";
 import {rebuildTreeSnapshotAfterWrites} from "./tree-snapshot.js";
 
@@ -53,7 +52,6 @@ export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<Ap
 	if (options.httpRoutes !== undefined) {
 		app.route("/", options.httpRoutes);
 	}
-	app.route("/api/v1/nodes", nodesRouter);
 	app.route("/api/v1/decisions", createDecisionsRouter());
 
 	app.get("/health", (c) => c.json({status: "ok"}));

@@ -22,8 +22,6 @@ interface CompleteBody {
 	nodes: Row[];
 }
 
-const {nodesRouter} = await import("../src/server/routes/nodes.js");
-
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 
 function apiNode(id: string, parentId: string | null, priority: number, completedAt?: number): WorkflowyNode {
@@ -85,7 +83,6 @@ function setup() {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	const request = async (method: string, path: string) => {
 		const res = await app.fetch(new Request(`http://x/api/v1/nodes${path}`, {method}));
 		return {status: res.status, body: (await res.json()) as CompleteBody};

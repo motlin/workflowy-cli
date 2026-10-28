@@ -63,7 +63,6 @@ vi.mock("@workflowy/shared/api", async (importOriginal) => {
 });
 
 const {CacheService} = await import("@workflowy/shared/cache");
-const {nodesRouter} = await import("../src/server/routes/nodes.js");
 const {
 	fetchChildren,
 	fetchNode,
@@ -130,7 +129,6 @@ function server(): Hono<AppEnv> {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	return app;
 }
 

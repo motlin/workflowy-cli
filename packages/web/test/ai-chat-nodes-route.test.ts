@@ -9,7 +9,6 @@ import * as schema from "@workflowy/shared/db";
 import {aiMetadata, nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {nodesRouter} from "../src/server/routes/nodes.js";
 import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
@@ -59,7 +58,6 @@ function setup() {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	return app;
 }
 

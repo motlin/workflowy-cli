@@ -26,7 +26,6 @@ vi.mock("@workflowy/shared/cache", async (importOriginal) => {
 });
 
 const {CacheService} = await import("@workflowy/shared/cache");
-const {nodesRouter} = await import("../src/server/routes/nodes.js");
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const NOT_CONFIGURED =
@@ -130,7 +129,6 @@ function setup(configured: boolean, rootLayoutMode?: string) {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	const request = async (method: string, path: string, body?: unknown) => {
 		const res = await app.fetch(
 			new Request(`http://x/api/v1${path}`, {

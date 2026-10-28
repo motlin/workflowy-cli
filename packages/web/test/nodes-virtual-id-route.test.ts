@@ -9,7 +9,6 @@ import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {httpAppFor} from "./http-app-for.js";
 
 const {CacheService} = await import("@workflowy/shared/cache");
-const {nodesRouter} = await import("../src/server/routes/nodes.js");
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const CHILD = "7b1c2d3e-aaaa-4bbb-8ccc-c910f3eac9b3";
@@ -32,7 +31,6 @@ describe("GET /api/v1/nodes/:id with a virtual location id", () => {
 			await next();
 		});
 		app.route("/", httpAppFor(ctx));
-		app.route("/api/v1/nodes", nodesRouter);
 
 		const res = await app.fetch(new Request(`http://x/api/v1/nodes/v_c910f3eac9b3_${MIRROR.slice(-12)}_0e9f`));
 
@@ -74,7 +72,6 @@ describe("GET /api/v1/nodes/:id/ancestors with a virtual location id", () => {
 			await next();
 		});
 		app.route("/", httpAppFor(ctx));
-		app.route("/api/v1/nodes", nodesRouter);
 		const ids = async (id: string) => {
 			const res = await app.fetch(new Request(`http://x/api/v1/nodes/${id}/ancestors`));
 			return ((await res.json()) as {ancestors: {id: string}[]}).ancestors.map((ancestor) => ancestor.id);

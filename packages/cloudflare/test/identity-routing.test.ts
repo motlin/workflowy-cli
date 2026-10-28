@@ -221,5 +221,17 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		await expect(mirrorViaWorker.json()).resolves.toStrictEqual({
 			error: "item_ids must be a non-empty array of node ids",
 		});
+
+		const completeViaDo = await stub.fetch("http://localhost/api/v1/nodes/abc/complete", {method: "POST"});
+		expect(completeViaDo.status).toBe(404);
+		const createViaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/nodes", {
+			method: "POST",
+			headers: {"content-type": "application/json", "Cf-Access-Jwt-Assertion": jwt},
+			body: "{}",
+		});
+		expect(createViaWorker.status).toBe(500);
+		await expect(createViaWorker.json()).resolves.toStrictEqual({
+			error: "WORKFLOWY_API_KEY environment variable is required",
+		});
 	});
 });

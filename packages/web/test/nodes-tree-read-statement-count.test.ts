@@ -11,7 +11,6 @@ import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {httpAppFor} from "./http-app-for.js";
 
 const {CacheService} = await import("@workflowy/shared/cache");
-const {nodesRouter} = await import("../src/server/routes/nodes.js");
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 
@@ -51,7 +50,6 @@ function setup(parents: number) {
 		await next();
 	});
 	app.route("/", httpAppFor(ctx));
-	app.route("/api/v1/nodes", nodesRouter);
 	const post = async (path: string, body: unknown) => {
 		const before = statements;
 		const res = await app.fetch(

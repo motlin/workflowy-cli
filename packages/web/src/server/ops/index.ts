@@ -22,6 +22,15 @@ import {
 	nodesView,
 } from "./nodes.js";
 import {nodesDetachMirror, nodesMirror, nodesSwapMirrorOrigin} from "./nodes-mirror.js";
+import {
+	nodesComplete,
+	nodesCreate,
+	nodesDelete,
+	nodesRestore,
+	nodesSetHome,
+	nodesUncomplete,
+	nodesUpdate,
+} from "./nodes-write.js";
 import {nodesDuplicate, nodesMove, nodesMoveOne, nodesTrees} from "./nodes-tree.js";
 import {preferencesGet, preferencesPatch} from "./preferences.js";
 import {relatedFind} from "./related.js";
@@ -55,6 +64,13 @@ export const Ops = {
 	"nodes.foundDates": nodesFoundDates,
 	"nodes.get": nodesGet,
 	"nodes.list": nodesList,
+	"nodes.complete": nodesComplete,
+	"nodes.create": nodesCreate,
+	"nodes.delete": nodesDelete,
+	"nodes.restore": nodesRestore,
+	"nodes.setHome": nodesSetHome,
+	"nodes.uncomplete": nodesUncomplete,
+	"nodes.update": nodesUpdate,
 	"nodes.detachMirror": nodesDetachMirror,
 	"nodes.mirror": nodesMirror,
 	"nodes.mirrors": nodesMirrors,

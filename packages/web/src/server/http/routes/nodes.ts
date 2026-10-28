@@ -1,4 +1,5 @@
 import {Hono} from "hono";
+import {HOME_TARGET} from "@workflowy/shared/types";
 import {callOp} from "../response.js";
 import type {ResolveStore} from "../response.js";
 
@@ -8,7 +9,7 @@ async function body(request: Request): Promise<unknown> {
 }
 
 /**
- * The node read routes (see `ops/nodes.ts`, `ops/nodes-tree.ts` and `ops/nodes-mirror.ts` for what each answers). Registration order matters: the fixed paths
+ * The node routes (see `ops/nodes.ts`, `ops/nodes-tree.ts` and `ops/nodes-mirror.ts` for what each answers). Registration order matters: the fixed paths
  * (`/changes`, `/children`, `/view`, `/export-tree`) come before `/:id`.
  */
 export function nodesRoutes(resolveStore: ResolveStore): Hono {
@@ -60,6 +61,41 @@ export function nodesRoutes(resolveStore: ResolveStore): Hono {
 	routes.post("/:id/swap-mirror-origin", async (c) =>
 		callOp(resolveStore, c.req.raw, "nodes.swapMirrorOrigin", {id: c.req.param("id")}),
 	);
+	routes.post("/", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.create", await body(c.req.raw), {error: "Invalid request body"}),
+	);
+	routes.on(["PATCH", "POST"], `/${HOME_TARGET}`, async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.setHome", await body(c.req.raw), {
+			error: "Home accepts only layoutMode",
+		}),
+	);
+	routes.on(["PATCH", "POST"], "/:id", async (c) => {
+		const raw = await body(c.req.raw);
+		return callOp(
+			resolveStore,
+			c.req.raw,
+			"nodes.update",
+			typeof raw === "object" && raw !== null ? {...raw, id: c.req.param("id")} : raw,
+			{error: "Invalid request body"},
+		);
+	});
+	routes.delete("/:id", async (c) => callOp(resolveStore, c.req.raw, "nodes.delete", {id: c.req.param("id")}));
+	routes.post("/:id/complete", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.complete", {id: c.req.param("id")}),
+	);
+	routes.post("/:id/uncomplete", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.uncomplete", {id: c.req.param("id")}),
+	);
+	routes.post("/:id/restore", async (c) => {
+		const raw = await body(c.req.raw);
+		return callOp(
+			resolveStore,
+			c.req.raw,
+			"nodes.restore",
+			{...(typeof raw === "object" && raw !== null ? raw : {}), id: c.req.param("id")},
+			{error: "Invalid request body"},
+		);
+	});
 	routes.get("/:id", async (c) => callOp(resolveStore, c.req.raw, "nodes.get", {id: c.req.param("id")}));
 	routes.get("/:id/subtree-ids", async (c) =>
 		callOp(resolveStore, c.req.raw, "nodes.subtreeIds", {id: c.req.param("id")}),
