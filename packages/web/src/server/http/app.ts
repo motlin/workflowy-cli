@@ -10,6 +10,7 @@ import {filesRoutes} from "./routes/files.js";
 import {featuresRoutes} from "./routes/features.js";
 import {ladderRoutes} from "./routes/ladder.js";
 import {preferencesRoutes} from "./routes/preferences.js";
+import {relatedRoutes} from "./routes/related.js";
 import {searchRoutes} from "./routes/search.js";
 import {starsRoutes} from "./routes/stars.js";
 import {tagIndexRoutes} from "./routes/tag-index.js";
@@ -38,6 +39,7 @@ export function createHttpRoutes(resolveStore: ResolveStore): Hono {
 	routes.route("/api/v1/expansion", expansionRoutes(resolveStore));
 	routes.route("/api/v1/files", filesRoutes(resolveStore));
 	routes.route("/api/v1/ladder", ladderRoutes(resolveStore));
+	routes.route("/api/related", relatedRoutes(resolveStore));
 	routes.route("/api/search", searchRoutes(resolveStore));
 	routes.route("/api/v1/stars", starsRoutes(resolveStore));
 	routes.route("/api/v1/preferences", preferencesRoutes(resolveStore));

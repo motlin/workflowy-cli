@@ -10,7 +10,6 @@ import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {nodeTreeHost} from "../src/server/node-host.js";
 import {bindTreeHost} from "../src/server/tree-snapshot.js";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {relatedRouter} from "../src/server/routes/related.js";
 import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
@@ -48,7 +47,6 @@ function appWith(ctx: Partial<ServerContext>) {
 		c.set("ctx", ctx as ServerContext);
 		await next();
 	});
-	app.route("/api/related", relatedRouter);
 	app.route("/", httpAppFor(ctx as ServerContext));
 	return app;
 }

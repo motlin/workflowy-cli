@@ -3,7 +3,6 @@ import {cors} from "hono/cors";
 import {apiCompression} from "./compression.js";
 import type {AppEnv, ServerContext} from "./context.js";
 import {homeRouter, nodesRouter} from "./routes/nodes.js";
-import {relatedRouter} from "./routes/related.js";
 import {createDecisionsRouter} from "./routes/decisions.js";
 import {rebuildTreeSnapshotAfterWrites} from "./tree-snapshot.js";
 
@@ -49,7 +48,6 @@ export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<Ap
 	app.route("/api/v1/nodes", nodesRouter);
 	app.route("/api/v1/home", homeRouter);
 	app.route("/api/v1/decisions", createDecisionsRouter());
-	app.route("/api/related", relatedRouter);
 
 	app.get("/health", (c) => c.json({status: "ok"}));
 

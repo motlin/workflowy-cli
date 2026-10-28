@@ -1,23 +1,13 @@
-import {Hono} from "hono";
+import {z} from "zod";
 import {notAMirror, PathBuilder} from "@workflowy/shared/cache";
 import {and, count, eq, ne, sql} from "drizzle-orm";
 import {nodeContent, nodeEmbeddings} from "@workflowy/shared/db";
 import type {AppDatabase} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
-import type {AppEnv} from "../context.js";
-
-export const relatedRouter = new Hono<AppEnv>();
+import {defineOp, fail, jsonOf, ok} from "./define.js";
 
 type RelatedType = "similar" | "parent-candidates" | "link-targets";
-
-interface RelatedBody {
-	nodeId: string;
-	type: RelatedType;
-	limit?: number;
-	threshold?: number;
-	model?: string;
-}
 
 interface RelatedNode {
 	id: string;
@@ -226,68 +216,74 @@ function findLinkTargets(
 	return targets;
 }
 
-// POST /api/related - Find related nodes using semantic similarity
-relatedRouter.post("/", async (c) => {
-	// The body is client JSON, so the required fields are validated below.
-	const body = await c.req.json<Partial<RelatedBody>>();
-	const {nodeId, type, limit = 10, threshold = 0.5, model = "minilm"} = body;
-
-	if (!nodeId) {
-		return c.json({error: "nodeId is required"}, 400);
-	}
-
-	if (!type) {
-		return c.json({error: "type is required"}, 400);
-	}
-
-	const validTypes: RelatedType[] = ["similar", "parent-candidates", "link-targets"];
-	if (!validTypes.includes(type)) {
-		return c.json({error: `type must be one of: ${validTypes.join(", ")}`}, 400);
-	}
-
-	// Without embeddings (no vector extension) there is nothing to rank: the empty result clients already handle.
-	const {db: database, config} = c.get("ctx");
-	if (!config.features.embeddings) {
-		const empty: RelatedResponse = {results: []};
-		return c.json(empty);
-	}
-
-	// Get the source node's embedding
-	const sourceEmbedding = database
-		.select({embedding: nodeEmbeddings.embedding})
-		.from(nodeEmbeddings)
-		.where(
-			and(
-				eq(nodeEmbeddings.nodeId, nodeId),
-				eq(nodeEmbeddings.model, model),
-				eq(nodeEmbeddings.systemTo, FAR_FUTURE_DATE),
-			),
-		)
-		.get();
-
-	if (!sourceEmbedding) {
-		return c.json({error: "Node embedding not found. Ensure embeddings have been generated."}, 404);
-	}
-
-	const embeddingBuffer = sourceEmbedding.embedding;
-
-	let results: RelatedNode[];
-
-	switch (type) {
-		case "similar": {
-			results = findSimilarNodes(database, embeddingBuffer, nodeId, model, limit, threshold);
-			break;
+/** Finds related nodes using semantic similarity; the required fields are validated here so each 400 names what is missing. */
+export const relatedFind = defineOp({
+	input: z.object({
+		nodeId: z.string().optional(),
+		type: z.string().optional(),
+		limit: z.number().optional(),
+		threshold: z.number().optional(),
+		model: z.string().optional(),
+	}),
+	run(ctx, {nodeId, type, limit = 10, threshold = 0.5, model = "minilm"}) {
+		if (!nodeId) {
+			return fail(400, {error: "nodeId is required"});
 		}
-		case "parent-candidates": {
-			results = findParentCandidates(database, embeddingBuffer, nodeId, model, limit, threshold);
-			break;
-		}
-		case "link-targets": {
-			results = findLinkTargets(database, embeddingBuffer, nodeId, model, limit, threshold);
-			break;
-		}
-	}
 
-	const response: RelatedResponse = {results};
-	return c.json(response);
+		if (!type) {
+			return fail(400, {error: "type is required"});
+		}
+
+		const validTypes: RelatedType[] = ["similar", "parent-candidates", "link-targets"];
+		const relatedType = validTypes.find((valid) => valid === type);
+		if (!relatedType) {
+			return fail(400, {error: `type must be one of: ${validTypes.join(", ")}`});
+		}
+
+		// Without embeddings (no vector extension) there is nothing to rank: the empty result clients already handle.
+		const {db: database, config} = ctx;
+		if (!config.features.embeddings) {
+			const empty: RelatedResponse = {results: []};
+			return ok(jsonOf(empty));
+		}
+
+		// Get the source node's embedding
+		const sourceEmbedding = database
+			.select({embedding: nodeEmbeddings.embedding})
+			.from(nodeEmbeddings)
+			.where(
+				and(
+					eq(nodeEmbeddings.nodeId, nodeId),
+					eq(nodeEmbeddings.model, model),
+					eq(nodeEmbeddings.systemTo, FAR_FUTURE_DATE),
+				),
+			)
+			.get();
+
+		if (!sourceEmbedding) {
+			return fail(404, {error: "Node embedding not found. Ensure embeddings have been generated."});
+		}
+
+		const embeddingBuffer = sourceEmbedding.embedding;
+
+		let results: RelatedNode[];
+
+		switch (relatedType) {
+			case "similar": {
+				results = findSimilarNodes(database, embeddingBuffer, nodeId, model, limit, threshold);
+				break;
+			}
+			case "parent-candidates": {
+				results = findParentCandidates(database, embeddingBuffer, nodeId, model, limit, threshold);
+				break;
+			}
+			case "link-targets": {
+				results = findLinkTargets(database, embeddingBuffer, nodeId, model, limit, threshold);
+				break;
+			}
+		}
+
+		const response: RelatedResponse = {results};
+		return ok(jsonOf(response));
+	},
 });

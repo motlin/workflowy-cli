@@ -166,5 +166,19 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		expect(searchViaDo.status).toBe(404);
 		expect(searchViaWorker.status).toBe(200);
 		await expect(searchViaWorker.json()).resolves.toStrictEqual({hashTags: [], atTags: []});
+
+		const relatedRequest = {
+			method: "POST",
+			headers: {"content-type": "application/json"},
+			body: JSON.stringify({type: "similar"}),
+		};
+		const relatedViaDo = await stub.fetch("http://localhost/api/related", relatedRequest);
+		const relatedViaWorker = await h.mf.dispatchFetch("http://localhost/api/related", {
+			...relatedRequest,
+			headers: {...relatedRequest.headers, "Cf-Access-Jwt-Assertion": jwt},
+		});
+		expect(relatedViaDo.status).toBe(404);
+		expect(relatedViaWorker.status).toBe(400);
+		await expect(relatedViaWorker.json()).resolves.toStrictEqual({error: "nodeId is required"});
 	});
 });
