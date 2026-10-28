@@ -8,7 +8,7 @@ async function body(request: Request): Promise<unknown> {
 }
 
 /**
- * The node read routes (see `ops/nodes.ts` for what each answers). Registration order matters: the fixed paths
+ * The node read routes (see `ops/nodes.ts` and `ops/nodes-tree.ts` for what each answers). Registration order matters: the fixed paths
  * (`/changes`, `/children`, `/view`, `/export-tree`) come before `/:id`.
  */
 export function nodesRoutes(resolveStore: ResolveStore): Hono {
@@ -32,6 +32,25 @@ export function nodesRoutes(resolveStore: ResolveStore): Hono {
 			error: "ids must be an array of strings",
 		}),
 	);
+	routes.post("/trees", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.trees", await body(c.req.raw), {error: "Invalid request body"}),
+	);
+	routes.post("/duplicate", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.duplicate", await body(c.req.raw), {error: "Invalid request body"}),
+	);
+	routes.post("/move", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.move", await body(c.req.raw), {error: "Invalid request body"}),
+	);
+	routes.post("/:id/move", async (c) => {
+		const raw = await body(c.req.raw);
+		return callOp(
+			resolveStore,
+			c.req.raw,
+			"nodes.moveOne",
+			typeof raw === "object" && raw !== null ? {...raw, id: c.req.param("id")} : raw,
+			{error: "Invalid request body"},
+		);
+	});
 	routes.get("/:id", async (c) => callOp(resolveStore, c.req.raw, "nodes.get", {id: c.req.param("id")}));
 	routes.get("/:id/subtree-ids", async (c) =>
 		callOp(resolveStore, c.req.raw, "nodes.subtreeIds", {id: c.req.param("id")}),

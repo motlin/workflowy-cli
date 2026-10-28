@@ -23,7 +23,6 @@ import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import {Hono} from "hono";
-import type {Context} from "hono";
 import {backlinksNeedSync, backlinkTargetsOfSource} from "../backlinks.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import type {MirrorInstance} from "../../mirror-path.js";
@@ -38,7 +37,6 @@ import {
 	getAdapter,
 	originalsWithMirrors,
 	readNodeDto,
-	readSiblingDtos,
 	ParentResult,
 	parseParent,
 	IndexResult,
@@ -48,150 +46,12 @@ import {
 	publicMovePosition,
 	childIds,
 	countChildren,
+	openCopies,
 } from "../ops/nodes-shared.js";
 
 const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 export const nodesRouter = new Hono<AppEnv>();
-
-const MAX_BULK_NODES = 10_000;
-
-interface BulkTreeBody {
-	name: string;
-	note?: unknown;
-	completed?: unknown;
-	layoutMode?: unknown;
-	numberedStart?: unknown;
-	children?: unknown;
-}
-
-function isBulkTreeBody(value: unknown): value is BulkTreeBody {
-	return typeof value === "object" && value !== null && typeof (value as {name?: unknown}).name === "string";
-}
-
-/** Validate and convert the request trees; the count accumulates the total nodes seen. */
-function parseBulkTrees(raw: unknown, count: {total: number}): NewTree[] | string {
-	if (!Array.isArray(raw)) {
-		return "trees must be an array";
-	}
-	const trees: NewTree[] = [];
-	for (const entry of raw as unknown[]) {
-		count.total += 1;
-		if (!isBulkTreeBody(entry)) {
-			return "each tree needs a string name";
-		}
-		const item = entry;
-		const children = item.children === undefined ? undefined : parseBulkTrees(item.children, count);
-		if (typeof children === "string") {
-			return children;
-		}
-		const metadata: Record<string, unknown> = {};
-		if (typeof item.layoutMode === "string") {
-			metadata.layoutMode = item.layoutMode;
-		}
-		if (typeof item.numberedStart === "number") {
-			metadata.numbered_start = item.numberedStart;
-		}
-		trees.push({
-			name: item.name,
-			...(typeof item.note === "string" ? {note: item.note} : {}),
-			...(item.completed === true ? {completed: true} : {}),
-			...(Object.keys(metadata).length === 0 ? {} : {metadata}),
-			...(children === undefined || children.length === 0 ? {} : {children}),
-		});
-	}
-	return trees;
-}
-
-// POST /api/v1/nodes/trees - Create many trees at one slot with a single bulk_create
-nodesRouter.post("/trees", async (c) => {
-	const ctx = c.get("ctx");
-	const body = await c.req.json<{parent_id?: string | null; index?: number; after_id?: unknown; trees?: unknown}>();
-	const parent = parseParent(ctx, body.parent_id);
-	if (!parent.ok) {
-		return c.json({error: parent.error}, parent.status);
-	}
-	const slot = parseIndex(body.index, undefined);
-	if (!slot.ok) {
-		return c.json({error: slot.error}, 400);
-	}
-	const afterId = body.after_id;
-	if (afterId !== undefined && afterId !== null && typeof afterId !== "string") {
-		return c.json({error: "after_id must be a node id or null"}, 400);
-	}
-	const count = {total: 0};
-	const trees = parseBulkTrees(body.trees, count);
-	if (typeof trees === "string") {
-		return c.json({error: trees}, 400);
-	}
-	if (count.total > MAX_BULK_NODES) {
-		return c.json({error: `Too many nodes: ${count.total} (max ${MAX_BULK_NODES})`}, 400);
-	}
-	const adapter = getAdapter(ctx);
-	if (!adapter) {
-		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
-	}
-	const {ids} = await adapter.createTreesAt({
-		parentId: adapterParent(parent.parentId),
-		...(slot.index === undefined ? {} : {index: slot.index}),
-		...(afterId === undefined ? {} : {afterId}),
-		trees,
-	});
-	return c.json({ids}, 201);
-});
-
-// POST /api/v1/nodes/duplicate - Deep-copy items to consecutive slots of a parent, with one bulk_create
-nodesRouter.post("/duplicate", async (c) => {
-	const ctx = c.get("ctx");
-	const body = await c.req.json<{ids?: unknown; parent_id?: unknown; index?: unknown}>();
-	if (!Array.isArray(body.ids) || body.ids.length === 0 || !body.ids.every((id) => typeof id === "string")) {
-		return c.json({error: "ids must be a non-empty array of node ids"}, 400);
-	}
-	const parent = parseParent(ctx, body.parent_id);
-	if (!parent.ok) {
-		return c.json({error: parent.error}, parent.status);
-	}
-	const slot = parseIndex(body.index, undefined);
-	if (!slot.ok) {
-		return c.json({error: slot.error}, 400);
-	}
-	const adapter = getAdapter(ctx);
-	if (!adapter) {
-		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
-	}
-	const trees: NewTree[] = [];
-	const sourceToNew = new Map<string, string>();
-	for (const raw of body.ids) {
-		const resolved = resolveNodeId(ctx, raw);
-		if (resolved === null) {
-			return c.json({error: `Node not found: ${raw}`}, 404);
-		}
-		// A mirror duplicates its original's content, with the mirror's own expansion.
-		const sourceId = resolveMirrorToOriginal(ctx, resolved);
-		const copied = await copySubtree(ctx.cacheService, sourceId, {
-			rootCompleted: (ctx.cacheService.getNode(sourceId)?.completedAt ?? null) !== null,
-			mirrorOriginals: false,
-			originalsWithMirrors: (ids) => originalsWithMirrors(ctx, ids),
-		});
-		if (copied === undefined) {
-			return c.json({error: `Node not found: ${raw}`}, 404);
-		}
-		if (!copied.ok) {
-			return c.json({error: `Too many nodes: ${copied.count} (max ${MAX_COPY_ITEMS})`}, 400);
-		}
-		trees.push(copied.tree);
-		for (const [source, copy] of copied.sourceToNew) {
-			sourceToNew.set(source === sourceId ? resolved : source, copy);
-		}
-	}
-	const {ids} = await adapter.createTreesAt({
-		parentId: adapterParent(parent.parentId),
-		...(slot.index === undefined ? {} : {index: slot.index}),
-		trees,
-	});
-	await openCopies(adapter, sourceToNew);
-	return c.json({ids}, 201);
-});
 
 // POST /api/v1/nodes/mirror - Mirror items under a parent, in order at consecutive indexes
 nodesRouter.post("/mirror", async (c) => {
@@ -375,36 +235,6 @@ nodesRouter.post("/", async (c) => {
 	};
 
 	return c.json({node: nodeResponse}, 201);
-});
-
-// POST /api/v1/nodes/move - Move a block of nodes, in the given order, to an exact `index`.
-// `index` is a slot among ALL of the target parent's current children in order, the moved
-// nodes included (counted before removal): the block lands right before the child now at
-// `index`; omitted or >= the child count = bottom. Same contract as `MoveToInput.index`.
-nodesRouter.post("/move", async (c) => {
-	const ctx = c.get("ctx");
-	const client = getWriteClient(ctx);
-	if (!client) {
-		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
-	}
-
-	const body = await c.req.json<{ids?: unknown; parent_id?: string | null; index?: number}>();
-	if (
-		!Array.isArray(body.ids) ||
-		body.ids.length === 0 ||
-		!body.ids.every((id): id is string => typeof id === "string")
-	) {
-		return c.json({error: "ids must be a non-empty array of strings"}, 400);
-	}
-	const ids: string[] = [];
-	for (const rawId of body.ids) {
-		const id = resolveNodeId(ctx, rawId);
-		if (id === null || !ctx.cacheService.getNode(id)) {
-			return c.json({error: `Node not found: ${rawId}`}, 404);
-		}
-		ids.push(id);
-	}
-	return moveNodes(c, client, ids, body.parent_id, body.index, undefined);
 });
 
 /** Upstream offers only these layouts at Home. */
@@ -666,25 +496,6 @@ nodesRouter.post("/:id/complete", async (c) => {
 	return c.json({node: nodeResponse});
 });
 
-/** Open each copy whose source row is expanded (upstream `syncWith`); `rootSource` overrides the top copy's source row. */
-async function openCopies(
-	adapter: WorkflowyInternalAdapter,
-	sourceToNew: ReadonlyMap<string, string>,
-	rootSource?: {original: string; row: string},
-): Promise<void> {
-	const isExpanded = await adapter.expansionTest();
-	const opened: Record<string, boolean> = {};
-	for (const [sourceId, copyId] of sourceToNew) {
-		const row = sourceId === rootSource?.original ? rootSource.row : sourceId;
-		if (isExpanded(row)) {
-			opened[copyId] = true;
-		}
-	}
-	if (Object.keys(opened).length > 0) {
-		await adapter.setExpanded(opened);
-	}
-}
-
 const DETACH_TOO_BIG = `Detaching mirror subtrees containing more than ${MAX_COPY_ITEMS} items is not supported.`;
 
 // POST /api/v1/nodes/:id/detach-mirror - Replace a mirror root (a mirror, or an original that has mirrors) with a copy
@@ -829,29 +640,6 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 	return c.json({node: nodeResponse});
 });
 
-// POST /api/v1/nodes/:id/move - Move a node to an exact `index` under a parent (omitted = bottom).
-// `index` counts the moved node when it stays under the same parent (slot before removal):
-// among a,b,c,d, moving b below c is `index: 3`, not 2. Same contract as `MoveToInput.index`.
-nodesRouter.post("/:id/move", async (c) => {
-	const ctx = c.get("ctx");
-	const client = getWriteClient(ctx);
-	if (!client) {
-		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
-	}
-
-	const id = resolveNodeId(ctx, c.req.param("id"));
-	if (id === null || !ctx.cacheService.getNode(id)) {
-		return c.json({error: "Node not found"}, 404);
-	}
-	const body = await c.req.json<{
-		parent_id?: string | null;
-		index?: number;
-		/** Legacy: negative = top, anything else = bottom. */
-		position?: number;
-	}>();
-	return moveNodes(c, client, [id], body.parent_id, body.index, body.position);
-});
-
 // POST /api/v1/nodes/:id/restore - Bring back a deleted node under its ORIGINAL id
 nodesRouter.post("/:id/restore", async (c) => {
 	const ctx = c.get("ctx");
@@ -894,59 +682,3 @@ nodesRouter.post("/:id/restore", async (c) => {
 	}
 	return c.json({node});
 });
-
-/**
- * Move `ids` (in that order, all cached) under `rawParent` at a slot, then
- * answer `{nodes}`: the refreshed children of every affected parent. Through
- * the internal API this is one exact-index push; without it only the two ends
- * work (a top block moves last-first so it keeps its order), and any other
- * slot answers 503.
- */
-async function moveNodes(
-	c: Context<AppEnv>,
-	client: WorkflowyWriteThroughClient,
-	ids: string[],
-	rawParent: unknown,
-	rawIndex: unknown,
-	legacyPosition: unknown,
-) {
-	const ctx = c.get("ctx");
-	const parent = parseParent(ctx, rawParent);
-	if (!parent.ok) {
-		return c.json({error: parent.error}, parent.status);
-	}
-	const {parentId} = parent;
-	const slot = parseIndex(rawIndex, legacyPosition);
-	if (!slot.ok) {
-		return c.json({error: slot.error}, 400);
-	}
-	const oldParents = ids.map((id) => ctx.cacheService.getNode(id)?.parentId ?? null);
-	const count = countChildren(ctx, parentId);
-
-	const adapter = getAdapter(ctx);
-	if (adapter) {
-		await adapter.moveTo({
-			ids,
-			parentId: adapterParent(parentId),
-			...(slot.index === undefined ? {} : {index: slot.index}),
-		});
-	} else {
-		const end = publicEnd(slot.index, count);
-		if (end === undefined) {
-			// A middle slot counts every child before removal; the rotation counts the others.
-			const order = childIds(ctx, parentId);
-			const moving = new Set(ids);
-			const slotIndex = order.slice(0, slot.index ?? order.length).filter((id) => !moving.has(id)).length;
-			const {position, siblingIds} = planBlockSlot(order, ids, slotIndex);
-			for (const id of [...(position === "top" ? ids.toReversed() : ids), ...siblingIds]) {
-				await client.moveNode(id, parentId, publicMovePosition(position));
-			}
-		} else {
-			for (const id of end === "top" ? ids.toReversed() : ids) {
-				await client.moveNode(id, parentId, publicMovePosition(end));
-			}
-		}
-	}
-
-	return c.json({nodes: readSiblingDtos(ctx, [...oldParents, parentId])});
-}

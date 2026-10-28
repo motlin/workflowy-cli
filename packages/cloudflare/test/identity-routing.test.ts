@@ -197,5 +197,17 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		await expect(viewViaWorker.json()).resolves.toStrictEqual({
 			error: "body must be {rootId, expandedIds, limit, showCompleted}",
 		});
+
+		const moveViaDo = await stub.fetch("http://localhost/api/v1/nodes/abc/move", {method: "POST", body: "{}"});
+		expect(moveViaDo.status).toBe(404);
+		const duplicateViaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/nodes/duplicate", {
+			method: "POST",
+			headers: {"content-type": "application/json", "Cf-Access-Jwt-Assertion": jwt},
+			body: "{}",
+		});
+		expect(duplicateViaWorker.status).toBe(400);
+		await expect(duplicateViaWorker.json()).resolves.toStrictEqual({
+			error: "ids must be a non-empty array of node ids",
+		});
 	});
 });

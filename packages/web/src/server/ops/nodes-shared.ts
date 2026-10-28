@@ -424,3 +424,22 @@ export function countChildren(ctx: ServerContext, parentId: string | null): numb
 }
 
 /** A client-generated node id: a lowercase UUID, as upstream's own clients mint. */
+
+/** Open each copy whose source row is expanded (upstream `syncWith`); `rootSource` overrides the top copy's source row. */
+export async function openCopies(
+	adapter: WorkflowyInternalAdapter,
+	sourceToNew: ReadonlyMap<string, string>,
+	rootSource?: {original: string; row: string},
+): Promise<void> {
+	const isExpanded = await adapter.expansionTest();
+	const opened: Record<string, boolean> = {};
+	for (const [sourceId, copyId] of sourceToNew) {
+		const row = sourceId === rootSource?.original ? rootSource.row : sourceId;
+		if (isExpanded(row)) {
+			opened[copyId] = true;
+		}
+	}
+	if (Object.keys(opened).length > 0) {
+		await adapter.setExpanded(opened);
+	}
+}
