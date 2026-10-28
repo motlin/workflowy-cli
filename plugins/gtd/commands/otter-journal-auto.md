@@ -61,6 +61,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh trash <otid>
 
 It returns `{"status": "OK"}` on success; treat anything else as a failure and report it. After a successful trash, rerun this command so the cursor advances. For "Keep it and skip it", record the otid as `skip` in `.llm/gtd/review/otter-confirmed-titles.json`, as in the title flag flow.
 
+An unsummarized recording (2 minutes or longer, no summary after 24 hours) is flagged with the reason `no summary after 24 hours` and resolved the same way, one `AskUserQuestion` per flag with the title, date, URL, and duration. Its options are "Keep it and skip it", "Keep it and wait", and "Delete it from Otter". "Keep it and wait" leaves the page held, so offer it only when the user expects Otter to still produce a summary.
+
 ## Resolve a title flag
 
 The auto run never resolves a flag on its own. The daily review does it with the user, one flag per `AskUserQuestion`, when it surfaces this task's error. Put the title, date, Otter URL, and the reason inside the question. Options: keep the title as recorded, retitle it, or skip the recording.
