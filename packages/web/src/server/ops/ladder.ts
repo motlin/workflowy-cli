@@ -1,21 +1,20 @@
 /**
- * The asap ladder: read both ladders, drop a row into another tier, complete a
- * row, and stream every write to whoever is watching.
+ * The asap ladder ops: read both ladders, drop a row into another tier, complete a
+ * row. Every write publishes on the context's event bus, which the host fans out to its sockets.
  *
- * The handlers are deliberately thin. Everything worth testing lives in
- * {@link LadderService}, and the router is injectable so a test can drive
- * `app.fetch(...)` against a fake service with no database and no API key.
+ * Everything worth testing lives in {@link LadderService}, and the ops are built by
+ * {@link createLadderOps} so a test can drive them against a fake service with no database and no API key.
  */
 
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import {NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import type {NodeTree} from "@workflowy/shared/cache";
-import {Hono} from "hono";
 import {z} from "zod";
-import type {AppEnv, ServerContext} from "../context.js";
+import type {ServerContext} from "../context.js";
 import {LadderService} from "../ladder-service.js";
 import type {LadderBuckets} from "../ladder-service.js";
 import type {RawNode} from "../ladder-model.js";
+import {defineOp, fail, jsonOf, ok} from "./define.js";
 
 /** Where each ladder lives. Both buckets sit four levels down, under their root. */
 const BUCKET_PATHS: Record<string, string[]> = {
@@ -23,78 +22,73 @@ const BUCKET_PATHS: Record<string, string[]> = {
 	personal: ["Personal", "☑️ Next (Personal)", "✅ Tasks", "📌 Tasks (asap) (personal)"],
 };
 
-/** The part of {@link LadderService} the router calls. */
+/** The part of {@link LadderService} the ops call. */
 export type LadderOperations = Pick<LadderService, "read" | "move" | "complete">;
 
-export interface LadderRouterOptions {
-	createService?: (ctx: ServerContext) => LadderOperations;
-}
+const text = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
 
-export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppEnv> {
-	const createService = options.createService ?? defaultService;
-	const router = new Hono<AppEnv>();
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-	router.get("/", async (c) => {
-		const ladders = await createService(c.get("ctx")).read();
-		return c.json({ladders});
-	});
+/** The HTTP layer passes the body's fields through untouched; the checks and their exact 400 bodies live here. */
+const MoveInput = z.object({
+	root: z.unknown().optional(),
+	node_id: z.unknown().optional(),
+	to_tier: z.unknown().optional(),
+	before_id: z.unknown().optional(),
+});
+const CompleteInput = z.object({root: z.unknown().optional(), node_id: z.unknown().optional()});
 
-	router.post("/move", async (c) => {
-		const body = await readBody(c.req.raw);
-		const root = text(body.root);
-		const nodeId = text(body.node_id);
-		const toTier = text(body.to_tier);
-		if (!root || !nodeId || !toTier) {
-			return c.json({error: "root, node_id and to_tier are required"}, 400);
-		}
-		if (body.before_id !== undefined && typeof body.before_id !== "string") {
-			return c.json({error: "before_id must be a string"}, 400);
-		}
-		const beforeNodeId = text(body.before_id);
-		try {
-			const event = await createService(c.get("ctx")).move({
-				root,
-				nodeId,
-				toTier,
-				...(beforeNodeId === undefined ? {} : {beforeNodeId}),
-			});
-			return c.json({event});
-		} catch (error) {
-			return c.json({error: messageOf(error), reconcile: true}, 400);
-		}
-	});
-
-	router.post("/complete", async (c) => {
-		const body = await readBody(c.req.raw);
-		const root = text(body.root);
-		const nodeId = text(body.node_id);
-		if (!root || !nodeId) {
-			return c.json({error: "root and node_id are required"}, 400);
-		}
-		try {
-			const event = await createService(c.get("ctx")).complete({root, nodeId});
-			return c.json({event});
-		} catch (error) {
-			return c.json({error: messageOf(error)}, 400);
-		}
-	});
-
-	return router;
-}
-
-const JsonObjectSchema = z.record(z.string(), z.unknown());
-
-async function readBody(request: Request): Promise<Record<string, unknown>> {
-	try {
-		const result = JsonObjectSchema.safeParse(await request.json());
-		return result.success ? result.data : {};
-	} catch {
-		return {};
-	}
-}
-
-function text(value: unknown): string | undefined {
-	return typeof value === "string" ? value : undefined;
+/** Build the three ladder ops over a service factory; a test injects a fake service. */
+export function createLadderOps(createService: (ctx: ServerContext) => LadderOperations) {
+	return {
+		"ladder.read": defineOp({
+			input: z.object({}),
+			async run(ctx) {
+				return ok(jsonOf({ladders: await createService(ctx).read()}));
+			},
+		}),
+		"ladder.move": defineOp({
+			input: MoveInput,
+			async run(ctx, body) {
+				const root = text(body.root);
+				const nodeId = text(body.node_id);
+				const toTier = text(body.to_tier);
+				if (!root || !nodeId || !toTier) {
+					return fail(400, {error: "root, node_id and to_tier are required"});
+				}
+				if (body.before_id !== undefined && typeof body.before_id !== "string") {
+					return fail(400, {error: "before_id must be a string"});
+				}
+				const beforeNodeId = text(body.before_id);
+				try {
+					const event = await createService(ctx).move({
+						root,
+						nodeId,
+						toTier,
+						...(beforeNodeId === undefined ? {} : {beforeNodeId}),
+					});
+					return ok(jsonOf({event}));
+				} catch (error) {
+					return fail(400, {error: messageOf(error), reconcile: true});
+				}
+			},
+		}),
+		"ladder.complete": defineOp({
+			input: CompleteInput,
+			async run(ctx, body) {
+				const root = text(body.root);
+				const nodeId = text(body.node_id);
+				if (!root || !nodeId) {
+					return fail(400, {error: "root and node_id are required"});
+				}
+				try {
+					return ok(jsonOf({event: await createService(ctx).complete({root, nodeId})}));
+				} catch (error) {
+					return fail(400, {error: messageOf(error)});
+				}
+			},
+		}),
+	};
 }
 
 function toRawNode(tree: NodeTree): RawNode {
@@ -104,10 +98,6 @@ function toRawNode(tree: NodeTree): RawNode {
 		completedAt: tree.completedAt?.toISOString() ?? null,
 		children: tree.children?.map(toRawNode),
 	};
-}
-
-function messageOf(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -158,3 +148,5 @@ function apiClient(ctx: ServerContext): WorkflowyApiClient {
 function writeClient(ctx: ServerContext): WorkflowyWriteThroughClient {
 	return new WorkflowyWriteThroughClient(apiClient(ctx), ctx.cacheService);
 }
+
+export const ladderOps = createLadderOps(defaultService);

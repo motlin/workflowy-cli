@@ -1,8 +1,9 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {Hono} from "hono";
-import {createLadderRouter} from "../src/server/routes/ladder.js";
-import type {LadderOperations} from "../src/server/routes/ladder.js";
-import type {AppEnv} from "../src/server/context.js";
+import {createHttpApp} from "../src/server/http/app.js";
+import {createLadderOps} from "../src/server/ops/ladder.js";
+import type {LadderOperations} from "../src/server/ops/ladder.js";
+import type {ServerContext} from "../src/server/context.js";
+import {inProcessStore} from "../src/server/store.js";
 import type {Ladder} from "../src/server/ladder-model.js";
 import type {LadderService} from "../src/server/ladder-service.js";
 
@@ -10,9 +11,11 @@ import type {LadderService} from "../src/server/ladder-service.js";
 function makeApp(operations: Partial<LadderOperations>) {
 	const unexpected = async (): Promise<never> => Promise.reject(new Error("unexpected ladder service call"));
 	const service: LadderOperations = {read: unexpected, move: unexpected, complete: unexpected, ...operations};
-	const app = new Hono<AppEnv>();
-	app.route("/api/v1/ladder", createLadderRouter({createService: () => service}));
-	return app;
+	const store = inProcessStore(
+		{} as unknown as ServerContext,
+		createLadderOps(() => service),
+	);
+	return createHttpApp({resolveStore: () => store});
 }
 
 const ladders: Record<string, Ladder> = {

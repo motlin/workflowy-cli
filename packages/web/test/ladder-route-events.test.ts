@@ -1,17 +1,16 @@
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
-import {Hono} from "hono";
 import {join} from "node:path";
 import {describe, expect, it, vi} from "vite-plus/test";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
+import type {ServerContext} from "../src/server/context.js";
 import {LadderEventBus} from "../src/server/ladder-events.js";
 import type {LadderEvent} from "../src/server/ladder-events.js";
-import {createLadderRouter} from "../src/server/routes/ladder.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const SEEDED_AT = "2026-01-01 00:00:00.000";
@@ -68,12 +67,7 @@ describe("ladder route event bus", () => {
 			ladderEvents: events,
 			internalAdapter: () => ({moveTo}),
 		} as unknown as ServerContext;
-		const app = new Hono<AppEnv>();
-		app.use("/*", async (c, next) => {
-			c.set("ctx", ctx);
-			await next();
-		});
-		app.route("/api/v1/ladder", createLadderRouter());
+		const app = httpAppFor(ctx);
 
 		const res = await app.fetch(
 			new Request("http://x/api/v1/ladder/move", {

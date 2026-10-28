@@ -136,5 +136,17 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		expect(viaWorker[0]?.body).toStrictEqual({visible: [], enabled: {}, available: false});
 		expect(viaWorker[1]?.body).toMatchObject({rootId: null, rootChildren: []});
 		expect(viaWorker[3]?.body).toStrictEqual({tags: []});
+
+		const ladderViaDo = await stub.fetch("http://localhost/api/v1/ladder/move", {method: "POST", body: "{}"});
+		const ladderViaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/ladder/move", {
+			method: "POST",
+			headers: {"Cf-Access-Jwt-Assertion": jwt, "content-type": "application/json"},
+			body: "{}",
+		});
+		expect(ladderViaDo.status).toBe(404);
+		expect(ladderViaWorker.status).toBe(400);
+		await expect(ladderViaWorker.json()).resolves.toStrictEqual({
+			error: "root, node_id and to_tier are required",
+		});
 	});
 });

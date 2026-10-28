@@ -3,7 +3,6 @@ import {cors} from "hono/cors";
 import {apiCompression} from "./compression.js";
 import type {AppEnv, ServerContext} from "./context.js";
 import {createCalendarRouter} from "./routes/calendar.js";
-import {createLadderRouter} from "./routes/ladder.js";
 import {homeRouter, nodesRouter} from "./routes/nodes.js";
 import {relatedRouter} from "./routes/related.js";
 import {searchRouter} from "./routes/search.js";
@@ -51,7 +50,6 @@ export function createApp(ctx: ServerContext, options: AppOptions = {}): Hono<Ap
 	// Mount API routes
 	app.route("/api/v1/nodes", nodesRouter);
 	app.route("/api/v1/home", homeRouter);
-	app.route("/api/v1/ladder", createLadderRouter());
 	app.route("/api/v1/decisions", createDecisionsRouter());
 	app.route("/api/v1/calendar", createCalendarRouter());
 	app.route("/api/search", searchRouter);

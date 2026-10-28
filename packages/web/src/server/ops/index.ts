@@ -5,6 +5,7 @@ import {customTreeGet} from "./custom-tree.js";
 import {expansionGet, expansionLeftBarGet, expansionLeftBarPatch, expansionPatch} from "./expansion.js";
 import {filesSignedUrl} from "./files.js";
 import {featuresGet, featuresSet} from "./features.js";
+import {ladderOps} from "./ladder.js";
 import {preferencesGet, preferencesPatch} from "./preferences.js";
 import {starsList, starsOrder, starsRemove, starsRename, starsSet} from "./stars.js";
 import {tagIndexAutocomplete} from "./tag-index.js";
@@ -23,6 +24,7 @@ export const Ops = {
 	"files.signedUrl": filesSignedUrl,
 	"features.get": featuresGet,
 	"features.set": featuresSet,
+	...ladderOps,
 	"preferences.get": preferencesGet,
 	"preferences.patch": preferencesPatch,
 	"stars.list": starsList,
