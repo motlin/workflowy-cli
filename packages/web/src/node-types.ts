@@ -115,6 +115,23 @@ export interface OutlineViewResponse {
 }
 
 /**
+ * `GET /api/v1/nodes/changes?since=<mark>`'s answer: what changed in the tree after a high-water mark, so a client
+ * patches its cache after a write instead of refetching every node query.
+ */
+export interface NodeChangesResponse {
+	/** The new high-water mark: the newest system time any node row was opened or closed at. */
+	latest: string;
+	/** Too much changed to list: refetch everything. The lists below are then empty. */
+	reset: boolean;
+	/** Every node that changed (live or gone). Empty when no `since` was given. */
+	changedIds: string[];
+	/** The changed nodes no longer in the tree. */
+	deletedIds: string[];
+	/** The refreshed children of each parent a changed node sits under now or left, Home's under `null`. */
+	children: {parentId: string | null; nodes: NodeResponse[]}[];
+}
+
+/**
  * What a text save changed beyond the node's own copies: the nodes whose Backlinks gained or lost it as a
  * source, and whether its `<time>`s changed (which moves it between day pages' Found Dates).
  */

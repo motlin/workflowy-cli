@@ -34,7 +34,7 @@ import type {StripDropCell, StripDropDetail} from "../calendar-strip-model.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
 import {canMoveUnderDashboard, dashboardsOn} from "../dashboard.js";
 import {cachedCanRender} from "../layouts-cache.js";
-import {readChildren, readNode, removeFoundDates, nodeKeys} from "../node-cache.js";
+import {readChildren, readNode, removeFoundDates} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
 import type {DropRows, DropTarget} from "../outline-drop-target.js";
 import {createEdgeAutoscroller, pickScroller, scrollerOf} from "../pointer-drag.js";
@@ -44,7 +44,7 @@ import {paneView, useOutlineStore} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
 import {leaveEditor} from "./use-drag-select.js";
-import {copyNodesAt, moveNodesNow} from "./use-nodes.js";
+import {copyNodesAt, moveNodesNow, syncNodeChanges} from "./use-nodes.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {HOME_ROOT, currentSelectionView} from "./use-selection-keymap.js";
 
@@ -257,7 +257,7 @@ async function runCopyDrop(queryClient: QueryClient, copy: CopyPlan, releasedPar
 	if (newIds === undefined) {
 		return;
 	}
-	await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+	await syncNodeChanges(queryClient);
 	const effects = copyDropEffects(copy, newIds, isRowRendered);
 	if (effects.select !== null) {
 		useOutlineStore.getState().setItemSelection(selectionOf(effects.select));

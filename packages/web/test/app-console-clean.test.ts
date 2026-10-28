@@ -56,6 +56,8 @@ const responses: Partial<Record<string, () => Response>> = {
 	"/api/v1/stars": () => Response.json({stars: []}),
 	"/api/v1/nodes": () => Response.json({nodes: [row("alice", null, true)]}),
 	"/api/v1/nodes/view": () => Response.json(view),
+	"/api/v1/nodes/changes": () =>
+		Response.json({latest: "2026-10-28 00:00:00.000", reset: false, changedIds: [], deletedIds: [], children: []}),
 };
 
 // Loaded once up front so the cold module transform is not charged to the test's own timeout.

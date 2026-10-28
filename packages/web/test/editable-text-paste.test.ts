@@ -17,6 +17,7 @@ vi.mock("../src/client/hooks/use-nodes.js", async () => {
 		useCreateNode: () => noopMutation,
 		useDeleteNode: () => noopMutation,
 		useMoveNode: () => noopMutation,
+		syncNodeChanges: async () => Promise.resolve(),
 		useUpdateNode: () => ({
 			mutate: (update: Record<string, unknown>) => {
 				updates.push(update);

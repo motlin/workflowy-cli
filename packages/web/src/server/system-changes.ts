@@ -100,3 +100,26 @@ export function changedNodeIds(database: Database, since: string, limit: number)
 export function readConsistently<T>(database: Database, read: () => T): T {
 	return database.transaction(() => read());
 }
+
+/** Where the changed nodes `ids` sit now and sat before: each live one's parent, and the parents rows closed after `since` had. */
+export interface ChangedPlacement {
+	/** Each live id's current parent (null: Home). An id missing here is gone from the tree. */
+	parents: Map<string, string | null>;
+	/** The parents of rows closed after `since`, each once: what a move or delete left. */
+	formerParents: Set<string | null>;
+}
+
+/** {@link ChangedPlacement} for `ids`, in two queries however many ids: the id set is one JSON parameter. */
+export function changedPlacement(database: Database, ids: readonly string[], since: string): ChangedPlacement {
+	const idSet = sql`SELECT value FROM json_each(${JSON.stringify(ids)})`;
+	const live = database.all<{id: string; parent_id: string | null}>(sql`
+		SELECT id, parent_id FROM node_content WHERE system_to = ${FAR_FUTURE_DATE} AND id IN (${idSet})
+	`);
+	const former = database.all<{parent_id: string | null}>(sql`
+		SELECT DISTINCT parent_id FROM node_content WHERE ${CLOSED} AND system_to > ${since} AND id IN (${idSet})
+	`);
+	return {
+		parents: new Map(live.map((row) => [row.id, row.parent_id])),
+		formerParents: new Set(former.map((row) => row.parent_id)),
+	};
+}

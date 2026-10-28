@@ -13,6 +13,7 @@ import {HOME_TARGET} from "@workflowy/shared/types";
 import type {MutateOptions, MutationObserverOptions, QueryClient} from "@tanstack/react-query";
 import type {
 	BacklinksResponse,
+	NodeChangesResponse,
 	FoundDatesResponse,
 	NodeResponse,
 	OutlineViewResponse,
@@ -44,6 +45,7 @@ import {backlinkEditFallback, readNavigableRows} from "../backlink-edit.js";
 import {activePaneView, localExpansionChangeState, useOutlineStore} from "../stores/outline.js";
 import {removeDeletedRow, textReplayPending} from "../undo-cache.js";
 import {createChildrenBatcher} from "../children-batcher.js";
+import {ChangeFeed} from "../change-feed.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
 import {pendingMoves} from "../pending-moves.js";
@@ -97,8 +99,32 @@ const loadChildren = createChildrenBatcher(async (parentIds) => {
 	return (await readJson<{children: Record<string, NodeResponse[]>}>(response)).children;
 });
 
+async function fetchChanges(since: string | undefined): Promise<NodeChangesResponse> {
+	const query = since === undefined ? "" : `?since=${encodeURIComponent(since)}`;
+	const response = await fetch(`/api/v1/nodes/changes${query}`);
+	if (!response.ok) {
+		throw await toRequestStatusError("Failed to fetch changes", response);
+	}
+	return readJson<NodeChangesResponse>(response);
+}
+
+/**
+ * The tree's high-water mark: after a write, the cache is patched with what changed since it instead of refetching
+ * every node query. A list of a parent with a move in flight is left for that move's own sync; creates in flight keep
+ * their optimistic rows, as in `fetchChildren`.
+ */
+const changeFeed = new ChangeFeed(fetchChanges, (parentId, nodes) =>
+	pendingMoves.has(parentId) ? undefined : pendingCreates.withPending(parentId, nodes),
+);
+
+/** Patch the cache with every tree change since the last sync; the settle step of each successful tree write. */
+export async function syncNodeChanges(queryClient: QueryClient): Promise<void> {
+	await changeFeed.sync(queryClient);
+}
+
 /** A parent's children (Home's for `null`); loads requested in the same tick share one batch request. */
 export async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
+	void changeFeed.seed();
 	await pendingMoves.settled(parentId);
 	if (parentId !== null) {
 		return pendingCreates.withPending(parentId, await loadChildren(parentId));
@@ -113,6 +139,7 @@ export async function fetchChildren(parentId: string | null): Promise<NodeRespon
 
 /** Everything an outline view first renders, in one round trip (see `loadOutlineView`). */
 export async function fetchOutlineView(request: OutlineViewRequest): Promise<OutlineViewResponse> {
+	void changeFeed.seed();
 	const response = await fetch("/api/v1/nodes/view", {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
@@ -563,10 +590,11 @@ export function useCreateNode() {
 			if (variables.id !== undefined) {
 				pendingCreates.end(variables.id);
 			}
-			// Refetch to get the real data from server
 			const parentId = variables.parent_id ?? null;
 			if (error === null && data !== undefined) {
 				verifyAgainstServer(queryClient, "create", affectedKeys(queryClient, [data.id], [parentId]));
+				await syncNodeChanges(queryClient);
+				return;
 			}
 			await queryClient.invalidateQueries({queryKey: nodeKeys.children(parentId)});
 		},
@@ -887,8 +915,10 @@ export function useDeleteNode() {
 			if (error === null && context !== undefined) {
 				verifyAgainstServer(queryClient, "delete", affectedKeys(queryClient, [], [context.parentId]));
 			}
-			// Refetch all node queries to reflect deletion
-			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+			// A failed delete refetches everything, which puts the optimistically removed row back.
+			await (error === null
+				? syncNodeChanges(queryClient)
+				: queryClient.invalidateQueries({queryKey: nodeKeys.all}));
 		},
 	});
 	const mutate = useUndoableMutate(mutation.mutate, deleteUndos, planDelete);
@@ -945,7 +975,9 @@ export function useMoveNode() {
 					affectedKeys(queryClient, [variables.nodeId], [data.oldParentId, variables.parent_id]),
 				);
 			}
-			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+			await (error === null
+				? syncNodeChanges(queryClient)
+				: queryClient.invalidateQueries({queryKey: nodeKeys.all}));
 		},
 	});
 	const mutate = useUndoableMutate(mutation.mutate, moveUndos, planMove);
@@ -1182,9 +1214,9 @@ function toggleCompleteOptions(queryClient: QueryClient) {
 					affectedKeys(queryClient, [variables.nodeId, context.originalId], context.parentIds),
 				);
 			}
-			// Refetch to get the real data from server
-			await queryClient.invalidateQueries({queryKey: nodeKeys.detail(variables.nodeId)});
-			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+			await (error === null
+				? syncNodeChanges(queryClient)
+				: queryClient.invalidateQueries({queryKey: nodeKeys.all}));
 		},
 	});
 }
@@ -1213,7 +1245,7 @@ function planRestore(
 	return cachedOps(queryClient, {kind: "restore", nodeId, parentId, index});
 }
 
-/** Restores a deleted node under its original id, then refetches every node query. */
+/** Restores a deleted node under its original id, then patches the cache with the change. */
 // fallow-ignore-next-line unused-export -- callers land with undo/redo commands (M2-60, M2-61)
 export function useRestoreNode() {
 	const queryClient = useQueryClient();
@@ -1228,8 +1260,10 @@ export function useRestoreNode() {
 			restoreUndos.settle(variables, "failed");
 			addErrorNotification(error.message);
 		},
-		async onSettled() {
-			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		async onSettled(_data, error) {
+			await (error === null
+				? syncNodeChanges(queryClient)
+				: queryClient.invalidateQueries({queryKey: nodeKeys.all}));
 		},
 	});
 	const mutate = useUndoableMutate(mutation.mutate, restoreUndos, planRestore);
@@ -1331,7 +1365,7 @@ export async function detachMirrorNode(queryClient: QueryClient, nodeId: string)
 			...(node === null ? [] : toUndoOps({kind: "create", nodeId: node.id, parentId, index}, queryClient)),
 			...removed,
 		]);
-		await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		await syncNodeChanges(queryClient);
 		return node?.id;
 	} catch (error) {
 		slot.settle([]);
@@ -1373,7 +1407,7 @@ export async function swapMirrorOriginNode(queryClient: QueryClient, nodeId: str
 		}
 		const {warning} = await readJson<{warning?: string}>(response);
 		slot.settle(warning === undefined ? ops : []);
-		await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		await syncNodeChanges(queryClient);
 		return warning;
 	} catch (error) {
 		slot.settle([]);
@@ -1393,7 +1427,7 @@ function planMirrorNodes(
 		toUndoOps({kind: "mirror", nodeIds: nodes.map((node) => node.id), parentId, index: start}, queryClient);
 }
 
-/** Mirrors items under `parent_id` (MIR4); ⌘Z deletes the new mirrors. The refetch shows them. */
+/** Mirrors items under `parent_id` (MIR4); ⌘Z deletes the new mirrors. The change sync shows them. */
 export function useMirrorNodes() {
 	const queryClient = useQueryClient();
 	const mutation = useMutation({
@@ -1405,8 +1439,10 @@ export function useMirrorNodes() {
 			mirrorNodesUndos.settle(variables, "failed");
 			useOutlineStore.getState().addErrorNotification(`Failed to mirror nodes: ${error.message}`);
 		},
-		async onSettled() {
-			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		async onSettled(_nodes, error) {
+			await (error === null
+				? syncNodeChanges(queryClient)
+				: queryClient.invalidateQueries({queryKey: nodeKeys.all}));
 		},
 	});
 	const mutate = useUndoableMutate(mutation.mutate, mirrorNodesUndos, planMirrorNodes);

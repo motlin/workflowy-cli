@@ -4,6 +4,7 @@ import type {
 	BacklinksResponse,
 	CalendarInfo,
 	FoundDatesResponse,
+	NodeChangesResponse,
 	NodeAttachment,
 	NodeResponse,
 	OutlineViewList,
@@ -49,6 +50,7 @@ import type {AppEnv, ServerContext} from "../context.js";
 import type {MirrorInstance} from "../../mirror-path.js";
 import {childInstance, expansionId} from "../../mirror-path.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
+import {changedNodeIds, changedPlacement, changesSince, latestSystemTime, readConsistently} from "../system-changes.js";
 
 /**
  * Resolve an ID parameter that could be a short ID (12 hex chars) or a full UUID.
@@ -492,6 +494,51 @@ nodesRouter.post("/children", async (c) => {
 			[...requestedToParent].map(([requested, parent]) => [requested, lists.get(parent) ?? []]),
 		),
 	});
+});
+
+/** The most changed nodes a changes read lists; past it the client refetches everything. */
+const CHANGES_LIMIT = 500;
+
+/**
+ * What changed after the high-water mark `since` (none: only the mark): the changed ids, which of them are gone, and
+ * the refreshed children of every parent they sit under now or left. One consistent read, and every concern is read
+ * once for the whole id set, so the statement count does not grow with how much changed.
+ */
+function readNodeChanges(ctx: ServerContext, since: string | undefined): NodeChangesResponse {
+	return readConsistently(ctx.db, () => {
+		const latest = latestSystemTime(ctx.db);
+		const none = {latest, reset: false, changedIds: [], deletedIds: [], children: []};
+		if (since === undefined) {
+			return none;
+		}
+		const from = changesSince(since);
+		const changed = changedNodeIds(ctx.db, from, CHANGES_LIMIT);
+		if (changed === undefined) {
+			return {...none, reset: true};
+		}
+		const changedIds = [...changed];
+		const {parents, formerParents} = changedPlacement(ctx.db, changedIds, from);
+		const deletedIds = changedIds.filter((id) => !parents.has(id));
+		const gone = new Set(deletedIds);
+		const parentIds = [...new Set([...parents.values(), ...formerParents])].filter(
+			(id) => id === null || !gone.has(id),
+		);
+		const lists = readChildDtoLists(ctx, parentIds);
+		return {
+			latest,
+			reset: false,
+			changedIds,
+			deletedIds,
+			children: parentIds.map((parentId) => ({parentId, nodes: lists.get(parentId) ?? []})),
+		};
+	});
+}
+
+// GET /api/v1/nodes/changes?since=<mark> - What changed in the tree after a high-water mark (see `readNodeChanges`).
+// The client asks this after each write instead of refetching every node query; with no `since` it answers the mark.
+nodesRouter.get("/changes", (c) => {
+	const since = c.req.query("since");
+	return c.json(readNodeChanges(c.get("ctx"), since === "" ? undefined : since));
 });
 
 // POST /api/v1/nodes/view - Everything an outline view under `rootId` first renders, in one round trip: the root's

@@ -8,7 +8,7 @@ import {resolveLayoutMode} from "../components/layout-mode.js";
 import type {DateSettings} from "../date-settings.js";
 import {renderEditorHtml, serializeEditorHtml} from "../editor-html.js";
 import type {MentionAccount} from "../mention-pills.js";
-import {readChildren, readNode, nodeKeys} from "../node-cache.js";
+import {readChildren, readNode} from "../node-cache.js";
 import {
 	buildItemCopyLines,
 	buildPasteLines,
@@ -23,7 +23,7 @@ import {activePaneView, outlineActions} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {captureOutlineView, holdUndoSlot, runInUndoBatch} from "../undo-batch.js";
 import {usePlainPasteKey} from "./use-plain-paste-key.js";
-import {mirrorNodeAt, restoreNode, toggleComplete, useDeleteNode, useUpdateNode} from "./use-nodes.js";
+import {mirrorNodeAt, restoreNode, syncNodeChanges, toggleComplete, useDeleteNode, useUpdateNode} from "./use-nodes.js";
 import {cutEntryFor, forgetCut} from "../cut-registry.js";
 import {
 	CUT_PASTE_WARNING,
@@ -85,7 +85,7 @@ async function pasteItemSteps(
 		copyFromCache: async (id, at) => createOne(copyTreeFromCache(queryClient, id), at),
 		fallbackCopy: async (stepIndex, at) => createOne(copyTrees[stepIndex], at),
 	});
-	await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+	await syncNodeChanges(queryClient);
 	return result;
 }
 

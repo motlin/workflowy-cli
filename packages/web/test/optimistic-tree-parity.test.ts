@@ -37,6 +37,22 @@ let serverNodes: Map<string, ServerNode>;
 let serverChildren: Map<string | null, string[]>;
 /** Requests the fake server has answered, in arrival order. */
 let arrivals: string[];
+/**
+ * The fake server's system clock and its writes, for `GET /changes`. The clock never resets between tests: the
+ * client's high-water mark lives in a module that outlives each test, and it only ever advances.
+ */
+let clock = 0;
+let writes: {at: number; id: string; parents: (string | null)[]}[];
+
+/** A system time as the server formats it: fixed-width, so string order is time order. */
+function systemTime(at: number): string {
+	return String(at).padStart(12, "0");
+}
+
+function recordWrite(id: string, parents: (string | null)[]): void {
+	clock += 1;
+	writes.push({at: clock, id, parents});
+}
 
 function addServerNode(id: string, parent: string | null, completedAt: number | null = null, index?: number): void {
 	serverNodes.set(id, {id, parent, completedAt});
@@ -80,12 +96,25 @@ async function answer(url: string, init: RequestInit | undefined): Promise<Respo
 		const body = bodyOf(init) as {id: string; parent_id?: string; index?: number};
 		arrivals.push(`create ${body.id}`);
 		addServerNode(body.id, body.parent_id ?? null, null, body.index);
+		recordWrite(body.id, [body.parent_id ?? null]);
 		return Response.json({node: serverRow(body.id)});
 	}
 	if (url === "/api/v1/nodes/children") {
 		const {parentIds} = bodyOf(init) as {parentIds: string[]};
 		arrivals.push(`children ${parentIds.join(",")}`);
 		return Response.json({children: Object.fromEntries(parentIds.map((id) => [id, serverList(id)]))});
+	}
+	if (url.startsWith("/api/v1/nodes/changes")) {
+		const since = new URL(url, "http://x").searchParams.get("since");
+		const changed = since === null ? [] : writes.filter((write) => systemTime(write.at) > since);
+		const parentIds = [...new Set(changed.flatMap((write) => write.parents))];
+		return Response.json({
+			latest: systemTime(clock),
+			reset: false,
+			changedIds: [...new Set(changed.map((write) => write.id))],
+			deletedIds: [],
+			children: parentIds.map((parentId) => ({parentId, nodes: serverList(parentId)})),
+		});
 	}
 	const movePrefix = "/api/v1/nodes/";
 	if (url.startsWith(movePrefix) && url.endsWith("/move")) {
@@ -107,6 +136,7 @@ async function answer(url: string, init: RequestInit | undefined): Promise<Respo
 		);
 		serverNodes.delete(id);
 		addServerNode(id, parentId, node.completedAt, index);
+		recordWrite(id, [oldParentId, parentId]);
 		return Response.json({node: serverRow(id), oldParentId});
 	}
 	return new Response(null, {status: 404});
@@ -205,6 +235,7 @@ beforeEach(() => {
 	serverNodes = new Map();
 	serverChildren = new Map();
 	arrivals = [];
+	writes = [];
 	// Home > g > (a, b); b has a completed child c.
 	addServerNode("g", null);
 	addServerNode("a", "g");
@@ -272,7 +303,10 @@ describe("optimistic Enter/Tab write what the server will answer", () => {
 		expect(states).toStrictEqual([[["b", "a", true, false]]]);
 	});
 
-	it("Enter then Tab: the create's refetch of the old parent never puts the moved row back", async () => {
+	it("Enter then Tab: the change sync after each write never puts the moved row back", async () => {
+		// A loaded outline has taken the server's high-water mark (any children read seeds it).
+		await fetchChildren("g");
+		arrivals = [];
 		const queryClient = loaded([null, "g"]);
 		showChildren(queryClient, "g");
 		const hooks = captureHooks(queryClient);
@@ -287,7 +321,8 @@ describe("optimistic Enter/Tab write what the server will answer", () => {
 					["b", "g", true, false],
 				],
 			],
-			arrivals: ["create n", "move n", "children g"],
+			// Each write's settle patches the lists from the server's changes, with no children refetch.
+			arrivals: ["create n", "move n"],
 		});
 	});
 });

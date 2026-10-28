@@ -1,5 +1,6 @@
 import type {QueryClient} from "@tanstack/react-query";
-import {nodeKeys, readChildren} from "../node-cache.js";
+import {readChildren} from "../node-cache.js";
+import {syncNodeChanges} from "../hooks/use-nodes.js";
 import {readJson} from "../read-json.js";
 import {toRequestStatusError} from "../request-error.js";
 import {sortByPriority} from "../tree-position.js";
@@ -42,7 +43,7 @@ export async function createTrees(queryClient: QueryClient, request: CreateTrees
 		slot.settle(
 			ids.map((nodeId, at) => ({kind: "create", nodeId, parentId: request.parentId, index: baseIndex + at})),
 		);
-		await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		await syncNodeChanges(queryClient);
 		return ids;
 	} catch (error) {
 		slot.settle([]);
