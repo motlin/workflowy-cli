@@ -1,6 +1,6 @@
 import {afterAll, beforeAll, describe, expect, it} from "vite-plus/test";
 import {SignJWT, exportJWK, generateKeyPair} from "jose";
-import {startHarness} from "./harness";
+import {countStoreCalls, startHarness} from "./harness";
 import type {Harness} from "./harness";
 import {storeClient} from "../src/store-client";
 import type {UserStore} from "../src/user-store";
@@ -18,8 +18,8 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		privateKey = pair.privateKey;
 		const jwks = JSON.stringify({keys: [{...(await exportJWK(pair.publicKey)), alg: "RS256", use: "sig"}]});
 		h = await startHarness(
-			"../src/worker.ts",
-			"UserStore",
+			"./probe-entry.ts",
+			"ProbeStore",
 			undefined,
 			{
 				ACCESS_TEAM_DOMAIN: teamDomain,
@@ -245,5 +245,46 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		await expect(createViaWorker.json()).resolves.toStrictEqual({
 			error: "WORKFLOWY_API_KEY environment variable is required",
 		});
+	});
+
+	it("makes exactly one store call per HTTP request on every migrated route", async () => {
+		const jwt = await new SignJWT({email: "alice@example.com"})
+			.setProtectedHeader({alg: "RS256"})
+			.setAudience(audience)
+			.setIssuer(`https://${teamDomain}`)
+			.setIssuedAt()
+			.setExpirationTime("1h")
+			.sign(privateKey);
+		const json = {"content-type": "application/json"};
+		const routes: {method: string; path: string; body?: string}[] = [
+			{method: "GET", path: "/api/v1/account"},
+			{method: "GET", path: "/api/v1/features"},
+			{method: "GET", path: "/api/v1/custom-tree"},
+			{method: "GET", path: "/api/changes?since=1d"},
+			{method: "GET", path: "/api/v1/tags"},
+			{method: "GET", path: "/api/v1/stars"},
+			{method: "GET", path: "/api/v1/preferences"},
+			{method: "GET", path: "/api/v1/expansion"},
+			{method: "GET", path: "/api/v1/nodes"},
+			{method: "GET", path: "/api/search/helpers?rootId="},
+			{method: "POST", path: "/api/related", body: JSON.stringify({type: "similar"})},
+			{method: "POST", path: "/api/v1/nodes", body: "{}"},
+		];
+
+		// Sequential: the counter is per Durable Object, so concurrent requests would share it.
+		const counts: number[] = [];
+		for (const {method, path, body} of routes) {
+			counts.push(
+				await countStoreCalls(h.mf, "alice@example.com", async () =>
+					h.mf.dispatchFetch(`http://localhost${path}`, {
+						method,
+						body,
+						headers: {...json, "Cf-Access-Jwt-Assertion": jwt},
+					}),
+				),
+			);
+		}
+
+		expect(counts).toStrictEqual(routes.map(() => 1));
 	});
 });

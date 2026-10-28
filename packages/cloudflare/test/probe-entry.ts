@@ -1,11 +1,20 @@
 import {CacheService} from "@workflowy/shared/cache";
 import * as dbSchema from "@workflowy/shared/db";
 import {drizzle} from "drizzle-orm/durable-sqlite";
+import type {OpInput, OpName, OpOutput, OpResult} from "@workflowy/web/server-app";
 import {UserStore} from "../src/user-store";
 import worker from "../src/worker";
 
 /** Test-only subclass exposing the DO's raw SQLite state. */
 export class ProbeStore extends UserStore {
+	private calls = 0;
+
+	/** Counts every op so tests can assert the one-call-per-request rule. */
+	override async call<K extends OpName>(op: K, input: OpInput<K>): Promise<OpResult<OpOutput<K>>> {
+		this.calls++;
+		return super.call(op, input);
+	}
+
 	override fetch(request: Request): Response {
 		const url = new URL(request.url);
 		if (url.pathname === "/__probe") {
@@ -20,6 +29,13 @@ export class ProbeStore extends UserStore {
 				this.ctx.storage.sql.exec("SELECT count(*) AS n FROM __drizzle_migrations").one().n,
 			);
 			return Response.json({names, schema, migrations, appliedOnBoot: this.appliedOnBoot});
+		}
+		if (url.pathname === "/__calls") {
+			const calls = this.calls;
+			if (url.searchParams.has("reset")) {
+				this.calls = 0;
+			}
+			return Response.json({calls});
 		}
 		if (url.pathname === "/__session") {
 			const write = url.searchParams.get("write");

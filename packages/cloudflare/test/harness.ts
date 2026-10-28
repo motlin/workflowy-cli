@@ -106,3 +106,14 @@ export async function probeStore<T = ProbeResult>(mf: Miniflare, path = "/__prob
 	const response = await ns.get(ns.idFromName("dev")).fetch(`http://localhost${path}`);
 	return response.json();
 }
+
+/** Run one HTTP request and return how many `UserStore.call`s it made on the named Durable Object (needs the ProbeStore entry). */
+export async function countStoreCalls(mf: Miniflare, name: string, request: () => Promise<unknown>): Promise<number> {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
+	const ns = (await mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
+	const stub = ns.get(ns.idFromName(name));
+	await stub.fetch("http://localhost/__calls?reset");
+	await request();
+	const result: {calls: number} = await (await stub.fetch("http://localhost/__calls")).json();
+	return result.calls;
+}
