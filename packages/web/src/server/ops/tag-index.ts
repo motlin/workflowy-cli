@@ -12,13 +12,14 @@
  * `fallback=0`.
  */
 
-import {Hono} from "hono";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, eq, sql} from "drizzle-orm";
-import type {AppEnv, ServerContext} from "../context.js";
+import {z} from "zod";
+import type {ServerContext} from "../context.js";
 import {mergeFallback, rankCounts, rankTags, swapItemText, wholeTreeTagCounts} from "../tag-index.js";
-import type {TagRow} from "../tag-index.js";
+import type {TagCount, TagRow} from "../tag-index.js";
+import {defineOp, ok} from "./define.js";
 
 const DEFAULT_LIMIT = 8;
 
@@ -86,36 +87,39 @@ function parseLimit(raw: string | undefined): number {
 	return Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_LIMIT;
 }
 
-export function createTagIndexRouter(): Hono<AppEnv> {
-	const router = new Hono<AppEnv>();
+/** Raw query values, as the route passes them; the op owns every default and fallback. */
+const Input = z.object({
+	root: z.string().default(""),
+	prefix: z.string().default("#"),
+	limit: z.string().optional(),
+	item: z.string().default(""),
+	name: z.string().optional(),
+	note: z.string().optional(),
+	fallback: z.string().optional(),
+});
 
-	router.get("/", (c) => {
-		const ctx = c.get("ctx");
-		const rawRoot = c.req.query("root") ?? "";
-		const prefix = c.req.query("prefix") ?? "#";
-		const limit = parseLimit(c.req.query("limit"));
-		const rawItem = c.req.query("item") ?? "";
+/** Copies each tag into a plain object literal, which is assignable to `Json` where the `TagCount` interface is not. */
+function plain(tags: TagCount[]): {tag: string; count: number}[] {
+	return tags.map(({tag, count}) => ({tag, count}));
+}
+
+export const tagIndexAutocomplete = defineOp({
+	input: Input,
+	run(ctx, {root: rawRoot, prefix, limit: rawLimit, item: rawItem, name, note, fallback}) {
+		const limit = parseLimit(rawLimit);
 		const live: LiveText | null =
-			rawItem === ""
-				? null
-				: {
-						id: ctx.cacheService.resolveShortIdToUuid(rawItem) ?? rawItem,
-						name: c.req.query("name"),
-						note: c.req.query("note"),
-					};
+			rawItem === "" ? null : {id: ctx.cacheService.resolveShortIdToUuid(rawItem) ?? rawItem, name, note};
 
 		if (rawRoot === "") {
-			return c.json({tags: rankCounts(wholeTreeCounts(ctx, live), {prefix, limit})});
+			return ok({tags: plain(rankCounts(wholeTreeCounts(ctx, live), {prefix, limit}))});
 		}
 
 		const rootId = ctx.cacheService.resolveShortIdToUuid(rawRoot) ?? rawRoot;
 		const tags = rankTags(withLive(subtreeRows(ctx, rootId), live), {prefix, limit});
-		if (tags.length >= limit || c.req.query("fallback") === "0") {
-			return c.json({tags});
+		if (tags.length >= limit || fallback === "0") {
+			return ok({tags: plain(tags)});
 		}
 		const global = rankCounts(wholeTreeCounts(ctx, live), {prefix, limit: limit * 2});
-		return c.json({tags: mergeFallback(tags, global, limit)});
-	});
-
-	return router;
-}
+		return ok({tags: plain(mergeFallback(tags, global, limit))});
+	},
+});

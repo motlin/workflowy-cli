@@ -10,9 +10,9 @@ import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {nodeTreeHost} from "../src/server/node-host.js";
 import {bindTreeHost} from "../src/server/tree-snapshot.js";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {changesRouter} from "../src/server/routes/changes.js";
 import {relatedRouter} from "../src/server/routes/related.js";
 import {searchRouter} from "../src/server/routes/search.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const SEEDED_AT = "2026-01-01 00:00:00.000";
@@ -50,7 +50,6 @@ function appWith(ctx: Partial<ServerContext>) {
 		await next();
 	});
 	app.route("/api/search", searchRouter);
-	app.route("/api/changes", changesRouter);
 	app.route("/api/related", relatedRouter);
 	return app;
 }
@@ -85,8 +84,8 @@ describe("routers read the database from the request context", () => {
 	});
 
 	it("changes reads the context database", async () => {
-		const app = appWith({db: memoryDb(), config: config(true)});
-		const res = await call(app, "GET", "/api/changes?since=1d");
+		const app = httpAppFor({db: memoryDb(), config: config(true)} as unknown as ServerContext);
+		const res = await app.fetch(new Request("http://x/api/changes?since=1d"));
 		expect(res.status).toBe(200);
 	});
 

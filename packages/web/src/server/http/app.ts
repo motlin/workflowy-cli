@@ -1,53 +1,34 @@
 import {Hono} from "hono";
 import {cors} from "hono/cors";
-import type {z} from "zod";
 import {apiCompression} from "../compression.js";
-import type {Json, OpResult} from "../ops/define.js";
-import type {StoreClient} from "../store.js";
+import {accountRoutes} from "./routes/account.js";
+import {changesRoutes} from "./routes/changes.js";
+import {customTreeRoutes} from "./routes/custom-tree.js";
+import {featuresRoutes} from "./routes/features.js";
+import {tagIndexRoutes} from "./routes/tag-index.js";
+import type {ResolveStore} from "./response.js";
+
+export {parseInput, toResponse} from "./response.js";
+export type {ResolveStore} from "./response.js";
 
 export interface HttpAppOptions {
-	resolveStore: (request: Request) => StoreClient | Promise<StoreClient>;
+	resolveStore: ResolveStore;
 	/** Browser origin allowed by CORS (the Vite dev server); omitted when the page is served same-origin. */
 	corsOrigin?: string;
 }
 
-/** Builds the Response for an op result: 204 for null, 304, 302, ETag and Server-Timing, or the error body. */
-export function toResponse(result: OpResult<unknown>): Response {
-	if (!result.ok) {
-		return Response.json(result.body, {status: result.status});
-	}
-	const {meta} = result;
-	const headers = new Headers();
-	if (meta?.etag !== undefined) {
-		headers.set("ETag", meta.etag);
-	}
-	if (meta?.timing !== undefined && meta.timing.length > 0) {
-		headers.set("Server-Timing", meta.timing.join(", "));
-	}
-	if (meta?.redirect !== undefined) {
-		headers.set("Location", meta.redirect);
-		return new Response(null, {status: 302, headers});
-	}
-	if (meta?.notModified === true) {
-		return new Response(null, {status: 304, headers});
-	}
-	if (result.value === null) {
-		return new Response(null, {status: 204, headers});
-	}
-	return Response.json(result.value, {headers});
+/** Every migrated route, without middleware, so a host can mount them inside an app that already has its own. */
+export function createHttpRoutes(resolveStore: ResolveStore): Hono {
+	const routes = new Hono();
+	routes.route("/api/v1/account", accountRoutes(resolveStore));
+	routes.route("/api/v1/features", featuresRoutes(resolveStore));
+	routes.route("/api/v1/custom-tree", customTreeRoutes(resolveStore));
+	routes.route("/api/changes", changesRoutes(resolveStore));
+	routes.route("/api/v1/tags/autocomplete", tagIndexRoutes(resolveStore));
+	return routes;
 }
 
-/** Validates raw request data with an op's schema; a miss is a 400 carrying `errorBody` verbatim. */
-export function parseInput<S extends z.ZodType>(
-	schema: S,
-	raw: unknown,
-	errorBody: Json,
-): {ok: true; value: z.output<S>} | {ok: false; status: 400; body: Json} {
-	const parsed = schema.safeParse(raw);
-	return parsed.success ? {ok: true, value: parsed.data} : {ok: false, status: 400, body: errorBody};
-}
-
-/** The Worker's (and Node's) HTTP layer: routing, validation and response building over a {@link StoreClient}. */
+/** The Worker's HTTP layer: routing, validation and response building over a {@link StoreClient}. */
 export function createHttpApp(options: HttpAppOptions): Hono {
 	const app = new Hono();
 	if (options.corsOrigin !== undefined) {
@@ -62,9 +43,6 @@ export function createHttpApp(options: HttpAppOptions): Hono {
 	}
 	app.use("/api/*", apiCompression());
 	app.get("/health", (c) => c.json({status: "ok"}));
-	app.get("/api/v1/account", async (c) => {
-		const store = await options.resolveStore(c.req.raw);
-		return toResponse(await store.call("account.get", {}));
-	});
+	app.route("/", createHttpRoutes(options.resolveStore));
 	return app;
 }

@@ -94,4 +94,42 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		expect(JSON.stringify(viaRpc)).toBe(JSON.stringify({ok: false, status: 503, body}));
 		expect(JSON.stringify(body)).toContain("internal API is not configured");
 	});
+
+	it("serves the migrated routers from the Worker only: the Durable Object's own app answers 404", async () => {
+		const jwt = await new SignJWT({email: "alice@example.com"})
+			.setProtectedHeader({alg: "RS256"})
+			.setAudience(audience)
+			.setIssuer(`https://${teamDomain}`)
+			.setIssuedAt()
+			.setExpirationTime("1h")
+			.sign(privateKey);
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
+		const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
+		const stub = ns.get(ns.idFromName("alice@example.com"));
+		const paths = [
+			"/api/v1/account",
+			"/api/v1/features",
+			"/api/v1/custom-tree",
+			"/api/changes?since=1d",
+			"/api/v1/tags/autocomplete",
+		];
+
+		const viaDo = await Promise.all(
+			paths.map(async (path) => (await stub.fetch(`http://localhost${path}`)).status),
+		);
+		const viaWorker = await Promise.all(
+			paths.slice(1).map(async (path) => {
+				const response = await h.mf.dispatchFetch(`http://localhost${path}`, {
+					headers: {"Cf-Access-Jwt-Assertion": jwt},
+				});
+				return {status: response.status, body: await response.json()};
+			}),
+		);
+
+		expect(viaDo).toStrictEqual([404, 404, 404, 404, 404]);
+		expect(viaWorker.map(({status}) => status)).toStrictEqual([200, 200, 200, 200]);
+		expect(viaWorker[0]?.body).toStrictEqual({visible: [], enabled: {}, available: false});
+		expect(viaWorker[1]?.body).toMatchObject({rootId: null, rootChildren: []});
+		expect(viaWorker[3]?.body).toStrictEqual({tags: []});
+	});
 });

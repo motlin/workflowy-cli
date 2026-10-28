@@ -4,14 +4,13 @@ import {drizzle} from "drizzle-orm/better-sqlite3";
 import {nodeTreeHost} from "../src/server/node-host.js";
 import {bindTreeHost} from "../src/server/tree-snapshot.js";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
-import {Hono} from "hono";
 import {join} from "node:path";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {and, eq} from "drizzle-orm";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
+import type {ServerContext} from "../src/server/context.js";
 import {
 	mergeFallback,
 	peekWholeTreeTagCountsBuild,
@@ -20,7 +19,7 @@ import {
 	wholeTreeTagCounts,
 } from "../src/server/tag-index.js";
 import type {TagCount} from "../src/server/tag-index.js";
-import {createTagIndexRouter} from "../src/server/routes/tag-index.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const FIXTURE_NAMES = [
 	"Alpha #taZebra item",
@@ -151,16 +150,10 @@ function setupDb() {
 
 function setup(db = setupDb()) {
 	const ctx = {db, cacheService: new CacheService(db)} as unknown as ServerContext;
-	const app = new Hono<AppEnv>();
-	app.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	app.route("/api/v1/tags/autocomplete", createTagIndexRouter());
-	return app;
+	return httpAppFor(ctx);
 }
 
-async function getTags(app: Hono<AppEnv>, query: string): Promise<string[]> {
+async function getTags(app: ReturnType<typeof httpAppFor>, query: string): Promise<string[]> {
 	const response = await app.fetch(new Request(`http://x/api/v1/tags/autocomplete?${query}`));
 	if (response.status !== 200) {
 		throw new Error(await response.text());

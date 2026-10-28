@@ -32,3 +32,9 @@ export interface OpDefinition<S extends z.ZodType, T extends Json> {
 export function defineOp<S extends z.ZodType, T extends Json>(definition: OpDefinition<S, T>): OpDefinition<S, T> {
 	return definition;
 }
+
+/** Narrows a value built from Dates and interfaces to {@link Json} by serializing it, as `c.json` did. */
+export function jsonOf(value: unknown): Json {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion, unicorn/prefer-structured-clone -- structuredClone would keep Dates; the JSON round trip is the point
+	return JSON.parse(JSON.stringify(value)) as Json;
+}

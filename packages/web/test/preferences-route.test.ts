@@ -8,7 +8,7 @@ import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createAccountRouter} from "../src/server/routes/account.js";
+import {httpAppFor} from "./http-app-for.js";
 import {createPreferencesRouter} from "../src/server/routes/preferences.js";
 
 const NOT_CONFIGURED =
@@ -72,7 +72,7 @@ function setup(meta: Record<string, unknown> | undefined, settings: Record<strin
 		await next();
 	});
 	app.route("/api/v1/preferences", createPreferencesRouter());
-	app.route("/api/v1/account", createAccountRouter());
+	app.route("/", httpAppFor(ctx));
 	const request = async (method: string, path: string, body?: unknown) => {
 		const res = await app.fetch(
 			new Request(`http://x/api/v1${path}`, {

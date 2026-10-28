@@ -1,8 +1,7 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {Hono} from "hono";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createAccountRouter} from "../src/server/routes/account.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 describe("GET /api/v1/account", () => {
 	it("answers the user id, join date, full name and email", async () => {
@@ -15,12 +14,7 @@ describe("GET /api/v1/account", () => {
 			internalAdapter: () => adapter as unknown as WorkflowyInternalAdapter,
 			config: {accountEmail: "user@example.com"},
 		} as unknown as ServerContext;
-		const app = new Hono<AppEnv>();
-		app.use("*", async (c, next) => {
-			c.set("ctx", ctx);
-			await next();
-		});
-		app.route("/api/v1/account", createAccountRouter());
+		const app = httpAppFor(ctx);
 
 		const res = await app.fetch(new Request("http://x/api/v1/account"));
 

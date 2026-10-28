@@ -2,14 +2,13 @@ import {describe, expect, it} from "vite-plus/test";
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
-import {Hono} from "hono";
 import {join} from "node:path";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createCustomTreeRouter} from "../src/server/routes/custom-tree.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 import {collectCustomSections, findCustomRoot} from "../src/server/custom-tree.js";
 import type {CustomNode} from "../src/server/custom-tree.js";
 
@@ -81,12 +80,7 @@ describe("GET /api/v1/custom-tree", () => {
 			db.insert(nodeMetadata).values({nodeId: id, priority, systemFrom: AT, systemTo: FAR_FUTURE_DATE}).run();
 		}
 		const ctx = {db, cacheService: new CacheService(db)} as unknown as ServerContext;
-		const app = new Hono<AppEnv>();
-		app.use("*", async (c, next) => {
-			c.set("ctx", ctx);
-			await next();
-		});
-		app.route("/api/v1/custom-tree", createCustomTreeRouter());
+		const app = httpAppFor(ctx);
 
 		const body = await (await app.fetch(new Request("http://x/api/v1/custom-tree"))).json();
 
