@@ -3,6 +3,7 @@ import {accountGet} from "./account.js";
 import {changesList} from "./changes.js";
 import {customTreeGet} from "./custom-tree.js";
 import {expansionGet, expansionLeftBarGet, expansionLeftBarPatch, expansionPatch} from "./expansion.js";
+import {filesSignedUrl} from "./files.js";
 import {featuresGet, featuresSet} from "./features.js";
 import {preferencesGet, preferencesPatch} from "./preferences.js";
 import {starsList, starsOrder, starsRemove, starsRename, starsSet} from "./stars.js";
@@ -19,6 +20,7 @@ export const Ops = {
 	"expansion.leftBarGet": expansionLeftBarGet,
 	"expansion.leftBarPatch": expansionLeftBarPatch,
 	"expansion.patch": expansionPatch,
+	"files.signedUrl": filesSignedUrl,
 	"features.get": featuresGet,
 	"features.set": featuresSet,
 	"preferences.get": preferencesGet,

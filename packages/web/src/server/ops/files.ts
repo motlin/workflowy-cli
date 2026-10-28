@@ -1,13 +1,14 @@
 /**
- * The signed-file proxy: `GET /:nodeId/preview?w=` and `GET /:nodeId/original` answer a 302 to the short-lived signed S3 URL
+ * The signed-file proxy: `files.signedUrl` answers a redirect (the HTTP layer's 302) to the short-lived signed S3 URL
  * that workflowy.com's session-cookie `/file-proxy/` endpoints hand out. The public API never returns attachment URLs, and
- * the browser has no session cookie, so the local server asks on its behalf and caches the answer for ten minutes.
+ * the browser has no session cookie, so the local server asks on its behalf and caches the answer for ten minutes, per server context (a Durable Object or the Node host).
  */
 
-import {Hono} from "hono";
+import {z} from "zod";
 import type {NodeAttachment} from "../../node-types.js";
-import type {AppEnv} from "../context.js";
-import {loadAttachments, resolveNodeId} from "./nodes.js";
+import type {ServerContext} from "../context.js";
+import {loadAttachments, resolveNodeId} from "../routes/nodes.js";
+import {defineOp, fail, ok} from "./define.js";
 
 const SIGNED_URL_TTL_MS = 10 * 60_000;
 /** Upstream rounds every requested preview width up to a multiple of this. */
@@ -33,31 +34,35 @@ function previewRequest(attachment: NodeAttachment, requestedWidth: number): Pre
 	return {kind: "preview", width, height: Math.round((width * originalHeight) / originalWidth)};
 }
 
-export interface FilesRouterOptions {
-	now?: () => number;
+const signedUrls = new WeakMap<ServerContext, Map<string, {url: string; at: number}>>();
+
+function cacheOf(ctx: ServerContext): Map<string, {url: string; at: number}> {
+	let cache = signedUrls.get(ctx);
+	if (cache === undefined) {
+		cache = new Map();
+		signedUrls.set(ctx, cache);
+	}
+	return cache;
 }
 
-export function createFilesRouter(options: FilesRouterOptions = {}): Hono<AppEnv> {
-	const now = options.now ?? Date.now;
-	const router = new Hono<AppEnv>();
-	const signed = new Map<string, {url: string; at: number}>();
-
-	router.get("/:nodeId/:variant{preview|original}", async (c) => {
-		const ctx = c.get("ctx");
+/** `w` is the raw `?w=` query string, absent for `original`. */
+export const filesSignedUrl = defineOp({
+	input: z.object({nodeId: z.string(), variant: z.enum(["preview", "original"]), w: z.string().optional()}),
+	async run(ctx, {nodeId, variant, w}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
-			return c.json({error: "files-unavailable"}, 503);
+			return fail(503, {error: "files-unavailable"});
 		}
-		const id = resolveNodeId(ctx, c.req.param("nodeId"));
+		const id = resolveNodeId(ctx, nodeId);
 		const attachment = id === null ? undefined : loadAttachments(ctx, [id]).get(id);
 		if (id === null || attachment === undefined || attachment.isDeleted) {
-			return c.json({error: "Attachment not found"}, 404);
+			return fail(404, {error: "Attachment not found"});
 		}
 		const ownerId = await adapter.fileOwnerId();
 		const original = `/file-proxy/signed-original/${ownerId}/${id}/?attempt=1`;
 		let path = original;
-		if (c.req.param("variant") === "preview") {
-			const requested = Number(c.req.query("w"));
+		if (variant === "preview") {
+			const requested = Number(w);
 			const request = previewRequest(attachment, Number.isFinite(requested) && requested > 0 ? requested : 700);
 			if (request.kind === "preview") {
 				const folder =
@@ -65,18 +70,17 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Hono<AppEnv
 				path = `/file-proxy/signed-preview/${ownerId}/${id}/${request.width}x${request.height}/?attempt=1${folder}`;
 			}
 		}
+		const signed = cacheOf(ctx);
 		const cached = signed.get(path);
-		if (cached !== undefined && now() - cached.at < SIGNED_URL_TTL_MS) {
-			return c.redirect(cached.url, 302);
+		if (cached !== undefined && Date.now() - cached.at < SIGNED_URL_TTL_MS) {
+			return ok(null, {redirect: cached.url});
 		}
 		try {
 			const url = await adapter.signedFileUrl(path);
-			signed.set(path, {url, at: now()});
-			return c.redirect(url, 302);
+			signed.set(path, {url, at: Date.now()});
+			return ok(null, {redirect: url});
 		} catch {
-			return c.json({error: "files-unavailable"}, 503);
+			return fail(503, {error: "files-unavailable"});
 		}
-	});
-
-	return router;
-}
+	},
+});

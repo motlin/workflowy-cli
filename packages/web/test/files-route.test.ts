@@ -1,16 +1,15 @@
-import {describe, expect, it} from "vite-plus/test";
+import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
-import {Hono} from "hono";
 import {join} from "node:path";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
-import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {createFilesRouter} from "../src/server/routes/files.js";
+import type {ServerContext} from "../src/server/context.js";
+import {httpAppFor} from "./http-app-for.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const ID = "11111111-2222-3333-4444-555555555555";
@@ -23,8 +22,8 @@ interface Seed {
 	height?: number;
 }
 
-function setup(options: {configured?: boolean; seed?: Seed | null; now?: () => number} = {}) {
-	const {configured = true, seed = {}, now} = options;
+function setup(options: {configured?: boolean; seed?: Seed | null} = {}) {
+	const {configured = true, seed = {}} = options;
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
@@ -71,12 +70,7 @@ function setup(options: {configured?: boolean; seed?: Seed | null; now?: () => n
 		cacheService,
 		internalAdapter: () => (configured ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;
-	const app = new Hono<AppEnv>();
-	app.use("*", async (c, next) => {
-		c.set("ctx", ctx);
-		await next();
-	});
-	app.route("/api/v1/files", createFilesRouter(now === undefined ? {} : {now}));
+	const app = httpAppFor(ctx);
 	const get = async (path: string) => {
 		const res = await app.fetch(new Request(`http://x/api/v1/files${path}`, {redirect: "manual"}));
 		return {
@@ -89,6 +83,10 @@ function setup(options: {configured?: boolean; seed?: Seed | null; now?: () => n
 }
 
 describe("GET /api/v1/files/:nodeId", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it("answers 503 files-unavailable without internal credentials", async () => {
 		const {get} = setup({configured: false});
 
@@ -148,13 +146,14 @@ describe("GET /api/v1/files/:nodeId", () => {
 	});
 
 	it("reuses a signed URL within ten minutes and fetches a fresh one after", async () => {
-		let clock = 1000;
-		const {get, requested} = setup({now: () => clock});
+		vi.useFakeTimers({toFake: ["Date"]});
+		vi.setSystemTime(1000);
+		const {get, requested} = setup();
 
 		await get(`/${ID}/original`);
-		clock += 9 * 60_000;
+		vi.advanceTimersByTime(9 * 60_000);
 		await get(`/${ID}/original`);
-		clock += 2 * 60_000;
+		vi.advanceTimersByTime(2 * 60_000);
 		await get(`/${ID}/original`);
 
 		expect(requested).toHaveLength(2);
