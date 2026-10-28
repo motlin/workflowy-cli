@@ -209,5 +209,17 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		await expect(duplicateViaWorker.json()).resolves.toStrictEqual({
 			error: "ids must be a non-empty array of node ids",
 		});
+
+		const swapViaDo = await stub.fetch("http://localhost/api/v1/nodes/abc/swap-mirror-origin", {method: "POST"});
+		expect(swapViaDo.status).toBe(404);
+		const mirrorViaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/nodes/mirror", {
+			method: "POST",
+			headers: {"content-type": "application/json", "Cf-Access-Jwt-Assertion": jwt},
+			body: "{}",
+		});
+		expect(mirrorViaWorker.status).toBe(400);
+		await expect(mirrorViaWorker.json()).resolves.toStrictEqual({
+			error: "item_ids must be a non-empty array of node ids",
+		});
 	});
 });

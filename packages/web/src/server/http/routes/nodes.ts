@@ -8,7 +8,7 @@ async function body(request: Request): Promise<unknown> {
 }
 
 /**
- * The node read routes (see `ops/nodes.ts` and `ops/nodes-tree.ts` for what each answers). Registration order matters: the fixed paths
+ * The node read routes (see `ops/nodes.ts`, `ops/nodes-tree.ts` and `ops/nodes-mirror.ts` for what each answers). Registration order matters: the fixed paths
  * (`/changes`, `/children`, `/view`, `/export-tree`) come before `/:id`.
  */
 export function nodesRoutes(resolveStore: ResolveStore): Hono {
@@ -51,6 +51,15 @@ export function nodesRoutes(resolveStore: ResolveStore): Hono {
 			{error: "Invalid request body"},
 		);
 	});
+	routes.post("/mirror", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.mirror", await body(c.req.raw), {error: "Invalid request body"}),
+	);
+	routes.post("/:id/detach-mirror", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.detachMirror", {id: c.req.param("id")}),
+	);
+	routes.post("/:id/swap-mirror-origin", async (c) =>
+		callOp(resolveStore, c.req.raw, "nodes.swapMirrorOrigin", {id: c.req.param("id")}),
+	);
 	routes.get("/:id", async (c) => callOp(resolveStore, c.req.raw, "nodes.get", {id: c.req.param("id")}));
 	routes.get("/:id/subtree-ids", async (c) =>
 		callOp(resolveStore, c.req.raw, "nodes.subtreeIds", {id: c.req.param("id")}),

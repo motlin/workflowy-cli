@@ -15,8 +15,7 @@ import type {
 } from "../../node-types.js";
 import {NodeReader, NodeTreeReader, planBlockSlot} from "@workflowy/shared/cache";
 import type {ExactMover, SlotPlan, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
-import {MAX_COPY_ITEMS, copySubtree} from "../copy-tree.js";
-import {planSwapOrigin} from "../../swap-origin.js";
+import {MAX_COPY_ITEMS} from "../copy-tree.js";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {RestoreInput, WorkflowyInternalAdapter, NewTree} from "@workflowy/shared/internal";
 import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
@@ -30,12 +29,10 @@ import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 import {
 	resolveNodeId,
 	saveEffects,
-	resolveMirrorToOriginal,
 	InternalMetadataFields,
 	getApiClient,
 	getWriteClient,
 	getAdapter,
-	originalsWithMirrors,
 	readNodeDto,
 	ParentResult,
 	parseParent,
@@ -46,80 +43,11 @@ import {
 	publicMovePosition,
 	childIds,
 	countChildren,
-	openCopies,
 } from "../ops/nodes-shared.js";
 
 const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 export const nodesRouter = new Hono<AppEnv>();
-
-// POST /api/v1/nodes/mirror - Mirror items under a parent, in order at consecutive indexes
-nodesRouter.post("/mirror", async (c) => {
-	const ctx = c.get("ctx");
-	const body = await c.req.json<{item_ids?: unknown; parent_id?: unknown; index?: unknown}>();
-	if (
-		!Array.isArray(body.item_ids) ||
-		body.item_ids.length === 0 ||
-		!body.item_ids.every((id) => typeof id === "string")
-	) {
-		return c.json({error: "item_ids must be a non-empty array of node ids"}, 400);
-	}
-	const parent = parseParent(ctx, body.parent_id);
-	if (!parent.ok) {
-		return c.json({error: parent.error}, parent.status);
-	}
-	const slot = parseIndex(body.index, undefined);
-	if (!slot.ok) {
-		return c.json({error: slot.error}, 400);
-	}
-	const originals: string[] = [];
-	const sourceRows: string[] = [];
-	for (const raw of body.item_ids) {
-		if (raw === "None" || raw === "" || raw === HOME_TARGET) {
-			return c.json({error: "Cannot mirror Home"}, 400);
-		}
-		const resolved = resolveNodeId(ctx, raw);
-		if (resolved === null) {
-			return c.json({error: `Node not found: ${raw}`}, 404);
-		}
-		sourceRows.push(resolved);
-		originals.push(resolveMirrorToOriginal(ctx, resolved));
-	}
-	// A mirror parent writes into its original's child list.
-	const parentId = parent.parentId === null ? null : resolveMirrorToOriginal(ctx, parent.parentId);
-	// The parent and each of its ancestors, which no source may be.
-	const lineage = new Set<string>();
-	for (let current = parentId; current !== null; current = ctx.cacheService.getNode(current)?.parentId ?? null) {
-		lineage.add(current);
-	}
-	if (originals.some((id) => lineage.has(id))) {
-		return c.json({error: "Cannot mirror an item into itself"}, 400);
-	}
-	const adapter = getAdapter(ctx);
-	if (!adapter) {
-		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
-	}
-	const {mirrors} = await adapter.createMirrorsAt({
-		originalIds: originals,
-		parentId: adapterParent(parentId),
-		index: slot.index ?? countChildren(ctx, parentId),
-	});
-	const mirrorIds = mirrors.map((mirror) => mirror.mirrorId);
-	// A new mirror opens like its source row (upstream `mirrorProjectTree`: `expanded: source.isExpanded`).
-	const isExpanded = await adapter.expansionTest();
-	const opened = Object.fromEntries(
-		mirrorIds.flatMap((mirrorId, offset) =>
-			isExpanded(sourceRows[offset] ?? "") ? [[mirrorId, true] as const] : [],
-		),
-	);
-	if (Object.keys(opened).length > 0) {
-		await adapter.setExpanded(opened);
-	}
-	const nodes = (await Promise.all(mirrorIds.map(async (id) => readNodeDto(ctx, id)))).filter(
-		(node): node is NodeResponse => node !== undefined,
-	);
-	return c.json({nodes}, 201);
-});
 
 // POST /api/v1/nodes - Create node at an exact `index` among all siblings (omitted = bottom)
 nodesRouter.post("/", async (c) => {
@@ -494,96 +422,6 @@ nodesRouter.post("/:id/complete", async (c) => {
 	};
 
 	return c.json({node: nodeResponse});
-});
-
-const DETACH_TOO_BIG = `Detaching mirror subtrees containing more than ${MAX_COPY_ITEMS} items is not supported.`;
-
-// POST /api/v1/nodes/:id/detach-mirror - Replace a mirror root (a mirror, or an original that has mirrors) with a copy
-nodesRouter.post("/:id/detach-mirror", async (c) => {
-	const ctx = c.get("ctx");
-	const client = getWriteClient(ctx);
-	const adapter = getAdapter(ctx);
-	if (!client || !adapter) {
-		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
-	}
-	const id = resolveNodeId(ctx, c.req.param("id"));
-	const node = id === null ? undefined : ctx.cacheService.getNode(id);
-	if (id === null || node === undefined) {
-		return c.json({error: "Node not found"}, 404);
-	}
-	const originalId = resolveMirrorToOriginal(ctx, id);
-	const isOriginal = originalId === id;
-	if (isOriginal && !originalsWithMirrors(ctx, [id]).has(id)) {
-		return c.json({error: "Node is not a mirror"}, 400);
-	}
-	// A mirror has no completion of its own, so its copy is open; an original keeps its own.
-	const copied = await copySubtree(ctx.cacheService, originalId, {
-		rootCompleted: isOriginal && (node.completedAt ?? null) !== null,
-		mirrorOriginals: true,
-		originalsWithMirrors: (ids) => originalsWithMirrors(ctx, ids),
-	});
-	if (copied === undefined) {
-		return c.json({error: "Node not found"}, 404);
-	}
-	if (!copied.ok) {
-		return c.json({error: DETACH_TOO_BIG}, 400);
-	}
-	const index = Math.max(
-		ctx.cacheService.getChildren(node.parentId).findIndex((sibling) => sibling.id === id),
-		0,
-	);
-	const {ids} = await adapter.createTreesAt({
-		parentId: adapterParent(node.parentId),
-		index,
-		trees: [copied.tree],
-	});
-	await openCopies(adapter, copied.sourceToNew, {original: originalId, row: id});
-	await client.deleteNode(id);
-	const [copyId] = ids;
-	const copy = copyId === undefined ? undefined : await readNodeDto(ctx, copyId);
-	return c.json({node: copy ?? null}, 201);
-});
-
-// POST /api/v1/nodes/:id/swap-mirror-origin - Make a mirror the origin: it and its original exchange slots
-nodesRouter.post("/:id/swap-mirror-origin", async (c) => {
-	const ctx = c.get("ctx");
-	const adapter = getAdapter(ctx);
-	if (!adapter) {
-		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
-	}
-	const id = resolveNodeId(ctx, c.req.param("id"));
-	const node = id === null ? undefined : ctx.cacheService.getNode(id);
-	if (id === null || node === undefined) {
-		return c.json({error: "Node not found"}, 404);
-	}
-	const originalId = resolveMirrorToOriginal(ctx, id);
-	if (originalId === id) {
-		if (originalsWithMirrors(ctx, [id]).has(id)) {
-			return c.json({warning: "This item is already the origin."});
-		}
-		return c.json({error: "Node is not a mirror"}, 400);
-	}
-	const original = ctx.cacheService.getNode(originalId);
-	if (original === undefined) {
-		return c.json({error: "Original not found"}, 404);
-	}
-	// The original would land inside its own subtree.
-	for (let current = node.parentId; current !== null; current = ctx.cacheService.getNode(current)?.parentId ?? null) {
-		if (current === originalId) {
-			return c.json({error: "Cannot swap a mirror that sits inside its own original"}, 400);
-		}
-	}
-	const orders = new Map<string | null, string[]>(
-		[node.parentId, original.parentId].map((parentId) => [
-			parentId,
-			ctx.cacheService.getChildren(parentId).map((child) => child.id),
-		]),
-	);
-	const moves = planSwapOrigin(orders, {id, parentId: node.parentId}, {id: originalId, parentId: original.parentId});
-	for (const move of moves) {
-		await adapter.moveTo({ids: [move.id], parentId: adapterParent(move.parentId), index: move.index});
-	}
-	return c.json({swapped: {mirrorId: id, originalId}});
 });
 
 // POST /api/v1/nodes/:id/uncomplete - Mark node as not completed
