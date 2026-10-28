@@ -434,11 +434,12 @@ SPEECH_FIELDS='{
 }'
 
 # Inline action items into a {speeches: [...]} document. Only processed meetings
-# (summary present) have action items; action_item_count is unreliable (often null).
+# (an abstract or an outline present; Otter sometimes outlines without an abstract)
+# have action items; action_item_count is unreliable (often null).
 attach_action_items() {
     local result="$1"
     local otids
-    otids=$(echo "$result" | jq -r '.speeches[] | select(.summary != null) | .otid')
+    otids=$(echo "$result" | jq -r '.speeches[] | select(.summary != null or (.outline | length) > 0) | .otid')
 
     local action_lines=""
     if [[ -n "$otids" ]]; then

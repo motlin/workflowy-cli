@@ -168,7 +168,11 @@ test("sync-since skips the action-items call for meetings Otter is still process
 		first: {
 			last_load_ts: 900,
 			end_of_list: false,
-			speeches: [speech("pending", 1200, null), speech("new1", 1100), speech("seen", 1000)],
+			speeches: [
+				{...speech("pending", 1200, null), speech_outline: null},
+				speech("new1", 1100),
+				speech("seen", 1000),
+			],
 		},
 	});
 	const {status, stdout, urls} = syncSince(sb, "seen");
@@ -179,7 +183,7 @@ test("sync-since skips the action-items call for meetings Otter is still process
 		start_time: 1200,
 		duration: 60,
 		summary: null,
-		outline: [{title: "Section pending", segments: ["segment pending"]}],
+		outline: [],
 		action_items: [],
 	});
 	assert.deepStrictEqual(actionOtids(urls), ["new1"]);
@@ -244,4 +248,21 @@ test("sync-since drops trashed meetings that a modified_after page returns with 
 		{otids: outputOtids(stdout), actions: actionOtids(urls)},
 		{otids: ["new2", "new1"], actions: ["new2", "new1"]},
 	);
+});
+
+test("sync-since fetches action items for a meeting Otter outlined but gave no abstract", () => {
+	const sb = sandbox({
+		first: {
+			last_load_ts: 900,
+			end_of_list: false,
+			speeches: [
+				speech("outlined", 1200, null),
+				{...speech("pending", 1150, null), speech_outline: null},
+				speech("seen", 1000),
+			],
+		},
+	});
+	const {status, urls} = syncSince(sb, "seen");
+	assert.equal(status, 0);
+	assert.deepStrictEqual(actionOtids(urls), ["outlined"]);
 });

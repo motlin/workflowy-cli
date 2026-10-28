@@ -37,7 +37,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh action_items <otid>
 `sync-since` pages through small pages (10 by default) until it reaches `last_synced_otid`, drops the boundary and anything older, and fetches action items only for the new meetings. It returns `{"boundary_found": bool, "end_of_list": bool, "speeches": [...]}`, where each speech has:
 
 - `otid`, `title`, `start_time`, `summary`, `outline`
-- `action_items` array inlined (fetched only for processed meetings, those with a `summary`)
+- `action_items` array inlined (fetched only for processed meetings, those with a `summary` or a non-empty `outline`)
 
 It exits non-zero rather than scanning unbounded when the boundary is not found within `OTTER_MAX_PAGES` pages (default 20). Treat that as a scan failure: create nothing and do not move state.
 
@@ -177,11 +177,11 @@ mkdir -p .llm/gtd/journal/logs
 echo "[$(date -Iseconds)] otid=<otid> search_result=<found|not_found> action=<created|skipped>" >> .llm/gtd/journal/logs/otter-sync.log
 ```
 
-**Check if ready:** Skip if `summary` is null (still processing).
+**Check if ready:** A meeting is processed when it has a `summary` or a non-empty `outline`. Otter sometimes outlines a meeting without writing the abstract, and the web app then shows the outline as its summary. Skip a meeting only when both are missing (still processing). For an outlined meeting with no `summary`, build the entry from the outline and leave the overview child out.
 
-**Stale silent recordings:** A recording with `duration` under 120 seconds, `summary` still null, and `start_time` more than 24 hours ago probably never happened (a cancelled meeting, or the other person was out). Do not skip it silently, and do not let it hold the cursor as "still processing". Flag it like a title flag: original title, date, Otter URL/otid, duration, and the reason `short silent recording with no summary after 24 hours`. Create no node for it. Hold the page and its scanner state the same way a title flag does, with `status: "error"`. The daily review offers to delete it from Otter (see `Resolve a stale recording flag` in `commands/otter-journal-auto.md`). Recordings younger than 24 hours with a null summary are still processing and are skipped as before.
+**Stale silent recordings:** A recording with `duration` under 120 seconds, no `summary` or `outline`, and `start_time` more than 24 hours ago probably never happened (a cancelled meeting, or the other person was out). Do not skip it silently, and do not let it hold the cursor as "still processing". Flag it like a title flag: original title, date, Otter URL/otid, duration, and the reason `short silent recording with no summary after 24 hours`. Create no node for it. Hold the page and its scanner state the same way a title flag does, with `status: "error"`. The daily review offers to delete it from Otter (see `Resolve a stale recording flag` in `commands/otter-journal-auto.md`). Recordings younger than 24 hours with neither are still processing and are skipped as before.
 
-**Unsummarized recordings:** A recording of 120 seconds or longer whose `summary` is still null more than 24 hours after `start_time` is not still processing: Otter finishes a summary within hours, so it will likely never get one. Flag it the same way with the reason `no summary after 24 hours`, its title, date, Otter URL/otid, and duration. Create no node for it and hold the page. Treating it as still processing would hold the page, and every meeting after it, forever.
+**Unsummarized recordings:** A recording of 120 seconds or longer with no `summary` and no `outline` more than 24 hours after `start_time` is not still processing: Otter finishes a summary within hours, so it will likely never get one. Flag it the same way with the reason `no summary after 24 hours`, its title, date, Otter URL/otid, and duration. Create no node for it and hold the page. Treating it as still processing would hold the page, and every meeting after it, forever.
 
 **Use the fetched output directly:** `sync-since` and `sync` return all needed data in minimal JSON, so never call `action_items` per meeting yourself:
 
