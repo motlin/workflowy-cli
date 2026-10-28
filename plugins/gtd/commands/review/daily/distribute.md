@@ -18,11 +18,13 @@ In the daily review this phase runs after the Morning Overview and **before** Re
 
 Build every input from a fresh read.
 
+- **Config.** Read `.llm/gtd/config.json` when it exists. Keys: `projectsDirectory` (the root that holds the user's repos, absolute path) and `projectDirectoriesPath` (the Workflowy path of the Project Directories node, as a comma-separated `--path` value; default `Metadata,📂 Project Directories`). Never hardcode a personal path or repo name in this phase; when `projectsDirectory` is missing, ask the user once for it through `AskUserQuestion` and write it to the config file.
+
 - **Projects.** Export the project table and the open herdr panes, then join them:
 
     ```bash
     mkdir -p .llm/gtd/review
-    ./bin/run.js node get --path "Metadata,📂 Project Directories" --depth 3 --json \
+    ./bin/run.js node get --path "$(jq -r '.projectDirectoriesPath // "Metadata,📂 Project Directories"' .llm/gtd/config.json 2>/dev/null || echo "Metadata,📂 Project Directories")" --depth 3 --json \
       --fields name,shortId,id,children > .llm/gtd/review/distribute-project-dirs.json
     herdr pane list > .llm/gtd/review/distribute-panes.json
     node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-project-distribution.mts \
@@ -47,12 +49,29 @@ Walk every open task in the Inbox and on both ladders, including tasks inside a 
 
 Skip a task when:
 
-- It spans several projects, or no project directory exists for it. Do not create directories or invent paths.
+- It spans several projects, or it belongs to no project at all. Do not create directories or invent paths.
 - Its next step happens outside the code: a purchase, an email, a call, a decision, or waiting on someone.
 - It is already tracked there. Grep the project's `todoPath` (when `todoExists`) for the task's Workflowy link, `workflowy.com/#/<shortId>`, before proposing it. Every distributed task carries that link as provenance, so a task kept open in Workflowy by **Distribute, keep in Workflowy** is recognized on later runs even after its text was reworded. Also grep for the task's key phrase, which catches tasks added there by other routes.
 - It is a `#llm-task` recurring item. Those run through the LLM Tasks DAG, not a project's task list.
 
 Read each candidate's subtree (children, note, links) before proposing it, per **Show the item, do not just name it** in `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md`. Write the proposals to `.llm/gtd/review/distribute-candidates.json` (one entry per task: Workflowy `id`, `shortId`, source `inbox` or `ladder-<root>`, project `name`, and the drafted task text) so the walk survives a compacted conversation.
+
+## Locate unmapped project directories
+
+A task that names a project (tag, link, or name) with no row in the project table is not skipped. Resolve it:
+
+- Search `projectsDirectory` from the config for a directory whose git toplevel name matches the project name (`find <projectsDirectory> -maxdepth 2 -name .git`, then compare the parent directory name case-insensitively). Confirm with `git -C <dir> rev-parse --show-toplevel`.
+- Ask through `AskUserQuestion` whether to register it: show the found path and offer **Add to Project Directories** (create the project node under the Project Directories node with the path as its first child, per the Project Directory Mapping convention), **Wrong directory** (user gives the path in Other), and **Leave unmapped**. When nothing matches, say so and skip the task.
+- Once mapped, rebuild the project row (re-run the join) and continue with the task as usual.
+
+## Check for already-done work
+
+Before asking about any candidate, look for evidence it is already finished in its project:
+
+- Grep the project's `.llm/todo.md` for checked items (`- [x]`) matching the task's Workflowy link or key phrase.
+- Grep `git -C <path> log --oneline -i --grep=<key phrase>` for a matching commit.
+
+When evidence exists, show it in the question (the matching line or commit) and list **Complete** first: complete the Workflowy task with `./bin/run.js node complete --id <uuid>` and confirm it reads back completed, without appending anything to the project. Otherwise continue to drafting.
 
 ## Draft the task text
 
