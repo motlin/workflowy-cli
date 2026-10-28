@@ -1,4 +1,4 @@
-// Browser smoke against a local `wrangler dev` with a fake upstream. Outside verify: it needs a Chromium install and spawns workerd.
+// Browser smoke against a local `vp dev -c vite.worker.config.ts` (Cloudflare Vite plugin) with a fake upstream. Outside verify: it needs a Chromium install and spawns workerd.
 import {spawn} from "node:child_process";
 import {existsSync, mkdtempSync, readdirSync, rmSync} from "node:fs";
 import {homedir, tmpdir} from "node:os";
@@ -7,7 +7,7 @@ import {chromium} from "playwright-core";
 import type {Browser, Page} from "playwright-core";
 import {startFakeUpstream} from "./fake-upstream.ts";
 
-const cloudflareDir = new URL("..", import.meta.url).pathname;
+const webDir = new URL("../../web", import.meta.url).pathname;
 const port = process.env.SMOKE_PORT ?? "8798";
 const base = `http://localhost:${port}`;
 const editedName = "Smoke home edited";
@@ -79,29 +79,25 @@ const preferences = {
 
 const upstream = await startFakeUpstream();
 const persist = mkdtempSync(join(tmpdir(), "wf-cf-smoke-"));
-const wrangler = spawn(
-	join(cloudflareDir, "node_modules/.bin/wrangler"),
-	[
-		"dev",
-		"--port",
-		port,
-		"--persist-to",
-		persist,
-		"--var",
-		"ACCESS_DEV_IDENTITY:dev",
-		"--var",
-		`WORKFLOWY_API_URL:${upstream.url}`,
-		"--var",
-		"WORKFLOWY_API_KEY:fake-smoke-key",
-	],
-	{cwd: cloudflareDir, stdio: ["ignore", "inherit", "inherit"]},
-);
+const wrangler = spawn("vp", ["dev", "-c", "vite.worker.config.ts", "--port", port, "--strictPort"], {
+	cwd: webDir,
+	env: {
+		...process.env,
+		WORKER_PERSIST_DIR: persist,
+		ACCESS_DEV_IDENTITY: "dev",
+		WORKFLOWY_API_URL: upstream.url,
+		WORKFLOWY_API_KEY: "fake-smoke-key",
+	},
+	stdio: ["ignore", "inherit", "inherit"],
+	// Own process group, so the kill below also reaches the node and workerd children of vp.
+	detached: true,
+});
 
 let browser: Browser | undefined;
 let page: Page | undefined;
 let failure: unknown;
 try {
-	await waitFor(async () => (await fetch(`${base}/health`)).ok, "wrangler dev");
+	await waitFor(async () => (await fetch(`${base}/health`)).ok, "the worker dev server");
 	await fetch(`${base}/api/admin/sync`, {method: "POST"});
 	await waitFor(async () => {
 		const status: unknown = await (await fetch(`${base}/api/admin/status`)).json();
@@ -141,7 +137,7 @@ try {
 	}
 } finally {
 	await browser?.close();
-	wrangler.kill("SIGTERM");
+	process.kill(-(wrangler.pid ?? 0), "SIGTERM");
 	await new Promise<void>((resolve) => {
 		const timer = setTimeout(resolve, 5000);
 		wrangler.on("exit", () => {

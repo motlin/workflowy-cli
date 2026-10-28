@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
 import {spawnSync} from "node:child_process";
-import {readFileSync} from "node:fs";
+import {existsSync, readFileSync} from "node:fs";
 
 const root = new URL("../../..", import.meta.url).pathname;
 
@@ -36,5 +36,33 @@ describe("just cf-deploy", () => {
 		const verify = justfile.slice(justfile.indexOf("\nverify quick"), justfile.indexOf("# Deprecated alias"));
 		expect(verify).not.toContain("cf-deploy");
 		expect(verify).not.toContain("cf-smoke");
+	});
+});
+
+describe("Worker dev through the Cloudflare Vite plugin", () => {
+	const justfile = readFileSync(`${root}justfile`, "utf8");
+	const recipe = (name: string) => {
+		const start = justfile.indexOf(`\n${name}`);
+		const end = justfile.indexOf("\n\n", start + 1);
+		return justfile.slice(start, end);
+	};
+
+	it("runs cf-dev as vp dev with the worker config", () => {
+		expect(recipe("cf-dev")).toContain("vp dev -c vite.worker.config.ts");
+		expect(recipe("cf-dev")).not.toContain("wrangler dev");
+	});
+
+	it("builds with cf-build and deploys the generated wrangler.json", () => {
+		expect(recipe("cf-build")).toContain("vp build -c vite.worker.config.ts");
+		expect(recipe("cf-deploy")).toContain("wrangler deploy -c");
+		expect(recipe("cf-deploy")).toContain("dist/workflowy/worker/wrangler.json");
+	});
+
+	it("has a worker Vite config that uses the plugin against the Cloudflare wrangler.jsonc", () => {
+		const path = `${root}packages/web/vite.worker.config.ts`;
+		expect(existsSync(path)).toBe(true);
+		const config = readFileSync(path, "utf8");
+		expect(config).toContain("@cloudflare/vite-plugin");
+		expect(config).toContain("wrangler.jsonc");
 	});
 });

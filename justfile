@@ -62,16 +62,19 @@ test *args: build-shared
 cf-test: build-shared
     vp test run --project cloudflare
 
-# Run the Worker locally in workerd (R2 and Durable Objects simulated, no Cloudflare account needed) with a fixed dev identity; state persists in packages/cloudflare/.wrangler/state
+# Run the SPA and the Worker together in local workerd (Cloudflare Vite plugin; R2 and Durable Objects simulated, no Cloudflare account needed) with a fixed dev identity; state persists in packages/cloudflare/.wrangler/state
 [group('web')]
-cf-dev port="8787": build-shared
-    vp run --filter @workflowy/web build
-    cd packages/cloudflare && vp exec wrangler dev --port {{ port }} --persist-to .wrangler/state --var ACCESS_DEV_IDENTITY:dev
+cf-dev: build-shared
+    cd packages/web && ACCESS_DEV_IDENTITY="${ACCESS_DEV_IDENTITY:-dev}" vp dev -c vite.worker.config.ts
+
+# Build the client and the Worker with the Cloudflare Vite plugin; writes packages/web/dist/workflowy/worker/wrangler.json for cf-deploy
+[group('web')]
+cf-build: build-shared
+    cd packages/web && vp build -c vite.worker.config.ts
 
 # Browser smoke test against a fresh cf-dev with a fake upstream (outside verify, like the evals)
 [group('test')]
 cf-smoke: build-shared
-    vp run --filter @workflowy/web build
     node packages/cloudflare/smoke/run-smoke.ts
 
 # Seed the local_settings rows into a Worker's Durable Object (post-deploy step; pass the Worker URL)
@@ -88,8 +91,8 @@ cf-deploy:
         echo "cf-deploy refused: set CONFIRM_DEPLOY=1 to deploy (see packages/cloudflare/README.md)" >&2
         exit 1
     fi
-    vp run --filter @workflowy/web build
-    cd packages/cloudflare && vp exec wrangler deploy
+    just cf-build
+    cd packages/web && vp exec wrangler deploy -c dist/workflowy/worker/wrangler.json
 
 # Run the plugin script tests, which vitest does not glob
 [group('test')]
