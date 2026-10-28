@@ -158,5 +158,13 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		await expect(calendarViaWorker.json()).resolves.toStrictEqual({
 			error: "from and to must be YYYYMMDD days at most 100 days apart, from first",
 		});
+
+		const searchViaDo = await stub.fetch("http://localhost/api/search/helpers?rootId=");
+		const searchViaWorker = await h.mf.dispatchFetch("http://localhost/api/search/helpers?rootId=", {
+			headers: {"Cf-Access-Jwt-Assertion": jwt},
+		});
+		expect(searchViaDo.status).toBe(404);
+		expect(searchViaWorker.status).toBe(200);
+		await expect(searchViaWorker.json()).resolves.toStrictEqual({hashTags: [], atTags: []});
 	});
 });

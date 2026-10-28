@@ -1,5 +1,4 @@
-import {Hono} from "hono";
-import type {Context} from "hono";
+import {z} from "zod";
 import {PathBuilder} from "@workflowy/shared/cache";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import type {AppDatabase} from "@workflowy/shared/db";
@@ -10,27 +9,19 @@ import {and, eq, inArray, sql} from "drizzle-orm";
 import {notReferencesContent} from "../backlinks.js";
 import {collectHelperTags} from "../helper-tags.js";
 import type {HelperTags} from "../helper-tags.js";
-import type {AppEnv} from "../context.js";
+import type {ServerContext} from "../context.js";
 import {filterLocations} from "../location-search.js";
 import {rankSwitcher} from "../switcher-search.js";
 import {computeTreeSearch} from "../tree-search.js";
 import type {TreeSearchRow} from "../tree-search.js";
+import {defineOp, jsonOf, ok} from "./define.js";
 import {loadTreeRows, loadTreeRowsWithBacklinks, loadTreeSearchRows, queryNeedsBacklinks} from "../tree-snapshot.js";
 
 type TreeLoader = (database: AppDatabase, rootId: string | null) => TreeSearchRow[];
 
 /** The snapshot loader, or the SQL subtree query when `features.treeSnapshot` is off (no whole tree held in memory). */
-function treeLoader(c: Context<AppEnv>): TreeLoader {
-	return c.get("ctx").config.features.treeSnapshot ? loadTreeRows : loadTreeSearchRows;
-}
-
-export const searchRouter = new Hono<AppEnv>();
-
-interface SearchBody {
-	query: string;
-	limit?: number;
-	offset?: number;
-	parentId?: string;
+function treeLoader(ctx: ServerContext): TreeLoader {
+	return ctx.config.features.treeSnapshot ? loadTreeRows : loadTreeSearchRows;
 }
 
 interface SearchResult {
@@ -57,25 +48,21 @@ function getDescendantIds(database: AppDatabase, parentId: string): string[] {
 	return result.map((row) => row.id);
 }
 
-interface TreeSearchBody {
-	query: string;
-	rootId: string | null;
-}
-
 /** Search helper #tags/@tags of the live descendants of `rootId`, excluding the root (whole tree when empty). */
 export function loadHelperTags(database: AppDatabase, rootId: string, load: TreeLoader = loadTreeRows): HelperTags {
 	const rows = load(database, rootId === "" ? null : rootId);
 	return collectHelperTags(rows.filter((row) => row.id !== rootId));
 }
 
-// GET /api/search/helpers?rootId= - Subtree tags for the search helper's #TAGS / @TAGS sections
-searchRouter.get("/helpers", (c) =>
-	c.json(loadHelperTags(c.get("ctx").db, c.req.query("rootId") ?? "", treeLoader(c))),
-);
+/** `GET /api/search/helpers?rootId=` - subtree tags for the search helper's #TAGS / @TAGS sections. */
+export const searchHelpers = defineOp({
+	input: z.object({rootId: z.string()}),
+	run: (ctx, {rootId}) => ok(jsonOf(loadHelperTags(ctx.db, rootId, treeLoader(ctx)))),
+});
 
 /** The account's stored date format (so strict `date:` queries parse it), or null when unset or unavailable. */
-async function loadDateFormat(c: Context<AppEnv>): Promise<string | null> {
-	const adapter = c.get("ctx").internalAdapter?.();
+async function loadDateFormat(ctx: ServerContext): Promise<string | null> {
+	const adapter = ctx.internalAdapter?.();
 	if (!adapter) {
 		return null;
 	}
@@ -88,8 +75,8 @@ async function loadDateFormat(c: Context<AppEnv>): Promise<string | null> {
 }
 
 /** The account's week start (Monday = 1), or null for Sunday, unset or unavailable. */
-async function loadWeekStartDay(c: Context<AppEnv>): Promise<0 | 1 | null> {
-	const adapter = c.get("ctx").internalAdapter?.();
+async function loadWeekStartDay(ctx: ServerContext): Promise<0 | 1 | null> {
+	const adapter = ctx.internalAdapter?.();
 	if (!adapter) {
 		return null;
 	}
@@ -101,35 +88,31 @@ async function loadWeekStartDay(c: Context<AppEnv>): Promise<0 | 1 | null> {
 	}
 }
 
-// POST /api/search/tree - In-place search of the zoomed subtree, driven by the upstream query AST
-searchRouter.post("/tree", async (c) => {
-	const {query, rootId} = await c.req.json<TreeSearchBody>();
-	const load = treeLoader(c);
-	const rows = queryNeedsBacklinks(query)
-		? loadTreeRowsWithBacklinks(c.get("ctx").db, rootId, load)
-		: load(c.get("ctx").db, rootId);
-	const dateFormat = await loadDateFormat(c);
-	const weekStartDay = await loadWeekStartDay(c);
-	return c.json(
-		computeTreeSearch(rows, rootId, query, Date.now(), {
-			...(dateFormat === null ? {} : {dateFormat}),
-			...(weekStartDay === null ? {} : {weekStartDay}),
-		}),
-	);
+/** `POST /api/search/tree` - in-place search of the zoomed subtree, driven by the upstream query AST. */
+export const searchTree = defineOp({
+	input: z.object({query: z.string(), rootId: z.string().nullable()}),
+	async run(ctx, {query, rootId}) {
+		const load = treeLoader(ctx);
+		const rows = queryNeedsBacklinks(query)
+			? loadTreeRowsWithBacklinks(ctx.db, rootId, load)
+			: load(ctx.db, rootId);
+		const dateFormat = await loadDateFormat(ctx);
+		const weekStartDay = await loadWeekStartDay(ctx);
+		return ok(
+			jsonOf(
+				computeTreeSearch(rows, rootId, query, Date.now(), {
+					...(dateFormat === null ? {} : {dateFormat}),
+					...(weekStartDay === null ? {} : {weekStartDay}),
+				}),
+			),
+		);
+	},
 });
-
-interface SwitcherBody {
-	query: string;
-	offset?: number;
-	limit?: number;
-	starredIds?: string[];
-	showCompleted?: boolean;
-}
 
 let joinedSecPromise: Promise<number> | undefined;
 
 /** The account join date (once per server), else the earliest cached `created_at`, for switcher recency. */
-async function loadJoinedSec(c: Context<AppEnv>, rows: TreeSearchRow[]): Promise<number> {
+async function loadJoinedSec(ctx: ServerContext, rows: TreeSearchRow[]): Promise<number> {
 	// A loop, not Math.min(...), so a large tree cannot overflow the call stack.
 	let earliestCreatedMs = Infinity;
 	for (const row of rows) {
@@ -138,7 +121,7 @@ async function loadJoinedSec(c: Context<AppEnv>, rows: TreeSearchRow[]): Promise
 		}
 	}
 	const earliestCreatedSec = Number.isFinite(earliestCreatedMs) ? Math.floor(earliestCreatedMs / 1000) : 0;
-	const adapter = c.get("ctx").internalAdapter?.();
+	const adapter = ctx.internalAdapter?.();
 	if (!adapter) {
 		return resolveJoinedSec({account: null, earliestCreatedSec});
 	}
@@ -152,47 +135,73 @@ async function loadJoinedSec(c: Context<AppEnv>, rows: TreeSearchRow[]): Promise
 	return joinedSecPromise;
 }
 
-// POST /api/search/switcher - Upstream jump-menu search: word-start matches ranked by staticScore x textFactor
-searchRouter.post("/switcher", async (c) => {
-	const {query, offset = 0, limit = 20, starredIds = [], showCompleted} = await c.req.json<SwitcherBody>();
-	const rows = treeLoader(c)(c.get("ctx").db, null);
-	const joinedSec = await loadJoinedSec(c, rows);
-	return c.json(
-		rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {joinedSec, offset, limit, showCompleted}),
-	);
+/** `POST /api/search/switcher` - upstream jump-menu search: word-start matches ranked by staticScore x textFactor. */
+export const searchSwitcher = defineOp({
+	input: z.object({
+		query: z.string(),
+		offset: z.number().default(0),
+		limit: z.number().default(20),
+		starredIds: z.array(z.string()).default([]),
+		showCompleted: z.boolean().optional(),
+	}),
+	async run(ctx, {query, offset, limit, starredIds, showCompleted}) {
+		const rows = treeLoader(ctx)(ctx.db, null);
+		const joinedSec = await loadJoinedSec(ctx, rows);
+		return ok(
+			jsonOf(
+				rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {
+					joinedSec,
+					offset,
+					limit,
+					showCompleted,
+				}),
+			),
+		);
+	},
 });
 
-interface LocationsBody {
-	query: string;
-	offset?: number;
-	limit?: number;
-	excludeId?: string;
-	starredIds?: string[];
-	showCompleted?: boolean;
-}
-
-// POST /api/search/locations - Upstream move-to location picker: switcher matching without completed nodes or excludeId
-searchRouter.post("/locations", async (c) => {
-	const {query, offset = 0, limit = 20, excludeId, starredIds, showCompleted} = await c.req.json<LocationsBody>();
-	const rows = treeLoader(c)(c.get("ctx").db, null);
-	const joinedSec = await loadJoinedSec(c, rows);
-	// Typing supersedes earlier keystrokes; the client aborts them, so skip ranking for a request nobody waits on.
-	if (c.req.raw.signal.aborted) {
-		return new Response(null, {status: 499});
-	}
-	return c.json(filterLocations(rows, {query, excludeId, offset, limit, joinedSec, starredIds, showCompleted}));
+/**
+ * `POST /api/search/locations` - upstream move-to location picker: switcher matching without completed nodes or `excludeId`.
+ * The HTTP layer answers 499 for a request the client aborted (an AbortSignal cannot cross RPC).
+ */
+export const searchLocations = defineOp({
+	input: z.object({
+		query: z.string(),
+		offset: z.number().default(0),
+		limit: z.number().default(20),
+		excludeId: z.string().optional(),
+		starredIds: z.array(z.string()).optional(),
+		showCompleted: z.boolean().optional(),
+	}),
+	async run(ctx, {query, offset, limit, excludeId, starredIds, showCompleted}) {
+		const rows = treeLoader(ctx)(ctx.db, null);
+		const joinedSec = await loadJoinedSec(ctx, rows);
+		return ok(
+			jsonOf(filterLocations(rows, {query, excludeId, offset, limit, joinedSec, starredIds, showCompleted})),
+		);
+	},
 });
 
-// POST /api/search - Text-based search with operators
-searchRouter.post("/", async (c) => {
-	const body = await c.req.json<SearchBody>();
-	const {query, limit = 10, offset = 0, parentId} = body;
+/** `POST /api/search` - text-based search with operators. */
+export const searchText = defineOp({
+	input: z.object({
+		query: z.string().optional(),
+		limit: z.number().default(10),
+		offset: z.number().default(0),
+		parentId: z.string().optional(),
+	}),
+	run: (ctx, input) => ok(jsonOf(textSearch(ctx, input))),
+});
 
+function textSearch(
+	ctx: ServerContext,
+	{query, limit, offset, parentId}: {query?: string; limit: number; offset: number; parentId?: string},
+): {results: SearchResult[]; totalCount: number} {
 	if (!query || query.trim().length === 0) {
-		return c.json({results: [], totalCount: 0});
+		return {results: [], totalCount: 0};
 	}
 
-	const database = c.get("ctx").db;
+	const database = ctx.db;
 	const parsed = parseSearchQuery(query);
 	const {contentConditions, metadataConditions, needsMetadataJoin} = buildSearchConditions(parsed);
 	// References roots and their backlink items are never search or jump hits.
@@ -202,7 +211,7 @@ searchRouter.post("/", async (c) => {
 	if (parentId) {
 		const descendantIds = getDescendantIds(database, parentId);
 		if (descendantIds.length === 0) {
-			return c.json({results: [], totalCount: 0});
+			return {results: [], totalCount: 0};
 		}
 		contentConditions.push(inArray(nodeContent.id, descendantIds));
 	}
@@ -326,5 +335,5 @@ searchRouter.post("/", async (c) => {
 		return {id, name, note, parentPath: nodeParentId ? (pathByParent.get(nodeParentId) ?? "") : ""};
 	});
 
-	return c.json({results, totalCount});
-});
+	return {results, totalCount};
+}

@@ -8,6 +8,7 @@ import {filesSignedUrl} from "./files.js";
 import {featuresGet, featuresSet} from "./features.js";
 import {ladderOps} from "./ladder.js";
 import {preferencesGet, preferencesPatch} from "./preferences.js";
+import {searchHelpers, searchLocations, searchSwitcher, searchText, searchTree} from "./search.js";
 import {starsList, starsOrder, starsRemove, starsRename, starsSet} from "./stars.js";
 import {tagIndexAutocomplete} from "./tag-index.js";
 import {tagsClear, tagsList, tagsSet} from "./tags.js";
@@ -29,6 +30,11 @@ export const Ops = {
 	...ladderOps,
 	"preferences.get": preferencesGet,
 	"preferences.patch": preferencesPatch,
+	"search.helpers": searchHelpers,
+	"search.locations": searchLocations,
+	"search.switcher": searchSwitcher,
+	"search.text": searchText,
+	"search.tree": searchTree,
 	"stars.list": starsList,
 	"stars.order": starsOrder,
 	"stars.remove": starsRemove,

@@ -10,7 +10,7 @@ import {nodeContent} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {SO_ROWS} from "../../shared/test/helpers/search-so-fixture.js";
 import {collectHelperTags} from "../src/server/helper-tags.js";
-import {loadHelperTags} from "../src/server/routes/search.js";
+import {loadHelperTags} from "../src/server/ops/search.js";
 
 const SO_TEXT = SO_ROWS.map((item) => ({name: item.nameHtml, note: item.noteHtml}));
 
