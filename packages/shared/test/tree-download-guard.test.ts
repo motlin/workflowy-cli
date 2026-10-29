@@ -32,10 +32,21 @@ describe("whole-tree downloads (get_tree_data, about 54 MB live)", () => {
 		]);
 	});
 
-	it("are requested from /get_tree_data/ only by the internal client", () => {
-		expect(filesMatching(/\(\s*["'`]\/get_tree_data\//u)).toStrictEqual([
-			"packages/shared/src/api/workflowy-internal-client.ts",
-		]);
+	it("are requested from /get_tree_data/ only by getTreeSnapshot", () => {
+		const requests = sources().flatMap(({file, text}) =>
+			text.split("\n").flatMap((line, index, lines) => {
+				if (!/\(\s*["'`]\/get_tree_data\//u.test(line)) {
+					return [];
+				}
+				const method = lines
+					.slice(0, index + 1)
+					.toReversed()
+					.map((candidate) => /^\t(?:(?:private|public|static|async)\s+)*(\w+)\(/u.exec(candidate)?.[1])
+					.find((name) => name !== undefined);
+				return [`${file} ${method}`];
+			}),
+		);
+		expect(requests).toStrictEqual(["packages/shared/src/api/workflowy-internal-client.ts getTreeSnapshot"]);
 	});
 
 	it("have no expanded-keys-only reader left", () => {

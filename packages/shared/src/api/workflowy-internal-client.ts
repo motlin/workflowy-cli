@@ -1,4 +1,5 @@
 import {z} from "zod";
+import {InternalApiError} from "../internal/errors.js";
 
 /**
  * Workflowy internal API client for session-based authentication.
@@ -75,12 +76,6 @@ const UserDataSchema = z
 		globals: z.array(z.tuple([z.string(), z.unknown()])).optional(),
 		rootProjectMetadata: z.record(z.string(), z.unknown()).optional(),
 		features: z.array(VisibleFeatureSchema).optional(),
-	})
-	.loose();
-
-const TreeDataSchema = z
-	.object({
-		most_recent_operation_transaction_id: TransactionIdSchema,
 	})
 	.loose();
 
@@ -313,8 +308,9 @@ export class WorkflowyInternalClient {
 	}
 
 	/**
-	 * Fetch initialization data (logging in per {@link withSession}), falling
-	 * back to `/get_tree_data/` for the transaction id when init omits it.
+	 * Fetch initialization data (logging in per {@link withSession}). Throws
+	 * `InternalApiError` when init omits the transaction id; it never falls back
+	 * to a whole-tree `/get_tree_data/` download.
 	 */
 	async bootstrap(): Promise<InternalSession> {
 		const session = await this.withSession(async () => this.fetchSession());
@@ -328,10 +324,11 @@ export class WorkflowyInternalClient {
 		const init = InitializationDataSchema.parse(body);
 		const tree = init.projectTreeData.mainProjectTreeInfo;
 
-		let txId = tree.initialMostRecentOperationTransactionId;
+		const txId = tree.initialMostRecentOperationTransactionId;
 		if (txId === undefined) {
-			const treeData = TreeDataSchema.parse((await this.getJson("/get_tree_data/")).body);
-			txId = treeData.most_recent_operation_transaction_id;
+			throw new InternalApiError(
+				"get_initialization_data omitted projectTreeData.mainProjectTreeInfo.initialMostRecentOperationTransactionId",
+			);
 		}
 
 		// The live server sends only tree info in init; the rest comes from /get_user_data/.

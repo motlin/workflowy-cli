@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
 import {SessionRejectedError, WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
+import {InternalApiError} from "../src/internal/errors.js";
 import {
 	createFakeInternalApi,
 	FAKE_CLIENT_ID,
@@ -59,7 +60,7 @@ describe("WorkflowyInternalClient.bootstrap", () => {
 		expect(init?.headers).toStrictEqual(INIT_HEADERS);
 	});
 
-	it("falls back to /get_tree_data/ for the transaction id when init has none", async () => {
+	it("fails loudly, without downloading the tree, when init has no transaction id", async () => {
 		const api = createFakeInternalApi();
 		const data = initializationData();
 		const tree = (data.projectTreeData as {mainProjectTreeInfo: Record<string, unknown>}).mainProjectTreeInfo;
@@ -67,15 +68,18 @@ describe("WorkflowyInternalClient.bootstrap", () => {
 		api.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
 		const {client} = clientWith(api);
 
-		const session = await client.bootstrap();
+		const error = await client.bootstrap().catch((thrown: unknown) => thrown);
 
-		expect(session).toStrictEqual({...EXPECTED_SESSION, txId: "9999"});
+		expect(error).toStrictEqual(
+			new InternalApiError(
+				"get_initialization_data omitted projectTreeData.mainProjectTreeInfo.initialMostRecentOperationTransactionId",
+			),
+		);
+		expect(error).toBeInstanceOf(InternalApiError);
 		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
 			["POST", "/ajax_login"],
 			["GET", "/get_initialization_data"],
-			["GET", "/get_tree_data/"],
 		]);
-		expect(api.requests[2]?.headers).toStrictEqual(INIT_HEADERS);
 	});
 
 	it("reads user, settings, root metadata and globals from /get_user_data/ when init omits them (live shape)", async () => {
