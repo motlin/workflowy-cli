@@ -5,7 +5,7 @@ import {join} from "node:path";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
-import {readExpansion, replaceExpansion} from "../src/cache/expansion-store.js";
+import {expansionVersion, readExpansion, replaceExpansion} from "../src/cache/expansion-store.js";
 import {importInternalMetadata} from "../src/cache/importer.js";
 import {replaceTreeTxId} from "../src/cache/tree-transaction.js";
 import * as schema from "../src/db/schema.js";
@@ -142,7 +142,7 @@ describe("WorkflowyInternalAdapter expansion", () => {
 			forbidden,
 		}).toStrictEqual({
 			ids: [ALPHA, ALPHA_TWIN],
-			changes: {latest: START_MS, expandedIds: [ALPHA, ALPHA_TWIN]},
+			changes: {version: expansionVersion(new Set(["1a2b3c4d"])), expandedIds: [ALPHA, ALPHA_TWIN]},
 			alpha: true,
 			leftBar: [],
 			treeDataReads: 0,
@@ -150,23 +150,39 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		});
 	});
 
-	it("answers a change-feed read with no ids while nothing changed after the mark", () => {
+	it("answers a change-feed read with no ids while the keys still match the caller's version", () => {
 		const {api, adapter, seed} = tracked();
-		const mark = seed(["1a2b3c4d"]);
+		seed(["1a2b3c4d"]);
+		const {version} = adapter.getExpansionChanges(undefined);
 
-		expect(adapter.getExpansionChanges(mark)).toStrictEqual({latest: mark, expandedIds: null});
+		expect(adapter.getExpansionChanges(version)).toStrictEqual({version, expandedIds: null});
 		expect(api.requests).toStrictEqual([]);
 	});
 
-	it("advances the change-feed mark on a pushed change and answers the new ids after the old mark", async () => {
+	it("answers the new ids after a pushed change in the same millisecond as the caller's version", async () => {
 		const {adapter, seed} = tracked();
-		const mark = seed(["1a2b3c4d"]);
+		seed(["1a2b3c4d"]);
+		const {version} = adapter.getExpansionChanges(undefined);
 
 		await adapter.setExpanded({[CHARLIE]: true, [ALPHA]: false});
 
-		expect(adapter.getExpansionChanges(mark)).toStrictEqual({
-			latest: mark + 1,
+		expect(adapter.getExpansionChanges(version)).toStrictEqual({
+			version: expansionVersion(new Set(["9c9c9c9c"])),
 			expandedIds: [CHARLIE],
+		});
+	});
+
+	it("answers the new ids after a change stamped earlier than the caller's version, as another process's clock may", async () => {
+		const {adapter, clock, seed} = tracked();
+		seed(["1a2b3c4d"]);
+		const {version} = adapter.getExpansionChanges(undefined);
+		clock.ms -= 60_000;
+
+		await adapter.setExpanded({[BRAVO]: true});
+
+		expect(adapter.getExpansionChanges(version)).toStrictEqual({
+			version: expansionVersion(new Set(["1a2b3c4d", "5e6f7a8b"])),
+			expandedIds: [ALPHA, ALPHA_TWIN, BRAVO],
 		});
 	});
 

@@ -150,11 +150,11 @@ export const NodeChangesResponseSchema = z.strictObject({
 });
 
 /**
- * `GET /api/v1/expansion?since=<mark>`'s answer: the expansion store's high-water mark, and the account's expanded ids
- * when they changed after `since` (always without one), else null.
+ * `GET /api/v1/expansion?version=<version>`'s answer: the stored keys' content version, and the account's expanded
+ * ids when it differs from `version` (always without one), else null.
  */
 export const ExpansionChangesResponseSchema = z.strictObject({
-	latest: z.number(),
+	version: z.string(),
 	expandedIds: z.array(z.string()).nullable(),
 });
 

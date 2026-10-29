@@ -144,13 +144,15 @@ describe("GET /api/openapi.json", () => {
 		});
 	});
 
-	it("documents the search locations 499 and the expansion change feed's since parameter", async () => {
+	it("documents the search locations 499 and the expansion change feed's version parameter", async () => {
 		const {paths} = await spec();
 		expect({
 			expansion: paths["/api/v1/expansion"]?.get?.parameters,
 			locations: paths["/api/search/locations"]?.post?.responses["499"],
 		}).toStrictEqual({
-			expansion: [{name: "since", in: "query", required: false, schema: {type: "string", pattern: "^\\d+$"}}],
+			expansion: [
+				{name: "version", in: "query", required: false, schema: {type: "string", pattern: "^[0-9a-f]{16}$"}},
+			],
 			locations: {description: "Client closed request: the client aborted before the search finished"},
 		});
 	});

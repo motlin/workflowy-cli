@@ -1,8 +1,8 @@
 /**
  * Expansion state synced with the server's expansion store: hydrate `expandedIds` from `GET /api/v1/expansion` on app
- * load, then poll its high-water-mark change feed (`?since=<mark>`) on a TanStack Query refetch interval and on tab
- * focus, so changes made in another tab, or by an import, show up. A poll costs one SQLite read and answers no ids
- * while nothing changed. The outline store PATCHes each local change itself.
+ * load, then poll its change feed (`?version=<version>`, the keys' content version) on a TanStack Query refetch
+ * interval and on tab focus, so changes made in another tab, or by an import, show up. A poll costs one SQLite read
+ * and answers no ids while the keys still match. The outline store PATCHes each local change itself.
  *
  * The server's store is the source of truth: workflowy.com's own list is read only by whole-tree imports, so an
  * expansion change made on workflowy.com shows after the next import, as upstream's browsers see each other's changes
@@ -40,11 +40,11 @@ const LOAD_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 8000];
 
 let loading: Promise<void> | undefined;
 let loadSettled = false;
-/** The change feed's high-water mark: the `latest` of the last answer applied. */
-let mark: number | undefined;
+/** The change feed's cursor: the `version` of the last answer applied. */
+let version: string | undefined;
 
 /**
- * Adopt the account's expanded ids and the feed's mark; on 503 expansion stays in memory for the session. One GET per
+ * Adopt the account's expanded ids and the feed's version; on 503 expansion stays in memory for the session. One GET per
  * page load: later calls (StrictMode's second effect) share it.
  */
 export async function loadExpansion(): Promise<void> {
@@ -67,7 +67,7 @@ async function fetchInitial(): Promise<void> {
 		}
 		const body = await readJson<ExpansionChangesResponse>(response);
 		applyExpandedIds(body.expandedIds ?? []);
-		advance(body.latest);
+		({version} = body);
 	} catch (error) {
 		console.error("Failed to load expansion", error);
 	}
@@ -94,12 +94,12 @@ export function adoptViewExpansion(ids: readonly string[]): void {
 }
 
 /**
- * Ask the change feed for what changed after the mark and apply it without PATCHing it back. Skipped before the page
- * load has set a mark and right after a local change; a response is discarded, and the mark kept, when a local change
- * lands while it is in flight.
+ * Ask the change feed whether the keys differ from the version and apply them without PATCHing them back. Skipped
+ * before the page load has set a version and right after a local change; a response is discarded, and the version
+ * kept, when a local change lands while it is in flight.
  */
 export async function pollExpansion(now = Date.now()): Promise<void> {
-	if (!isExpansionPersisted() || mark === undefined) {
+	if (!isExpansionPersisted() || version === undefined) {
 		return;
 	}
 	const local = localExpansionChangeState();
@@ -107,7 +107,7 @@ export async function pollExpansion(now = Date.now()): Promise<void> {
 		return;
 	}
 	try {
-		const response = await fetchExpansionBody(`/api/v1/expansion?since=${mark}`);
+		const response = await fetchExpansionBody(`/api/v1/expansion?version=${version}`);
 		if (!response.ok) {
 			console.error(`Failed to poll expansion: ${response.status}`);
 			return;
@@ -119,16 +119,9 @@ export async function pollExpansion(now = Date.now()): Promise<void> {
 		if (body.expandedIds !== null) {
 			applyExpandedIds(body.expandedIds);
 		}
-		advance(body.latest);
+		({version} = body);
 	} catch (error) {
 		console.error("Failed to poll expansion", error);
-	}
-}
-
-/** The mark only ever advances. */
-function advance(latest: number): void {
-	if (mark === undefined || latest > mark) {
-		mark = latest;
 	}
 }
 
@@ -184,7 +177,7 @@ export const expansionPollQuery = {
 	queryKey: ["expansion", "changes"],
 	queryFn: async () => {
 		await pollExpansion();
-		return mark ?? null;
+		return version ?? null;
 	},
 	refetchInterval: EXPANSION_POLL_MS,
 	refetchOnWindowFocus: true,

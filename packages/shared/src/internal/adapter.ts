@@ -8,7 +8,7 @@ import {keptInternalMetadata} from "../cache/importer.js";
 import {collectItemRelationships, emptyItemRelationships} from "../cache/item-relationships.js";
 import {runUnitOfWork} from "../cache/node-composite.js";
 import {applyRelationshipOps, isReplayable} from "../cache/relationship-log.js";
-import {applyExpansionDelta, readExpansion} from "../cache/expansion-store.js";
+import {applyExpansionDelta, expansionVersion, readExpansion} from "../cache/expansion-store.js";
 import {advanceTreeTxId, readTreeTxId} from "../cache/tree-transaction.js";
 import type {ItemRelationships} from "../cache/item-relationships.js";
 import {accountState, localSettings, mirrors as mirrorsTable, nodeContent, nodeInternalMetadata} from "../db/schema.js";
@@ -155,11 +155,11 @@ const LayoutUndoSchema = z.object({
 });
 
 /**
- * A change-feed read of expansion: the store's current high-water mark, and the expanded ids when they changed
- * after the mark asked about (null when they did not).
+ * A change-feed read of expansion: the stored keys' current content version, and the expanded ids when it differs
+ * from the version asked about (null when it does not).
  */
 export interface ExpansionChanges {
-	latest: number;
+	version: string;
 	expandedIds: string[] | null;
 }
 
@@ -1687,15 +1687,13 @@ export class WorkflowyInternalAdapter {
 	}
 
 	/**
-	 * The expansion change feed: the store's high-water mark, plus the expanded ids (as {@link getExpandedIds}) when
-	 * they changed after `since`, or always when no `since` is given.
+	 * The expansion change feed: the stored keys' content version, plus the expanded ids (as {@link getExpandedIds})
+	 * when it differs from the caller's `version`, or always when no `version` is given.
 	 */
-	getExpansionChanges(since: number | undefined): ExpansionChanges {
-		const {keys, mark} = this.storedExpansion();
-		return {
-			latest: mark,
-			expandedIds: since !== undefined && mark <= since ? null : this.resolveExpandedIds(keys),
-		};
+	getExpansionChanges(version: string | undefined): ExpansionChanges {
+		const {keys} = this.storedExpansion();
+		const current = expansionVersion(keys);
+		return {version: current, expandedIds: version === current ? null : this.resolveExpandedIds(keys)};
 	}
 
 	/** The stored expansion, or a loud {@link ExpansionNotSeeded} before any import seeded it. */

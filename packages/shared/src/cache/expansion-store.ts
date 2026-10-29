@@ -11,9 +11,10 @@ type Database = BaseSQLiteDatabase<"sync", any, any>;
  * `leftbar__` keys), the source of truth for expansion. A whole-tree import seeds it and every local change applies
  * to it; nothing re-reads workflowy.com's list on a request path.
  *
- * Every change advances a high-water mark, so a client polls for "changed after my mark" instead of the whole set.
- * The keys live in one `account_state` row today (its `fetched_at` is the mark); only this module touches that row,
- * so moving the storage elsewhere stays local to it.
+ * Each change records its unit of work's own time as the mark. Times may repeat or go backward (the CLI and web
+ * processes share the cache on separate clocks), so a poller compares content versions ({@link expansionVersion}),
+ * never marks. The keys live in one `account_state` row today (its `fetched_at` is the mark); only this module touches
+ * that row, so moving the storage elsewhere stays local to it.
  */
 export const EXPANDED_KEYS_KEY = "expanded_keys";
 
@@ -33,19 +34,43 @@ export function readExpansion(database: Database): StoredExpansion | undefined {
 }
 
 /**
- * Store `keys` with a mark later than the stored one: `at`, or one past the stored mark when `at` is not later
- * (clock skew between the CLI and web processes sharing the cache), so a poller never misses a change.
+ * A version of `keys` that changes exactly when their content does, whatever the change times: a change feed's
+ * cursor, since two changes may share a timestamp or land out of order.
  */
+export function expansionVersion(keys: ReadonlySet<string>): string {
+	return hash64(canonicalJson(keys));
+}
+
+/**
+ * A 64-bit string hash (cyrb53's mixing, both 32-bit halves kept) as 16 hex chars. Synchronous and free of Node
+ * builtins, since the browser bundle reaches this module.
+ */
+function hash64(text: string): string {
+	let h1 = 0xde_ad_be_ef;
+	let h2 = 0x41_c6_ce_57;
+	for (let index = 0; index < text.length; index++) {
+		const code = text.codePointAt(index) ?? 0;
+		h1 = Math.imul(h1 ^ code, 2_654_435_761);
+		h2 = Math.imul(h2 ^ code, 1_597_334_677);
+	}
+	h1 = Math.imul(h1 ^ (h1 >>> 16), 2_246_822_507) ^ Math.imul(h2 ^ (h2 >>> 13), 3_266_489_909);
+	h2 = Math.imul(h2 ^ (h2 >>> 16), 2_246_822_507) ^ Math.imul(h1 ^ (h1 >>> 13), 3_266_489_909);
+	return [h2, h1].map((half) => (half >>> 0).toString(16).padStart(8, "0")).join("");
+}
+
+function canonicalJson(keys: Iterable<string>): string {
+	return JSON.stringify([...new Set(keys)].toSorted());
+}
+
+/** Store `keys` marked with `at`, the unit of work's own time. */
 function write(database: Database, keys: Iterable<string>, at: number): number {
-	const previous = readExpansion(database)?.mark;
-	const mark = previous === undefined ? at : Math.max(at, previous + 1);
-	const json = JSON.stringify([...new Set(keys)].toSorted());
+	const json = canonicalJson(keys);
 	database
 		.insert(accountState)
-		.values({key: EXPANDED_KEYS_KEY, json, fetchedAt: mark})
-		.onConflictDoUpdate({target: accountState.key, set: {json, fetchedAt: mark}})
+		.values({key: EXPANDED_KEYS_KEY, json, fetchedAt: at})
+		.onConflictDoUpdate({target: accountState.key, set: {json, fetchedAt: at}})
 		.run();
-	return mark;
+	return at;
 }
 
 /** Replace the stored keys, as a whole-tree import does; returns the new mark. */

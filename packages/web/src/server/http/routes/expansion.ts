@@ -7,7 +7,8 @@ async function body(request: Request): Promise<unknown> {
 }
 
 /**
- * `GET /?since=<mark>` -> `{latest, expandedIds}` (null ids when nothing changed after the mark); `PATCH /` `{changes}` -> 204;
+ * `GET /?version=<version>` -> `{version, expandedIds}` (null ids while the keys still match the version);
+ * `PATCH /` `{changes}` -> 204;
  * `GET /left-bar` -> `{keys}`; `PATCH /left-bar` `{changes}` -> 204.
  */
 export function expansionRoutes(resolveStore: ResolveStore): Hono {
@@ -17,8 +18,8 @@ export function expansionRoutes(resolveStore: ResolveStore): Hono {
 			resolveStore,
 			c.req.raw,
 			"expansion.get",
-			{since: c.req.query("since")},
-			{error: "since must be a mark from an earlier answer's latest"},
+			{version: c.req.query("version")},
+			{error: "version must be an earlier answer's version"},
 		),
 	);
 	routes.patch("/", async (c) =>

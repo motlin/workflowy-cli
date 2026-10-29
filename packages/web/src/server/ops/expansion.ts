@@ -1,9 +1,9 @@
 /**
  * Expansion state, synced with workflowy.com through the internal API.
  *
- * `expansion.get` is a high-water-mark change feed over our own expansion store (seeded by whole-tree imports, updated
- * by every local change; nothing re-reads workflowy.com): `{since?}` -> `{latest, expandedIds}`, where `expandedIds`
- * is null when nothing changed after `since` and the whole expanded set otherwise. `expansion.patch` with `{changes: {[nodeId]: boolean}}` ->
+ * `expansion.get` is a change feed over our own expansion store (seeded by whole-tree imports, updated by every local
+ * change; nothing re-reads workflowy.com): `{version?}` -> `{version, expandedIds}`, where `version` is the keys'
+ * content version and `expandedIds` is null when it equals the caller's `version` and the whole expanded set otherwise. `expansion.patch` with `{changes: {[nodeId]: boolean}}` ->
  * null (204). PATCHes are debounced like upstream: one push 500ms after the last PATCH, the latest value per id
  * winning. A failed push is retried on a backoff with its changes merged under newer PATCHes. The debounce state
  * lives per server context, i.e. per Durable Object or Node host.
@@ -76,15 +76,20 @@ function flush(state: ExpansionState, adapter: WorkflowyInternalAdapter) {
 const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 
 export const expansionGet = defineOp({
-	input: z.object({since: z.string().regex(/^\d+$/u).optional()}),
+	input: z.object({
+		version: z
+			.string()
+			.regex(/^[0-9a-f]{16}$/u)
+			.optional(),
+	}),
 	output: ExpansionChangesResponseSchema,
-	run(ctx, {since}) {
+	run(ctx, {version}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
 			return notConfigured();
 		}
-		const {latest, expandedIds} = adapter.getExpansionChanges(since === undefined ? undefined : Number(since));
-		return ok({latest, expandedIds});
+		const {version: current, expandedIds} = adapter.getExpansionChanges(version);
+		return ok({version: current, expandedIds});
 	},
 });
 

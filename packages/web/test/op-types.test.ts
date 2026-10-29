@@ -38,8 +38,8 @@ describe("OpInput and OpOutput pin the client-facing op types", () => {
 		}>();
 	});
 
-	it("expansion.get takes an optional high-water mark", () => {
-		expectTypeOf<OpInput<"expansion.get">>().toEqualTypeOf<{since?: string | undefined}>();
+	it("expansion.get takes an optional version", () => {
+		expectTypeOf<OpInput<"expansion.get">>().toEqualTypeOf<{version?: string | undefined}>();
 	});
 
 	it("output schemas type the small ops' values", () => {

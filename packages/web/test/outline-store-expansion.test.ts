@@ -90,7 +90,9 @@ describe("expansion deltas", () => {
 describe("loadExpansion", () => {
 	it("hydrates expandedIds from GET without sending a PATCH", async () => {
 		const {store, loadExpansion} = await loadModules();
-		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({latest: 1, expandedIds: ["a", "b"]})));
+		fetchMock.mockImplementation(async () =>
+			Promise.resolve(Response.json({version: "aaaaaaaaaaaaaaaa", expandedIds: ["a", "b"]})),
+		);
 		await loadExpansion();
 		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
 			expandedIds: new Set(["a", "b"]),
@@ -100,7 +102,9 @@ describe("loadExpansion", () => {
 
 	it("shares one GET between repeated loads, as StrictMode's double effect does", async () => {
 		const {store, loadExpansion} = await loadModules();
-		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({latest: 1, expandedIds: ["a"]})));
+		fetchMock.mockImplementation(async () =>
+			Promise.resolve(Response.json({version: "aaaaaaaaaaaaaaaa", expandedIds: ["a"]})),
+		);
 		await Promise.all([loadExpansion(), loadExpansion()]);
 		await loadExpansion();
 		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
@@ -116,7 +120,9 @@ describe("loadExpansion", () => {
 		fetchMock
 			.mockImplementationOnce(async () => Promise.resolve(new Response("Bad Gateway", {status: 502})))
 			.mockImplementationOnce(async () => Promise.reject(new TypeError("Failed to fetch")))
-			.mockImplementationOnce(async () => Promise.resolve(Response.json({latest: 1, expandedIds: ["a"]})));
+			.mockImplementationOnce(async () =>
+				Promise.resolve(Response.json({version: "aaaaaaaaaaaaaaaa", expandedIds: ["a"]})),
+			);
 		const loading = loadExpansion();
 		await vi.runAllTimersAsync();
 		await loading;
@@ -153,59 +159,65 @@ describe("loadExpansion", () => {
 describe("pollExpansion", () => {
 	/** Past the grace a poll waits out after a local change. */
 	const LOCAL_GRACE_PASSED_MS = 10_000;
-	const since = (mark: number) => ({url: `/api/v1/expansion?since=${mark}`, method: undefined, body: undefined});
+	const V100 = "0000000000000100";
+	const V200 = "0000000000000200";
+	const asked = (version: string) => ({
+		url: `/api/v1/expansion?version=${version}`,
+		method: undefined,
+		body: undefined,
+	});
 
-	async function loaded(ids: string[], latest = 100) {
+	async function loaded(ids: string[], version = V100) {
 		const modules = await loadModules();
 		const {pollExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
-		serve(latest, ids);
+		serve(version, ids);
 		await modules.loadExpansion();
 		fetchMock.mockClear();
 		return {...modules, pollExpansion};
 	}
 
-	function serve(latest: number, expandedIds: string[] | null): void {
-		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({latest, expandedIds})));
+	function serve(version: string, expandedIds: string[] | null): void {
+		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({version, expandedIds})));
 	}
 
-	it("asks for changes after the page load's mark and applies them without PATCHing them back", async () => {
+	it("asks whether the keys differ from the page load's version and applies them without PATCHing them back", async () => {
 		const {store, pollExpansion} = await loaded(["a", "b"]);
-		serve(200, ["b", "c"]);
+		serve(V200, ["b", "c"]);
 		await pollExpansion();
 		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
 			expandedIds: new Set(["b", "c"]),
-			calls: [since(100)],
+			calls: [asked(V100)],
 		});
 	});
 
-	it("advances the mark to each answer's latest", async () => {
-		const {pollExpansion} = await loaded(["a"]);
-		serve(200, ["a", "b"]);
+	it("adopts each answer's version, even one the server stamped earlier", async () => {
+		const {pollExpansion} = await loaded(["a"], V200);
+		serve(V100, ["a", "b"]);
 		await pollExpansion();
-		serve(200, null);
+		serve(V100, null);
 		await pollExpansion();
-		expect(calls()).toStrictEqual([since(100), since(200)]);
+		expect(calls()).toStrictEqual([asked(V200), asked(V100)]);
 	});
 
-	it("keeps the same set instance when nothing changed after the mark", async () => {
+	it("keeps the same set instance when the keys still match the version", async () => {
 		const {store, pollExpansion} = await loaded(["a"]);
 		const before = store.getState().expandedIds;
-		serve(100, null);
+		serve(V100, null);
 		await pollExpansion();
 		expect({same: store.getState().expandedIds === before, calls: calls()}).toStrictEqual({
 			same: true,
-			calls: [since(100)],
+			calls: [asked(V100)],
 		});
 	});
 
-	it("does not poll before the page load has set a mark", async () => {
+	it("does not poll before the page load has set a version", async () => {
 		await loadModules();
 		const {pollExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
 		await pollExpansion();
 		expect(calls()).toStrictEqual([]);
 	});
 
-	it("discards a response, keeping the mark, when a local change happened while it was in flight", async () => {
+	it("discards a response, keeping the version, when a local change happened while it was in flight", async () => {
 		const {store, pollExpansion} = await loaded(["a"]);
 		let resolve: (response: Response) => void = () => {};
 		fetchMock.mockImplementationOnce(
@@ -216,14 +228,14 @@ describe("pollExpansion", () => {
 		);
 		const polling = pollExpansion(60_000);
 		store.getState().expand("z");
-		resolve(Response.json({latest: 200, expandedIds: []}));
+		resolve(Response.json({version: V200, expandedIds: []}));
 		await polling;
 		fetchMock.mockClear();
-		serve(200, null);
+		serve(V200, null);
 		await pollExpansion(Date.now() + LOCAL_GRACE_PASSED_MS);
 		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
 			expandedIds: new Set(["a", "z"]),
-			calls: [since(100)],
+			calls: [asked(V100)],
 		});
 	});
 

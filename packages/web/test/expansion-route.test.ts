@@ -7,11 +7,13 @@ const NOT_CONFIGURED =
 	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
 const ALPHA = "1a2b3c4d-0000-4000-8000-000000000001";
 const BRAVO = "5e6f7a8b-0000-4000-8000-000000000002";
+const CURRENT = "aaaaaaaaaaaaaaaa";
+const OLDER = "bbbbbbbbbbbbbbbb";
 
 function setup(configured: boolean) {
 	const adapter = {
 		getExpansionChanges: vi.fn<WorkflowyInternalAdapter["getExpansionChanges"]>(() => ({
-			latest: 1234,
+			version: CURRENT,
 			expandedIds: [ALPHA],
 		})),
 		setExpanded: vi.fn<WorkflowyInternalAdapter["setExpanded"]>(async () => Promise.resolve()),
@@ -58,35 +60,35 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/expansion", () => {
-	it("returns the store's high-water mark and the expanded ids", async () => {
+	it("returns the stored keys' version and the expanded ids", async () => {
 		const {adapter, request} = setup(true);
 
 		const res = await request("GET");
 
 		expect({res, calls: adapter.getExpansionChanges.mock.calls}).toStrictEqual({
-			res: {status: 200, body: {latest: 1234, expandedIds: [ALPHA]}, etag: null},
+			res: {status: 200, body: {version: CURRENT, expandedIds: [ALPHA]}, etag: null},
 			calls: [[undefined]],
 		});
 	});
 
-	it("asks the change feed for what changed after ?since=<mark>, answering null ids when nothing did", async () => {
+	it("asks the change feed whether the keys differ from ?version=<version>, answering null ids when not", async () => {
 		const {adapter, request} = setup(true);
-		adapter.getExpansionChanges.mockReturnValueOnce({latest: 1234, expandedIds: null});
+		adapter.getExpansionChanges.mockReturnValueOnce({version: CURRENT, expandedIds: null});
 
-		const unchanged = await request("GET", undefined, "?since=1234");
-		const changed = await request("GET", undefined, "?since=1000");
+		const unchanged = await request("GET", undefined, `?version=${CURRENT}`);
+		const changed = await request("GET", undefined, `?version=${OLDER}`);
 
 		expect({unchanged, changed, calls: adapter.getExpansionChanges.mock.calls}).toStrictEqual({
-			unchanged: {status: 200, body: {latest: 1234, expandedIds: null}, etag: null},
-			changed: {status: 200, body: {latest: 1234, expandedIds: [ALPHA]}, etag: null},
-			calls: [[1234], [1000]],
+			unchanged: {status: 200, body: {version: CURRENT, expandedIds: null}, etag: null},
+			changed: {status: 200, body: {version: CURRENT, expandedIds: [ALPHA]}, etag: null},
+			calls: [[CURRENT], [OLDER]],
 		});
 	});
 
-	it("answers 400 for a since that is not a mark", async () => {
+	it("answers 400 for a version that is not one", async () => {
 		const {adapter, request} = setup(true);
 
-		const res = await request("GET", undefined, "?since=yesterday");
+		const res = await request("GET", undefined, "?version=yesterday");
 
 		expect({status: res.status, calls: adapter.getExpansionChanges.mock.calls}).toStrictEqual({
 			status: 400,

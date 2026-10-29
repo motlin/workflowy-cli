@@ -13,10 +13,14 @@ it("polls the expansion change feed every 15s after the page load through a TanS
 	vi.stubGlobal("fetch", fetchMock);
 	const {expansionPollQuery, EXPANSION_POLL_MS, loadExpansion} =
 		await import("../src/client/hooks/use-expansion-sync.js");
-	fetchMock.mockImplementation(async () => Promise.resolve(Response.json({latest: 100, expandedIds: ["a"]})));
+	fetchMock.mockImplementation(async () =>
+		Promise.resolve(Response.json({version: "aaaaaaaaaaaaaaaa", expandedIds: ["a"]})),
+	);
 	await loadExpansion();
 	fetchMock.mockReset();
-	fetchMock.mockImplementation(async () => Promise.resolve(Response.json({latest: 100, expandedIds: null})));
+	fetchMock.mockImplementation(async () =>
+		Promise.resolve(Response.json({version: "aaaaaaaaaaaaaaaa", expandedIds: null})),
+	);
 	vi.useFakeTimers();
 	const queryClient = new QueryClient();
 
@@ -27,6 +31,10 @@ it("polls the expansion change feed every 15s after the page load through a TanS
 
 	expect({period: EXPANSION_POLL_MS, urls: fetchMock.mock.calls.map(([url]) => url)}).toStrictEqual({
 		period: 15_000,
-		urls: ["/api/v1/expansion?since=100", "/api/v1/expansion?since=100", "/api/v1/expansion?since=100"],
+		urls: [
+			"/api/v1/expansion?version=aaaaaaaaaaaaaaaa",
+			"/api/v1/expansion?version=aaaaaaaaaaaaaaaa",
+			"/api/v1/expansion?version=aaaaaaaaaaaaaaaa",
+		],
 	});
 });
