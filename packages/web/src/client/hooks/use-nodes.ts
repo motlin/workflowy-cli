@@ -15,8 +15,10 @@ import type {
 	BacklinksResponse,
 	NodeChangesResponse,
 	FoundDatesResponse,
+	HomeResponse,
 	NodeResponse,
 	OutlineViewResponse,
+	SubtreeItem,
 	UpdateNodeResponse,
 } from "../../node-types.js";
 import type {OutlineViewRequest} from "../outline-view.js";
@@ -210,11 +212,6 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<U
 /** A layout mode as an undo step stores it: bullets are the absence of one. */
 function storedLayout(layoutMode: string | undefined): string | null {
 	return layoutMode === undefined || layoutMode === "bullets" ? null : layoutMode;
-}
-
-/** Home's own metadata: its layoutMode ("bullets" when unset). */
-interface HomeResponse {
-	layoutMode: string;
 }
 
 async function fetchHome(): Promise<HomeResponse> {
@@ -1447,14 +1444,6 @@ export function useMirrorNodes() {
 	});
 	const mutate = useUndoableMutate(mutation.mutate, mirrorNodesUndos, planMirrorNodes);
 	return {...mutation, mutate};
-}
-
-/** One descendant row from `GET /api/v1/nodes/:id/subtree-ids`. */
-interface SubtreeItem {
-	id: string;
-	parentId: string | null;
-	completed: boolean;
-	hasChildren: boolean;
 }
 
 /** The whole cached subtree of `rootId` (Home's tree for null), independent of what the client has loaded. */

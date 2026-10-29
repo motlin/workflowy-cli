@@ -14,6 +14,7 @@
 
 import {dashboardsOn} from "./dashboard.js";
 import {canRenderLayout} from "./layouts.js";
+import type {ExportTreeItem} from "../node-types.js";
 
 export interface ExportItem {
 	id: string;
@@ -894,17 +895,16 @@ export function usesIframeCopy(format: ExportFormatType, userAgent: string): boo
 	return format === "html" && /(android|silk-accelerated)/iu.test(userAgent);
 }
 
-/** One export-tree item as the server sends it (no parent link). */
-export type ExportTreeItem = Omit<ExportItem, "parent" | "children"> & {children: ExportTreeItem[]};
+export type {ExportTreeItem} from "../node-types.js";
+
+/** One server item as a formatter item, its parent links not yet set. */
+function unlinkedExportItem(item: ExportTreeItem): ExportItem {
+	return {...item, parent: null, children: item.children.map(unlinkedExportItem)};
+}
 
 /** The server's tree as formatter items with parents linked. */
 export function toExportItems(items: ExportTreeItem[]): ExportItem[] {
-	const convert = (item: ExportTreeItem): ExportItem => ({
-		...item,
-		parent: null,
-		children: item.children.map(convert),
-	});
-	return linkParents(items.map(convert));
+	return linkParents(items.map(unlinkedExportItem));
 }
 
 /** Formats `items` into a Blob chunk by chunk (CRLF on Windows), rejecting with the abort reason if `signal` aborts. */

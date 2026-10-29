@@ -30,7 +30,20 @@ import type {MirrorInstance} from "../../mirror-path.js";
 import {childInstance, expansionId} from "../../mirror-path.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 import {changedNodeIds, changedPlacement, changesSince, latestSystemTime, readConsistently} from "../system-changes.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
+import {defineOp, fail, ok, toJson} from "./define.js";
+import {
+	BacklinksResponseSchema,
+	ExportTreeItemSchema,
+	FoundDatesResponseSchema,
+	HomeResponseSchema,
+	MirrorsResponseSchema,
+	NodeChangesResponseSchema,
+	NodeEnvelopeSchema,
+	NodeListSchema,
+	NodeResponseSchema,
+	OutlineViewResponseSchema,
+	SubtreeItemSchema,
+} from "./schemas.js";
 import {
 	getAdapter,
 	getWriteClient,
@@ -50,6 +63,7 @@ const IdInput = z.object({id: z.string()});
 // GET /api/v1/nodes - List children (or root nodes if no parent_id; accepts short IDs)
 export const nodesList = defineOp({
 	input: z.object({parentId: z.string().optional()}),
+	output: NodeListSchema,
 	run(ctx, {parentId: parentIdParam}) {
 		// Workflowy API accepts "None" for top-level nodes, or omitting the param
 		let parentId = parentIdParam === "None" || parentIdParam === "" ? null : (parentIdParam ?? null);
@@ -64,7 +78,7 @@ export const nodesList = defineOp({
 			parentId = resolveMirrorToOriginal(ctx, resolved);
 		}
 
-		return ok(jsonOf({nodes: readChildDtos(ctx, parentId)}));
+		return ok(toJson({nodes: readChildDtos(ctx, parentId)}));
 	},
 });
 
@@ -72,6 +86,7 @@ export const nodesList = defineOp({
 // mirror lists its original's children; an unresolvable short id is left out. Spares the client one GET per expanded row.
 export const nodesChildren = defineOp({
 	input: z.object({parentIds: z.array(z.string())}),
+	output: z.strictObject({children: z.record(z.string(), z.array(NodeResponseSchema))}),
 	run(ctx, {parentIds}) {
 		const requestedToResolved = new Map<string, string>();
 		for (const requested of new Set(parentIds)) {
@@ -86,7 +101,7 @@ export const nodesChildren = defineOp({
 		);
 		const lists = readChildDtoLists(ctx, [...requestedToParent.values()]);
 		return ok(
-			jsonOf({
+			toJson({
 				children: Object.fromEntries(
 					[...requestedToParent].map(([requested, parent]) => [requested, lists.get(parent) ?? []]),
 				),
@@ -137,8 +152,9 @@ function readNodeChanges(ctx: ServerContext, since: string | undefined): NodeCha
 // The client asks this after each write instead of refetching every node query; with no `since` it answers the mark.
 export const nodesChanges = defineOp({
 	input: z.object({since: z.string().optional()}),
+	output: NodeChangesResponseSchema,
 	run(ctx, {since}) {
-		return ok(jsonOf(readNodeChanges(ctx, since === "" ? undefined : since)));
+		return ok(toJson(readNodeChanges(ctx, since === "" ? undefined : since)));
 	},
 });
 
@@ -158,6 +174,7 @@ const ViewSchema = z.object({
 
 export const nodesView = defineOp({
 	input: ViewSchema,
+	output: OutlineViewResponseSchema,
 	async run(ctx, body) {
 		const {rootId, limit, showCompleted} = body;
 		const resolvedRoot = rootId === null ? null : resolveNodeId(ctx, rootId);
@@ -214,7 +231,7 @@ export const nodesView = defineOp({
 				: {}),
 			...(foundDates === null ? {} : {foundDates}),
 		};
-		return ok(jsonOf(response));
+		return ok(toJson(response));
 	},
 });
 
@@ -312,6 +329,7 @@ async function readUncachedNodeLive(ctx: ServerContext, id: string): Promise<Nod
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
 export const nodesGet = defineOp({
 	input: IdInput,
+	output: NodeEnvelopeSchema,
 	async run(ctx, {id: rawId}) {
 		const id = resolveNodeId(ctx, rawId);
 		if (!id) {
@@ -329,7 +347,7 @@ export const nodesGet = defineOp({
 		}
 
 		// Wrap in { node: ... } to match Workflowy API format
-		return ok(jsonOf({node: nodeResponse}));
+		return ok(toJson({node: nodeResponse}));
 	},
 });
 
@@ -386,9 +404,10 @@ async function readExportTree(ctx: ServerContext, ids: string[], includeComplete
 // POST /api/v1/nodes/export-tree - The subtrees the export dialog formats, in one round trip
 export const nodesExportTree = defineOp({
 	input: z.object({ids: z.array(z.string()), includeCompleted: z.boolean().optional()}),
+	output: z.strictObject({items: z.array(ExportTreeItemSchema)}),
 	async run(ctx, {ids, includeCompleted}) {
 		const resolved = ids.flatMap((id) => resolveNodeId(ctx, id) ?? []);
-		return ok(jsonOf({items: await readExportTree(ctx, resolved, includeCompleted ?? false)}));
+		return ok(toJson({items: await readExportTree(ctx, resolved, includeCompleted ?? false)}));
 	},
 });
 
@@ -456,21 +475,23 @@ function readSubtreeItems(ctx: ServerContext, rootId: string | null): SubtreeIte
 // GET /api/v1/nodes/:id/subtree-ids - Every cached descendant of the node ("home" = the whole tree), for Expand/Collapse all
 export const nodesSubtreeIds = defineOp({
 	input: IdInput,
+	output: z.strictObject({items: z.array(SubtreeItemSchema)}),
 	run(ctx, {id: rawId}) {
 		if (rawId === HOME_TARGET) {
-			return ok(jsonOf({items: readSubtreeItems(ctx, null)}));
+			return ok(toJson({items: readSubtreeItems(ctx, null)}));
 		}
 		const id = resolveNodeId(ctx, rawId);
 		if (id === null || ctx.cacheService.getNode(id) === undefined) {
 			return fail(404, {error: "Node not found"});
 		}
-		return ok(jsonOf({items: readSubtreeItems(ctx, id)}));
+		return ok(toJson({items: readSubtreeItems(ctx, id)}));
 	},
 });
 
 // GET /api/v1/nodes/:id/ancestors - Get all ancestors from root to node
 export const nodesAncestors = defineOp({
 	input: IdInput,
+	output: z.strictObject({ancestors: z.array(NodeResponseSchema)}),
 	run(ctx, {id: rawId}) {
 		const id = resolveNodeId(ctx, rawId);
 		if (!id) {
@@ -523,7 +544,7 @@ export const nodesAncestors = defineOp({
 			originalNodeId: null,
 		}));
 
-		return ok(jsonOf({ancestors}));
+		return ok(toJson({ancestors}));
 	},
 });
 
@@ -531,12 +552,13 @@ export const nodesAncestors = defineOp({
 // and the backlink items whose source is current, each with the source's text and crumbs.
 export const nodesBacklinks = defineOp({
 	input: IdInput,
+	output: BacklinksResponseSchema,
 	async run(ctx, {id: rawId}) {
 		const id = resolveNodeId(ctx, rawId);
 		if (!id) {
 			return fail(404, {error: "Node not found"});
 		}
-		return ok(jsonOf(await readBacklinks(ctx, id)));
+		return ok(toJson(await readBacklinks(ctx, id)));
 	},
 });
 
@@ -610,13 +632,14 @@ async function readBacklinks(ctx: ServerContext, id: string): Promise<BacklinksR
 // elsewhere whose <time> covers the day, each as a mirror row of itself with its crumbs.
 export const nodesFoundDates = defineOp({
 	input: IdInput,
+	output: FoundDatesResponseSchema,
 	async run(ctx, {id: rawId}) {
 		const id = resolveNodeId(ctx, rawId);
 		const node = id === null ? undefined : ctx.cacheService.getNode(id);
 		if (!node) {
 			return fail(404, {error: "Node not found"});
 		}
-		return ok(jsonOf((await readFoundDates(ctx, node)) ?? {items: []}));
+		return ok(toJson((await readFoundDates(ctx, node)) ?? {items: []}));
 	},
 });
 
@@ -660,6 +683,7 @@ async function readFoundDates(ctx: ServerContext, node: Node): Promise<FoundDate
 // GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)
 export const nodesMirrors = defineOp({
 	input: IdInput,
+	output: MirrorsResponseSchema,
 	run(ctx, {id: rawId}) {
 		const id = resolveNodeId(ctx, rawId);
 		if (!id) {
@@ -722,12 +746,13 @@ export const nodesMirrors = defineOp({
 // GET /api/v1/home - Home's layoutMode, read from the root metadata ("bullets" when unset)
 export const homeGet = defineOp({
 	input: z.object({}),
+	output: HomeResponseSchema,
 	async run(ctx) {
 		const adapter = getAdapter(ctx);
 		if (!adapter) {
 			return fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 		}
 		const layoutMode = await adapter.getRootMeta(["layoutMode"]);
-		return ok(jsonOf({layoutMode: typeof layoutMode === "string" ? layoutMode : "bullets"}));
+		return ok(toJson({layoutMode: typeof layoutMode === "string" ? layoutMode : "bullets"}));
 	},
 });

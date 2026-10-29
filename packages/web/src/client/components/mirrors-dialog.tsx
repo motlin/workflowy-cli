@@ -8,20 +8,9 @@ import {useDeleteNode} from "../hooks/use-nodes.js";
 import {LeftCollapsingCrumbs} from "./breadcrumbs.js";
 import {DialogCloseButton, DialogShell} from "./dialog-shell.js";
 import {FaIcon} from "./fa-icons.js";
+import type {MirrorLocation, MirrorsResponse} from "../../node-types.js";
 
-export interface MirrorLocation {
-	id: string;
-	/** The ancestors from the top, ending with the location itself. */
-	path: {id: string; name: string}[];
-	isOriginal: boolean;
-}
-
-/** `GET /api/v1/nodes/:id/mirrors`: the original first, then its mirrors. */
-export interface MirrorsResponse {
-	mirrors: MirrorLocation[];
-	originalId: string;
-	nodeName: string;
-}
+export type {MirrorLocation, MirrorsResponse} from "../../node-types.js";
 
 /** Lodash `truncate(text, {length})`: longer text keeps `length - 3` characters and an ellipsis. */
 export function lodashTruncate(text: string, length: number): string {

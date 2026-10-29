@@ -8,8 +8,8 @@ import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {NodeResponse, SaveEffects, UpdateNodeResponse} from "../../node-types.js";
 import {backlinksNeedSync, backlinkTargetsOfSource} from "../backlinks.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
-import type {Json} from "./define.js";
+import {defineOp, fail, ok, toJson} from "./define.js";
+import {HomeResponseSchema, NoContentSchema, NodeEnvelopeSchema, UpdateNodeResponseSchema} from "./schemas.js";
 import {
 	adapterParent,
 	childIds,
@@ -91,6 +91,7 @@ export const nodesCreate = defineOp({
 		 */
 		id: z.string().regex(CLIENT_ID_PATTERN).optional(),
 	}),
+	output: NodeEnvelopeSchema,
 	async run(ctx, body) {
 		const client = getWriteClient(ctx);
 		if (!client) {
@@ -123,7 +124,7 @@ export const nodesCreate = defineOp({
 			if (node === undefined) {
 				return fail(500, {error: `Created node ${id} is missing from the cache`});
 			}
-			return ok(jsonOf({node}), {created: true});
+			return ok(toJson({node}), {created: true});
 		}
 
 		// Without the internal API a middle slot is the nearer end plus a rotation of the siblings on the shorter side.
@@ -142,7 +143,7 @@ export const nodesCreate = defineOp({
 		for (const siblingId of rotation.siblingIds) {
 			await client.moveNode(siblingId, parentId, publicMovePosition(rotation.position));
 		}
-		return ok(jsonOf({node: wireNodeResponse(createdNode, parentId, true)}), {created: true});
+		return ok(toJson({node: wireNodeResponse(createdNode, parentId, true)}), {created: true});
 	},
 });
 
@@ -150,13 +151,14 @@ export const nodesCreate = defineOp({
 export const nodesSetHome = defineOp({
 	/** Upstream offers only these layouts at Home. */
 	input: z.strictObject({layoutMode: z.enum(["bullets", "board"])}),
+	output: HomeResponseSchema,
 	async run(ctx, {layoutMode}) {
 		const adapter = getAdapter(ctx);
 		if (!adapter) {
 			return fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 		}
 		await adapter.setNodeMetaValues(HOME_TARGET, [{path: ["layoutMode"], value: layoutModeValue(layoutMode)}]);
-		return ok<Json>({layoutMode});
+		return ok({layoutMode});
 	},
 });
 
@@ -170,6 +172,7 @@ export const nodesUpdate = defineOp({
 		numberedStart: z.number().int().nullable().optional(),
 		tableSet: TableSetSchema.optional(),
 	}),
+	output: UpdateNodeResponseSchema,
 	async run(ctx, body) {
 		const client = getWriteClient(ctx);
 		if (!client) {
@@ -241,7 +244,7 @@ export const nodesUpdate = defineOp({
 			if (node === undefined) {
 				return fail(404, {error: "Node not found"});
 			}
-			return ok(jsonOf({node, effects} satisfies UpdateNodeResponse));
+			return ok(toJson({node, effects} satisfies UpdateNodeResponse));
 		}
 		if (numberedStart !== undefined || tableChanges.length > 0) {
 			return fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
@@ -254,7 +257,7 @@ export const nodesUpdate = defineOp({
 			...(layoutMode === undefined ? {} : {layoutMode}),
 		});
 		return ok(
-			jsonOf({
+			toJson({
 				node: wireNodeResponse(updatedNode, existingNode.parentId, true),
 				effects,
 			} satisfies UpdateNodeResponse),
@@ -265,6 +268,7 @@ export const nodesUpdate = defineOp({
 // DELETE /api/v1/nodes/:id - Delete node
 export const nodesDelete = defineOp({
 	input: z.object({id: z.string()}),
+	output: NoContentSchema,
 	async run(ctx, {id: rawId}) {
 		const client = getWriteClient(ctx);
 		if (!client) {
@@ -299,6 +303,7 @@ type CompletionOp = "complete" | "uncomplete";
 function completionOp(operation: CompletionOp) {
 	return defineOp({
 		input: z.object({id: z.string()}),
+		output: NodeEnvelopeSchema,
 		async run(ctx, {id: rawId}) {
 			const client = getWriteClient(ctx);
 			if (!client) {
@@ -320,9 +325,9 @@ function completionOp(operation: CompletionOp) {
 
 			const cached = await readNodeDto(ctx, id);
 			if (cached) {
-				return ok(jsonOf({node: cached}));
+				return ok(toJson({node: cached}));
 			}
-			return ok(jsonOf({node: wireNodeResponse(changed, existingNode.parentId, operation === "uncomplete")}));
+			return ok(toJson({node: wireNodeResponse(changed, existingNode.parentId, operation === "uncomplete")}));
 		},
 	});
 }
@@ -336,6 +341,7 @@ export const nodesUncomplete = completionOp("uncomplete");
 // POST /api/v1/nodes/:id/restore - Bring back a deleted node under its ORIGINAL id
 export const nodesRestore = defineOp({
 	input: z.object({id: z.string(), parent_id: ParentIdSchema.optional(), index: IndexSchema}),
+	output: NodeEnvelopeSchema,
 	async run(ctx, body) {
 		const adapter = getAdapter(ctx);
 		const apiClient = getApiClient(ctx);
@@ -369,6 +375,6 @@ export const nodesRestore = defineOp({
 		if (node === undefined) {
 			return fail(500, {error: `Restored node ${id} is missing from the cache`});
 		}
-		return ok(jsonOf({node}));
+		return ok(toJson({node}));
 	},
 });

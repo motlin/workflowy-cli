@@ -5,8 +5,9 @@ import type {NewTree} from "@workflowy/shared/internal";
 import {MAX_COPY_ITEMS, copySubtree} from "../copy-tree.js";
 import type {ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
-import type {Json, OpResult} from "./define.js";
+import {defineOp, fail, ok, toJson} from "./define.js";
+import {CreatedIdsSchema, NodeListSchema} from "./schemas.js";
+import type {OpResult} from "./define.js";
 import type {BulkTree} from "../../node-types.js";
 import {
 	adapterParent,
@@ -76,6 +77,7 @@ export const nodesTrees = defineOp({
 		after_id: AfterIdSchema,
 		trees: z.array(BulkTreeSchema),
 	}),
+	output: CreatedIdsSchema,
 	async run(ctx, body) {
 		const parent = parseParent(ctx, body.parent_id);
 		if (!parent.ok) {
@@ -102,6 +104,7 @@ export const nodesTrees = defineOp({
 // POST /api/v1/nodes/duplicate - Deep-copy items to consecutive slots of a parent, with one bulk_create
 export const nodesDuplicate = defineOp({
 	input: z.object({ids: NodeIdsSchema, parent_id: ParentIdSchema, index: IndexSchema}),
+	output: CreatedIdsSchema,
 	async run(ctx, body) {
 		const parent = parseParent(ctx, body.parent_id);
 		if (!parent.ok) {
@@ -159,7 +162,7 @@ async function moveNodes(
 	ids: string[],
 	rawParent: string | null,
 	index: number | undefined,
-): Promise<OpResult<Json>> {
+): Promise<OpResult<z.output<typeof NodeListSchema>>> {
 	const parent = parseParent(ctx, rawParent);
 	if (!parent.ok) {
 		return fail(parent.status, {error: parent.error});
@@ -193,7 +196,7 @@ async function moveNodes(
 		}
 	}
 
-	return ok(jsonOf({nodes: readSiblingDtos(ctx, [...oldParents, parentId])}));
+	return ok(toJson({nodes: readSiblingDtos(ctx, [...oldParents, parentId])}));
 }
 
 // POST /api/v1/nodes/move - Move a block of nodes, in the given order, to an exact `index`.
@@ -202,6 +205,7 @@ async function moveNodes(
 // `index`; omitted or >= the child count = bottom. Same contract as `MoveToInput.index`.
 export const nodesMove = defineOp({
 	input: z.object({ids: NodeIdsSchema, parent_id: ParentIdSchema, index: IndexSchema}),
+	output: NodeListSchema,
 	async run(ctx, body) {
 		const client = getWriteClient(ctx);
 		if (!client) {
@@ -229,6 +233,7 @@ export const nodesMoveOne = defineOp({
 		index: IndexSchema,
 		position: LegacyPositionSchema,
 	}),
+	output: NodeListSchema,
 	async run(ctx, body) {
 		const client = getWriteClient(ctx);
 		if (!client) {

@@ -3,8 +3,8 @@ import {HOME_TARGET} from "@workflowy/shared/types";
 import {planSwapOrigin} from "../../swap-origin.js";
 import {MAX_COPY_ITEMS, copySubtree} from "../copy-tree.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
-import type {Json} from "./define.js";
+import {defineOp, fail, ok, toJson} from "./define.js";
+import {NodeListSchema, NodeResponseSchema} from "./schemas.js";
 import {
 	adapterParent,
 	countChildren,
@@ -26,6 +26,7 @@ const DETACH_TOO_BIG = `Detaching mirror subtrees containing more than ${MAX_COP
 // POST /api/v1/nodes/mirror - Mirror items under a parent, in order at consecutive indexes
 export const nodesMirror = defineOp({
 	input: z.object({item_ids: NodeIdsSchema, parent_id: ParentIdSchema, index: IndexSchema}),
+	output: NodeListSchema,
 	async run(ctx, body) {
 		const parent = parseParent(ctx, body.parent_id);
 		if (!parent.ok) {
@@ -77,13 +78,14 @@ export const nodesMirror = defineOp({
 		const nodes = (await Promise.all(mirrorIds.map(async (id) => readNodeDto(ctx, id)))).filter(
 			(node) => node !== undefined,
 		);
-		return ok(jsonOf({nodes}), {created: true});
+		return ok(toJson({nodes}), {created: true});
 	},
 });
 
 // POST /api/v1/nodes/:id/detach-mirror - Replace a mirror root (a mirror, or an original that has mirrors) with a copy
 export const nodesDetachMirror = defineOp({
 	input: z.object({id: z.string()}),
+	output: z.strictObject({node: NodeResponseSchema.nullable()}),
 	async run(ctx, {id: rawId}) {
 		const client = getWriteClient(ctx);
 		const adapter = getAdapter(ctx);
@@ -125,13 +127,17 @@ export const nodesDetachMirror = defineOp({
 		await client.deleteNode(id);
 		const [copyId] = ids;
 		const copy = copyId === undefined ? undefined : await readNodeDto(ctx, copyId);
-		return ok(jsonOf({node: copy ?? null}), {created: true});
+		return ok(toJson({node: copy ?? null}), {created: true});
 	},
 });
 
 // POST /api/v1/nodes/:id/swap-mirror-origin - Make a mirror the origin: it and its original exchange slots
 export const nodesSwapMirrorOrigin = defineOp({
 	input: z.object({id: z.string()}),
+	output: z.union([
+		z.strictObject({swapped: z.strictObject({mirrorId: z.string(), originalId: z.string()})}),
+		z.strictObject({warning: z.string()}),
+	]),
 	async run(ctx, {id: rawId}) {
 		const adapter = getAdapter(ctx);
 		if (!adapter) {
@@ -145,7 +151,7 @@ export const nodesSwapMirrorOrigin = defineOp({
 		const originalId = resolveMirrorToOriginal(ctx, id);
 		if (originalId === id) {
 			if (originalsWithMirrors(ctx, [id]).has(id)) {
-				return ok<Json>({warning: "This item is already the origin."});
+				return ok({warning: "This item is already the origin."});
 			}
 			return fail(400, {error: "Node is not a mirror"});
 		}
@@ -177,6 +183,6 @@ export const nodesSwapMirrorOrigin = defineOp({
 		for (const move of moves) {
 			await adapter.moveTo({ids: [move.id], parentId: adapterParent(move.parentId), index: move.index});
 		}
-		return ok<Json>({swapped: {mirrorId: id, originalId}});
+		return ok({swapped: {mirrorId: id, originalId}});
 	},
 });
