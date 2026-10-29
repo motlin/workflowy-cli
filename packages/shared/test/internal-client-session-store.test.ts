@@ -78,7 +78,7 @@ describe("WorkflowyInternalClient with a session store", () => {
 		expect(store.writes).toStrictEqual([`sessionid=${FAKE_SESSION_ID}`]);
 	});
 
-	it("re-logs in for getTreeData too when the stored cookie is logged out", async () => {
+	it("re-logs in for getTreeSnapshot too when the stored cookie is logged out", async () => {
 		const api = createFakeInternalApi();
 		api.respondOnce("/get_tree_data/", () => json({logged_out: true}));
 		const store = memoryStore(SAVED_COOKIE);
@@ -89,9 +89,9 @@ describe("WorkflowyInternalClient with a session store", () => {
 			baseUrl: BASE_URL,
 		});
 
-		const items = await client.getTreeData();
+		const result = await client.getTreeSnapshot();
 
-		expect(items).toStrictEqual([]);
+		expect(result).toStrictEqual({items: [], txId: "9999", expandedKeys: []});
 		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
 			["GET", "/get_tree_data/"],
 			["POST", "/ajax_login"],

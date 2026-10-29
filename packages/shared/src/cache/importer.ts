@@ -15,7 +15,7 @@
 
 import {and, eq, inArray} from "drizzle-orm";
 import type {BaseSQLiteDatabase, SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
-import type {InternalTreeItem} from "../api/workflowy-internal-client.js";
+import type {TreeSnapshot} from "../api/workflowy-internal-client.js";
 import {
 	aiMetadata,
 	calendarLevels,
@@ -42,6 +42,7 @@ import type {
 } from "./normalized-rows.js";
 import type {UnitOfWork} from "./node-composite.js";
 import {temporalMerge} from "./temporal-merge.js";
+import {replaceTreeTxId, storeExpandedKeys} from "./tree-transaction.js";
 import type {TemporalMergeResult, TemporalTransaction} from "./temporal-merge.js";
 
 /**
@@ -388,18 +389,22 @@ export interface ImportInternalMetadataResult {
 }
 
 /**
- * Replace `node_internal_metadata` with the kept metadata of `items` (a full
- * `/get_tree_data/` read), in one transaction. Only nodes currently in
- * `node_content` get a row; node tables are not touched.
+ * Replace `node_internal_metadata` with the kept metadata of a whole-tree
+ * snapshot's items, and store the snapshot's transaction id and expanded keys,
+ * in one transaction. Only nodes currently in `node_content` get a row; node
+ * tables are not touched. Call it after the snapshot's edge rows are merged:
+ * the stored id says the cache is current to that transaction.
  */
 export function importInternalMetadata(
 	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 	database: BaseSQLiteDatabase<"sync", any, any>,
-	items: InternalTreeItem[],
+	{items, txId, expandedKeys}: TreeSnapshot,
 	fetchedAt: number,
 ): ImportInternalMetadataResult {
 	const result: ImportInternalMetadataResult = {written: 0, skipped: 0};
 	database.transaction((tx) => {
+		replaceTreeTxId(tx, txId, fetchedAt);
+		storeExpandedKeys(tx, expandedKeys, fetchedAt);
 		const cached = new Set(
 			tx
 				.select({id: nodeContent.id})

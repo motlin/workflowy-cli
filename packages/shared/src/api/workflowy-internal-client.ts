@@ -93,12 +93,25 @@ const TreeItemSchema = z
 
 const ExpandedKeysSchema = z.object({server_expanded_projects_list: z.array(z.string()).optional()}).loose();
 
-const TreeItemsSchema = z.object({items: z.array(TreeItemSchema)}).loose();
+const TreeSnapshotSchema = z
+	.object({
+		items: z.array(TreeItemSchema),
+		most_recent_operation_transaction_id: TransactionIdSchema,
+		server_expanded_projects_list: z.array(z.string()).optional(),
+	})
+	.loose();
 
 /** One `/get_tree_data/` item, reduced to what the cache imports. */
 export interface InternalTreeItem {
 	id: string;
 	metadata?: Record<string, unknown>;
+}
+
+/** One whole-tree `/get_tree_data/` read: its items, the transaction id they are current to, and the expanded keys. */
+export interface TreeSnapshot {
+	items: InternalTreeItem[];
+	txId: string;
+	expandedKeys: string[];
 }
 
 const SignedFileSchema = z.object({url: z.string().min(1)}).loose();
@@ -363,11 +376,19 @@ export class WorkflowyInternalClient {
 		};
 	}
 
-	/** Every item of the main tree from `/get_tree_data/`: its id and, when it has any, its metadata. */
-	async getTreeData(): Promise<InternalTreeItem[]> {
+	/**
+	 * The whole main tree from one `/get_tree_data/` (about 54 MB live): every
+	 * item's id and, when it has any, its metadata, plus the transaction id and
+	 * expanded keys of that same read. Only batch imports call it.
+	 */
+	async getTreeSnapshot(): Promise<TreeSnapshot> {
 		const {body} = await this.withSession(async () => this.getJson("/get_tree_data/"));
-		const {items} = TreeItemsSchema.parse(body);
-		return items.map(({id, metadata}) => (metadata === undefined ? {id} : {id, metadata}));
+		const snapshot = TreeSnapshotSchema.parse(body);
+		return {
+			items: snapshot.items.map(({id, metadata}) => (metadata === undefined ? {id} : {id, metadata})),
+			txId: snapshot.most_recent_operation_transaction_id,
+			expandedKeys: snapshot.server_expanded_projects_list ?? [],
+		};
 	}
 
 	/** The server's expanded-node keys (first 8 chars of each id) from `/get_tree_data/`, its only complete source. */

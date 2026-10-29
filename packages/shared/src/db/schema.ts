@@ -341,8 +341,10 @@ export const systemClock = sqliteTable("system_clock", {
 /**
  * account_state: Workflowy account state cached from the internal API (see
  * `internal/adapter.ts`), one JSON document per key: `account`, `root_metadata`,
- * `settings`. `fetched_at` is Unix ms of the refresh or accepted write that
- * produced the row. A write-through cache, so non-bitemporal and excluded from
+ * `settings`, `expanded_keys`, and `tree_tx_id`, the main tree's transaction
+ * id the edge tables are current to, which every `/push_and_poll` starts from
+ * (see `cache/tree-transaction.ts`). `fetched_at` is Unix ms of the refresh or
+ * accepted write that produced the row. A write-through cache, so non-bitemporal and excluded from
  * temporal rollback.
  */
 export const accountState = sqliteTable("account_state", {

@@ -5,6 +5,7 @@ import {join} from "node:path";
 import {eq} from "drizzle-orm";
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
+import {replaceTreeTxId} from "../src/cache/tree-transaction.js";
 import * as schema from "../src/db/schema.js";
 import {accountState, localSettings} from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
@@ -33,6 +34,8 @@ function setup() {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
+	// A whole-tree import seeded the transaction-log position at the fake init's id.
+	replaceTreeTxId(db, "4567", 0);
 	const api = createFakeInternalApi();
 	const client = new WorkflowyInternalClient({
 		credentials: {username: "alice@example.com", password: "hunter2"},

@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
 import {z} from "zod";
+import {TreeNotSeeded} from "@workflowy/shared/internal";
 import {fail, ok, defineOp} from "../src/server/ops/define.js";
 import {createHttpApp, parseInput, toResponse} from "../src/server/http/app.js";
 import {inProcessStore} from "../src/server/store.js";
@@ -117,6 +118,13 @@ describe("inProcessStore", () => {
 				throw new Error("bug");
 			},
 		}),
+		unseeded: defineOp({
+			input: z.object({}),
+			output: z.null(),
+			run: () => {
+				throw new TreeNotSeeded();
+			},
+		}),
 	};
 
 	it("runs the op and returns its result", async () => {
@@ -131,6 +139,16 @@ describe("inProcessStore", () => {
 			ok: false,
 			status: 500,
 			body: "Internal Server Error",
+		});
+	});
+
+	it("turns a tree resync error into a 503 naming the cause", async () => {
+		await expect(inProcessStore(ctx, ops).call("unseeded" as never, {} as never)).resolves.toStrictEqual({
+			ok: false,
+			status: 503,
+			body: {
+				error: "The local cache has no Workflowy transaction id to sync from; run './bin/run.js cache import-api' to seed it",
+			},
 		});
 	});
 

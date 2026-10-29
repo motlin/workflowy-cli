@@ -76,7 +76,8 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 				storage: ctx.storage,
 				db,
 				env,
-				readTreeData: internalAuth && (async () => new WorkflowyInternalClient(internalAuth).getTreeData()),
+				readTreeSnapshot:
+					internalAuth && (async () => new WorkflowyInternalClient(internalAuth).getTreeSnapshot()),
 				readEpoch: internalAuth && (async () => new WorkflowyInternalClient(internalAuth).getEpoch()),
 			});
 		});

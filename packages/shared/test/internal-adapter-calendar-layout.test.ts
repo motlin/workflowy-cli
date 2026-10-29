@@ -268,7 +268,7 @@ async function setup(initial: [string, ServerNode][]) {
 	});
 	const parents = [...new Set(initial.map(([, value]) => value.parent))];
 	await writeThrough.refreshChildren(parents.map((parent) => (parent === ROOT ? null : parent)));
-	importInternalMetadata(db, server.treeData(), 0);
+	importInternalMetadata(db, {items: server.treeData(), txId: "4567", expandedKeys: []}, 0);
 	const metadataOf = (id: string): Record<string, unknown> => {
 		const row = db
 			.select({metadataJson: schema.nodeInternalMetadata.metadataJson})

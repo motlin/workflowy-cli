@@ -47,6 +47,7 @@ export {
 	mergeItemRelationships,
 	type MergeItemRelationshipsResult,
 } from "./item-relationships.js";
+export {advanceTreeTxId, readTreeTxId, replaceTreeTxId} from "./tree-transaction.js";
 export {effectiveCompletedAt} from "./effective-completion.js";
 export {applyMirrorText, loadMirrorOriginals, notAMirror, withMirrorText} from "./mirror-text.js";
 export {NodeReader} from "./node-reader.js";

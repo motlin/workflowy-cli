@@ -4,13 +4,20 @@ import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
+import type {InternalTreeItem} from "../src/api/workflowy-internal-client.js";
 import {importInternalMetadata, keptInternalMetadata} from "../src/cache/importer.js";
+import {readTreeTxId} from "../src/cache/tree-transaction.js";
 import * as schema from "../src/db/schema.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/index.js";
 import {createFakeInternalApi, json} from "./helpers/fake-internal-api.js";
 
 const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
 const FETCHED_AT = 1_800_000_000_000;
+
+/** A whole-tree snapshot holding `items`, as `getTreeSnapshot` returns it. */
+function snapshot(items: InternalTreeItem[], txId = "9999", expandedKeys: string[] = []) {
+	return {items, txId, expandedKeys};
+}
 
 const CALENDAR = {root: true, levels: {day: true, week: false, month: true, year: true}};
 
@@ -66,13 +73,13 @@ describe("importInternalMetadata", () => {
 
 		const result = importInternalMetadata(
 			db,
-			[
+			snapshot([
 				{id: "a", metadata: {numbered_start: 5, layoutMode: "numbered", mirror: {originalId: "z"}}},
 				{id: "b", metadata: {calendar: CALENDAR, priority: {defaultToBottom: true, other: 1}}},
 				{id: "c", metadata: {}},
 				{id: "c2"},
 				{id: "missing", metadata: {numbered_start: 2}},
-			],
+			]),
 			FETCHED_AT,
 		);
 
@@ -94,24 +101,42 @@ describe("importInternalMetadata", () => {
 		const {db, rows} = tracked(["a", "b"]);
 		importInternalMetadata(
 			db,
-			[
+			snapshot([
 				{id: "a", metadata: {numbered_start: 5}},
 				{id: "b", metadata: {numbered_start: 1}},
-			],
+			]),
 			1,
 		);
 
-		const result = importInternalMetadata(db, [{id: "a", metadata: {numbered_start: 7}}], FETCHED_AT);
+		const result = importInternalMetadata(db, snapshot([{id: "a", metadata: {numbered_start: 7}}]), FETCHED_AT);
 
 		expect({result, rows: rows()}).toStrictEqual({
 			result: {written: 1, skipped: 0},
 			rows: [{nodeId: "a", metadata: {numbered_start: 7}, fetchedAt: FETCHED_AT}],
 		});
 	});
+
+	it("stores the snapshot's transaction id and expanded keys, replacing a newer stored id", () => {
+		const {db} = tracked([]);
+		importInternalMetadata(db, snapshot([], "5000"), 1);
+
+		importInternalMetadata(db, snapshot([], "4000", ["2b2b2b2b", "1a1a1a1a"]), FETCHED_AT);
+
+		expect({
+			txId: readTreeTxId(db),
+			accountState: db.select().from(schema.accountState).all(),
+		}).toStrictEqual({
+			txId: "4000",
+			accountState: [
+				{key: "tree_tx_id", json: JSON.stringify("4000"), fetchedAt: FETCHED_AT},
+				{key: "expanded_keys", json: JSON.stringify(["1a1a1a1a", "2b2b2b2b"]), fetchedAt: FETCHED_AT},
+			],
+		});
+	});
 });
 
-describe("WorkflowyInternalClient.getTreeData", () => {
-	it("returns each item's id and metadata from /get_tree_data/", async () => {
+describe("WorkflowyInternalClient.getTreeSnapshot", () => {
+	it("returns each item's id and metadata, the transaction id and the expanded keys from one /get_tree_data/", async () => {
 		const api = createFakeInternalApi();
 		api.respond("/get_tree_data/", () =>
 			json({
@@ -119,7 +144,8 @@ describe("WorkflowyInternalClient.getTreeData", () => {
 					{id: "a", prnt: null, pr: 0, nm: "a", ct: 1, lm: 2, metadata: {numbered_start: 5}},
 					{id: "b", prnt: "a", pr: 1, nm: "b", ct: 1, lm: 2},
 				],
-				most_recent_operation_transaction_id: "9999",
+				most_recent_operation_transaction_id: 9999,
+				server_expanded_projects_list: ["1a2b3c4d"],
 			}),
 		);
 		const client = new WorkflowyInternalClient({
@@ -130,9 +156,16 @@ describe("WorkflowyInternalClient.getTreeData", () => {
 		});
 		await client.login();
 
-		const items = await client.getTreeData();
+		const result = await client.getTreeSnapshot();
 
-		expect(items).toStrictEqual([{id: "a", metadata: {numbered_start: 5}}, {id: "b"}]);
+		expect({result, reads: api.requests.filter((r) => r.path === "/get_tree_data/").length}).toStrictEqual({
+			result: {
+				items: [{id: "a", metadata: {numbered_start: 5}}, {id: "b"}],
+				txId: "9999",
+				expandedKeys: ["1a2b3c4d"],
+			},
+			reads: 1,
+		});
 	});
 });
 

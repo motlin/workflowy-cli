@@ -47,3 +47,29 @@ export class OperationRejected extends InternalApiError {
 
 /** The request never produced a usable response (network failure, non-2xx status, unparseable body). */
 export class TransportError extends InternalApiError {}
+
+const RESEED = "run './bin/run.js cache import-api' to";
+
+/**
+ * The cache cannot follow the tree's transaction log, so no push can start.
+ * Never retried and never reseeded automatically: a whole-tree read is 54 MB,
+ * so only an explicit `cache import-api` (or an admin endpoint) reseeds.
+ * The web host answers it with a 503 carrying this message.
+ */
+export class TreeResyncRequired extends InternalApiError {}
+
+/** No whole-tree import has stored a transaction id yet. */
+export class TreeNotSeeded extends TreeResyncRequired {
+	constructor() {
+		super(`The local cache has no Workflowy transaction id to sync from; ${RESEED} seed it`);
+	}
+}
+
+/** The server answered `need_refreshed_project_tree`: the stored id is not (or no longer) in the tree's log. */
+export class TreeRefreshRequired extends TreeResyncRequired {
+	constructor(readonly txId: string) {
+		super(
+			`Workflowy answered need_refreshed_project_tree: the cache's transaction id ${txId} is no longer in the tree's log; ${RESEED} reseed it`,
+		);
+	}
+}

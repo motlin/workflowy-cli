@@ -1,6 +1,6 @@
 import {applyApiBatch, beginApiImport, finishApiImport, importInternalMetadata} from "@workflowy/shared/cache";
 import type {ApiImportState, ImportApiResult} from "@workflowy/shared/cache";
-import type {InternalTreeItem} from "@workflowy/shared/api";
+import type {TreeSnapshot} from "@workflowy/shared/api";
 import type {AppDatabase} from "@workflowy/shared/db";
 import {nodeBatches} from "./export-stream";
 
@@ -26,7 +26,7 @@ export interface SyncDeps {
 	db: AppDatabase;
 	env: SyncEnv;
 	/** Reads the internal tree data when internal auth exists; undefined when it does not. */
-	readTreeData?: () => Promise<InternalTreeItem[]> | undefined;
+	readTreeSnapshot?: () => Promise<TreeSnapshot> | undefined;
 	/** Reads the account's Workflowy epoch when internal auth exists; undefined when it does not. */
 	readEpoch?: () => Promise<number> | undefined;
 	now?: () => number;
@@ -282,19 +282,19 @@ export class SyncJob {
 			return;
 		}
 
-		let treeItems: InternalTreeItem[] | undefined;
+		let snapshot: TreeSnapshot | undefined;
 		let treeDataError: string | undefined;
 		try {
-			treeItems = await this.deps.readTreeData?.();
+			snapshot = await this.deps.readTreeSnapshot?.();
 		} catch (error) {
 			// The public export alone is still a complete import; metadata catches up on the next run.
-			treeItems = undefined;
+			snapshot = undefined;
 			treeDataError = error instanceof Error ? error.message : String(error);
 		}
 		await this.fillEpoch();
-		const result = finishApiImport(state, treeItems);
-		if (treeItems !== undefined) {
-			importInternalMetadata(this.deps.db, treeItems, this.now());
+		const result = finishApiImport(state, snapshot?.items);
+		if (snapshot !== undefined) {
+			importInternalMetadata(this.deps.db, snapshot, this.now());
 		}
 		const {importTimestamp: _timestamp, ...counts} = result;
 		this.finishRun({

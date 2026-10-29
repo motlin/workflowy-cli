@@ -56,7 +56,7 @@ export default class SyncNode extends Command {
 			database,
 			treeData: async () => {
 				const auth = readInternalAuth();
-				return auth ? new WorkflowyInternalClient(auth).getTreeData() : undefined;
+				return auth ? (await new WorkflowyInternalClient(auth).getTreeSnapshot()).items : undefined;
 			},
 		});
 

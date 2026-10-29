@@ -9,7 +9,7 @@ import {
 	TransportError,
 } from "../src/internal/errors.js";
 import {PushAndPoll} from "../src/internal/push-and-poll.js";
-import type {InternalOp} from "../src/internal/push-and-poll.js";
+import type {InternalOp, PushResult} from "../src/internal/push-and-poll.js";
 import {createFakeInternalApi, FAKE_CLIENT_ID, FAKE_SESSION_ID, json} from "./helpers/fake-internal-api.js";
 import type {RecordedRequest} from "./helpers/fake-internal-api.js";
 
@@ -168,6 +168,7 @@ describe("PushAndPoll", () => {
 	it("parses concurrent remote transactions and the refresh flag", async () => {
 		const {api, pusher} = await bootstrapped();
 		const remote = JSON.stringify({
+			id: 4569,
 			ops: [
 				{type: "complete", data: {projectid: "r1"}, client_timestamp: 1},
 				{type: "edit", data: {projectid: "r2"}, server_data: {was_noop: true}},
@@ -192,9 +193,85 @@ describe("PushAndPoll", () => {
 		expect(result).toStrictEqual({
 			txId: "4570",
 			serverRun: [],
-			remote: [[{type: "complete", data: {projectid: "r1"}, client_timestamp: 42, executed_by: 456}]],
+			remote: [
+				{
+					id: "4569",
+					ops: [{type: "complete", data: {projectid: "r1"}, client_timestamp: 42, executed_by: 456}],
+				},
+			],
 			needsRefresh: true,
 		});
+	});
+
+	it("reports the server-run transaction's id when the server sends one", async () => {
+		const {api, pusher} = await bootstrapped();
+		api.respondOnce(
+			"/push_and_poll",
+			pushOk("4568", {server_run_operation_transaction_json: JSON.stringify({id: 4568, ops: []})}),
+		);
+
+		const result = await pusher.pushAndPoll({ops: [EDIT_OP]});
+
+		expect(result).toStrictEqual({
+			txId: "4568",
+			serverRunId: "4568",
+			serverRun: [],
+			remote: [],
+			needsRefresh: false,
+		});
+	});
+
+	it("starts every push from the transaction log and hands it each accepted result before resolving", async () => {
+		const api = createFakeInternalApi();
+		const client = new WorkflowyInternalClient({
+			credentials: {username: "alice@example.com", password: "hunter2"},
+			fetch: api.fetch,
+			baseUrl: BASE_URL,
+			transientId: TRANSIENT_ID,
+		});
+		await client.bootstrap();
+		const starts = ["100", "250"];
+		const accepted: PushResult[] = [];
+		const pusher = new PushAndPoll(client, {
+			now: () => NOW_MS,
+			randomId: () => "pollid01",
+			timezone: "America/New_York",
+			transactionLog: {
+				start: () => starts.shift() ?? "exhausted",
+				accept: (result) => {
+					accepted.push(result);
+				},
+			},
+		});
+		api.respondOnce("/push_and_poll", pushOk("200"));
+		api.respondOnce("/push_and_poll", pushOk("300"));
+
+		const first = await pusher.pushAndPoll({ops: [EDIT_OP]});
+		await pusher.pushAndPoll();
+
+		expect(pushes(api.requests).map((request) => form(request).push_poll_data)).toStrictEqual([
+			[{most_recent_operation_transaction_id: "100", operations: [EDIT_OP]}],
+			[{most_recent_operation_transaction_id: "250"}],
+		]);
+		expect(accepted.map((result) => result.txId)).toStrictEqual(["200", "300"]);
+		expect(accepted[0]).toBe(first);
+	});
+
+	it("propagates a transaction-log refusal without retrying", async () => {
+		const {api, client} = await bootstrapped();
+		const refusal = new Error("no seed");
+		const pusher = new PushAndPoll(client, {
+			now: () => NOW_MS,
+			transactionLog: {
+				start: () => {
+					throw refusal;
+				},
+				accept: () => {},
+			},
+		});
+
+		await expect(pusher.pushAndPoll({ops: [EDIT_OP]})).rejects.toBe(refusal);
+		expect(pushes(api.requests)).toStrictEqual([]);
 	});
 
 	it("serializes concurrent calls: the second request starts after the first resolves", async () => {

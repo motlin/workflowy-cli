@@ -13,7 +13,12 @@ import {
 import type {CalendarIdLevel, EnsuredCalendarDay} from "@workflowy/shared/internal";
 import {readInternalAuth} from "@workflowy/shared/node";
 import {isDeepStrictEqual} from "node:util";
-import {WorkflowyWriteThroughClient, keptInternalMetadata, normalizeLayoutMode} from "@workflowy/shared/cache";
+import {
+	WorkflowyWriteThroughClient,
+	keptInternalMetadata,
+	normalizeLayoutMode,
+	replaceTreeTxId,
+} from "@workflowy/shared/cache";
 import {nodeInternalMetadata} from "@workflowy/shared/db";
 import {eq, sql} from "drizzle-orm";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
@@ -655,7 +660,7 @@ export default class Probe extends Command {
 		];
 		const report = async (label: string, expected: Record<string, unknown>) => {
 			const live = await api.getNode(fixtureId);
-			const item = (await client.getTreeData()).find((candidate) => candidate.id === fixtureId);
+			const item = (await client.getTreeSnapshot()).items.find((candidate) => candidate.id === fixtureId);
 			const imported = keptInternalMetadata(item?.metadata) ?? {};
 			const row = db
 				.select({metadataJson: nodeInternalMetadata.metadataJson})
@@ -738,7 +743,7 @@ export default class Probe extends Command {
 			`- 8-char key collisions among the cache's live ids (read only): ${groups.length} keys shared by ${collidingIds} ids${groups.some((group) => group.key === key) ? "; the fixture key is one of them" : ""}`,
 		];
 		const report = async (label: string, expected: boolean) => {
-			await client.getTreeData();
+			await client.getTreeSnapshot();
 			const treeData = recorded.findLast((request) => request.path === "/get_tree_data/");
 			const list: unknown = Reflect.get(Object(parseJson(treeData?.text ?? "")), "server_expanded_projects_list");
 			const inTree = Array.isArray(list) && list.includes(key);
@@ -879,9 +884,17 @@ export default class Probe extends Command {
 		];
 	}
 
-	/** An adapter over an in-memory cache, so the probe exercises `setRootMeta` without touching the real cache. */
+	/**
+	 * An adapter over an in-memory cache, so the probe exercises `setRootMeta` without touching the real cache.
+	 * The throwaway cache follows the log from the bootstrap's transaction id, an id the server returned.
+	 */
 	private adapter(client: WorkflowyInternalClient): WorkflowyInternalAdapter {
-		return new WorkflowyInternalAdapter({client, db: createDatabase(":memory:")});
+		const db = createDatabase(":memory:");
+		const txId = client.session?.txId;
+		if (txId !== undefined) {
+			replaceTreeTxId(db, txId, Date.now());
+		}
+		return new WorkflowyInternalAdapter({client, db});
 	}
 
 	/** ACCOUNT-GLOBAL write: set the throwaway `probe.x`, then confirm it from a fresh bootstrap. */

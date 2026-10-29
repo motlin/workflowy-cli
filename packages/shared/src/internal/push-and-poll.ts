@@ -26,13 +26,33 @@ export interface PushInput {
 	expansionsDelta?: Record<string, boolean>;
 }
 
+/** One logged transaction: its tree transaction id, when the server sent one, and its ops. */
+export interface Transaction {
+	id?: string;
+	ops: InternalOp[];
+}
+
 export interface PushResult {
 	txId: string;
+	/** The transaction id of {@link serverRun}, when the server sent one. */
+	serverRunId?: string;
 	/** The ops the server ran for this push (empty for a pure poll or a redo the server already ran). */
 	serverRun: InternalOp[];
-	/** Other clients' transactions since our previous transaction id, one op list per transaction. */
-	remote: InternalOp[][];
+	/** Transactions since the push's starting transaction id (other clients', and possibly our own). */
+	remote: Transaction[];
 	needsRefresh: boolean;
+}
+
+/**
+ * Where pushes start from and where their results go. Both hooks run inside
+ * the single-flight queue, so the next push starts only after `accept`
+ * returns. A throw from either fails the push without a retry.
+ */
+export interface TransactionLog {
+	/** The tree transaction id the next push starts from. */
+	start(): string;
+	/** Called with every accepted result, before the push resolves. */
+	accept(result: PushResult): void;
 }
 
 export interface PushAndPollOptions {
@@ -44,6 +64,8 @@ export interface PushAndPollOptions {
 	timezone?: string;
 	/** Defaults to a `setTimeout` delay. */
 	sleep?: (ms: number) => Promise<void>;
+	/** Defaults to starting from the session's id, then each previous push's result. */
+	transactionLog?: TransactionLog;
 }
 
 const RETRY_BACKOFF_MS = 5000;
@@ -64,6 +86,7 @@ const OpSchema = z
 
 const TransactionSchema = z
 	.object({
+		id: TransactionIdSchema.optional(),
 		ops: z.array(OpSchema),
 		client_timestamp: z.number().optional(),
 		ex: z.number().nullable().optional(),
@@ -96,7 +119,7 @@ function defaultRandomId(): string {
 }
 
 /** Upstream `pq`: the transaction timestamp overrides each op's; `ex` becomes `executed_by`; no-ops are skipped. */
-function flattenTransaction(json: string): InternalOp[] {
+function flattenTransaction(json: string): Transaction {
 	const transaction = TransactionSchema.parse(JSON.parse(json));
 	const ops: InternalOp[] = [];
 	for (const {server_data: serverData, ...op} of transaction.ops) {
@@ -112,7 +135,7 @@ function flattenTransaction(json: string): InternalOp[] {
 		}
 		ops.push(flattened);
 	}
-	return ops;
+	return transaction.id === undefined ? {ops} : {id: transaction.id, ops};
 }
 
 interface Attempt {
@@ -130,6 +153,7 @@ export class PushAndPoll {
 	private readonly now: () => number;
 	private readonly randomId: () => string;
 	private readonly sleep: (ms: number) => Promise<void>;
+	private readonly transactionLog: TransactionLog | undefined;
 	private timezone: string | undefined;
 	private currentTxId: string | undefined;
 	private tail: Promise<unknown> = Promise.resolve();
@@ -140,6 +164,7 @@ export class PushAndPoll {
 	) {
 		this.now = options.now ?? Date.now;
 		this.randomId = options.randomId ?? defaultRandomId;
+		this.transactionLog = options.transactionLog;
 		this.timezone = options.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 		this.sleep =
 			options.sleep ??
@@ -201,7 +226,8 @@ export class PushAndPoll {
 
 	private async send(session: InternalSession, input: PushInput, {pushPollId, isRedo}: Attempt): Promise<PushResult> {
 		const ops = input.ops ?? [];
-		const tree: Record<string, unknown> = {most_recent_operation_transaction_id: this.txId};
+		const startTxId = this.transactionLog === undefined ? this.txId : this.transactionLog.start();
+		const tree: Record<string, unknown> = {most_recent_operation_transaction_id: startTxId};
 		if (ops.length > 0) {
 			tree.operations = ops;
 		}
@@ -250,14 +276,17 @@ export class PushAndPoll {
 			throw new OperationRejected("missing server_run");
 		}
 
+		const serverRun = serverRunJson === undefined ? undefined : flattenTransaction(serverRunJson);
 		const pushResult: PushResult = {
 			txId: result.new_most_recent_operation_transaction_id,
-			serverRun: serverRunJson === undefined ? [] : flattenTransaction(serverRunJson),
+			...(serverRun?.id === undefined ? {} : {serverRunId: serverRun.id}),
+			serverRun: serverRun?.ops ?? [],
 			remote: (result.concurrent_remote_operation_transactions ?? []).map(flattenTransaction),
 			needsRefresh: result.need_refreshed_project_tree === true,
 		};
 		this.currentTxId = pushResult.txId;
 		this.timezone = undefined;
+		this.transactionLog?.accept(pushResult);
 		return pushResult;
 	}
 

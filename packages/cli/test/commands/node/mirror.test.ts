@@ -2,6 +2,7 @@ import {it, vi, afterEach, expect, describe, beforeEach} from "vite-plus/test";
 import {captureOutput} from "@oclif/test";
 import {mirrors, nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {replaceTreeTxId} from "@workflowy/shared/cache";
 import {and, eq} from "drizzle-orm";
 import {z} from "zod";
 import fs from "node:fs";
@@ -262,6 +263,7 @@ describe("node:mirror command", () => {
 					return Promise.resolve(
 						Response.json({
 							items: [{id: ORIGIN_ID, metadata: {}}, {id: PARENT_ID}],
+							most_recent_operation_transaction_id: "1234567",
 							server_expanded_projects_list: [],
 						}),
 					);
@@ -308,6 +310,8 @@ describe("node:mirror command", () => {
 			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
 			vi.useFakeTimers({toFake: ["Date"]});
 			vi.setSystemTime(new Date("2026-10-18T12:00:00.000Z"));
+			// A whole-tree import seeded the transaction-log position.
+			replaceTreeTxId(testDatabase.db, "1234567", 0);
 		});
 
 		afterEach(() => {

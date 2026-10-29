@@ -7,6 +7,9 @@ import type {InternalSession, VisibleFeature, WorkflowyInternalClient} from "../
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {keptInternalMetadata} from "../cache/importer.js";
 import {collectItemRelationships, emptyItemRelationships} from "../cache/item-relationships.js";
+import {runUnitOfWork} from "../cache/node-composite.js";
+import {applyRelationshipOps} from "../cache/relationship-log.js";
+import {advanceTreeTxId, EXPANDED_KEYS_KEY, readTreeTxId} from "../cache/tree-transaction.js";
 import type {ItemRelationships} from "../cache/item-relationships.js";
 import {accountState, localSettings, mirrors as mirrorsTable, nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
@@ -30,13 +33,13 @@ import {calendarLayoutWrites, layoutWriteParents} from "./calendar-layout-apply.
 import type {LayoutWrite} from "./calendar-layout-apply.js";
 import {planCalendarLayout} from "./calendar-layout.js";
 import type {CalendarLayoutLevels, LayoutNode} from "./calendar-layout.js";
-import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
+import {LoggedOut, OperationRejected, TransportError, TreeNotSeeded, TreeRefreshRequired} from "./errors.js";
 import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
 import type {MetadataChange} from "./metadata-patch.js";
 import {bulkCreateOp, bulkMoveOp, deleteOp, editOp, moveOp, ROOT_PROJECT_ID, undeleteOp} from "./ops.js";
 import type {Location, NewTree} from "./ops.js";
 import {PushAndPoll} from "./push-and-poll.js";
-import type {InternalOp, PushAndPollOptions} from "./push-and-poll.js";
+import type {InternalOp, PushAndPollOptions, PushResult} from "./push-and-poll.js";
 
 // oxlint-disable-next-line @typescript-eslint/no-explicit-any
 type AdapterDatabase = BaseSQLiteDatabase<"sync", any, any>;
@@ -138,7 +141,7 @@ const KEYS = {
 	rootMetadata: "root_metadata",
 	settings: "settings",
 	visibleFeatures: "visible_features",
-	expandedKeys: "expanded_keys",
+	expandedKeys: EXPANDED_KEYS_KEY,
 	entropyKey: "entropy_key",
 	calendarLayoutUndo: "calendar_layout_undo",
 } as const;
@@ -390,11 +393,17 @@ export interface WorkflowyInternalAdapterOptions {
 	db: AdapterDatabase;
 	/** Defaults to `Date.now`; drives both cache freshness and op timestamps. */
 	now?: () => number;
-	pushAndPoll?: Omit<PushAndPollOptions, "now">;
+	pushAndPoll?: Omit<PushAndPollOptions, "now" | "transactionLog">;
 	/** The public-API write-through client tree writes refresh the cache through; required for them. */
 	writeThrough?: WorkflowyWriteThroughClient;
 	/** Ids for created nodes; defaults to `crypto.randomUUID`. */
 	generateId?: () => string;
+}
+
+/** Log a resync error at error level before it propagates, so a missing or stale seed never goes unnoticed. */
+function loud<E extends Error>(error: E): E {
+	console.error(error);
+	return error;
 }
 
 function applyExpansionsDelta(keys: Set<string>, delta: Record<string, boolean>): Set<string> {
@@ -485,14 +494,74 @@ export class WorkflowyInternalAdapter {
 	/** Bumped on every account snapshot store, so a background refresh never overwrites a newer write. */
 	private accountStores = 0;
 	private pushedDuringRefresh: Record<string, boolean>[] | undefined;
+	/** The stored id the push in flight started from, for the refresh error. */
+	private startedFrom: string | undefined;
 
 	constructor(options: WorkflowyInternalAdapterOptions) {
 		this.client = options.client;
 		this.db = options.db;
 		this.now = options.now ?? Date.now;
-		this.pusher = new PushAndPoll(options.client, {...options.pushAndPoll, now: this.now});
+		this.pusher = new PushAndPoll(options.client, {
+			...options.pushAndPoll,
+			now: this.now,
+			transactionLog: {
+				start: () => this.startTxId(),
+				accept: (result) => {
+					this.acceptTransactions(result);
+				},
+			},
+		});
 		this.writeThrough = options.writeThrough;
 		this.generateId = options.generateId ?? (() => crypto.randomUUID());
+	}
+
+	/**
+	 * Bring the cache's edge rows up to the tree's latest transaction with one
+	 * pure poll from the stored transaction id (about 279 bytes when nothing
+	 * changed). Every push does the same as a side effect.
+	 */
+	async catchUp(): Promise<void> {
+		await this.session();
+		await this.pusher.pushAndPoll();
+	}
+
+	/** Where every push starts: the stored tree transaction id, or a loud error without one. */
+	private startTxId(): string {
+		const txId = readTreeTxId(this.db);
+		if (txId === undefined) {
+			throw loud(new TreeNotSeeded());
+		}
+		this.startedFrom = txId;
+		return txId;
+	}
+
+	/**
+	 * Apply an accepted push's transactions to the edge rows, oldest first, and
+	 * store its id, in one unit of work. Our own server-run transaction can also
+	 * come back among the remote ones, so a transaction id is applied once.
+	 */
+	private acceptTransactions(result: PushResult): void {
+		if (result.needsRefresh) {
+			throw loud(new TreeRefreshRequired(this.startedFrom ?? "unknown"));
+		}
+		const seen = new Set<string>();
+		const ops: InternalOp[] = [];
+		for (const {id, ops: transactionOps} of [
+			...result.remote,
+			{...(result.serverRunId === undefined ? {} : {id: result.serverRunId}), ops: result.serverRun},
+		]) {
+			if (id !== undefined && seen.has(id)) {
+				continue;
+			}
+			if (id !== undefined) {
+				seen.add(id);
+			}
+			ops.push(...transactionOps);
+		}
+		runUnitOfWork(this.db, (unitOfWork) => {
+			applyRelationshipOps(unitOfWork, ops);
+			advanceTreeTxId(unitOfWork.tx, result.txId, this.now());
+		});
 	}
 
 	/** Create one node at an exact slot with a `bulk_create`; the id is chosen here, so none is read back. */
@@ -591,7 +660,7 @@ export class WorkflowyInternalAdapter {
 		if (roots.length === 0) {
 			return [];
 		}
-		const items = await this.client.getTreeData();
+		const items = (await this.client.getTreeSnapshot()).items;
 		return [...new Set(roots.map((root) => root.originId))].map((originId) => {
 			const metadata = items.find((candidate) => candidate.id === originId)?.metadata ?? {};
 			const {patches, inverse} = buildMetadataChanges(
@@ -628,7 +697,7 @@ export class WorkflowyInternalAdapter {
 	async syncBacklinks(sourceIds: string[]): Promise<BacklinkSync> {
 		const result: BacklinkSync = {created: [], referencesRoots: [], deleted: []};
 		const tree = this.tree();
-		const items = await this.client.getTreeData();
+		const items = (await this.client.getTreeSnapshot()).items;
 		const metadataById = new Map(items.map((item) => [item.id, item.metadata ?? {}]));
 		const idByShortId = new Map(items.map((item) => [uuidToShortId(item.id), item.id]));
 		const originalOf = (id: string): string => {
@@ -805,7 +874,7 @@ export class WorkflowyInternalAdapter {
 	 */
 	async createMirrorsAt(input: CreateMirrorsAtInput): Promise<{mirrors: CreateMirrorResult[]}> {
 		const tree = this.tree();
-		const items = await this.client.getTreeData();
+		const items = (await this.client.getTreeSnapshot()).items;
 		const metadataOf = (id: string): Metadata | undefined => {
 			const item = items.find((candidate) => candidate.id === id);
 			return item === undefined ? undefined : (item.metadata ?? {});
@@ -1390,7 +1459,7 @@ export class WorkflowyInternalAdapter {
 		if (sourceIds.length === 0) {
 			return [];
 		}
-		const items = await this.client.getTreeData();
+		const items = (await this.client.getTreeSnapshot()).items;
 		const live = new Set(items.map((item) => item.id));
 		const deletedSources = new Set(sourceIds.filter((id) => !live.has(id)));
 		const itemIds = items

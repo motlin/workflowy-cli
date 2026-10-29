@@ -68,7 +68,13 @@ function stubApis(node: {id: string; name: string; note: string | null}): string
 			return Promise.resolve(new Response("", {status: 200, headers: {"set-cookie": "sessionid=abc; Path=/"}}));
 		}
 		if (url.pathname === "/get_tree_data/") {
-			return Promise.resolve(Response.json({items: [], server_expanded_projects_list: []}));
+			return Promise.resolve(
+				Response.json({
+					items: [],
+					most_recent_operation_transaction_id: "9999",
+					server_expanded_projects_list: [],
+				}),
+			);
 		}
 		if (url.pathname === "/api/v1/nodes/") {
 			return Promise.resolve(Response.json({item_id: node.id}));

@@ -1,5 +1,5 @@
 import {WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
-import type {InternalTreeItem} from "@workflowy/shared/api";
+import type {TreeSnapshot} from "@workflowy/shared/api";
 import {importInternalMetadata} from "@workflowy/shared/cache";
 import {readInternalAuth} from "@workflowy/shared/node";
 import {Command, Flags} from "@oclif/core";
@@ -41,7 +41,8 @@ export default class ImportApi extends Command {
 
 			const apiClient = new WorkflowyApiClient(apiKey, logger, process.env.WORKFLOWY_API_URL);
 			const nodes = await apiClient.exportAllNodes();
-			const treeItems = await this.fetchTreeData();
+			const snapshot = await this.fetchTreeSnapshot();
+			const treeItems = snapshot?.items;
 
 			const fetchElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 			this.log(`Fetched ${nodes.length.toLocaleString()} nodes in ${fetchElapsed}s`);
@@ -77,8 +78,8 @@ export default class ImportApi extends Command {
 					`(${result.nodesAdded} + ${result.nodesUpdated} + ${result.nodesUnchanged} + ${result.nodesDeleted} = ${result.totalNodes.toLocaleString()} nodes in ${totalElapsed}s)`,
 				);
 			}
-			if (treeItems !== undefined) {
-				const {written, skipped} = importInternalMetadata(database, treeItems, Date.now());
+			if (snapshot !== undefined) {
+				const {written, skipped} = importInternalMetadata(database, snapshot, Date.now());
 				this.log(`Item metadata: ${written.toLocaleString()} nodes (${skipped.toLocaleString()} not in cache)`);
 			}
 		} catch (error) {
@@ -94,12 +95,13 @@ export default class ImportApi extends Command {
 	 * WORKFLOWY_PASSWORD are set or a session cookie is saved. Its item metadata
 	 * carries what the public API omits: mirrors, backlinks, virtual roots,
 	 * references roots, numbered_start, calendar and priority.defaultToBottom.
+	 * Its transaction id seeds the cache's transaction-log position.
 	 */
-	private async fetchTreeData(): Promise<InternalTreeItem[] | undefined> {
+	private async fetchTreeSnapshot(): Promise<TreeSnapshot | undefined> {
 		const auth = readInternalAuth();
 		if (!auth) {
 			return undefined;
 		}
-		return new WorkflowyInternalClient(auth).getTreeData();
+		return new WorkflowyInternalClient(auth).getTreeSnapshot();
 	}
 }

@@ -5,6 +5,7 @@ import {Ops} from "./ops/index.js";
 import type {OpInput, OpName, OpOutput} from "./ops/index.js";
 import {withTreeSnapshotRebuild} from "./tree-snapshot.js";
 import type {z} from "zod";
+import {TreeResyncRequired} from "@workflowy/shared/internal";
 
 /** What the HTTP layer talks to: one `call` per request. A Durable Object stub and the Node host both implement it. */
 export interface StoreClient {
@@ -20,7 +21,8 @@ function typed<K extends OpName>(result: OpResult<Json>): OpResult<OpOutput<K>> 
 }
 
 /**
- * Runs ops in this process (the Node host and the Durable Object). A thrown error becomes a 500, as Hono does.
+ * Runs ops in this process (the Node host and the Durable Object). A thrown error becomes a 500, as Hono does,
+ * except a tree resync error, which becomes a 503 carrying its message.
  * With `keepSnapshotWarm` (the host bound a tree snapshot), an op that wrote schedules a background rebuild, so searches rarely wait on the ~800ms reload.
  */
 export function inProcessStore(
@@ -39,7 +41,11 @@ export function inProcessStore(
 				return typed<K>(
 					options.keepSnapshotWarm === true ? await withTreeSnapshotRebuild(ctx.db, run) : await run(),
 				);
-			} catch {
+			} catch (error) {
+				// The adapter already logged it at error level; the message tells the operator how to reseed.
+				if (error instanceof TreeResyncRequired) {
+					return typed<K>(fail(503, {error: error.message}));
+				}
 				return typed<K>(fail(500, "Internal Server Error"));
 			}
 		},
