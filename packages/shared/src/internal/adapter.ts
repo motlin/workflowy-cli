@@ -654,17 +654,31 @@ export class WorkflowyInternalAdapter {
 		return {ids};
 	}
 
+	/**
+	 * Each original's upstream `mirror` object as the edge tables show it, for building its `mirrorRootIds` edit.
+	 * Call after {@link catchUp}: an original shown without a `mirror` gets the whole object, which would drop
+	 * mirror ids the cache missed.
+	 */
+	private originalMetadata(originIds: string[]): (id: string) => Metadata {
+		const originals = this.tree().relationshipMetadata(originIds);
+		return (id) => {
+			const {mirror} = originals.get(id) ?? {};
+			return mirror === undefined ? {} : {mirror};
+		};
+	}
+
 	/** The `edit`s that list each mirror root created inside `trees` on its original's `mirror.mirrorRootIds`. */
 	private async mirrorLinkOps(trees: NewTree[], dateJoinedSec: number): Promise<InternalOp[]> {
 		const roots = mirrorRootsIn(trees);
 		if (roots.length === 0) {
 			return [];
 		}
-		const items = (await this.client.getTreeSnapshot()).items;
-		return [...new Set(roots.map((root) => root.originId))].map((originId) => {
-			const metadata = items.find((candidate) => candidate.id === originId)?.metadata ?? {};
+		await this.catchUp();
+		const originIds = [...new Set(roots.map((root) => root.originId))];
+		const metadataOf = this.originalMetadata(originIds);
+		return originIds.map((originId) => {
 			const {patches, inverse} = buildMetadataChanges(
-				metadata,
+				metadataOf(originId),
 				roots
 					.filter((root) => root.originId === originId)
 					.map((root) => ({path: ["mirror", "mirrorRootIds", root.mirrorId], value: true})),
@@ -891,11 +905,7 @@ export class WorkflowyInternalAdapter {
 		const originIds = input.originalIds.map(
 			(requestedId) => requested.get(requestedId)?.mirror?.originalId ?? requestedId,
 		);
-		const originals = tree.relationshipMetadata(originIds);
-		const metadataOf = (id: string): Metadata => {
-			const {mirror} = originals.get(id) ?? {};
-			return mirror === undefined ? {} : {mirror};
-		};
+		const metadataOf = this.originalMetadata(originIds);
 
 		const parent = publicParent(input.parentId);
 		const siblings = await tree.liveChildren(parent);

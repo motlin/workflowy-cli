@@ -884,30 +884,10 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		).toStrictEqual(expected);
 	});
 
-	it.each([
-		{
-			label: "createTreesAt with a mirror root",
-			run: async (adapter: WorkflowyInternalAdapter) =>
-				adapter.createTreesAt({
-					parentId: "home",
-					index: 0,
-					trees: [{name: "", metadata: {mirror: {originalId: "b", isMirrorRoot: true}}}],
-				}),
-		},
-	])("reads the whole account tree once for $label", async ({run}) => {
-		let next = 0;
-		const {api, adapter} = await tracked(() => `t${++next}`);
-		serveTreeData(api, [{id: "a"}, {id: "b"}, {id: "c"}]);
-
-		await run(adapter);
-
-		expect(treeDataReads(api)).toBe(1);
-	});
-
-	it("lists a mirror root created inside a tree on its original in the same push", async () => {
+	it("lists a mirror root created inside a tree on its original in the same push, with no tree read", async () => {
 		let next = 0;
 		const {api, adapter, pushes, sqlite} = await tracked(() => `t${++next}`);
-		serveTreeData(api, [{id: "a"}, {id: "b"}, {id: "c"}]);
+		forbidTreeData(api);
 
 		await adapter.createTreesAt({
 			parentId: "home",
@@ -917,7 +897,9 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 
 		expect({
 			types: pushes.map((ops) => ops.map((op) => [op.type, op.data.projectid])),
+			edits: pushes.flatMap((ops) => ops.filter((op) => op.type === "edit").map((op) => op.data)),
 			mirrors: mirrorRows(sqlite),
+			reads: treeDataReads(api),
 		}).toStrictEqual({
 			types: [
 				[
@@ -925,7 +907,72 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 					["edit", "b"],
 				],
 			],
+			edits: [
+				{
+					projectid: "b",
+					metadataPatches: [{op: "add", path: ["mirror"], value: {mirrorRootIds: {t2: true}}}],
+					metadataInversePatches: [{op: "remove", path: ["mirror"]}],
+				},
+			],
 			mirrors: [{original_id: "b", mirror_id: "t2"}],
+			reads: 0,
+		});
+	});
+
+	it("catches up before listing a pasted mirror root: an original with a mirror added upstream gets a leaf add that keeps it", async () => {
+		let next = 0;
+		const {api, adapter, pushes, sqlite} = await tracked(() => `t${++next}`);
+		forbidTreeData(api);
+		api.respondOnce("/push_and_poll", () =>
+			json({
+				results: [
+					{
+						new_most_recent_operation_transaction_id: "4568",
+						concurrent_remote_operation_transactions: [
+							JSON.stringify({
+								id: 4568,
+								client_timestamp: 300_000_000,
+								ops: [
+									{
+										type: "edit",
+										data: {
+											projectid: "b",
+											metadataPatches: [
+												{op: "add", path: ["mirror", "mirrorRootIds", "other"], value: true},
+											],
+										},
+									},
+								],
+							}),
+						],
+					},
+				],
+			}),
+		);
+
+		await adapter.createTreesAt({
+			parentId: "home",
+			index: 0,
+			trees: [{name: "", metadata: {mirror: {originalId: "b", isMirrorRoot: true}}}],
+		});
+
+		expect({
+			edits: pushes.flatMap((ops) => ops.filter((op) => op.type === "edit").map((op) => op.data)),
+			mirrors: mirrorRows(sqlite),
+			reads: treeDataReads(api),
+		}).toStrictEqual({
+			edits: [
+				{
+					projectid: "b",
+					metadataPatches: [{op: "add", path: ["mirror", "mirrorRootIds", "t1"], value: true}],
+					metadataInversePatches: [{op: "remove", path: ["mirror", "mirrorRootIds", "t1"]}],
+				},
+			],
+			mirrors: [
+				{original_id: "b", mirror_id: "other"},
+				{original_id: "b", mirror_id: "t1"},
+			],
+			reads: 0,
 		});
 	});
 
