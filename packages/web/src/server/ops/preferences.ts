@@ -37,7 +37,7 @@ const PreferencesPatchSchema = z
 	.strict();
 
 /** The full preferences: every patch field present, with `theme` null when unset. */
-const PreferencesSchema = z.strictObject({
+export const PreferencesSchema = z.strictObject({
 	...PreferencesPatchSchema.required().omit({theme: true}).shape,
 	theme: z.string().nullable(),
 	/** The signed-in account's name and email (read-only), null unless both are known. */

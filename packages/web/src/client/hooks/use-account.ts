@@ -1,12 +1,7 @@
 import {useQuery} from "@tanstack/react-query";
+import type {AccountResponse} from "../../node-types.js";
 import type {MentionAccount} from "../mention-pills.js";
 import {readJson} from "../read-json.js";
-
-interface AccountResponse {
-	userId: number;
-	joinedAt: string;
-	fullName: string | null;
-}
 
 export const accountKeys = {all: ["account"] as const};
 

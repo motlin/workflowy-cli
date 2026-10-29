@@ -7,34 +7,14 @@
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {useMemo} from "react";
+import type {OpErrorBody, Preferences} from "../../node-types.js";
 import {resolveDateSettings} from "../date-settings.js";
 import type {DateSettings} from "../date-settings.js";
 import {readJson} from "../read-json.js";
 import {embedFor, firstLinkHref} from "../components/embeds.js";
 import type {Embed} from "../components/embeds.js";
 
-export interface Preferences {
-	dateFormat: string | null;
-	timeFormat: string | null;
-	weekStartDay: number | null;
-	slashDiscovered: boolean;
-	notesRootId: string | null;
-	showCompleted: boolean;
-	showKeyboardShortcuts: boolean;
-	sameColorForLinks: boolean;
-	/** The account's theme codename (`default`, `dark`, `system`, ...), null when unset. */
-	theme: string | null;
-	displayImagePreviewsAsThumbnails: boolean;
-	ignoreYoutube: boolean;
-	ignoreYtShort: boolean;
-	ignoreTwitter: boolean;
-	ignoreLoom: boolean;
-	unsubscribeFromSummaryEmails: boolean;
-	unsubscribeFromCommentsEmails: boolean;
-	weeklyReportOn: boolean;
-	/** Read-only: the signed-in account's name and email, null until both are known. */
-	account: {username: string; email: string} | null;
-}
+export type {Preferences} from "../../node-types.js";
 
 export type PreferencesPatch = Partial<Omit<Preferences, "account">>;
 
@@ -74,7 +54,7 @@ const LOADING: PreferencesState = {preferences: EMPTY_PREFERENCES, available: tr
 export async function fetchPreferences(): Promise<PreferencesState> {
 	const response = await fetch("/api/v1/preferences");
 	if (response.status === 503) {
-		const {error} = await readJson<{error: string}>(response);
+		const {error = null} = await readJson<OpErrorBody>(response);
 		return {preferences: EMPTY_PREFERENCES, available: false, error};
 	}
 	if (!response.ok) {

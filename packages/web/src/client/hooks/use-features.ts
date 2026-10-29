@@ -7,46 +7,31 @@
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {useEffect} from "react";
+import type {FeatureSetResponse, FeaturesResponse} from "../../node-types.js";
 import {isFeatureOn, setAccountFeatures} from "../features.js";
 import type {FeatureName} from "../features.js";
 import {readJson} from "../read-json.js";
 
-export interface VisibleFeature {
-	codename: string;
-	name: string;
-	/** `"LABS"`, `"DEV"` or null. */
-	label: string | null;
-	description: string | null;
-}
-
-export interface FeaturesState {
-	visible: VisibleFeature[];
-	enabled: Record<string, true>;
-	/** False when the internal API is not configured; `enabled` then comes from the durable local copy. */
-	available: boolean;
-}
-
 export const featureKeys = {all: ["features"] as const};
 
-const LOADING: FeaturesState = {visible: [], enabled: {}, available: false};
+const LOADING: FeaturesResponse = {visible: [], enabled: {}, available: false};
 
-async function fetchFeatures(): Promise<FeaturesState> {
+async function fetchFeatures(): Promise<FeaturesResponse> {
 	const response = await fetch("/api/v1/features");
 	if (!response.ok) {
 		throw new Error(`Failed to fetch features: ${response.status}`);
 	}
-	const state = await readJson<Partial<FeaturesState>>(response);
-	return {visible: state.visible ?? [], enabled: state.enabled ?? {}, available: state.available ?? false};
+	return readJson<FeaturesResponse>(response);
 }
 
 /** Optimistically flip `codename`, POST it, then store the server's dict (or restore on failure). */
 export async function setFeature(queryClient: QueryClient, codename: string, on: boolean): Promise<void> {
 	await queryClient.cancelQueries({queryKey: featureKeys.all});
-	const previous = queryClient.getQueryData<FeaturesState>(featureKeys.all) ?? LOADING;
+	const previous = queryClient.getQueryData<FeaturesResponse>(featureKeys.all) ?? LOADING;
 	const optimistic: Record<string, true> = on
 		? {...previous.enabled, [codename]: true}
 		: Object.fromEntries(Object.entries(previous.enabled).filter(([name]) => name !== codename));
-	queryClient.setQueryData<FeaturesState>(featureKeys.all, {...previous, enabled: optimistic});
+	queryClient.setQueryData<FeaturesResponse>(featureKeys.all, {...previous, enabled: optimistic});
 	setAccountFeatures(optimistic);
 	try {
 		const response = await fetch(`/api/v1/features/${encodeURIComponent(codename)}`, {
@@ -57,8 +42,8 @@ export async function setFeature(queryClient: QueryClient, codename: string, on:
 		if (!response.ok) {
 			throw new Error(`Failed to set feature ${codename}: ${response.status}`);
 		}
-		const {enabled} = await readJson<{enabled: Record<string, true>}>(response);
-		queryClient.setQueryData<FeaturesState>(featureKeys.all, {...previous, enabled, available: true});
+		const {enabled} = await readJson<FeatureSetResponse>(response);
+		queryClient.setQueryData<FeaturesResponse>(featureKeys.all, {...previous, enabled, available: true});
 		setAccountFeatures(enabled);
 	} catch (error) {
 		queryClient.setQueryData(featureKeys.all, previous);
@@ -67,7 +52,7 @@ export async function setFeature(queryClient: QueryClient, codename: string, on:
 	}
 }
 
-export interface UseFeatures extends FeaturesState {
+export interface UseFeatures extends FeaturesResponse {
 	setFeature: (codename: string, on: boolean) => Promise<void>;
 }
 

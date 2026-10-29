@@ -218,7 +218,7 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 												}}
 												onUpdate={async (levels) => {
 													try {
-														if (layout.applyEnabled === true) {
+														if (layout.applyEnabled) {
 															await applyLayout(levels);
 														} else {
 															showAppMessage(

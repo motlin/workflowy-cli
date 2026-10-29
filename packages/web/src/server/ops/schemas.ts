@@ -197,6 +197,9 @@ export const ExportTreeItemSchema = z.strictObject({
 	},
 });
 
+/** What `POST /export-tree` answers. */
+export const ExportTreeResponseSchema = z.strictObject({items: z.array(ExportTreeItemSchema)});
+
 /** One descendant row of `GET /:id/subtree-ids`; `parentId` is the row it renders under (a mirror, not its original). */
 export const SubtreeItemSchema = z.strictObject({
 	id: z.string(),

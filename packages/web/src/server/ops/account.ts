@@ -3,14 +3,16 @@ import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
 import {defineOp, fail, ok} from "./define.js";
 
 /** The signed-in Workflowy account. `email` is `WORKFLOWY_USERNAME`, "" when unset. */
+export const AccountResponseSchema = z.strictObject({
+	userId: z.number(),
+	joinedAt: z.string(),
+	fullName: z.string().nullable(),
+	email: z.string(),
+});
+
 export const accountGet = defineOp({
 	input: z.object({}),
-	output: z.strictObject({
-		userId: z.number(),
-		joinedAt: z.string(),
-		fullName: z.string().nullable(),
-		email: z.string(),
-	}),
+	output: AccountResponseSchema,
 	async run(ctx) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {

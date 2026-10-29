@@ -3,7 +3,8 @@ import {Button} from "./button.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {LEVELS, MOVE_NODES_CONFIRM, capitalize, layoutWarningLevels} from "../calendar-layout-model.js";
-import type {CalendarLayout, LayoutLevels} from "../calendar-layout-model.js";
+import type {CalendarLayout} from "../../node-types.js";
+import type {LayoutLevels} from "../calendar-layout-model.js";
 
 interface CalendarLayoutViewProps {
 	layout: CalendarLayout;

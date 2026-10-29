@@ -14,7 +14,8 @@ import {
 	toExportItems,
 	usesIframeCopy,
 } from "../export-format.js";
-import type {ExportFormatType, ExportItem, ExportTreeItem} from "../export-format.js";
+import type {ExportTreeResponse} from "../../node-types.js";
+import type {ExportFormatType, ExportItem} from "../export-format.js";
 import {currentSearchFilter} from "../hooks/use-tree-search.js";
 import {readJson} from "../read-json.js";
 import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
@@ -65,7 +66,7 @@ async function fetchExportItems(queryClient: QueryClient, request: ExportRequest
 	if (!response.ok) {
 		throw new Error("Failed to load export.");
 	}
-	const {items} = await readJson<{items: ExportTreeItem[]}>(response);
+	const {items} = await readJson<ExportTreeResponse>(response);
 	const visible =
 		search === null
 			? items

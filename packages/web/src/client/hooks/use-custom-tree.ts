@@ -6,21 +6,15 @@
 
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {useEffect} from "react";
+import type {CustomTreeResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {applyThemeSheets, parseCustomThemes} from "../custom-themes.js";
 import {parseCustomHotkeys} from "../keys/custom-hotkeys.js";
-import type {CustomNode} from "../keys/custom-hotkeys.js";
 import {HOTKEYS} from "../keys/keymap.js";
 import {useCustomKeymapStore} from "../stores/custom-keymap.js";
 import {useCustomThemesStore} from "../stores/custom-themes.js";
 
 export const CUSTOM_ROOT_STORAGE_KEY = "wf-custom-root-id";
-
-export interface CustomTreeResponse {
-	rootId: string | null;
-	rootChildren: {id: string; name: string}[];
-	sections: Record<string, CustomNode[]>;
-}
 
 /** The root id the user chose in this browser, if any. */
 export function chosenCustomRootId(): string | undefined {

@@ -34,9 +34,11 @@ function tagPath(name: string): string[] {
 const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 
 /** `{colors: {name: color}}`, skipping indexes outside the palette. */
+export const TagColorsResponseSchema = z.strictObject({colors: z.record(z.string(), z.string())});
+
 export const tagsList = defineOp({
 	input: z.object({}),
-	output: z.strictObject({colors: z.record(z.string(), z.string())}),
+	output: TagColorsResponseSchema,
 	async run(ctx) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {

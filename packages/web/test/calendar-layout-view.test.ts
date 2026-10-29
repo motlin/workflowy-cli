@@ -2,7 +2,7 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {describe, expect, it} from "vite-plus/test";
 import {layoutAppliedMessage, layoutPreviewMessage, layoutWarningLevels} from "../src/client/calendar-layout-model.js";
-import type {CalendarLayout} from "../src/client/calendar-layout-model.js";
+import type {CalendarLayout} from "../src/node-types.js";
 import {CalendarLayoutView} from "../src/client/components/calendar-layout-view.js";
 
 function render(layout: CalendarLayout): string {
@@ -20,7 +20,12 @@ function checkboxes(html: string): [string, boolean][] {
 
 describe("CalendarLayoutView (upstream P10)", () => {
 	it("renders the header, the two notes, a checkbox per level above day, and Cancel / Update Layout", () => {
-		const html = render({levels: {year: true, month: true, day: true}, customLevels: [], needsConfirm: false});
+		const html = render({
+			levels: {year: true, month: true, day: true},
+			customLevels: [],
+			needsConfirm: false,
+			applyEnabled: true,
+		});
 		expect({
 			shell: html.startsWith(
 				'<div class="flex flex-col gap-xs p-ml text-primary desktop:w-[220px]" data-calendar-layout="true">',
@@ -59,7 +64,12 @@ describe("CalendarLayoutView (upstream P10)", () => {
 	});
 
 	it("warns that the custom text of an unchecked level will be deleted", () => {
-		const html = render({levels: {year: true, day: true}, customLevels: ["year", "month"], needsConfirm: false});
+		const html = render({
+			levels: {year: true, day: true},
+			customLevels: ["year", "month"],
+			needsConfirm: false,
+			applyEnabled: true,
+		});
 		expect(
 			/<span class="mt-s flex gap-m text-s px-m py-s border-2 border-solid border-warning rounded-s leading-s"><svg[^>]*data-icon="triangle-exclamation"[^>]*>.*?<\/svg><p>(.*?)<\/p><\/span>/u.exec(
 				html,

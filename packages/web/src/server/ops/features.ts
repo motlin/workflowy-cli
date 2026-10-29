@@ -12,11 +12,19 @@ const VisibleFeatureSchema = z.strictObject({
 	label: z.string().nullable(),
 	description: z.string().nullable(),
 });
+/** The visible feature list and enabled dict; `available` is false without the internal API. */
+export const FeaturesResponseSchema = z.strictObject({
+	visible: z.array(VisibleFeatureSchema),
+	enabled: EnabledSchema,
+	available: z.boolean(),
+});
+/** The enabled dict after a toggle. */
+export const FeatureSetResponseSchema = z.strictObject({enabled: EnabledSchema});
 
 /** The server's visible feature list and enabled dict; without the internal API, the durable `setting:features` copy with `available: false`. */
 export const featuresGet = defineOp({
 	input: z.object({}),
-	output: z.strictObject({visible: z.array(VisibleFeatureSchema), enabled: EnabledSchema, available: z.boolean()}),
+	output: FeaturesResponseSchema,
 	async run(ctx) {
 		const adapter = ctx.internalAdapter?.();
 		if (adapter) {
@@ -37,7 +45,7 @@ export const featuresGet = defineOp({
 /** Turns a feature on or off; a write needs the account, so no adapter means 503. */
 export const featuresSet = defineOp({
 	input: z.object({codename: z.string().regex(CODENAME), on: z.boolean()}).strict(),
-	output: z.strictObject({enabled: EnabledSchema}),
+	output: FeatureSetResponseSchema,
 	async run(ctx, {codename, on}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {

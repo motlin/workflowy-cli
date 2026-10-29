@@ -33,7 +33,7 @@ import {changedNodeIds, changedPlacement, changesSince, latestSystemTime, readCo
 import {defineOp, fail, ok, toJson} from "./define.js";
 import {
 	BacklinksResponseSchema,
-	ExportTreeItemSchema,
+	ExportTreeResponseSchema,
 	FoundDatesResponseSchema,
 	HomeResponseSchema,
 	MirrorsResponseSchema,
@@ -404,7 +404,7 @@ async function readExportTree(ctx: ServerContext, ids: string[], includeComplete
 // POST /api/v1/nodes/export-tree - The subtrees the export dialog formats, in one round trip
 export const nodesExportTree = defineOp({
 	input: z.object({ids: z.array(z.string()), includeCompleted: z.boolean().optional()}),
-	output: z.strictObject({items: z.array(ExportTreeItemSchema)}),
+	output: ExportTreeResponseSchema,
 	async run(ctx, {ids, includeCompleted}) {
 		const resolved = ids.flatMap((id) => resolveNodeId(ctx, id) ?? []);
 		return ok(toJson({items: await readExportTree(ctx, resolved, includeCompleted ?? false)}));

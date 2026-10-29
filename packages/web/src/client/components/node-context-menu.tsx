@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {locateCell} from "../table-cache.js";
-import type {NodeResponse} from "../../node-types.js";
+import type {MirrorsResponse, NodeResponse} from "../../node-types.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {readJson} from "../read-json.js";
 import {buildItemMenu, hasFooter} from "../item-menu-model.js";
@@ -15,7 +15,6 @@ import {ButtonMenu} from "./flyout/button-menu.js";
 import {MenuSeparator} from "./flyout/menu-item.js";
 import {renderAssembledMenu} from "./assembled-menu.js";
 import {usePaneId} from "./pane-context.js";
-import type {MirrorsResponse} from "./mirrors-dialog.js";
 
 /**
  * Banner shown at the top of context menu for mirror nodes.

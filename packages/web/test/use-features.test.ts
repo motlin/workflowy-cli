@@ -2,9 +2,9 @@ import {QueryClient} from "@tanstack/react-query";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {isFeatureOn, setAccountFeatures} from "../src/client/features.js";
 import {featureKeys, setFeature} from "../src/client/hooks/use-features.js";
-import type {FeaturesState} from "../src/client/hooks/use-features.js";
+import type {FeaturesResponse} from "../src/node-types.js";
 
-const START: FeaturesState = {visible: [], enabled: {dates: true}, available: true};
+const START: FeaturesResponse = {visible: [], enabled: {dates: true}, available: true};
 
 function clientWithStart() {
 	const client = new QueryClient();
@@ -24,7 +24,7 @@ describe("setFeature", () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () => {
-				seen.push(client.getQueryData<FeaturesState>(featureKeys.all)?.enabled);
+				seen.push(client.getQueryData<FeaturesResponse>(featureKeys.all)?.enabled);
 				return Promise.resolve(Response.json({enabled: {dates: true, dashboards: true}}));
 			}),
 		);
@@ -32,7 +32,7 @@ describe("setFeature", () => {
 		await setFeature(client, "dashboards", true);
 
 		expect(seen).toStrictEqual([{dates: true, dashboards: true}]);
-		expect(client.getQueryData<FeaturesState>(featureKeys.all)?.enabled).toStrictEqual({
+		expect(client.getQueryData<FeaturesResponse>(featureKeys.all)?.enabled).toStrictEqual({
 			dates: true,
 			dashboards: true,
 		});
@@ -52,7 +52,7 @@ describe("setFeature", () => {
 				{method: "POST", headers: {"Content-Type": "application/json"}, body: '{"on":false}'},
 			],
 		]);
-		expect(client.getQueryData<FeaturesState>(featureKeys.all)?.enabled).toStrictEqual({});
+		expect(client.getQueryData<FeaturesResponse>(featureKeys.all)?.enabled).toStrictEqual({});
 	});
 
 	it("restores the previous dict when the POST fails", async () => {
@@ -64,7 +64,7 @@ describe("setFeature", () => {
 
 		await expect(setFeature(client, "dashboards", true)).rejects.toThrow("500");
 
-		expect(client.getQueryData<FeaturesState>(featureKeys.all)).toStrictEqual(START);
+		expect(client.getQueryData<FeaturesResponse>(featureKeys.all)).toStrictEqual(START);
 		expect(isFeatureOn("dashboards")).toBe(false);
 	});
 });

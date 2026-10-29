@@ -10,16 +10,19 @@ const CustomNodeSchema = z.strictObject({
 	},
 });
 
+/** The Custom root, its children for the root picker, and its grammar sections. */
+export const CustomTreeResponseSchema = z.strictObject({
+	rootId: z.string().nullable(),
+	rootChildren: z.array(z.strictObject({id: z.string(), name: z.string()})),
+	sections: z.record(z.string(), z.array(CustomNodeSchema)),
+});
+
 const GRAMMARS: ReadonlySet<string> = new Set(["Hotkeys", "Themes"]);
 
 /** The grammar sections under the Custom root, read from the cache (never written). */
 export const customTreeGet = defineOp({
 	input: z.object({rootId: z.string().optional()}),
-	output: z.strictObject({
-		rootId: z.string().nullable(),
-		rootChildren: z.array(z.strictObject({id: z.string(), name: z.string()})),
-		sections: z.record(z.string(), z.array(CustomNodeSchema)),
-	}),
+	output: CustomTreeResponseSchema,
 	run(ctx, {rootId: requested}) {
 		const {cacheService} = ctx;
 		const rootId = findCustomRoot(cacheService.getChildren(null), requested);

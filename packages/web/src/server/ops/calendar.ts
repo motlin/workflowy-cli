@@ -111,6 +111,8 @@ export const LayoutStepSchema = z.discriminatedUnion("op", [
 	}),
 	z.strictObject({op: z.literal("delete"), id: z.string(), from: LayoutLocationSchema}),
 ]);
+/** The planned restructure `POST /calendar/layout/preview` answers. */
+export const CalendarLayoutPreviewSchema = z.strictObject({steps: z.array(LayoutStepSchema)});
 
 /**
  * The calendar root a layout write targets: `explicitRootId` (a sandbox copy) or the tagged root, and only when that
@@ -292,14 +294,19 @@ const calendarSettingsPut = defineOp({
 });
 
 /** What the Calendar Layout dialog opens with. */
+export const CalendarLayoutSchema = z.strictObject({
+	levels: LayoutLevelsSchema,
+	/** Levels with nodes whose name or note was customized; turning one off deletes that text. */
+	customLevels: z.array(CalendarLevelSchema),
+	/** Whether Update Layout first asks to move dated nodes into the calendar. */
+	needsConfirm: z.boolean(),
+	/** Whether Update Layout applies the restructure (`CALENDAR_LAYOUT_ENABLED`) or only previews it. */
+	applyEnabled: z.boolean(),
+});
+
 const calendarLayoutGet = defineOp({
 	input: z.object({}),
-	output: z.strictObject({
-		levels: LayoutLevelsSchema,
-		customLevels: z.array(CalendarLevelSchema),
-		needsConfirm: z.boolean(),
-		applyEnabled: z.boolean(),
-	}),
+	output: CalendarLayoutSchema,
 	async run(ctx) {
 		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService});
 		if (snapshot === undefined) {
@@ -378,7 +385,7 @@ const calendarLayoutUndo = defineOp({
 /** The steps the layout would take; nothing is written. */
 const calendarLayoutPreview = defineOp({
 	input: z.object({body: LayoutBody}),
-	output: z.strictObject({steps: z.array(LayoutStepSchema)}),
+	output: CalendarLayoutPreviewSchema,
 	async run(ctx, {body}) {
 		const {rootId} = body;
 		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService}, rootId);

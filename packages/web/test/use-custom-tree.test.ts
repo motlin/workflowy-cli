@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from "vite-plus/test";
 import {applyCustomTree} from "../src/client/hooks/use-custom-tree.js";
-import type {CustomTreeResponse} from "../src/client/hooks/use-custom-tree.js";
+import type {CustomTreeResponse} from "../src/node-types.js";
 import {hint} from "../src/client/keys/hint.js";
 import {useCustomKeymapStore} from "../src/client/stores/custom-keymap.js";
 import {useCustomThemesStore} from "../src/client/stores/custom-themes.js";

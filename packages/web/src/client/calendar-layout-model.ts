@@ -6,17 +6,6 @@ export type LayoutLevel = (typeof LEVELS)[number];
 
 export type LayoutLevels = Partial<Record<LayoutLevel | "day", boolean>>;
 
-/** What the dialog opens with: `GET /api/v1/calendar/layout`. */
-export interface CalendarLayout {
-	levels: LayoutLevels;
-	/** Levels with nodes whose name or note was customized; turning one off deletes that text. */
-	customLevels: string[];
-	/** Whether Update Layout first asks to move dated nodes into the calendar. */
-	needsConfirm: boolean;
-	/** Whether Update Layout applies the restructure (`CALENDAR_LAYOUT_ENABLED`) or only previews it. */
-	applyEnabled?: boolean;
-}
-
 /** The text of upstream's "Move nodes into your Calendar?" dialog, for the local confirm. */
 export const MOVE_NODES_CONFIRM = [
 	"Move nodes into your Calendar?",
