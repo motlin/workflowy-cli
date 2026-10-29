@@ -132,3 +132,18 @@ export function createFakeInternalApi(): FakeInternalApi {
 		},
 	};
 }
+
+/** How many `/get_tree_data/` (whole-account) reads `api` has served so far. */
+export function treeDataReads(api: Pick<FakeInternalApi, "requests">): number {
+	return api.requests.filter((request) => request.path === "/get_tree_data/").length;
+}
+
+/** Make every `/get_tree_data/` read answer 500; returns the list each forbidden read is recorded in. */
+export function forbidTreeData(api: FakeInternalApi): RecordedRequest[] {
+	const forbidden: RecordedRequest[] = [];
+	api.respond("/get_tree_data/", (request) => {
+		forbidden.push(request);
+		return new Response("get_tree_data is forbidden in this test", {status: 500});
+	});
+	return forbidden;
+}

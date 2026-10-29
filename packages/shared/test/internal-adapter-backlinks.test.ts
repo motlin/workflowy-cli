@@ -13,7 +13,7 @@ import {linkedSourcesInSubtree, WorkflowyInternalAdapter} from "../src/internal/
 import {applyMetadataPatches} from "../src/internal/metadata-patch.js";
 import type {MetadataPatch} from "../src/internal/metadata-patch.js";
 import {hasInternalLink, internalLinkShortIds} from "../src/workflowy/internal-links.js";
-import {createFakeInternalApi, json} from "./helpers/fake-internal-api.js";
+import {createFakeInternalApi, json, treeDataReads} from "./helpers/fake-internal-api.js";
 import type {RecordedRequest} from "./helpers/fake-internal-api.js";
 
 const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
@@ -221,7 +221,7 @@ async function setup(initial: [string, ServerNode][], trashed: [string, ServerNo
 	const parents = [...new Set(initial.map(([, value]) => value.parent))];
 	await writeThrough.refreshChildren(parents.map((parent) => (parent === ROOT ? null : parent)));
 	const rows = (sql: string) => sqlite.prepare(sql).all();
-	return {sqlite, db, adapter, pushes, server, cacheService, rows};
+	return {sqlite, db, api, adapter, pushes, server, cacheService, rows};
 }
 
 const ID1 = "00000000-0000-4000-8000-000000000001";
@@ -499,6 +499,28 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			referencesChildren: [OTHER_ITEM],
 			current: [{node_id: OTHER_ITEM}],
 		});
+	});
+
+	it("reads the whole account tree once for syncBacklinks", async () => {
+		const {api, adapter} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT)],
+			[TARGET, node("target", ROOT)],
+		]);
+
+		await adapter.syncBacklinks([SOURCE]);
+
+		expect(treeDataReads(api)).toBe(1);
+	});
+
+	it("reads the whole account tree once for deleteBacklinksOf", async () => {
+		const {api, adapter} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT)],
+			[TARGET, node("target", ROOT)],
+		]);
+
+		await adapter.deleteBacklinksOf([SOURCE]);
+
+		expect(treeDataReads(api)).toBe(1);
 	});
 
 	it("pushes nothing when the linked sources are still in the tree, as when a mirror was removed instead", async () => {

@@ -11,7 +11,7 @@ import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-
 import * as schema from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
 import {OperationRejected} from "../src/internal/errors.js";
-import {createFakeInternalApi, json} from "./helpers/fake-internal-api.js";
+import {createFakeInternalApi, json, treeDataReads} from "./helpers/fake-internal-api.js";
 import type {RecordedRequest} from "./helpers/fake-internal-api.js";
 
 const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
@@ -782,6 +782,31 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		expect(
 			Object.fromEntries(Object.keys(expected).map((id) => [id, order(id === "home" ? null : id)])),
 		).toStrictEqual(expected);
+	});
+
+	it.each([
+		{
+			label: "createMirrorsAt",
+			run: async (adapter: WorkflowyInternalAdapter) =>
+				adapter.createMirrorsAt({originalIds: ["b"], parentId: "home", index: 0}),
+		},
+		{
+			label: "createTreesAt with a mirror root",
+			run: async (adapter: WorkflowyInternalAdapter) =>
+				adapter.createTreesAt({
+					parentId: "home",
+					index: 0,
+					trees: [{name: "", metadata: {mirror: {originalId: "b", isMirrorRoot: true}}}],
+				}),
+		},
+	])("reads the whole account tree once for $label", async ({run}) => {
+		let next = 0;
+		const {api, adapter} = await tracked(() => `t${++next}`);
+		serveTreeData(api, [{id: "a"}, {id: "b"}, {id: "c"}]);
+
+		await run(adapter);
+
+		expect(treeDataReads(api)).toBe(1);
 	});
 
 	it("lists a mirror root created inside a tree on its original in the same push", async () => {

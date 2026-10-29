@@ -8,7 +8,7 @@ import {CacheService} from "../src/cache/cache-service.js";
 import * as schema from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
 import type {WorkflowyNode} from "../src/types/index.js";
-import {createFakeInternalApi, json} from "./helpers/fake-internal-api.js";
+import {createFakeInternalApi, json, treeDataReads} from "./helpers/fake-internal-api.js";
 import type {RecordedRequest} from "./helpers/fake-internal-api.js";
 
 const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
@@ -212,6 +212,31 @@ describe("WorkflowyInternalAdapter expansion", () => {
 				["GET", "/get_tree_data/"],
 			],
 		});
+	});
+
+	it("reads the whole account tree once for a fresh expansion read with 6s-old keys", async () => {
+		const {api, adapter, clock} = tracked();
+		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+		await adapter.getExpandedIds();
+		api.requests.length = 0;
+		clock.ms += 6000;
+
+		await adapter.getExpansionState({fresh: true});
+
+		expect(treeDataReads(api)).toBe(1);
+	});
+
+	it("reads the whole account tree once, in the background, for expansionTest with 31s-old keys", async () => {
+		const {api, adapter, clock} = tracked();
+		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+		await adapter.getExpandedIds();
+		api.requests.length = 0;
+		clock.ms += 31_000;
+
+		await adapter.expansionTest();
+		await adapter.expandedKeysRefreshed();
+
+		expect(treeDataReads(api)).toBe(1);
 	});
 
 	it("answers a fresh read from the cache within 5s of the last fetch", async () => {
