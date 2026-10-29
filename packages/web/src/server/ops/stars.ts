@@ -13,8 +13,9 @@ import type {ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
 import type {NodeResponse} from "../../node-types.js";
 import {readNodeDto} from "./nodes-shared.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
-import type {OpResult} from "./define.js";
+import {defineOp, fail, ok, toJson} from "./define.js";
+import {NoContentSchema, NodeResponseSchema} from "./schemas.js";
+import type {Json, OpResult} from "./define.js";
 
 type ReadNode = (ctx: ServerContext, id: string) => Promise<NodeResponse | undefined>;
 
@@ -31,6 +32,14 @@ async function readStars(ctx: ServerContext, adapter: WorkflowyInternalAdapter) 
 }
 
 const RecordSchema = z.record(z.string(), z.unknown());
+
+const StarSchema = z.strictObject({
+	nodeId: z.string().nullable(),
+	query: z.string().nullable(),
+	key: z.string(),
+	name: z.string().nullable(),
+	position: z.number(),
+});
 
 function getIn(meta: unknown, path: string[]): unknown {
 	return path.reduce<unknown>((current, key) => RecordSchema.safeParse(current).data?.[key], meta);
@@ -58,7 +67,7 @@ async function starredNodes(ctx: ServerContext, stars: readonly Star[], readNode
 }
 
 /** Runs `body` with the internal adapter, or answers 503 when it is not configured. */
-async function withAdapter<T extends Parameters<typeof ok>[0]>(
+async function withAdapter<T extends Json>(
 	ctx: ServerContext,
 	body: (adapter: WorkflowyInternalAdapter) => Promise<OpResult<T>>,
 ): Promise<OpResult<T>> {
@@ -70,10 +79,11 @@ async function withAdapter<T extends Parameters<typeof ok>[0]>(
 export function starsListWith(readNode: ReadNode) {
 	return defineOp({
 		input: z.object({}),
+		output: z.strictObject({stars: z.array(StarSchema), nodes: z.array(NodeResponseSchema)}),
 		async run(ctx) {
 			return withAdapter(ctx, async (adapter) => {
 				const stars = await readStars(ctx, adapter);
-				return ok(jsonOf({stars, nodes: await starredNodes(ctx, stars, readNode)}));
+				return ok(toJson({stars, nodes: await starredNodes(ctx, stars, readNode)}));
 			});
 		},
 	});
@@ -83,6 +93,7 @@ export const starsList = starsListWith(readNodeDto);
 
 export const starsOrder = defineOp({
 	input: z.object({keys: z.array(z.string())}),
+	output: NoContentSchema,
 	async run(ctx, {keys}) {
 		return withAdapter(ctx, async (adapter) => {
 			await adapter.setRootMetaValues(orderChanges(keys));
@@ -95,6 +106,7 @@ export const starsOrder = defineOp({
 /** Stars a location; `key` must be the location key of `{nodeId, query}`. Answers the new star, created. */
 export const starsSet = defineOp({
 	input: z.object({key: z.string(), nodeId: z.string().nullable(), query: z.string().nullable()}),
+	output: StarSchema.nullable(),
 	async run(ctx, {key, nodeId, query}) {
 		return withAdapter(ctx, async (adapter) => {
 			if (locationKey({nodeId, query}) !== key) {
@@ -105,13 +117,14 @@ export const starsSet = defineOp({
 			}
 			await adapter.setRootMetaValues(starChanges(await adapter.getRootMeta([]), key));
 			const star = starsFromRootMeta(await saveStarsLocally(adapter), starNodes(ctx)).find((s) => s.key === key);
-			return ok(jsonOf(star ?? null), {created: true});
+			return ok(toJson(star ?? null), {created: true});
 		});
 	},
 });
 
 export const starsRemove = defineOp({
 	input: z.object({key: z.string()}),
+	output: NoContentSchema,
 	async run(ctx, {key}) {
 		return withAdapter(ctx, async (adapter) => {
 			await adapter.setRootMetaValues(unstarChanges(await adapter.getRootMeta([]), key));
@@ -123,6 +136,7 @@ export const starsRemove = defineOp({
 
 export const starsRename = defineOp({
 	input: z.object({key: z.string(), name: z.string().nullable()}),
+	output: NoContentSchema,
 	async run(ctx, {key, name}) {
 		return withAdapter(ctx, async (adapter) => {
 			await adapter.setRootMetaValues(renameChanges(key, name));

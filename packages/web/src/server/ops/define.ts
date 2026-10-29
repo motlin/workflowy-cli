@@ -27,15 +27,43 @@ export function fail(status: OpFailureStatus, body: Json): OpResult<never> {
 
 export interface OpDefinition<S extends z.ZodType, T extends Json> {
 	input: S;
+	/** The value's shape. Tests parse every op's value against it; production never does. */
+	output?: z.ZodType<T>;
 	run(ctx: ServerContext, input: z.output<S>): OpResult<T> | Promise<OpResult<T>>;
 }
 
+/** An op whose value type comes from its output schema. */
+export type TypedOpDefinition<S extends z.ZodType, O extends z.ZodType<Json>> = OpDefinition<S, z.output<O>> & {
+	output: O;
+};
+
+export function defineOp<S extends z.ZodType, O extends z.ZodType<Json>>(
+	definition: TypedOpDefinition<S, O>,
+): TypedOpDefinition<S, O>;
+export function defineOp<S extends z.ZodType, T extends Json>(definition: OpDefinition<S, T>): OpDefinition<S, T>;
 export function defineOp<S extends z.ZodType, T extends Json>(definition: OpDefinition<S, T>): OpDefinition<S, T> {
 	return definition;
 }
+
+/** A value's shape after a JSON round trip: Dates become strings. */
+export type Jsonify<T> = T extends Date
+	? string
+	: T extends Json
+		? T
+		: T extends readonly (infer U)[]
+			? Jsonify<U>[]
+			: T extends object
+				? {[K in keyof T]: Jsonify<T[K]>}
+				: never;
 
 /** Narrows a value built from Dates and interfaces to {@link Json} by serializing it, as `c.json` did. */
 export function jsonOf(value: unknown): Json {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion, unicorn/prefer-structured-clone -- structuredClone would keep Dates; the JSON round trip is the point
 	return JSON.parse(JSON.stringify(value)) as Json;
+}
+
+/** {@link jsonOf} that keeps the value's type, so an op with an output schema can return it. */
+export function toJson<T>(value: T): Jsonify<T> {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the JSON round trip produces exactly Jsonify<T>
+	return jsonOf(value) as Jsonify<T>;
 }

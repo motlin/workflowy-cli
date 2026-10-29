@@ -1,5 +1,6 @@
 import {describe, expectTypeOf, it} from "vite-plus/test";
 import type {OpInput, OpOutput} from "../src/server/ops/index.js";
+import type {TagColorName} from "../src/tag-colors.js";
 
 describe("OpInput and OpOutput pin the client-facing op types", () => {
 	it("account.get takes no fields and returns the account", () => {
@@ -31,5 +32,14 @@ describe("OpInput and OpOutput pin the client-facing op types", () => {
 			wait?: boolean | undefined;
 			ifNoneMatch?: string | undefined;
 		}>();
+	});
+
+	it("output schemas type the small ops' values", () => {
+		expectTypeOf<OpOutput<"tags.set">>().toEqualTypeOf<{name: string; color: TagColorName}>();
+		expectTypeOf<OpOutput<"tags.list">>().toEqualTypeOf<{colors: Record<string, string>}>();
+		expectTypeOf<OpOutput<"stars.remove">>().toEqualTypeOf<null>();
+		expectTypeOf<OpOutput<"expansion.leftBarGet">>().toEqualTypeOf<{keys: string[]}>();
+		expectTypeOf<OpOutput<"tagIndex.autocomplete">>().toEqualTypeOf<{tags: {tag: string; count: number}[]}>();
+		expectTypeOf<OpOutput<"changes.list">["cutoffDate"]>().toEqualTypeOf<string>();
 	});
 });

@@ -11,7 +11,7 @@ import {z} from "zod";
 import type {ServerSetting, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {reapplyWeekLayout} from "../calendar-layout.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
+import {defineOp, fail, ok} from "./define.js";
 
 const PreferencesPatchSchema = z
 	.object({
@@ -36,12 +36,15 @@ const PreferencesPatchSchema = z
 	.partial()
 	.strict();
 
-type PreferencesPatch = z.infer<typeof PreferencesPatchSchema>;
-type Preferences = Required<Omit<PreferencesPatch, "theme">> & {
-	theme: string | null;
+/** The full preferences: every patch field present, with `theme` null when unset. */
+const PreferencesSchema = z.strictObject({
+	...PreferencesPatchSchema.required().omit({theme: true}).shape,
+	theme: z.string().nullable(),
 	/** The signed-in account's name and email (read-only), null unless both are known. */
-	account: {username: string; email: string} | null;
-};
+	account: z.strictObject({username: z.string(), email: z.string()}).nullable(),
+});
+
+type Preferences = z.output<typeof PreferencesSchema>;
 
 const KEYS = ["dateFormat", "timeFormat", "weekStartDay", "slashDiscovered", "notesRootId", "weeklyReportOn"] as const;
 
@@ -134,15 +137,17 @@ const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 /** The account-global preferences. */
 export const preferencesGet = defineOp({
 	input: z.object({}),
+	output: PreferencesSchema,
 	async run(ctx) {
 		const adapter = ctx.internalAdapter?.();
-		return adapter ? ok(jsonOf(await readPreferences(adapter))) : notConfigured();
+		return adapter ? ok(await readPreferences(adapter)) : notConfigured();
 	},
 });
 
 /** Applies any subset of preferences (a `null` removes one) and answers the full preferences. */
 export const preferencesPatch = defineOp({
 	input: z.object({patch: PreferencesPatchSchema}),
+	output: PreferencesSchema,
 	async run(ctx, {patch}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
@@ -178,6 +183,6 @@ export const preferencesPatch = defineOp({
 		) {
 			await reapplyWeekLayout(ctx, adapter);
 		}
-		return ok(jsonOf(await readPreferences(adapter)));
+		return ok(await readPreferences(adapter));
 	},
 });

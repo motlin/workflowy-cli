@@ -25,11 +25,16 @@ export default defineConfig({
 				extends: true,
 				test: {
 					name: "unit",
-					include: [
-						"packages/shared/test/**/*.test.ts",
-						"packages/web/test/**/*.test.{ts,tsx}",
-						"scripts/**/*.test.mjs",
-					],
+					include: ["packages/shared/test/**/*.test.ts", "scripts/**/*.test.mjs"],
+				},
+			},
+			{
+				extends: true,
+				test: {
+					name: "web",
+					include: ["packages/web/test/**/*.test.{ts,tsx}"],
+					// Parses every op's value against its output schema; production never does.
+					setupFiles: ["packages/web/test/setup/check-op-outputs.ts"],
 				},
 			},
 			{

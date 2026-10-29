@@ -36,6 +36,7 @@ const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 /** `{colors: {name: color}}`, skipping indexes outside the palette. */
 export const tagsList = defineOp({
 	input: z.object({}),
+	output: z.strictObject({colors: z.record(z.string(), z.string())}),
 	async run(ctx) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
@@ -58,6 +59,7 @@ export const tagsList = defineOp({
 /** Sets one tag's color. */
 export const tagsSet = defineOp({
 	input: z.object({name: z.string(), color: z.enum(TAG_COLORS)}),
+	output: z.strictObject({name: z.string(), color: z.enum(TAG_COLORS)}),
 	async run(ctx, {name, color}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
@@ -71,6 +73,7 @@ export const tagsSet = defineOp({
 /** Clears one tag's color. */
 export const tagsClear = defineOp({
 	input: z.object({name: z.string()}),
+	output: z.strictObject({name: z.string()}),
 	async run(ctx, {name}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {

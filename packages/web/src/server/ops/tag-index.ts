@@ -105,6 +105,7 @@ function plain(tags: TagCount[]): {tag: string; count: number}[] {
 
 export const tagIndexAutocomplete = defineOp({
 	input: Input,
+	output: z.strictObject({tags: z.array(z.strictObject({tag: z.string(), count: z.number()}))}),
 	run(ctx, {root: rawRoot, prefix, limit: rawLimit, item: rawItem, name, note, fallback}) {
 		const limit = parseLimit(rawLimit);
 		const live: LiveText | null =

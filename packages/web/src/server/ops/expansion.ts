@@ -14,7 +14,8 @@ import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {z} from "zod";
 import type {ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
+import {defineOp, fail, ok} from "./define.js";
+import {NoContentSchema} from "./schemas.js";
 
 const FLUSH_DELAY_MS = 500;
 
@@ -81,6 +82,9 @@ export const expansionGet = defineOp({
 		wait: z.boolean().default(false),
 		ifNoneMatch: z.string().optional(),
 	}),
+	output: z
+		.strictObject({expandedIds: z.array(z.string()), fetchedAt: z.number(), refreshing: z.boolean()})
+		.nullable(),
 	async run(ctx, {fresh, wait, ifNoneMatch}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
@@ -91,12 +95,13 @@ export const expansionGet = defineOp({
 		if (ifNoneMatch === etag) {
 			return ok(null, {etag, notModified: true});
 		}
-		return ok(jsonOf(state), {etag});
+		return ok(state, {etag});
 	},
 });
 
 export const expansionPatch = defineOp({
 	input: ExpansionPatchSchema,
+	output: NoContentSchema,
 	run(ctx, {changes}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
@@ -114,6 +119,7 @@ export const expansionPatch = defineOp({
 
 export const expansionLeftBarGet = defineOp({
 	input: z.object({}),
+	output: z.strictObject({keys: z.array(z.string())}),
 	async run(ctx) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
@@ -125,6 +131,7 @@ export const expansionLeftBarGet = defineOp({
 
 export const expansionLeftBarPatch = defineOp({
 	input: LeftBarPatchSchema,
+	output: NoContentSchema,
 	run(ctx, {changes}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {

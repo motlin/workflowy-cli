@@ -5,6 +5,12 @@ import {defineOp, fail, ok} from "./define.js";
 /** The signed-in Workflowy account. `email` is `WORKFLOWY_USERNAME`, "" when unset. */
 export const accountGet = defineOp({
 	input: z.object({}),
+	output: z.strictObject({
+		userId: z.number(),
+		joinedAt: z.string(),
+		fullName: z.string().nullable(),
+		email: z.string(),
+	}),
 	async run(ctx) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
