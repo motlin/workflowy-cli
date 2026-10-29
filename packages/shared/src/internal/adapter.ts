@@ -7,7 +7,7 @@ import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through
 import {keptInternalMetadata} from "../cache/importer.js";
 import {collectItemRelationships, emptyItemRelationships} from "../cache/item-relationships.js";
 import {runUnitOfWork} from "../cache/node-composite.js";
-import {applyRelationshipOps} from "../cache/relationship-log.js";
+import {applyRelationshipOps, isReplayable} from "../cache/relationship-log.js";
 import {applyExpansionDelta, readExpansion} from "../cache/expansion-store.js";
 import {advanceTreeTxId, readTreeTxId} from "../cache/tree-transaction.js";
 import type {ItemRelationships} from "../cache/item-relationships.js";
@@ -39,6 +39,7 @@ import {
 	TransportError,
 	TreeNotSeeded,
 	TreeRefreshRequired,
+	UnreplayableTransaction,
 } from "./errors.js";
 import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
 import type {MetadataChange} from "./metadata-patch.js";
@@ -529,6 +530,10 @@ export class WorkflowyInternalAdapter {
 			}
 			if (id !== undefined) {
 				seen.add(id);
+			}
+			const unreplayable = transactionOps.find((op) => !isReplayable(op));
+			if (unreplayable !== undefined) {
+				throw loud(new UnreplayableTransaction(id ?? "from our own push", unreplayable.type));
 			}
 			ops.push(...transactionOps);
 		}

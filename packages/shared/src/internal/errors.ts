@@ -80,3 +80,15 @@ export class TreeRefreshRequired extends TreeResyncRequired {
 		);
 	}
 }
+
+/** A logged op carries relationship data the replay cannot parse; skipping it would let the cache diverge silently. */
+export class UnreplayableTransaction extends TreeResyncRequired {
+	constructor(
+		readonly txId: string,
+		readonly opType: string,
+	) {
+		super(
+			`Workflowy transaction ${txId} has a ${opType} op the cache cannot parse, so the cache would diverge from the tree; ${RESEED} reseed it`,
+		);
+	}
+}

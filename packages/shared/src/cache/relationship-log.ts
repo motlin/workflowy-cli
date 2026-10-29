@@ -41,7 +41,17 @@ const LoggedTreeSchema: z.ZodType<LoggedTree> = z.lazy(() =>
 
 const BulkCreateSchema = z
 	.object({
-		project_trees: z.union([z.string().transform((json): unknown => JSON.parse(json)), z.array(z.unknown())]),
+		project_trees: z.union([
+			z.string().transform((json, context): unknown => {
+				try {
+					return JSON.parse(json);
+				} catch {
+					context.addIssue({code: "custom", message: "project_trees is not JSON"});
+					return z.NEVER;
+				}
+			}),
+			z.array(z.unknown()),
+		]),
 	})
 	.loose();
 
@@ -134,22 +144,46 @@ function touchedIds(ops: readonly LoggedOp[]): Set<string> {
 		if (op.type === "bulk_create") {
 			visit(createdTrees(op));
 		} else if (op.type === "edit") {
-			const edit = EditSchema.safeParse(op.data);
-			if (edit.success && (edit.data.metadataPatches?.length ?? 0) > 0) {
-				ids.add(edit.data.projectid);
+			const edit = parseEdit(op);
+			if (edit !== undefined && (edit.metadataPatches?.length ?? 0) > 0) {
+				ids.add(edit.projectid);
 			}
 		}
 	}
 	return ids;
 }
 
-function createdTrees(op: LoggedOp): LoggedTree[] {
+function parseCreatedTrees(op: LoggedOp): LoggedTree[] | undefined {
 	const parsed = BulkCreateSchema.safeParse(op.data);
 	if (!parsed.success) {
-		return [];
+		return undefined;
 	}
 	const trees = z.array(LoggedTreeSchema).safeParse(parsed.data.project_trees);
-	return trees.success ? trees.data : [];
+	return trees.success ? trees.data : undefined;
+}
+
+function createdTrees(op: LoggedOp): LoggedTree[] {
+	return parseCreatedTrees(op) ?? [];
+}
+
+function parseEdit(op: LoggedOp): z.output<typeof EditSchema> | undefined {
+	const edit = EditSchema.safeParse(op.data);
+	return edit.success ? edit.data : undefined;
+}
+
+/**
+ * Whether the replay can read `op`'s relationship data: a `bulk_create`'s
+ * `project_trees` or an `edit` carrying `metadataPatches`. Other ops carry
+ * none, so they always are.
+ */
+export function isReplayable(op: LoggedOp): boolean {
+	if (op.type === "bulk_create") {
+		return !Object.hasOwn(op.data, "project_trees") || parseCreatedTrees(op) !== undefined;
+	}
+	if (op.type === "edit") {
+		return !Object.hasOwn(op.data, "metadataPatches") || parseEdit(op) !== undefined;
+	}
+	return true;
 }
 
 function loadModel(unitOfWork: UnitOfWork, ids: readonly string[]): EdgeModel {
@@ -261,12 +295,12 @@ function applyMirrorPatch(model: EdgeModel, nodeId: string, {op, path, value}: P
 }
 
 function applyEdit(model: EdgeModel, op: LoggedOp): void {
-	const edit = EditSchema.safeParse(op.data);
-	if (!edit.success) {
+	const edit = parseEdit(op);
+	if (edit === undefined) {
 		return;
 	}
-	const nodeId = edit.data.projectid;
-	for (const patch of edit.data.metadataPatches ?? []) {
+	const nodeId = edit.projectid;
+	for (const patch of edit.metadataPatches ?? []) {
 		const [head] = patch.path;
 		if (head === "mirror") {
 			applyMirrorPatch(model, nodeId, patch);

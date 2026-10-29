@@ -10,7 +10,12 @@ import {CacheService} from "../src/cache/cache-service.js";
 import {advanceTreeTxId, readTreeTxId, replaceTreeTxId} from "../src/cache/tree-transaction.js";
 import * as schema from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
-import {TreeNotSeeded, TreeRefreshRequired} from "../src/internal/errors.js";
+import {
+	TreeNotSeeded,
+	TreeRefreshRequired,
+	TreeResyncRequired,
+	UnreplayableTransaction,
+} from "../src/internal/errors.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/index.js";
 import {createFakeInternalApi, json, treeDataReads} from "./helpers/fake-internal-api.js";
 import type {RecordedRequest} from "./helpers/fake-internal-api.js";
@@ -357,6 +362,48 @@ describe("WorkflowyInternalAdapter transaction log", () => {
 			error: expect.any(TreeRefreshRequired),
 			message:
 				"Workflowy answered need_refreshed_project_tree: the cache's transaction id 100 is no longer in the tree's log; run './bin/run.js cache import-api' to reseed it",
+			txId: "100",
+			mirrors: [],
+			pushes: ["100"],
+			logged: [[error]],
+		});
+	});
+	it.each([
+		{
+			name: "an edit whose metadata patches do not parse",
+			op: {type: "edit", data: {projectid: "orig", metadataPatches: [{op: "add", path: "mirror"}]}},
+		},
+		{
+			name: "a bulk_create whose project_trees is not JSON",
+			op: {type: "bulk_create", data: {parentid: "None", project_trees: "[{not json"}},
+		},
+		{
+			name: "a bulk_create whose trees have no id",
+			op: {type: "bulk_create", data: {parentid: "None", project_trees: JSON.stringify([{nm: "x"}])}},
+		},
+	])("fails loudly on $name, naming the transaction, applying nothing and keeping the stored id", async ({op}) => {
+		const {db, api, adapter, edges} = tracked();
+		replaceTreeTxId(db, "100", 0);
+		const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+		api.respondOnce(
+			"/push_and_poll",
+			poll("160", [transaction(155, [leafAdd("orig", "mirrorRootIds", "m1")]), transaction(156, [op])]),
+		);
+
+		const error = await caughtBy(adapter.catchUp());
+
+		expect({
+			error,
+			resync: error instanceof TreeResyncRequired,
+			message: error instanceof Error ? error.message : undefined,
+			txId: readTreeTxId(db),
+			mirrors: edges().mirrors,
+			pushes: startIds(api.requests),
+			logged: logged.mock.calls,
+		}).toStrictEqual({
+			error: expect.any(UnreplayableTransaction),
+			resync: true,
+			message: `Workflowy transaction 156 has a ${op.type} op the cache cannot parse, so the cache would diverge from the tree; run './bin/run.js cache import-api' to reseed it`,
 			txId: "100",
 			mirrors: [],
 			pushes: ["100"],
