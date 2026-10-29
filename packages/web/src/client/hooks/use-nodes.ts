@@ -12,14 +12,21 @@ import {useCallback} from "react";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import type {MutateOptions, MutationObserverOptions, QueryClient} from "@tanstack/react-query";
 import type {
+	AncestorsResponse,
 	BacklinksResponse,
+	CreatedIdsResponse,
+	DetachMirrorResponse,
 	NodeChangesResponse,
+	NodeChildrenResponse,
+	NodeEnvelope,
 	FoundDatesResponse,
 	HomeResponse,
 	NodeListResponse,
 	NodeResponse,
 	OutlineViewResponse,
 	SubtreeItem,
+	SubtreeItemsResponse,
+	SwapMirrorOriginResponse,
 	UpdateNodeResponse,
 } from "../../node-types.js";
 import type {OutlineViewRequest} from "../outline-view.js";
@@ -99,7 +106,7 @@ const loadChildren = createChildrenBatcher(async (parentIds) => {
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to fetch children", response);
 	}
-	return (await readJson<{children: Record<string, NodeResponse[]>}>(response)).children;
+	return (await readJson<NodeChildrenResponse>(response)).children;
 });
 
 async function fetchChanges(since: string | undefined): Promise<NodeChangesResponse> {
@@ -136,7 +143,7 @@ export async function fetchChildren(parentId: string | null): Promise<NodeRespon
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to fetch children", response);
 	}
-	const data = await readJson<{nodes: NodeResponse[]}>(response);
+	const data = await readJson<NodeListResponse>(response);
 	return pendingCreates.withPending(parentId, data.nodes);
 }
 
@@ -160,7 +167,7 @@ export async function fetchNode(nodeId: string): Promise<NodeResponse> {
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to fetch node", response);
 	}
-	const data = await readJson<{node: NodeResponse}>(response);
+	const data = await readJson<NodeEnvelope>(response);
 	return data.node;
 }
 
@@ -169,7 +176,7 @@ export async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to fetch ancestors", response);
 	}
-	const data = await readJson<{ancestors: NodeResponse[]}>(response);
+	const data = await readJson<AncestorsResponse>(response);
 	return data.ancestors;
 }
 
@@ -193,7 +200,7 @@ export async function createNode(request: CreateNodeRequest): Promise<NodeRespon
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to create node", response);
 	}
-	const data = await readJson<{node: NodeResponse}>(response);
+	const data = await readJson<NodeEnvelope>(response);
 	return data.node;
 }
 
@@ -286,7 +293,7 @@ export async function restoreNode(nodeId: string, request: RestoreNodeRequest): 
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to restore node", response);
 	}
-	const data = await readJson<{node: NodeResponse}>(response);
+	const data = await readJson<NodeEnvelope>(response);
 	return data.node;
 }
 
@@ -298,7 +305,7 @@ async function completeNode(nodeId: string): Promise<NodeResponse> {
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to complete node", response);
 	}
-	const data = await readJson<{node: NodeResponse}>(response);
+	const data = await readJson<NodeEnvelope>(response);
 	return data.node;
 }
 
@@ -310,7 +317,7 @@ async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to uncomplete node", response);
 	}
-	const data = await readJson<{node: NodeResponse}>(response);
+	const data = await readJson<NodeEnvelope>(response);
 	return data.node;
 }
 
@@ -998,7 +1005,7 @@ async function moveNodes(request: MoveNodesRequest): Promise<NodeResponse[]> {
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to move nodes", response);
 	}
-	const data = await readJson<{nodes: NodeResponse[]}>(response);
+	const data = await readJson<NodeListResponse>(response);
 	return data.nodes;
 }
 
@@ -1285,7 +1292,7 @@ async function mirrorNodes(request: MirrorNodesRequest): Promise<NodeResponse[]>
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to mirror nodes", response);
 	}
-	const data = await readJson<{nodes: NodeResponse[]}>(response);
+	const data = await readJson<NodeListResponse>(response);
 	return data.nodes;
 }
 
@@ -1338,7 +1345,7 @@ async function duplicateNodes(request: {ids: string[]; parent_id: string | null;
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to duplicate nodes", response);
 	}
-	const data = await readJson<{ids: string[]}>(response);
+	const data = await readJson<CreatedIdsResponse>(response);
 	return data.ids;
 }
 
@@ -1356,7 +1363,7 @@ export async function detachMirrorNode(queryClient: QueryClient, nodeId: string)
 		if (!response.ok) {
 			throw await toRequestStatusError("Failed to detach mirror", response);
 		}
-		const {node} = await readJson<{node: NodeResponse | null}>(response);
+		const {node} = await readJson<DetachMirrorResponse>(response);
 		const index = removed[0]?.kind === "delete" ? removed[0].index : undefined;
 		slot.settle([
 			...(node === null ? [] : toUndoOps({kind: "create", nodeId: node.id, parentId, index}, queryClient)),
@@ -1402,7 +1409,8 @@ export async function swapMirrorOriginNode(queryClient: QueryClient, nodeId: str
 		if (!response.ok) {
 			throw await toRequestStatusError("Failed to swap origin", response);
 		}
-		const {warning} = await readJson<{warning?: string}>(response);
+		const body = await readJson<SwapMirrorOriginResponse>(response);
+		const warning = "warning" in body ? body.warning : undefined;
 		slot.settle(warning === undefined ? ops : []);
 		await syncNodeChanges(queryClient);
 		return warning;
@@ -1452,7 +1460,7 @@ async function fetchSubtreeItems(rootId: string | null): Promise<SubtreeItem[]> 
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to fetch subtree", response);
 	}
-	const data = await readJson<{items: SubtreeItem[]}>(response);
+	const data = await readJson<SubtreeItemsResponse>(response);
 	return data.items;
 }
 

@@ -75,11 +75,14 @@ async function withAdapter<T extends Json>(
 	return adapter ? body(adapter) : fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 }
 
+/** The stars and each starred node once. */
+export const StarsResponseSchema = z.strictObject({stars: z.array(StarSchema), nodes: z.array(NodeResponseSchema)});
+
 /** `{stars, nodes}`: each starred node once, as `GET /nodes/:id` returns it, so the left bar's rows need no request of their own. */
 export function starsListWith(readNode: ReadNode) {
 	return defineOp({
 		input: z.object({}),
-		output: z.strictObject({stars: z.array(StarSchema), nodes: z.array(NodeResponseSchema)}),
+		output: StarsResponseSchema,
 		async run(ctx) {
 			return withAdapter(ctx, async (adapter) => {
 				const stars = await readStars(ctx, adapter);

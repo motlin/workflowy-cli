@@ -1,14 +1,9 @@
 import type {ReactElement} from "react";
+import type {CalendarSettings} from "../../node-types.js";
 import {FaIcon} from "./fa-icons.js";
 import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
 import {Toggle} from "./toggle.js";
 import type {DayContent} from "./date-picker-popup.js";
-
-/** The 📆 Calendar root's picker settings; each is true unless the root sets it false. */
-export interface CalendarSettings {
-	foundDates: boolean;
-	dayPrefix: boolean;
-}
 
 const ROW_CLASS = "[&_.menuItemIcon]:w-[26px] mobile:[&_.menuItemIcon]:w-[54px]";
 

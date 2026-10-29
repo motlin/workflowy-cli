@@ -14,7 +14,7 @@ import {
 	toExportItems,
 	usesIframeCopy,
 } from "../export-format.js";
-import type {ExportTreeResponse} from "../../node-types.js";
+import type {AccountResponse, ExportTreeResponse} from "../../node-types.js";
 import type {ExportFormatType, ExportItem} from "../export-format.js";
 import {currentSearchFilter} from "../hooks/use-tree-search.js";
 import {readJson} from "../read-json.js";
@@ -90,8 +90,8 @@ async function fetchOwnerEmail(): Promise<string> {
 	if (!response.ok) {
 		return "";
 	}
-	const {email} = await readJson<{email?: string}>(response);
-	return email ?? "";
+	const {email} = await readJson<AccountResponse>(response);
+	return email;
 }
 
 interface Generated {

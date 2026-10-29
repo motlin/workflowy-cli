@@ -15,6 +15,7 @@ import {
 import type {PickerEffect, PickerEvent, PickerResult, PickerState} from "../location-picker-model.js";
 import {nodeKeys, readNode} from "../node-cache.js";
 import {ensureNotesLocation, notesRootIdFor} from "../notes-location.js";
+import type {LocationResponse, RelatedResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {createRecentLocations} from "../recent-locations.js";
 import type {RecentLocations} from "../recent-locations.js";
@@ -25,11 +26,7 @@ import {LocationPicker} from "./location-picker.js";
 import type {LocationCrumb} from "./location-picker.js";
 
 /** One `/api/search/locations` hit: upstream's `<b><u>` word-start label and root-first ancestors without Home. */
-interface SearchHit {
-	id: string;
-	labelHtml: string;
-	ancestors: LocationCrumb[];
-}
+type SearchHit = LocationResponse["results"][number];
 
 const SEARCH_LIMIT = 50;
 const EMPTY_HITS: readonly SearchHit[] = [];
@@ -75,7 +72,7 @@ function useSearchHits(
 			if (!response.ok) {
 				return;
 			}
-			const {results} = await readJson<{results: SearchHit[]}>(response);
+			const {results} = await readJson<LocationResponse>(response);
 			if (!controller.signal.aborted) {
 				setFound({query, hits: results});
 			}
@@ -92,11 +89,7 @@ function useSearchHits(
 	return {hits: landed ? found.hits : EMPTY_HITS, pending: !landed && query.trim() !== ""};
 }
 
-interface RelatedHit {
-	id: string;
-	name: string | null;
-	path: string[];
-}
+type RelatedHit = RelatedResponse["results"][number];
 
 const RELATED_LIMIT = 8;
 const RELATED_THRESHOLD = 0.6;
@@ -125,7 +118,7 @@ function useRelatedHits(nodeId: string | undefined): readonly RelatedHit[] {
 			if (!response.ok) {
 				return;
 			}
-			const {results} = await readJson<{results: RelatedHit[]}>(response);
+			const {results} = await readJson<RelatedResponse>(response);
 			setFound({nodeId, hits: results});
 		})().catch((error: unknown) => {
 			if (!controller.signal.aborted) {

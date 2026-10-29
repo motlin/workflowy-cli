@@ -86,6 +86,21 @@ export const NodeEnvelopeSchema = z.strictObject({node: NodeResponseSchema});
 /** A list of nodes, as `GET /nodes`, the moves and `POST /nodes/mirror` answer it. */
 export const NodeListSchema = z.strictObject({nodes: z.array(NodeResponseSchema)});
 
+/** Each requested parent's live children, as `POST /nodes/children` answers it. */
+export const NodeChildrenResponseSchema = z.strictObject({children: z.record(z.string(), z.array(NodeResponseSchema))});
+
+/** A node's ancestors, as `GET /nodes/:id/ancestors` answers it. */
+export const AncestorsResponseSchema = z.strictObject({ancestors: z.array(NodeResponseSchema)});
+
+/** What `POST /nodes/:id/detach-mirror` answers: the detached copy, or null when there was nothing to copy. */
+export const DetachMirrorResponseSchema = z.strictObject({node: NodeResponseSchema.nullable()});
+
+/** What `POST /nodes/:id/swap-mirror-origin` answers: the swapped pair, or why nothing was swapped. */
+export const SwapMirrorOriginResponseSchema = z.union([
+	z.strictObject({swapped: z.strictObject({mirrorId: z.string(), originalId: z.string()})}),
+	z.strictObject({warning: z.string()}),
+]);
+
 /** The ids of the roots a bulk create or duplicate made, in order. */
 export const CreatedIdsSchema = z.strictObject({ids: z.array(z.string())});
 
@@ -207,6 +222,9 @@ export const SubtreeItemSchema = z.strictObject({
 	completed: z.boolean(),
 	hasChildren: z.boolean(),
 });
+
+/** What `GET /:id/subtree-ids` answers. */
+export const SubtreeItemsResponseSchema = z.strictObject({items: z.array(SubtreeItemSchema)});
 
 /** Home's own metadata: its layoutMode ("bullets" when unset). */
 export const HomeResponseSchema = z.strictObject({layoutMode: z.string()});

@@ -1,6 +1,6 @@
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
-import type {CalendarSettings} from "../components/calendar-picker-settings.js";
+import type {CalendarSettings, OpErrorBody} from "../../node-types.js";
 import {nodeKeys} from "../node-cache.js";
 import {readJson} from "../read-json.js";
 
@@ -19,7 +19,7 @@ async function fetchSettings(): Promise<CalendarSettings> {
 
 /** The route's `{error}` message, else the status line. */
 async function errorMessage(response: Response): Promise<string> {
-	const body = await readJson<{error?: unknown}>(response).catch(() => ({error: undefined}));
+	const body = await readJson<OpErrorBody>(response).catch((): OpErrorBody => ({}));
 	return typeof body.error === "string" ? body.error : `${response.status} ${response.statusText}`.trim();
 }
 

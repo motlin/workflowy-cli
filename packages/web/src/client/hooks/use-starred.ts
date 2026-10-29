@@ -10,7 +10,7 @@ import {useEffect, useMemo, useRef} from "react";
 import {z} from "zod";
 import {applyToggle, locationKey, moveKey, shouldRecordView, uniqueId} from "@workflowy/shared";
 import type {Star, StarredLocation} from "@workflowy/shared";
-import type {NodeResponse} from "../../node-types.js";
+import type {StarsResponse} from "../../node-types.js";
 import {nodeKeys, readDetail} from "../node-cache.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -47,9 +47,9 @@ export async function fetchStars(queryClient?: QueryClient): Promise<StarsState>
 	if (!response.ok) {
 		throw new Error(`Failed to fetch stars: ${response.status}`);
 	}
-	const {stars, nodes} = await readJson<{stars: Star[]; nodes?: NodeResponse[]}>(response);
+	const {stars, nodes} = await readJson<StarsResponse>(response);
 	if (queryClient !== undefined) {
-		for (const node of nodes ?? []) {
+		for (const node of nodes) {
 			if (readDetail(queryClient, node.id) === undefined) {
 				queryClient.setQueryData(nodeKeys.detail(node.id), node);
 			}

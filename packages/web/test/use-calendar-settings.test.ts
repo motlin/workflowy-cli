@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {CALENDAR_SETTINGS_KEY, toggleCalendarSetting} from "../src/client/hooks/use-calendar-settings.js";
-import type {CalendarSettings} from "../src/client/components/calendar-picker-settings.js";
+import type {CalendarSettings} from "../src/node-types.js";
 import {readJson} from "../src/client/read-json.js";
 import {hasSelector} from "./helpers/css-block.js";
 

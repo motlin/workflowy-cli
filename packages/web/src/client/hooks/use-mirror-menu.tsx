@@ -4,6 +4,7 @@ import {MirrorMenu} from "../components/mirror-menu.js";
 import type {MirrorHit} from "../components/mirror-menu.js";
 import {serializeEditorHtml} from "../editor-html.js";
 import {planMirrorOpen, planMirrorRearm} from "../inline-mirror.js";
+import type {LocationResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {useSuggest} from "./use-suggest.js";
 import type {SuggestClient, SuggestInputResult} from "./use-suggest.js";
@@ -34,7 +35,7 @@ async function fetchHits(query: string): Promise<MirrorHit[]> {
 		headers: {"Content-Type": "application/json"},
 		body: JSON.stringify({query, limit: SEARCH_LIMIT}),
 	});
-	return response.ok ? (await readJson<{results: MirrorHit[]}>(response)).results : [];
+	return response.ok ? (await readJson<LocationResponse>(response)).results : [];
 }
 
 function rangeHtml(range: Range): string {

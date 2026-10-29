@@ -103,9 +103,14 @@ function plain(tags: TagCount[]): {tag: string; count: number}[] {
 	return tags.map(({tag, count}) => ({tag, count}));
 }
 
+/** Each matching tag with its count, most used first. */
+export const TagAutocompleteResponseSchema = z.strictObject({
+	tags: z.array(z.strictObject({tag: z.string(), count: z.number()})),
+});
+
 export const tagIndexAutocomplete = defineOp({
 	input: Input,
-	output: z.strictObject({tags: z.array(z.strictObject({tag: z.string(), count: z.number()}))}),
+	output: TagAutocompleteResponseSchema,
 	run(ctx, {root: rawRoot, prefix, limit: rawLimit, item: rawItem, name, note, fallback}) {
 		const limit = parseLimit(rawLimit);
 		const live: LiveText | null =

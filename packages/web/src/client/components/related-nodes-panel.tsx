@@ -5,19 +5,10 @@ import {nodeUrl} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {useOutlineStore} from "../stores/outline.js";
+import type {OpErrorBody, RelatedResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 
-interface RelatedNode {
-	id: string;
-	name: string | null;
-	note: string | null;
-	distance: number;
-	path: string[];
-}
-
-interface RelatedResponse {
-	results: RelatedNode[];
-}
+type RelatedNode = RelatedResponse["results"][number];
 
 function formatSimilarityScore(distance: number): string {
 	// Convert distance to similarity percentage (1 - distance)
@@ -38,7 +29,7 @@ async function fetchRelatedNodes(nodeId: string): Promise<RelatedNode[]> {
 		}),
 	});
 	if (!response.ok) {
-		const data = await readJson<{error?: string}>(response);
+		const data = await readJson<OpErrorBody>(response);
 		throw new Error(data.error ?? "Failed to fetch related nodes");
 	}
 	const data = await readJson<RelatedResponse>(response);

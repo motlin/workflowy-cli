@@ -1,6 +1,7 @@
 import {useQueries} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {useCallback, useState} from "react";
+import type {CalendarDaysResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 
 /** A calendar month, `month` 1-12. */
@@ -23,7 +24,7 @@ async function fetchCalendarDays(visible: CalendarMonth, options: EventDayOption
 	if (!response.ok) {
 		throw new Error(`Failed to fetch calendar days: ${response.statusText}`);
 	}
-	return (await readJson<{days: number[]}>(response)).days;
+	return (await readJson<CalendarDaysResponse>(response)).days;
 }
 
 /** The query key for a month's dotted days; the strip's Found Dates variant is cached apart. */

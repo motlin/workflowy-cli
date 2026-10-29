@@ -4,7 +4,7 @@ import {planSwapOrigin} from "../../swap-origin.js";
 import {MAX_COPY_ITEMS, copySubtree} from "../copy-tree.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 import {defineOp, fail, ok, toJson} from "./define.js";
-import {NodeListSchema, NodeResponseSchema} from "./schemas.js";
+import {DetachMirrorResponseSchema, NodeListSchema, SwapMirrorOriginResponseSchema} from "./schemas.js";
 import {
 	adapterParent,
 	countChildren,
@@ -85,7 +85,7 @@ export const nodesMirror = defineOp({
 // POST /api/v1/nodes/:id/detach-mirror - Replace a mirror root (a mirror, or an original that has mirrors) with a copy
 export const nodesDetachMirror = defineOp({
 	input: z.object({id: z.string()}),
-	output: z.strictObject({node: NodeResponseSchema.nullable()}),
+	output: DetachMirrorResponseSchema,
 	async run(ctx, {id: rawId}) {
 		const client = getWriteClient(ctx);
 		const adapter = getAdapter(ctx);
@@ -134,10 +134,7 @@ export const nodesDetachMirror = defineOp({
 // POST /api/v1/nodes/:id/swap-mirror-origin - Make a mirror the origin: it and its original exchange slots
 export const nodesSwapMirrorOrigin = defineOp({
 	input: z.object({id: z.string()}),
-	output: z.union([
-		z.strictObject({swapped: z.strictObject({mirrorId: z.string(), originalId: z.string()})}),
-		z.strictObject({warning: z.string()}),
-	]),
+	output: SwapMirrorOriginResponseSchema,
 	async run(ctx, {id: rawId}) {
 		const adapter = getAdapter(ctx);
 		if (!adapter) {

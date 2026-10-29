@@ -1,5 +1,5 @@
 import type {QueryClient, QueryKey} from "@tanstack/react-query";
-import type {NodeResponse} from "../node-types.js";
+import type {NodeChildrenResponse, NodeEnvelope, NodeListResponse, NodeResponse} from "../node-types.js";
 import {nodeKeys} from "./node-cache.js";
 import {readJson} from "./read-json.js";
 
@@ -70,7 +70,7 @@ async function fetchDetail(nodeId: string): Promise<NodeResponse | undefined> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch node: ${response.statusText}`);
 	}
-	return (await readJson<{node: NodeResponse}>(response)).node;
+	return (await readJson<NodeEnvelope>(response)).node;
 }
 
 async function fetchList(parentId: string | null): Promise<NodeResponse[] | undefined> {
@@ -79,7 +79,7 @@ async function fetchList(parentId: string | null): Promise<NodeResponse[] | unde
 		if (!response.ok) {
 			throw new Error(`Failed to fetch children: ${response.statusText}`);
 		}
-		return (await readJson<{nodes: NodeResponse[]}>(response)).nodes;
+		return (await readJson<NodeListResponse>(response)).nodes;
 	}
 	// A deleted node's leftover list renders nowhere: only a live parent's list is compared.
 	if ((await fetchDetail(parentId)) === undefined) {
@@ -93,7 +93,7 @@ async function fetchList(parentId: string | null): Promise<NodeResponse[] | unde
 	if (!response.ok) {
 		throw new Error(`Failed to fetch children: ${response.statusText}`);
 	}
-	return (await readJson<{children: Record<string, NodeResponse[]>}>(response)).children[parentId];
+	return (await readJson<NodeChildrenResponse>(response)).children[parentId];
 }
 
 /** The server's answer for a children-list or detail key; undefined for any other key or a node the server lacks. */

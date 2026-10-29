@@ -5,6 +5,7 @@
 
 import {isFeatureOn} from "../features.js";
 import {useQueryClient} from "@tanstack/react-query";
+import type {NodeEnvelope} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {nodeUrl} from "../navigation.js";
 import type {Command} from "../keys/dispatch.js";
@@ -26,7 +27,7 @@ async function postNode(parentId: string | null, node: {name: string; note?: str
 	if (!response.ok) {
 		throw new Error("Failed to create a custom node");
 	}
-	const data = await readJson<{node: {id: string}}>(response);
+	const data = await readJson<NodeEnvelope>(response);
 	return data.node.id;
 }
 

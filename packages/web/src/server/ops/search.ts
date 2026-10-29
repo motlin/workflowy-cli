@@ -35,7 +35,7 @@ type SearchResult = z.output<typeof SearchResultSchema>;
 
 const TextSearchResponseSchema = z.strictObject({results: z.array(SearchResultSchema), totalCount: z.number()});
 
-const HelperTagsSchema = z.strictObject({hashTags: z.array(z.string()), atTags: z.array(z.string())});
+export const HelperTagsSchema = z.strictObject({hashTags: z.array(z.string()), atTags: z.array(z.string())});
 
 const TreeSearchResultSchema = z.strictObject({
 	matchIds: z.array(z.string()),
@@ -70,7 +70,7 @@ const SwitcherResponseSchema = z.strictObject({
 	hasMore: z.boolean(),
 });
 
-const LocationResponseSchema = z.strictObject({
+export const LocationResponseSchema = z.strictObject({
 	results: z.array(
 		z.strictObject({
 			id: z.string(),

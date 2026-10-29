@@ -2,7 +2,7 @@ import {parseVirtualShortId} from "@workflowy/shared/workflowy";
 import {skipToken, useQuery, useQueryClient} from "@tanstack/react-query";
 import {useLayoutEffect, useRef} from "react";
 import {useLocation, useNavigate} from "react-router-dom";
-import type {NodeResponse} from "../../node-types.js";
+import type {NodeEnvelope} from "../../node-types.js";
 import {locationUrl, parseLocationHash} from "../location.js";
 import {resolveZoomTarget, zoomToCachedLocation} from "../navigation.js";
 import {RESOLVED_ID_STALE_TIME, cachedResolvedId, nodeKeys} from "../node-cache.js";
@@ -25,7 +25,7 @@ export async function fetchResolvedId(locationId: string): Promise<string | null
 	if (!response.ok) {
 		throw new Error(`Failed to resolve node: ${response.statusText}`);
 	}
-	const data = await readJson<{node: NodeResponse}>(response);
+	const data = await readJson<NodeEnvelope>(response);
 	return data.node.id;
 }
 

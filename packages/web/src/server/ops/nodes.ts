@@ -32,17 +32,18 @@ import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 import {changedNodeIds, changedPlacement, changesSince, latestSystemTime, readConsistently} from "../system-changes.js";
 import {defineOp, fail, ok, toJson} from "./define.js";
 import {
+	AncestorsResponseSchema,
 	BacklinksResponseSchema,
 	ExportTreeResponseSchema,
 	FoundDatesResponseSchema,
 	HomeResponseSchema,
 	MirrorsResponseSchema,
 	NodeChangesResponseSchema,
+	NodeChildrenResponseSchema,
 	NodeEnvelopeSchema,
 	NodeListSchema,
-	NodeResponseSchema,
 	OutlineViewResponseSchema,
-	SubtreeItemSchema,
+	SubtreeItemsResponseSchema,
 } from "./schemas.js";
 import {
 	getAdapter,
@@ -86,7 +87,7 @@ export const nodesList = defineOp({
 // mirror lists its original's children; an unresolvable short id is left out. Spares the client one GET per expanded row.
 export const nodesChildren = defineOp({
 	input: z.object({parentIds: z.array(z.string())}),
-	output: z.strictObject({children: z.record(z.string(), z.array(NodeResponseSchema))}),
+	output: NodeChildrenResponseSchema,
 	run(ctx, {parentIds}) {
 		const requestedToResolved = new Map<string, string>();
 		for (const requested of new Set(parentIds)) {
@@ -475,7 +476,7 @@ function readSubtreeItems(ctx: ServerContext, rootId: string | null): SubtreeIte
 // GET /api/v1/nodes/:id/subtree-ids - Every cached descendant of the node ("home" = the whole tree), for Expand/Collapse all
 export const nodesSubtreeIds = defineOp({
 	input: IdInput,
-	output: z.strictObject({items: z.array(SubtreeItemSchema)}),
+	output: SubtreeItemsResponseSchema,
 	run(ctx, {id: rawId}) {
 		if (rawId === HOME_TARGET) {
 			return ok(toJson({items: readSubtreeItems(ctx, null)}));
@@ -491,7 +492,7 @@ export const nodesSubtreeIds = defineOp({
 // GET /api/v1/nodes/:id/ancestors - Get all ancestors from root to node
 export const nodesAncestors = defineOp({
 	input: IdInput,
-	output: z.strictObject({ancestors: z.array(NodeResponseSchema)}),
+	output: AncestorsResponseSchema,
 	run(ctx, {id: rawId}) {
 		const id = resolveNodeId(ctx, rawId);
 		if (!id) {

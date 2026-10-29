@@ -60,15 +60,21 @@ const LadderSchema = z.strictObject({
 	),
 });
 
+/** Both ladders, keyed by root. */
+export const LaddersResponseSchema = z.strictObject({ladders: z.record(z.string(), LadderSchema)});
+
+/** A refused move or complete; `reconcile` asks the page to reread the ladder instead of failing outright. */
+export const LadderFailureSchema = z.strictObject({error: z.string(), reconcile: z.literal(true).optional()});
+
 /** The write a move or complete made, as the event bus announced it. */
-const LadderEventEnvelopeSchema = z.strictObject({event: z.strictObject(LadderEventSchema.shape)});
+export const LadderEventEnvelopeSchema = z.strictObject({event: z.strictObject(LadderEventSchema.shape)});
 
 /** Build the three ladder ops over a service factory; a test injects a fake service. */
 export function createLadderOps(createService: (ctx: ServerContext) => LadderOperations) {
 	return {
 		"ladder.read": defineOp({
 			input: z.object({}),
-			output: z.strictObject({ladders: z.record(z.string(), LadderSchema)}),
+			output: LaddersResponseSchema,
 			async run(ctx) {
 				return ok(toJson({ladders: await createService(ctx).read()}));
 			},
@@ -86,7 +92,9 @@ export function createLadderOps(createService: (ctx: ServerContext) => LadderOpe
 					});
 					return ok({event});
 				} catch (error) {
-					return fail(400, {error: messageOf(error), reconcile: true});
+					return fail(400, {error: messageOf(error), reconcile: true} satisfies z.output<
+						typeof LadderFailureSchema
+					>);
 				}
 			},
 		}),
@@ -97,7 +105,7 @@ export function createLadderOps(createService: (ctx: ServerContext) => LadderOpe
 				try {
 					return ok({event: await createService(ctx).complete({root, nodeId})});
 				} catch (error) {
-					return fail(400, {error: messageOf(error)});
+					return fail(400, {error: messageOf(error)} satisfies z.output<typeof LadderFailureSchema>);
 				}
 			},
 		}),

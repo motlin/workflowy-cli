@@ -31,7 +31,7 @@ const ChangeTreeNodeSchema = z.strictObject({
 	},
 });
 
-const ChangesSchema = z.strictObject({
+export const ChangesSchema = z.strictObject({
 	changes: z.array(NodeChangeSchema),
 	tree: z.array(ChangeTreeNodeSchema),
 	summary: z.strictObject({

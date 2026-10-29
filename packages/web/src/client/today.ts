@@ -1,6 +1,7 @@
 import {isFeatureOn} from "./features.js";
 import {dateId} from "@workflowy/shared";
 import type {CalendarLevel} from "@workflowy/shared";
+import type {CalendarDayResponse, CalendarEnsureResponse} from "../node-types.js";
 import {readJson} from "./read-json.js";
 
 export interface NavigateToTodayDeps {
@@ -51,17 +52,17 @@ export async function findOrEnsureCalendarNode(
 	const ensureQuery = ensureParams.length === 0 ? "" : `?${ensureParams.join("&")}`;
 	const found = await fetch(`${url}${lookupQuery}`);
 	if (found.ok) {
-		const {id, firstChildId} = await readJson<{id: string; firstChildId: string | null}>(found);
+		const {id, firstChildId} = await readJson<CalendarDayResponse>(found);
 		if (firstChildId === null && createChild) {
 			const filled = await fetch(`${url}/ensure${ensureQuery}`, {method: "POST"});
 			if (filled.ok) {
-				return readJson<{dayId: string; firstChildId: string | null}>(filled);
+				return readJson<CalendarEnsureResponse>(filled);
 			}
 		}
 		return {dayId: id, firstChildId};
 	}
 	const ensured = await fetch(`${url}/ensure${ensureQuery}`, {method: "POST"});
-	return ensured.ok ? readJson<{dayId: string; firstChildId: string | null}>(ensured) : null;
+	return ensured.ok ? readJson<CalendarEnsureResponse>(ensured) : null;
 }
 
 /**

@@ -76,7 +76,7 @@ const SettingsBody = z
 const CalendarLevelSchema = z.enum(CALENDAR_LEVELS);
 /** The root's `calendar.levels`; a missing key is off. */
 const LayoutLevelsSchema = z.partialRecord(CalendarLevelSchema, z.boolean());
-const CalendarSettingsSchema = z.strictObject({foundDates: z.boolean(), dayPrefix: z.boolean()});
+export const CalendarSettingsSchema = z.strictObject({foundDates: z.boolean(), dayPrefix: z.boolean()});
 /** What a layout write (or its undo) pushed; `writes` is 0 when the layout was already in place. */
 export const AppliedLayoutSchema = z.strictObject({rootId: z.string(), writes: z.number()});
 const CalendarLevelMetadataSchema = z.strictObject({
@@ -221,10 +221,25 @@ const calendarSettingsGet = defineOp({
 	},
 });
 
+/** A found day (or the week, month or year holding it) and its first live child. */
+export const CalendarDayResponseSchema = z.strictObject({id: z.string(), firstChildId: z.string().nullable()});
+/** The month's days with journal content. */
+export const CalendarDaysResponseSchema = z.strictObject({days: z.array(z.number())});
+/** The range's YYYYMMDD days with journal content. */
+export const CalendarDotsResponseSchema = z.strictObject({dateIds: z.array(z.number())});
+/** What ensuring a day made. */
+export const CalendarEnsureResponseSchema = z.strictObject({
+	/** The ensured node: the day, or the week, month or year with `level`. */
+	dayId: z.string(),
+	firstChildId: z.string().nullable(),
+	/** Ids created by this call, outermost first. */
+	created: z.array(z.string()),
+});
+
 /** `{id, firstChildId}` for a day (or the week, month or year holding it), 404 when it is not found. */
 const calendarDay = defineOp({
 	input: DayInput,
-	output: z.strictObject({id: z.string(), firstChildId: z.string().nullable()}),
+	output: CalendarDayResponseSchema,
 	async run(ctx, input) {
 		const dateId = dayDateId(input.dateId);
 		if (dateId === undefined) {
@@ -246,7 +261,7 @@ const calendarDay = defineOp({
 /** The month's days with journal content, for the date picker's event dots. */
 const calendarDays = defineOp({
 	input: DaysInput,
-	output: z.strictObject({days: z.array(z.number())}),
+	output: CalendarDaysResponseSchema,
 	async run(ctx, input) {
 		const year = intParam(input.year, 1, 9999);
 		const month = intParam(input.month, 1, 12);
@@ -408,7 +423,7 @@ const calendarLayoutPreview = defineOp({
 /** The days in a range with journal content, for the day strip's dots. */
 const calendarDots = defineOp({
 	input: DotsInput,
-	output: z.strictObject({dateIds: z.array(z.number())}),
+	output: CalendarDotsResponseSchema,
 	async run(ctx, input) {
 		const from = dayDateId(input.from ?? "");
 		const to = dayDateId(input.to ?? "");
@@ -427,13 +442,7 @@ const calendarDots = defineOp({
 /** Creates the day (and its ancestors) the way upstream's Today does. */
 const calendarEnsure = defineOp({
 	input: EnsureInput,
-	output: z.strictObject({
-		/** The ensured node: the day, or the week, month or year with `level`. */
-		dayId: z.string(),
-		firstChildId: z.string().nullable(),
-		/** Ids created by this call, outermost first. */
-		created: z.array(z.string()),
-	}),
+	output: CalendarEnsureResponseSchema,
 	async run(ctx, input) {
 		if (ctx.calendarEnsureEnabled !== true) {
 			return fail(403, {error: ENSURE_DISABLED});

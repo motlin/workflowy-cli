@@ -4,7 +4,7 @@ import {createPortal} from "react-dom";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {dateId, dayTimestamp, formatPillLabel, guessDates, presetDate, stripModel} from "@workflowy/shared";
 import type {CalendarLevel, DatePreset} from "@workflowy/shared";
-import type {NodeResponse} from "../../node-types.js";
+import type {CalendarDotsResponse, NodeResponse} from "../../node-types.js";
 import {prefetchCalendarDays, useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
 import {
 	applyCalendarLayout,
@@ -48,7 +48,7 @@ async function fetchDots(from: number, to: number): Promise<number[]> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch calendar dots: ${response.statusText}`);
 	}
-	return (await readJson<{dateIds: number[]}>(response)).dateIds;
+	return (await readJson<CalendarDotsResponse>(response)).dateIds;
 }
 
 /** The day dateIds in `[from, to]` with journal content; empty until loaded or when `from` is null. */

@@ -1,6 +1,7 @@
 import type {QueryClient} from "@tanstack/react-query";
 import {readChildren} from "../node-cache.js";
 import {syncNodeChanges} from "../hooks/use-nodes.js";
+import type {CreatedIdsResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {toRequestStatusError} from "../request-error.js";
 import {sortByPriority} from "../tree-position.js";
@@ -39,7 +40,7 @@ export async function createTrees(queryClient: QueryClient, request: CreateTrees
 		if (!response.ok) {
 			throw await toRequestStatusError("Failed to paste", response);
 		}
-		const {ids} = await readJson<{ids: string[]}>(response);
+		const {ids} = await readJson<CreatedIdsResponse>(response);
 		slot.settle(
 			ids.map((nodeId, at) => ({kind: "create", nodeId, parentId: request.parentId, index: baseIndex + at})),
 		);

@@ -77,59 +77,17 @@ function handTypedResponses(): string[] {
 }
 
 /**
- * Reads whose route has no op output schema yet, or whose op has not been wired to an inferred type. Remove each entry
- * when its read switches to a type from `node-types.ts`; never add one.
+ * Reads exempt from schema inference: only the decisions page, which leaves this repo with the rest of GTD. Never add
+ * one; infer the type from the op's output schema in `node-types.ts` instead.
  */
-const NOT_YET_INFERRED = [
-	"cache-verify.ts: readJson<{children: Record<string, NodeResponse[]>}>",
-	"cache-verify.ts: readJson<{node: NodeResponse}>",
-	"cache-verify.ts: readJson<{nodes: NodeResponse[]}>",
-	"components/calendar-strip.tsx: readJson<{dateIds: number[]}>",
-	"components/changes-view.tsx: ChangesResponse",
+const EXEMPT_READS = [
+	// The decisions page is GTD and moves to its own repo with its backend; it gets no op here.
 	"components/decisions-view.tsx: readJson<{error: string}>",
-	"components/export-dialog.tsx: readJson<{email?: string}>",
-	"components/ladder-view.tsx: Ladders",
-	"components/ladder-view.tsx: readJson<{error?: string; reconcile?: boolean}>",
-	"components/ladder-view.tsx: readJson<{event: LadderEvent}>",
-	"components/ladder-view.tsx: readJson<{ladders: Ladders}>",
-	"components/location-picker-host.tsx: RelatedHit",
-	"components/location-picker-host.tsx: SearchHit",
-	"components/location-picker-host.tsx: readJson<{results: RelatedHit[]}>",
-	"components/location-picker-host.tsx: readJson<{results: SearchHit[]}>",
-	"components/main-menu-rows.tsx: readJson<{nodes: {id: string}[]}>",
-	"components/mobile-more-menu.tsx: readJson<{nodes: {id: string}[]}>",
-	"components/related-nodes-panel.tsx: RelatedResponse",
-	"components/related-nodes-panel.tsx: readJson<{error?: string}>",
-	"components/search-box.tsx: HelperTagLists",
-	"components/search-box.tsx: readJson<{tags: {tag: string}[]}>",
-	"hooks/use-calendar-event-days.ts: readJson<{days: number[]}>",
-	"hooks/use-calendar-settings.ts: CalendarSettings",
-	"hooks/use-calendar-settings.ts: readJson<{error?: unknown}>",
-	"hooks/use-customize-commands.ts: readJson<{node: {id: string}}>",
-	"hooks/use-hash-location-zoom.ts: readJson<{node: NodeResponse}>",
-	"hooks/use-mention-menu.tsx: readJson<{tags: {tag: string}[]}>",
-	"hooks/use-mirror-menu.tsx: MirrorHit",
-	"hooks/use-mirror-menu.tsx: readJson<{results: MirrorHit[]}>",
-	"hooks/use-nodes.ts: readJson<{ancestors: NodeResponse[]}>",
-	"hooks/use-nodes.ts: readJson<{children: Record<string, NodeResponse[]>}>",
-	"hooks/use-nodes.ts: readJson<{ids: string[]}>",
-	"hooks/use-nodes.ts: readJson<{items: SubtreeItem[]}>",
-	"hooks/use-nodes.ts: readJson<{node: NodeResponse | null}>",
-	"hooks/use-nodes.ts: readJson<{node: NodeResponse}>",
-	"hooks/use-nodes.ts: readJson<{nodes: NodeResponse[]}>",
-	"hooks/use-nodes.ts: readJson<{warning?: string}>",
-	"hooks/use-starred.ts: readJson<{stars: Star[]; nodes?: NodeResponse[]}>",
-	"hooks/use-tag-autocomplete.tsx: AutocompleteResult",
-	"hooks/use-tag-autocomplete.tsx: readJson<{tags: AutocompleteResult[]}>",
-	"notes-location.ts: readJson<{node: NodeResponse}>",
-	"paste/create-trees.ts: readJson<{ids: string[]}>",
-	"today.ts: readJson<{dayId: string; firstChildId: string | null}>",
-	"today.ts: readJson<{id: string; firstChildId: string | null}>",
 ];
 
 describe("client modules read op responses as schema-inferred types", () => {
-	it("declares, copies or inlines no response type beyond the known, shrinking list", () => {
-		expect(handTypedResponses()).toStrictEqual(NOT_YET_INFERRED);
+	it("declares, copies or inlines no response type beyond the exempt decisions reads", () => {
+		expect(handTypedResponses()).toStrictEqual(EXEMPT_READS);
 	});
 
 	it("finds a locally declared type inside a readJson type argument", () => {

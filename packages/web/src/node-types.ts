@@ -5,10 +5,13 @@
 
 import type {z} from "zod";
 import type {
+	AncestorsResponseSchema,
 	BacklinkCrumbSchema,
 	BacklinkItemSchema,
 	BacklinksResponseSchema,
 	CalendarInfoSchema,
+	CreatedIdsSchema,
+	DetachMirrorResponseSchema,
 	ExpansionChangesResponseSchema,
 	ExportTreeItemSchema,
 	ExportTreeResponseSchema,
@@ -19,30 +22,53 @@ import type {
 	MirrorsResponseSchema,
 	NodeAttachmentSchema,
 	NodeChangesResponseSchema,
+	NodeChildrenResponseSchema,
+	NodeEnvelopeSchema,
 	NodeListSchema,
 	NodeResponseSchema,
 	OutlineViewListSchema,
 	OutlineViewResponseSchema,
 	SaveEffectsSchema,
 	SubtreeItemSchema,
+	SubtreeItemsResponseSchema,
+	SwapMirrorOriginResponseSchema,
 	TableMetadataSchema,
 	UpdateNodeResponseSchema,
 } from "./server/ops/schemas.js";
 import type {AccountResponseSchema} from "./server/ops/account.js";
 import type {
 	AppliedLayoutSchema,
+	CalendarDayResponseSchema,
+	CalendarDaysResponseSchema,
+	CalendarDotsResponseSchema,
+	CalendarEnsureResponseSchema,
 	CalendarLayoutPreviewSchema,
 	CalendarLayoutSchema,
+	CalendarSettingsSchema,
 	LayoutStepSchema,
 } from "./server/ops/calendar.js";
+import type {ChangesSchema} from "./server/ops/changes.js";
 import type {CustomTreeResponseSchema} from "./server/ops/custom-tree.js";
 import type {FeatureSetResponseSchema, FeaturesResponseSchema} from "./server/ops/features.js";
+import type {LadderEventEnvelopeSchema, LadderFailureSchema, LaddersResponseSchema} from "./server/ops/ladder.js";
 import type {PreferencesSchema} from "./server/ops/preferences.js";
+import type {RelatedResponseSchema} from "./server/ops/related.js";
+import type {HelperTagsSchema, LocationResponseSchema} from "./server/ops/search.js";
+import type {StarsResponseSchema} from "./server/ops/stars.js";
+import type {TagAutocompleteResponseSchema} from "./server/ops/tag-index.js";
 import type {TagColorsResponseSchema} from "./server/ops/tags.js";
 
 export type NodeAttachment = z.output<typeof NodeAttachmentSchema>;
 export type NodeResponse = z.output<typeof NodeResponseSchema>;
 export type NodeListResponse = z.output<typeof NodeListSchema>;
+/** One node, as `GET /nodes/:id` and the single-node writes answer it. */
+export type NodeEnvelope = z.output<typeof NodeEnvelopeSchema>;
+export type NodeChildrenResponse = z.output<typeof NodeChildrenResponseSchema>;
+export type AncestorsResponse = z.output<typeof AncestorsResponseSchema>;
+export type CreatedIdsResponse = z.output<typeof CreatedIdsSchema>;
+export type DetachMirrorResponse = z.output<typeof DetachMirrorResponseSchema>;
+export type SwapMirrorOriginResponse = z.output<typeof SwapMirrorOriginResponseSchema>;
+export type SubtreeItemsResponse = z.output<typeof SubtreeItemsResponseSchema>;
 export type TableMetadata = z.output<typeof TableMetadataSchema>;
 export type CalendarInfo = z.output<typeof CalendarInfoSchema>;
 export type BacklinkCrumb = z.output<typeof BacklinkCrumbSchema>;
@@ -76,6 +102,20 @@ export type FeaturesResponse = z.output<typeof FeaturesResponseSchema>;
 export type FeatureSetResponse = z.output<typeof FeatureSetResponseSchema>;
 export type Preferences = z.output<typeof PreferencesSchema>;
 export type TagColorsResponse = z.output<typeof TagColorsResponseSchema>;
+export type TagAutocompleteResponse = z.output<typeof TagAutocompleteResponseSchema>;
+export type StarsResponse = z.output<typeof StarsResponseSchema>;
+export type CalendarSettings = z.output<typeof CalendarSettingsSchema>;
+export type CalendarDayResponse = z.output<typeof CalendarDayResponseSchema>;
+export type CalendarDaysResponse = z.output<typeof CalendarDaysResponseSchema>;
+export type CalendarDotsResponse = z.output<typeof CalendarDotsResponseSchema>;
+export type CalendarEnsureResponse = z.output<typeof CalendarEnsureResponseSchema>;
+export type ChangesResponse = z.output<typeof ChangesSchema>;
+export type LaddersResponse = z.output<typeof LaddersResponseSchema>;
+export type LadderEventEnvelope = z.output<typeof LadderEventEnvelopeSchema>;
+export type LadderFailure = z.output<typeof LadderFailureSchema>;
+export type RelatedResponse = z.output<typeof RelatedResponseSchema>;
+export type HelperTags = z.output<typeof HelperTagsSchema>;
+export type LocationResponse = z.output<typeof LocationResponseSchema>;
 
 /** The body an op answers with when it fails (`fail(status, {error})`). */
 export interface OpErrorBody {

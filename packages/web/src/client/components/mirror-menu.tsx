@@ -7,14 +7,10 @@ import {FlyoutAlign} from "./flyout/flyout-style.js";
 import {MenuScroller} from "./flyout/menu.js";
 import {MenuItem, MenuSectionHeader} from "./flyout/menu-item.js";
 import {LocationCrumbs} from "./location-picker.js";
-import type {LocationCrumb} from "./location-picker.js";
+import type {LocationResponse} from "../../node-types.js";
 
 /** One location the `((` popup offers: upstream's `<b><u>` word-start label and root-first ancestors without Home. */
-export interface MirrorHit {
-	id: string;
-	labelHtml: string;
-	ancestors: LocationCrumb[];
-}
+export type MirrorHit = LocationResponse["results"][number];
 
 interface MirrorMenuProps {
 	hits: readonly MirrorHit[];

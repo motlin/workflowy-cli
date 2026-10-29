@@ -17,7 +17,7 @@ const RelatedNodeSchema = z.strictObject({
 	path: z.array(z.string()),
 });
 
-const RelatedResponseSchema = z.strictObject({results: z.array(RelatedNodeSchema)});
+export const RelatedResponseSchema = z.strictObject({results: z.array(RelatedNodeSchema)});
 
 type RelatedNode = z.output<typeof RelatedNodeSchema>;
 

@@ -6,6 +6,7 @@ import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {isMacPlatform} from "../editable-text-keys.js";
 import {useBreakpoint} from "../hooks/use-breakpoint.js";
 import {focusOutline} from "../hooks/use-search-escape.js";
+import type {HelperTags, TagAutocompleteResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {borderStyle, createSearchBoxController} from "../search-box-model.js";
 import {operatorAutocomplete, tagAutocompleteRows} from "../search/autocomplete-values.js";
@@ -42,7 +43,7 @@ async function fetchHelperTags(rootId: string | null): Promise<HelperTagLists> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch search helpers: ${response.statusText}`);
 	}
-	return readJson<HelperTagLists>(response);
+	return readJson<HelperTags>(response);
 }
 
 const CARET_WORD_DEBOUNCE_MS = 50;
@@ -60,7 +61,7 @@ async function fetchAutocompleteTags(rootId: string | null, word: string): Promi
 	if (!response.ok) {
 		throw new Error(`Failed to fetch search autocomplete tags: ${response.statusText}`);
 	}
-	return (await readJson<{tags: {tag: string}[]}>(response)).tags.map(({tag}) => tag);
+	return (await readJson<TagAutocompleteResponse>(response)).tags.map(({tag}) => tag);
 }
 
 function rectOf(element: Element) {

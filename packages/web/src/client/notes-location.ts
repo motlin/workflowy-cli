@@ -2,7 +2,7 @@
 // first use and recorded as the account-global `notesRootId` (shared with workflowy.com).
 
 import type {QueryClient} from "@tanstack/react-query";
-import type {NodeResponse} from "../node-types.js";
+import type {NodeEnvelope} from "../node-types.js";
 import {setPreferences} from "./hooks/use-preferences.js";
 import type {Preferences} from "./hooks/use-preferences.js";
 import {nodeKeys} from "./node-cache.js";
@@ -26,7 +26,7 @@ export async function ensureNotesLocation(queryClient: QueryClient): Promise<str
 	if (!response.ok) {
 		throw new Error(`Failed to create Notes: ${response.statusText}`);
 	}
-	const {node} = await readJson<{node: NodeResponse}>(response);
+	const {node} = await readJson<NodeEnvelope>(response);
 	sessionNotesRootId = node.id;
 	void queryClient.invalidateQueries({queryKey: nodeKeys.children(null)});
 	try {

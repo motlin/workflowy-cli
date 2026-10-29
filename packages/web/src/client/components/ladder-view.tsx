@@ -30,6 +30,7 @@ import {autoScrollBy, isDragGesture, dropAtPoint} from "../pointer-drag.js";
 import type {LadderDropTarget, Point} from "../pointer-drag.js";
 import {LadderTree} from "./ladder-tree.js";
 import "../ladder.css";
+import type {LadderEventEnvelope, LadderFailure, LaddersResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 
 const VERDICT: Record<LadderTier["state"], (tier: LadderTier) => string> = {
@@ -73,7 +74,7 @@ async function fetchLadders(): Promise<Ladders> {
 	if (!response.ok) {
 		throw new Error(`ladder request failed: ${response.status}`);
 	}
-	const body = await readJson<{ladders: Ladders}>(response);
+	const body = await readJson<LaddersResponse>(response);
 	return body.ladders;
 }
 
@@ -87,13 +88,13 @@ async function postLadderWrite(path: string, body: Record<string, string>): Prom
 		body: JSON.stringify(body),
 	});
 	if (!response.ok) {
-		const failure = await readJson<{error?: string; reconcile?: boolean}>(response);
+		const failure = await readJson<Partial<LadderFailure>>(response);
 		if (failure.reconcile) {
 			return {kind: "reconcile", error: failure.error ?? "Move failed"};
 		}
 		throw new WriteRejected(failure.error ?? `write failed: ${response.status}`);
 	}
-	const {event} = await readJson<{event: LadderEvent}>(response);
+	const {event} = await readJson<LadderEventEnvelope>(response);
 	return {kind: "saved", event};
 }
 
@@ -112,7 +113,7 @@ async function addTierAndRefresh(bucketId: string, tier: number, onCreated: () =
 	if (!refreshed.ok) {
 		throw new Error(`Tier created; could not refresh ladder: ${refreshed.status}. Reload before adding another.`);
 	}
-	const body = await readJson<{ladders: Ladders}>(refreshed);
+	const body = await readJson<LaddersResponse>(refreshed);
 	return body.ladders;
 }
 
@@ -198,7 +199,7 @@ export function LadderView() {
 		try {
 			const refreshed = await fetch("/api/v1/ladder");
 			if (refreshed.ok) {
-				const body = await readJson<{ladders: Ladders}>(refreshed);
+				const body = await readJson<LaddersResponse>(refreshed);
 				updateLadders(() => body.ladders);
 				return true;
 			}

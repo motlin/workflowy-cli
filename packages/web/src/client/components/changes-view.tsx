@@ -2,16 +2,13 @@ import {useQuery} from "@tanstack/react-query";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useState} from "react";
 import {useSearchParams} from "react-router-dom";
-import type {ChangeSummary, ChangeTreeNode, NodeChange} from "@workflowy/shared/changes";
 import {diffChars} from "diff";
+import type {ChangesResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 
-interface ChangesResponse {
-	changes: NodeChange[];
-	tree: ChangeTreeNode[];
-	summary: ChangeSummary;
-	cutoffDate: string;
-}
+type NodeChange = ChangesResponse["changes"][number];
+type ChangeTreeNode = ChangesResponse["tree"][number];
+type ChangeSummary = ChangesResponse["summary"];
 
 function getChangeLabels(change: NodeChange): string[] {
 	const labels: string[] = [];

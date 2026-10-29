@@ -28,7 +28,7 @@ const CalendarInfoSchema = z
 	.loose();
 
 /** The 📆 Calendar root's picker settings (upstream `T10`/`k10`): each is true unless the root sets it false. */
-export interface CalendarSettings {
+interface CalendarSettings {
 	foundDates: boolean;
 	dayPrefix: boolean;
 }

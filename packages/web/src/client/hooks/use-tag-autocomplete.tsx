@@ -2,6 +2,7 @@ import {useCallback, useMemo, useRef, useState} from "react";
 import type {ReactNode} from "react";
 import {useQuery} from "@tanstack/react-query";
 import {caretTextOffset} from "../caret-dom.js";
+import type {TagAutocompleteResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {applyAccept, attach, autocompleteSearch, currentQuery, narrowResults, shouldShow} from "../tag-autocomplete.js";
@@ -41,7 +42,7 @@ async function fetchAutocomplete(search: string): Promise<AutocompleteResult[]> 
 	if (!response.ok) {
 		throw new Error(`Failed to fetch tag autocomplete: ${response.statusText}`);
 	}
-	return (await readJson<{tags: AutocompleteResult[]}>(response)).tags;
+	return (await readJson<TagAutocompleteResponse>(response)).tags;
 }
 
 /** The viewport point of a collapsed range `back` units before the caret, or null without a selection. */

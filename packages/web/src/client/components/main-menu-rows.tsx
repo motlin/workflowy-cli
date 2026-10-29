@@ -2,6 +2,7 @@ import {useState} from "react";
 import type {ReactElement, ReactNode} from "react";
 import {openMenuExport} from "../export-entry.js";
 import {useSaving} from "../hooks/use-saving.js";
+import type {NodeListResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {autosaveText} from "../time-ago.js";
@@ -117,7 +118,7 @@ export function useMainMenuRows({
 					async () => {
 						const response = await fetch("/api/v1/nodes");
 						return response.ok
-							? (await readJson<{nodes: {id: string}[]}>(response)).nodes.map((node) => node.id)
+							? (await readJson<NodeListResponse>(response)).nodes.map((node) => node.id)
 							: [];
 					},
 					openExportDialog,

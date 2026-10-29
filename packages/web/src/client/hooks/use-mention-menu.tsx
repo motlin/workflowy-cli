@@ -7,6 +7,7 @@ import type {MentionGroup, MentionOption} from "../mention-options.js";
 import {renderMentionPills} from "../mention-pills.js";
 import type {MentionAccount} from "../mention-pills.js";
 import {MENTION_CHIP_CLASS, planMentionOpen, planMentionRearm} from "../mention-trigger.js";
+import type {TagAutocompleteResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {useAccount} from "./use-account.js";
@@ -30,7 +31,7 @@ async function fetchTags(term: string, zoomedId: string | null): Promise<string[
 	if (!response.ok) {
 		return [];
 	}
-	return (await readJson<{tags: {tag: string}[]}>(response)).tags.map(({tag}) => tag);
+	return (await readJson<TagAutocompleteResponse>(response)).tags.map(({tag}) => tag);
 }
 
 /** Seconds since the account joined, like upstream's `WF.Updates.timestamp()`. */

@@ -9,6 +9,7 @@ import {moreMenuRows} from "../mobile-more-menu-model.js";
 import type {MoreMenuRow} from "../mobile-more-menu-model.js";
 import {useNodeNavigation} from "../navigation.js";
 import {readNode} from "../node-cache.js";
+import type {NodeListResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {Sheet} from "../stores/sheet.js";
 import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
@@ -164,7 +165,7 @@ export function MobileMoreMenu() {
 					async () => {
 						const response = await fetch("/api/v1/nodes");
 						return response.ok
-							? (await readJson<{nodes: {id: string}[]}>(response)).nodes.map((node) => node.id)
+							? (await readJson<NodeListResponse>(response)).nodes.map((node) => node.id)
 							: [];
 					},
 					openExportDialog,
