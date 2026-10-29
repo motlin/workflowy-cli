@@ -1,6 +1,7 @@
 import {Hono} from "hono";
 import {cors} from "hono/cors";
 import {apiCompression} from "../compression.js";
+import {API_DOCS_HTML, openApiDocument} from "./openapi.js";
 import {accountRoutes} from "./routes/account.js";
 import {calendarRoutes} from "./routes/calendar.js";
 import {changesRoutes} from "./routes/changes.js";
@@ -64,6 +65,10 @@ export function createHttpApp(options: HttpAppOptions): Hono {
 	}
 	app.use("/api/*", apiCompression());
 	app.get("/health", (c) => c.json({status: "ok"}));
-	app.route("/", createHttpRoutes(options.resolveStore));
+	const routes = createHttpRoutes(options.resolveStore);
+	let spec: ReturnType<typeof openApiDocument> | undefined;
+	app.get("/api/openapi.json", (c) => c.json((spec ??= openApiDocument(routes.routes))));
+	app.get("/api/docs", (c) => c.html(API_DOCS_HTML));
+	app.route("/", routes);
 	return app;
 }
