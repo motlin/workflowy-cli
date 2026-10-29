@@ -17,7 +17,6 @@ interface MirrorRow {
 const config = {
 	table: mirrors,
 	keyColumns: [mirrors.originalId, mirrors.mirrorId],
-	systemToColumn: mirrors.systemTo,
 	incomingKey: (r: MirrorRow) => joinKey(r.originalId, r.mirrorId),
 	currentKey: (r: MirrorRow) => joinKey(r.originalId, r.mirrorId),
 	contentMatches: () => true,

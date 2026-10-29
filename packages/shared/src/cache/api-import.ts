@@ -15,7 +15,7 @@ import type {ItemRelationships} from "./item-relationships.js";
 import {endNodeComposites, endOrphanedParts, runUnitOfWork} from "./node-composite.js";
 import type {UnitOfWork} from "./node-composite.js";
 import type {NormalizedNodeContentRow, NormalizedNodeMetadataRow} from "./normalized-rows.js";
-import {nextSystemTime} from "./system-clock.js";
+import {newSystemTime} from "./system-time.js";
 
 /** Bound-parameter chunk for `id IN (...)` lookups; Durable Object SQLite caps a statement at 100. */
 const LOOKUP_CHUNK_SIZE = 90;
@@ -128,7 +128,7 @@ export function beginApiImport(
 	return {
 		database,
 		logger: options.logger,
-		importTimestamp: options.timestamp ?? nextSystemTime(database),
+		importTimestamp: options.timestamp ?? newSystemTime(),
 		seenIds: new Set(),
 		totalNodes: 0,
 		nodesAdded: 0,

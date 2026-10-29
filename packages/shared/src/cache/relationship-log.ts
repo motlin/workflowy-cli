@@ -21,7 +21,7 @@ import {backlinks, mirrors, referencesRoots} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/index.js";
 import {collectItemRelationships, emptyItemRelationships} from "./item-relationships.js";
 import type {UnitOfWork} from "./node-composite.js";
-import {joinKey} from "./temporal-merge.js";
+import {closeCurrentVersions, joinKey} from "./temporal-merge.js";
 
 /** A logged op, as `PushAndPoll` reports it. */
 export interface LoggedOp {
@@ -331,16 +331,12 @@ function writeDiff(unitOfWork: UnitOfWork, before: EdgeModel, after: EdgeModel):
 	const current = {systemFrom: systemTime, systemTo: FAR_FUTURE_DATE};
 	for (const [key, row] of before.mirrors) {
 		if (!after.mirrors.has(key)) {
-			tx.update(mirrors)
-				.set({systemTo: systemTime})
-				.where(
-					and(
-						eq(mirrors.mirrorId, row.mirrorId),
-						eq(mirrors.originalId, row.originalId),
-						eq(mirrors.systemTo, FAR_FUTURE_DATE),
-					),
-				)
-				.run();
+			closeCurrentVersions(
+				tx,
+				mirrors,
+				systemTime,
+				and(eq(mirrors.mirrorId, row.mirrorId), eq(mirrors.originalId, row.originalId)),
+			);
 		}
 	}
 	for (const [key, row] of after.mirrors) {
@@ -352,17 +348,16 @@ function writeDiff(unitOfWork: UnitOfWork, before: EdgeModel, after: EdgeModel):
 	}
 	for (const [key, row] of before.backlinks) {
 		if (!after.backlinks.has(key)) {
-			tx.update(backlinks)
-				.set({systemTo: systemTime})
-				.where(
-					and(
-						eq(backlinks.nodeId, row.nodeId),
-						eq(backlinks.sourceId, row.sourceId),
-						eq(backlinks.targetId, row.targetId),
-						eq(backlinks.systemTo, FAR_FUTURE_DATE),
-					),
-				)
-				.run();
+			closeCurrentVersions(
+				tx,
+				backlinks,
+				systemTime,
+				and(
+					eq(backlinks.nodeId, row.nodeId),
+					eq(backlinks.sourceId, row.sourceId),
+					eq(backlinks.targetId, row.targetId),
+				),
+			);
 		}
 	}
 	for (const [key, row] of after.backlinks) {
@@ -374,10 +369,7 @@ function writeDiff(unitOfWork: UnitOfWork, before: EdgeModel, after: EdgeModel):
 	}
 	for (const nodeId of before.roots) {
 		if (!after.roots.has(nodeId)) {
-			tx.update(referencesRoots)
-				.set({systemTo: systemTime})
-				.where(and(eq(referencesRoots.nodeId, nodeId), eq(referencesRoots.systemTo, FAR_FUTURE_DATE)))
-				.run();
+			closeCurrentVersions(tx, referencesRoots, systemTime, eq(referencesRoots.nodeId, nodeId));
 		}
 	}
 	for (const nodeId of after.roots) {

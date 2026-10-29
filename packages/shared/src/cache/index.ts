@@ -68,6 +68,7 @@ export type {
 	WithoutTemporal,
 } from "./normalized-rows.js";
 export {
+	closeCurrentVersions,
 	joinKey,
 	type TemporalMergeConfig,
 	type TemporalMergeResult,
@@ -94,6 +95,6 @@ export {
 	runUnitOfWork,
 	type UnitOfWork,
 } from "./node-composite.js";
-export {nextSystemTime, nextSystemTimestamp} from "./system-clock.js";
+export {newSystemTime, newSystemTimestamp} from "./system-time.js";
 export {WorkflowyWriteThroughClient} from "./workflowy-write-through-client.js";
 export type {ExactMover} from "./workflowy-write-through-client.js";

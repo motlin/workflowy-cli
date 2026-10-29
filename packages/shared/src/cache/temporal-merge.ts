@@ -1,4 +1,4 @@
-import {and, eq, sql} from "drizzle-orm";
+import {sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
 import type {BaseSQLiteDatabase, SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
 import {FAR_FUTURE_DATE} from "../temporal/index.js";
@@ -65,11 +65,6 @@ export interface TemporalMergeConfig<TIncoming, TCurrent> {
 	keyColumn?: SQLiteColumn;
 	keyColumns?: SQLiteColumn[];
 	/**
-	 * The `system_to` column on `table`. Phase-out filters and the closing
-	 * update target this column.
-	 */
-	systemToColumn: SQLiteColumn;
-	/**
 	 * Extracts the merge key from an incoming desired-state row.
 	 */
 	incomingKey: (row: TIncoming) => string;
@@ -112,6 +107,35 @@ export interface TemporalMergeConfig<TIncoming, TCurrent> {
 export type TemporalTransaction = BaseSQLiteDatabase<"sync", any, any, any>;
 
 /**
+ * Close the current versions of `table` matching `where` at `systemTime`, the
+ * unit of work's system time. A current version that already starts at
+ * `systemTime` would close to an empty interval and block the new version's
+ * `(id, system_from)` key, so it is deleted instead: it was written earlier in
+ * this unit, or by another unit in the same millisecond, and the later write
+ * replaces it. Reladomo's audit-only temporal director does the same ("changed
+ * too fast. Deleting, instead of inactivating"). A current version starting
+ * after `systemTime`, left by a unit that read the clock later but landed
+ * first, is closed like any other, so its interval ends before it starts and
+ * no as-of read sees it.
+ */
+export function closeCurrentVersions(
+	tx: TemporalTransaction,
+	table: SQLiteTable,
+	systemTime: string,
+	where: SQL | undefined,
+): void {
+	const systemFrom = sql.identifier("system_from");
+	const systemTo = sql.identifier("system_to");
+	const matching = where ?? sql`1`;
+	tx.run(
+		sql`DELETE FROM ${table} WHERE ${systemTo} = ${FAR_FUTURE_DATE} AND ${systemFrom} = ${systemTime} AND (${matching})`,
+	);
+	tx.run(
+		sql`UPDATE ${table} SET ${systemTo} = ${systemTime} WHERE ${systemTo} = ${FAR_FUTURE_DATE} AND (${matching})`,
+	);
+}
+
+/**
  * Apply the temporal merge-list pattern to a single table.
  *
  * Given the desired set of current rows (`incoming`) and a `systemFrom`
@@ -141,17 +165,8 @@ export function temporalMerge<TIncoming, TCurrent>(
 	currentRows: TCurrent[],
 	importedAt: string,
 ): TemporalMergeResult {
-	const {
-		table,
-		keyColumn,
-		keyColumns,
-		systemToColumn,
-		incomingKey,
-		currentKey,
-		contentMatches,
-		buildInsertRow,
-		preserveKeys,
-	} = config;
+	const {table, keyColumn, keyColumns, incomingKey, currentKey, contentMatches, buildInsertRow, preserveKeys} =
+		config;
 	const columns = keyColumns ?? (keyColumn ? [keyColumn] : []);
 	const keyMatchExpr = keyExpression(columns);
 
@@ -199,18 +214,15 @@ export function temporalMerge<TIncoming, TCurrent>(
 	// Chunked IN lists rather than a scratch table: Durable Object SQLite has no temp tables.
 	for (let i = 0; i < keysToPhaseOut.length; i += BOUND_PARAMS_PER_STATEMENT) {
 		const chunk = keysToPhaseOut.slice(i, i + BOUND_PARAMS_PER_STATEMENT);
-		tx.update(table)
-			.set({systemTo: importedAt})
-			.where(
-				and(
-					eq(systemToColumn, FAR_FUTURE_DATE),
-					sql`${keyMatchExpr} IN (${sql.join(
-						chunk.map((key) => sql`${key}`),
-						sql`, `,
-					)})`,
-				),
-			)
-			.run();
+		closeCurrentVersions(
+			tx,
+			table,
+			importedAt,
+			sql`${keyMatchExpr} IN (${sql.join(
+				chunk.map((key) => sql`${key}`),
+				sql`, `,
+			)})`,
+		);
 	}
 
 	const firstRow = rowsToInsert[0];

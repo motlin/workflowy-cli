@@ -1,4 +1,4 @@
-import {nextSystemTimestamp} from "@workflowy/shared/cache";
+import {newSystemTimestamp} from "@workflowy/shared/cache";
 import {backupImports} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {Command, Flags} from "@oclif/core";
@@ -267,7 +267,7 @@ export default class ImportBackup extends Command {
 			.values({
 				filename: backupInfo.filename,
 				backupDate: formatDate(backupInfo.backupDate),
-				systemFrom: nextSystemTimestamp(db),
+				systemFrom: newSystemTimestamp(),
 				systemTo: FAR_FUTURE_DATE,
 			})
 			.run();

@@ -328,17 +328,6 @@ export const config = sqliteTable("config", {
 });
 
 /**
- * system_clock: The single row holding the last system time, in Unix ms, issued to
- * any temporal write (see `cache/system-clock.ts`). Keeping it in the database
- * orders writes across connections and processes sharing one cache file. It is
- * bookkeeping, not data, so it is non-bitemporal and excluded from temporal rollback.
- */
-export const systemClock = sqliteTable("system_clock", {
-	id: integer("id").primaryKey(),
-	lastMs: integer("last_ms").notNull(),
-});
-
-/**
  * account_state: Workflowy account state cached from the internal API (see
  * `internal/adapter.ts`), one JSON document per key: `account`, `root_metadata`,
  * `settings`, `expanded_keys`, and `tree_tx_id`, the main tree's transaction

@@ -2,7 +2,7 @@ import type * as schema from "../db/schema.js";
 import type {AppDatabase} from "../db/types.js";
 import {backlinks, mirrors, nodeContent, nodeMetadata, referencesRoots, virtualRootIds} from "../db/schema.js";
 import {stripHtmlTags} from "../html/strip-tags.js";
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "../temporal/constants.js";
+import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import type {Node} from "../types/node.js";
 import type {WorkflowyNode} from "../types/workflowy.js";
 import {uuidToShortId} from "../workflowy/constants.js";
@@ -20,7 +20,8 @@ import type {ItemRelationships, UpstreamRelationshipMetadata} from "./item-relat
 import {loadMirrorOriginals, notAMirror} from "./mirror-text.js";
 import {endNodeComposites, runUnitOfWork} from "./node-composite.js";
 import {NodeReader} from "./node-reader.js";
-import {nextSystemTime, nextSystemTimestamp} from "./system-clock.js";
+import {newSystemTimestamp} from "./system-time.js";
+import {closeCurrentVersions} from "./temporal-merge.js";
 import type {TemporalTransaction} from "./temporal-merge.js";
 
 type NodeMetadataRow = typeof schema.nodeMetadata.$inferSelect;
@@ -214,10 +215,7 @@ function upsertNodeVersion(
 	}
 
 	if (!contentMatches(existingContent, {name: node.name, note: noteOrNull(node.note), parentId})) {
-		db.update(nodeContent)
-			.set({systemTo: systemTime})
-			.where(and(eq(nodeContent.id, node.id), currentVersion(nodeContent)))
-			.run();
+		closeCurrentVersions(db, nodeContent, systemTime, eq(nodeContent.id, node.id));
 		insertContent(db, node, parentId, systemTime);
 	}
 
@@ -234,10 +232,7 @@ function upsertNodeVersion(
 		layoutMode: normalizeLayoutMode(node.data?.layoutMode),
 	};
 	if (existingMetadata && !metadataMatches(existingMetadata, metadata)) {
-		db.update(nodeMetadata)
-			.set({systemTo: systemTime})
-			.where(and(eq(nodeMetadata.nodeId, node.id), currentVersion(nodeMetadata)))
-			.run();
+		closeCurrentVersions(db, nodeMetadata, systemTime, eq(nodeMetadata.nodeId, node.id));
 		insertMetadata(db, node, systemTime, existingMetadata);
 	}
 }
@@ -307,14 +302,8 @@ function storeChildren(
 	)`;
 	const keptMetadata = apiNodeIds.length > 0 ? notInArray(nodeMetadata.nodeId, apiNodeIds) : undefined;
 	const keptContent = apiNodeIds.length > 0 ? notInArray(nodeContent.id, apiNodeIds) : undefined;
-	tx.update(nodeMetadata)
-		.set({systemTo: systemTime})
-		.where(and(currentVersion(nodeMetadata), keptMetadata, metadataUnderParent))
-		.run();
-	tx.update(nodeContent)
-		.set({systemTo: systemTime})
-		.where(and(eq(nodeContent.parentId, parentId), currentVersion(nodeContent), keptContent))
-		.run();
+	closeCurrentVersions(tx, nodeMetadata, systemTime, and(keptMetadata, metadataUnderParent));
+	closeCurrentVersions(tx, nodeContent, systemTime, and(eq(nodeContent.parentId, parentId), keptContent));
 }
 
 /** A backlink item: a mirror of `sourceId` under `targetId`'s references root. */
@@ -577,17 +566,17 @@ export class CacheService {
 	 * @param parentId The parent ID these nodes belong to (null for root)
 	 */
 	storeApiResponse(apiNodes: WorkflowyNode[], parentId: string | null): void {
-		const systemTime = formatTemporalTimestamp(nextSystemTime(this.database));
+		const systemTime = newSystemTimestamp();
 		this.database.transaction((tx) => {
 			storeChildren(tx, apiNodes, parentId, systemTime);
 		});
 	}
 
-	/** {@link storeApiResponse} for several parents, all in one transaction. */
+	/** {@link storeApiResponse} for several parents, as one unit of work: one transaction and one system time. */
 	storeApiResponses(batches: {nodes: WorkflowyNode[]; parentId: string | null}[]): void {
-		this.database.transaction(() => {
+		runUnitOfWork(this.database, ({tx, systemTime}) => {
 			for (const {nodes, parentId} of batches) {
-				this.storeApiResponse(nodes, parentId);
+				storeChildren(tx, nodes, parentId, systemTime);
 			}
 		});
 	}
@@ -636,7 +625,7 @@ export class CacheService {
 	 * @param parentId The parent ID this node belongs to (null for root)
 	 */
 	insertNode(node: WorkflowyNode, parentId: string | null): void {
-		const systemTime = formatTemporalTimestamp(nextSystemTime(this.database));
+		const systemTime = newSystemTimestamp();
 		upsertNodeVersion(this.database, node, parentId, systemTime);
 	}
 
@@ -876,7 +865,7 @@ export class CacheService {
 			.values({
 				originalId,
 				mirrorId,
-				systemFrom: nextSystemTimestamp(this.database),
+				systemFrom: newSystemTimestamp(),
 				systemTo: FAR_FUTURE_DATE,
 			})
 			.run();

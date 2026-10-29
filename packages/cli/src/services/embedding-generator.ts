@@ -6,7 +6,7 @@ import {and, eq, inArray, sql} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {DEFAULT_MODELS, embeddingService} from "./embeddings.js";
 import type {EmbeddingModelKey} from "./embeddings.js";
-import {nextSystemTimestamp, notAMirror, PathBuilder} from "@workflowy/shared/cache";
+import {newSystemTimestamp, notAMirror, PathBuilder} from "@workflowy/shared/cache";
 
 /**
  * The current nodes worth indexing: those with children, excluding mirrors,
@@ -210,7 +210,7 @@ export class EmbeddingGeneratorService {
 				}
 
 				if (embeddingRows.length > 0) {
-					const systemFrom = nextSystemTimestamp(this.database);
+					const systemFrom = newSystemTimestamp();
 					this.database
 						.insert(nodeEmbeddings)
 						.values(embeddingRows.map((row) => ({...row, systemFrom, systemTo: FAR_FUTURE_DATE})))

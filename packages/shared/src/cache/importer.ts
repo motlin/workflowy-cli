@@ -164,7 +164,6 @@ function mergeNodeKeyedTable<TIncoming, TTable extends SQLiteTable>(
 		{
 			table,
 			keyColumn,
-			systemToColumn,
 			incomingKey,
 			currentKey,
 			contentMatches: contentEquals,

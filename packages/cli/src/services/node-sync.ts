@@ -4,12 +4,11 @@ import {
 	collectItemRelationships,
 	emptyItemRelationships,
 	mergeItemRelationships,
-	nextSystemTime,
 	runUnitOfWork,
 } from "@workflowy/shared/cache";
 import {nodeContent} from "@workflowy/shared/db";
 import type * as schema from "@workflowy/shared/db";
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {eq} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import type {WorkflowyNode} from "@workflowy/shared/types";
@@ -58,16 +57,12 @@ function mergeSyncedRelationships(database: BetterSQLite3Database<typeof schema>
 	for (const item of treeItems) {
 		collectItemRelationships(relationships, item.id, item.metadata);
 	}
-	runUnitOfWork(
-		database,
-		(unitOfWork) => {
-			applyRows(unitOfWork, {
-				referencesRoots: relationships.referencesRoots.filter((row) => live.has(row.nodeId)),
-			});
-			mergeItemRelationships(unitOfWork, relationships, live);
-		},
-		formatTemporalTimestamp(nextSystemTime(database)),
-	);
+	runUnitOfWork(database, (unitOfWork) => {
+		applyRows(unitOfWork, {
+			referencesRoots: relationships.referencesRoots.filter((row) => live.has(row.nodeId)),
+		});
+		mergeItemRelationships(unitOfWork, relationships, live);
+	});
 }
 
 export class NodeSyncService {

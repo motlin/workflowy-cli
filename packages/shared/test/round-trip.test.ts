@@ -60,7 +60,6 @@ describe("round-trip test infrastructure", () => {
 				"node_metadata",
 				"references_roots",
 				"s3_files",
-				"system_clock",
 				"virtual_root_ids",
 			]);
 

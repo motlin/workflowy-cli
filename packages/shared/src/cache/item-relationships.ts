@@ -109,7 +109,6 @@ export function mergeItemRelationships(
 		{
 			table: mirrors,
 			keyColumns: [mirrors.mirrorId, mirrors.originalId],
-			systemToColumn: mirrors.systemTo,
 			incomingKey: mirrorKey,
 			currentKey: mirrorKey,
 			contentMatches: () => true, // the key is the whole row
@@ -129,7 +128,6 @@ export function mergeItemRelationships(
 		{
 			table: backlinks,
 			keyColumns: [backlinks.nodeId, backlinks.sourceId, backlinks.targetId],
-			systemToColumn: backlinks.systemTo,
 			incomingKey: backlinkKey,
 			currentKey: backlinkKey,
 			contentMatches: () => true, // the key is the whole row
@@ -153,7 +151,6 @@ export function mergeItemRelationships(
 		{
 			table: virtualRootIds,
 			keyColumns: [virtualRootIds.nodeId, virtualRootIds.virtualRootId],
-			systemToColumn: virtualRootIds.systemTo,
 			incomingKey: virtualRootKey,
 			currentKey: virtualRootKey,
 			contentMatches: () => true, // the key is the whole row

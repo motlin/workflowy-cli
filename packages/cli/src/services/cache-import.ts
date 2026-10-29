@@ -7,7 +7,7 @@ import {
 	emptyItemRelationships,
 	endOrphanedParts,
 	mergeItemRelationships,
-	nextSystemTime,
+	newSystemTime,
 	runUnitOfWork,
 } from "@workflowy/shared/cache";
 import type {
@@ -771,7 +771,7 @@ export async function importBackup(
 	const changesMetadataRows: NormalizedChangesMetadataRow[] = changesMetadataRecords;
 	const referencesRootsRows: NormalizedReferencesRootsRow[] = relationships.referencesRoots;
 
-	const importTimestamp = timestamp ?? nextSystemTime(database);
+	const importTimestamp = timestamp ?? newSystemTime();
 	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
 	// One unit of work: the node-keyed merge, the relationship merges and the
 	// orphan sweep commit together at the import time, or not at all.

@@ -20,11 +20,11 @@ import {
 	nodeMetadata,
 	referencesRoots,
 	s3Files,
-	systemClock,
 	virtualRootIds,
 } from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
-import {nextSystemTimestamp} from "./system-clock.js";
+import {newSystemTimestamp} from "./system-time.js";
+import {closeCurrentVersions} from "./temporal-merge.js";
 import type {TemporalTransaction} from "./temporal-merge.js";
 
 /**
@@ -81,7 +81,6 @@ export const NON_NODE_TABLES: Readonly<Record<string, string>> = {
 	[getTableName(backupImports)]: "import bookkeeping keyed by backup filename",
 	[getTableName(apiImportTimestamp)]: "import bookkeeping keyed by pipeline name",
 	[getTableName(config)]: "local key-value settings",
-	[getTableName(systemClock)]: "single-row clock for system times",
 	[getTableName(accountState)]: "account-level key-value state",
 	[getTableName(localSettings)]: "durable local copy of settings written to workflowy.com",
 	[getTableName(fileBlobs)]: "local copies of attachment bytes, kept after the attachment's node ends",
@@ -104,16 +103,17 @@ export interface UnitOfWork {
 }
 
 /**
- * Run `work` as one unit of work: one transaction, one system time drawn from
- * the shared clock (or `systemTime` when given). A throw rolls back every
- * composite the work touched.
+ * Run `work` as one unit of work: one transaction, one system time read once
+ * from the application's UTC clock (or `systemTime` when given, for a unit split
+ * across several transactions). A throw rolls back every composite the work
+ * touched.
  */
 export function runUnitOfWork<T>(
 	database: TemporalTransaction,
 	work: (unitOfWork: UnitOfWork) => T,
 	systemTime?: string,
 ): T {
-	return database.transaction((tx) => work({tx, systemTime: systemTime ?? nextSystemTimestamp(tx)}));
+	return database.transaction((tx) => work({tx, systemTime: systemTime ?? newSystemTimestamp()}));
 }
 
 const ID_BATCH_SIZE = 500;
@@ -126,10 +126,7 @@ function endRows(unitOfWork: UnitOfWork, part: CompositePart, where: SQL): void 
 		tx.run(sql`DELETE FROM ${part.table} WHERE ${where}`);
 		return;
 	}
-	tx.run(
-		sql`UPDATE ${part.table} SET ${sql.identifier("system_to")} = ${systemTime}
-			WHERE ${sql.identifier("system_to")} = ${FAR_FUTURE_DATE} AND (${where})`,
-	);
+	closeCurrentVersions(tx, part.table, systemTime, where);
 }
 
 /**

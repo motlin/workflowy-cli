@@ -207,13 +207,6 @@ export const journal = {
 			breakpoints: true,
 		},
 		{
-			idx: 29,
-			version: "6",
-			when: 1_779_062_400_000,
-			tag: "0029_add_system_clock",
-			breakpoints: true,
-		},
-		{
 			idx: 30,
 			version: "6",
 			when: 1_779_148_800_000,
@@ -269,6 +262,13 @@ export const journal = {
 			tag: "0037_add_file_blobs",
 			breakpoints: true,
 		},
+		{
+			idx: 38,
+			version: "6",
+			when: 1_779_840_000_000,
+			tag: "0038_drop_system_clock",
+			breakpoints: true,
+		},
 	],
 } as const;
 
@@ -302,7 +302,6 @@ export const migrations: Record<string, string> = {
 	m0026: "-- 🗝️ Drop vestigial surrogate `id` columns from backlinks and virtual_root_ids.\n-- These auto-increment integers were used only as temporal primary keys and were\n-- never referenced as foreign keys by application code.\n--   * backlinks       PK becomes (node_id, source_id, target_id, system_from)\n--   * virtual_root_ids PK becomes (node_id, virtual_root_id, system_from)\n-- SQLite cannot DROP a primary-key column, so do the table-rebuild dance.\n\n-- Rebuild backlinks without the `id` column.\nCREATE TABLE backlinks_new (\n    node_id TEXT NOT NULL,\n    source_id TEXT NOT NULL,\n    target_id TEXT NOT NULL,\n    system_from TEXT NOT NULL,\n    system_to TEXT NOT NULL,\n    PRIMARY KEY (node_id, source_id, target_id, system_from)\n);\n--> statement-breakpoint\nINSERT INTO backlinks_new\nSELECT node_id, source_id, target_id, system_from, system_to\nFROM backlinks;\n--> statement-breakpoint\nDROP TABLE backlinks;\n--> statement-breakpoint\nALTER TABLE backlinks_new RENAME TO backlinks;\n--> statement-breakpoint\nCREATE INDEX backlinks_node_idx ON backlinks (node_id, system_to);\n--> statement-breakpoint\nCREATE INDEX backlinks_source_idx ON backlinks (source_id, system_to);\n--> statement-breakpoint\nCREATE INDEX backlinks_target_idx ON backlinks (target_id, system_to);\n--> statement-breakpoint\n\n-- Rebuild virtual_root_ids without the `id` column.\nCREATE TABLE virtual_root_ids_new (\n    node_id TEXT NOT NULL,\n    virtual_root_id TEXT NOT NULL,\n    system_from TEXT NOT NULL,\n    system_to TEXT NOT NULL,\n    PRIMARY KEY (node_id, virtual_root_id, system_from)\n);\n--> statement-breakpoint\nINSERT INTO virtual_root_ids_new\nSELECT node_id, virtual_root_id, system_from, system_to\nFROM virtual_root_ids;\n--> statement-breakpoint\nDROP TABLE virtual_root_ids;\n--> statement-breakpoint\nALTER TABLE virtual_root_ids_new RENAME TO virtual_root_ids;\n--> statement-breakpoint\nCREATE INDEX virtual_root_ids_node_idx ON virtual_root_ids (node_id, system_to);\n",
 	m0027: "-- 🗑️ Track deleted file attachments on s3_files.\n-- Workflowy emits `s3File.isDeleted: true` on nodes whose attachment was removed.\n-- Persist it so consumers (the web app) can hide or mark deleted attachments\n-- instead of rendering them as live files. Stored as a nullable integer flag\n-- (1 = deleted, 0 = present, NULL = unknown/never set) to match the other\n-- boolean-ish columns on this table (e.g. is_animated_gif).\nALTER TABLE s3_files ADD COLUMN is_deleted INTEGER;\n",
 	m0028: "-- 🎨 Per-tag color assignments (e.g. @Ellen -> green).\n-- Workflowy has no API for tag colors; this is our own local-only feature.\n-- `name` is the full tag text including the leading #/@; `color` is a Workflowy\n-- color name (red/orange/yellow/green/teal/sky/blue/purple/pink/gray).\nCREATE TABLE IF NOT EXISTS tags (\n    name TEXT PRIMARY KEY,\n    color TEXT NOT NULL,\n    created_at TEXT NOT NULL DEFAULT (datetime('now')),\n    updated_at TEXT NOT NULL DEFAULT (datetime('now'))\n);\n",
-	m0029: "-- ⏱️ The cache-wide system clock: the last system time, in Unix ms, issued to\n-- any write. Every writer takes its system_from/system_to from here, so two\n-- writes — from any connection or process — never share a millisecond.\n-- Seeded from the newest system_from already written.\nCREATE TABLE IF NOT EXISTS system_clock (\n    id INTEGER PRIMARY KEY CHECK (id = 1),\n    last_ms INTEGER NOT NULL\n);\n--> statement-breakpoint\nINSERT OR IGNORE INTO system_clock (id, last_ms)\nSELECT 1, COALESCE(CAST(ROUND((MAX(newest) - 2440587.5) * 86400000) AS INTEGER), 0)\nFROM (\n    SELECT MAX(julianday(system_from)) AS newest FROM node_content\n    UNION ALL SELECT MAX(julianday(system_from)) FROM node_metadata\n    UNION ALL SELECT MAX(julianday(system_from)) FROM calendar_metadata\n    UNION ALL SELECT MAX(julianday(system_from)) FROM calendar_levels\n    UNION ALL SELECT MAX(julianday(system_from)) FROM node_embeddings\n    UNION ALL SELECT MAX(julianday(system_from)) FROM mirrors\n    UNION ALL SELECT MAX(julianday(system_from)) FROM backlinks\n    UNION ALL SELECT MAX(julianday(system_from)) FROM virtual_root_ids\n    UNION ALL SELECT MAX(julianday(system_from)) FROM ai_metadata\n    UNION ALL SELECT MAX(julianday(system_from)) FROM s3_files\n    UNION ALL SELECT MAX(julianday(system_from)) FROM changes_metadata\n    UNION ALL SELECT MAX(julianday(system_from)) FROM references_roots\n    UNION ALL SELECT MAX(julianday(system_from)) FROM backup_imports\n);\n",
 	m0030: "-- 👤 Cached Workflowy account state from the internal API: the account\n-- (user id, join date), root (Home) metadata and account settings, one JSON\n-- document per key. A write-through cache only: rows are written after the\n-- server accepts a change or after a refresh, never before. Non-bitemporal.\nCREATE TABLE IF NOT EXISTS account_state (\n    key TEXT PRIMARY KEY,\n    json TEXT NOT NULL,\n    fetched_at INTEGER NOT NULL\n);\n",
 	m0031: "-- 🏷️ Item metadata cached from the internal API's `/get_tree_data/`, which the\n-- public API does not return: numbered_start, calendar, priority.defaultToBottom\n-- and layoutMode, one JSON document per node. A write-through cache only, fully\n-- replaced on each import and patched after accepted metadata edits.\n-- Non-bitemporal.\nCREATE TABLE IF NOT EXISTS node_internal_metadata (\n    node_id TEXT PRIMARY KEY,\n    metadata_json TEXT NOT NULL,\n    fetched_at INTEGER NOT NULL\n);\n",
 	m0032: "-- 🪞 The mirror node owns its mirror row (temporal composites): lead the\n-- primary key with mirror_id, so it reads (mirror_id, original_id, system_from).\n-- SQLite cannot alter a primary key, so rebuild the table.\nCREATE TABLE mirrors_new (\n    mirror_id TEXT NOT NULL,\n    original_id TEXT NOT NULL,\n    system_from TEXT NOT NULL,\n    system_to TEXT NOT NULL,\n    PRIMARY KEY (mirror_id, original_id, system_from)\n);\n--> statement-breakpoint\nINSERT INTO mirrors_new (mirror_id, original_id, system_from, system_to)\nSELECT mirror_id, original_id, system_from, system_to\nFROM mirrors;\n--> statement-breakpoint\nDROP TABLE mirrors;\n--> statement-breakpoint\nALTER TABLE mirrors_new RENAME TO mirrors;\n--> statement-breakpoint\nCREATE INDEX mirrors_mirror_idx ON mirrors (mirror_id, system_to);\n--> statement-breakpoint\nCREATE INDEX mirrors_original_idx ON mirrors (original_id, system_to);\n",
@@ -311,4 +310,5 @@ export const migrations: Record<string, string> = {
 	m0035: "-- Tag colors live in the root node's `metadata.color.tags`, synced with Workflowy;\n-- the local `tags` table is no longer read or written.\nDROP TABLE IF EXISTS tags;\n",
 	m0036: "-- The app's own durable copy of every setting written to workflowy.com, so the\n-- values survive when the app runs without it. Never refreshed from the server.\nCREATE TABLE local_settings (\n\tkey TEXT PRIMARY KEY NOT NULL,\n\tjson TEXT NOT NULL,\n\tupdated_at INTEGER NOT NULL\n);\n",
 	m0037: "-- Local copies of attachment bytes downloaded by `files mirror`: one row per\n-- attachment node, pointing into a content-addressed store on disk (sha256).\n-- Local state, not Workflowy data, so not bitemporal. status is 'ok' or 'error';\n-- an error row keeps the message and is retried on the next run.\nCREATE TABLE file_blobs (\n\tnode_id TEXT PRIMARY KEY NOT NULL,\n\tstatus TEXT NOT NULL,\n\tsha256 TEXT,\n\tsize INTEGER,\n\tcontent_type TEXT,\n\tlocal_path TEXT,\n\terror TEXT,\n\tfetched_at INTEGER NOT NULL\n);\n",
+	m0038: "-- System times come from the application's UTC clock, read once per unit of\n-- work, not from a database clock, so the single-row system_clock is gone.\nDROP TABLE IF EXISTS system_clock;\n",
 };

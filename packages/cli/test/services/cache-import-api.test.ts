@@ -803,7 +803,7 @@ describe("cache-import-api service", () => {
 			vi.useRealTimers();
 		});
 
-		it("gives a node changed by two imports within one millisecond a distinct version for each", () => {
+		it("lets the later of two imports changing a node within one millisecond replace the earlier's version", () => {
 			vi.useFakeTimers({toFake: ["Date"], now: new Date("2026-02-01T00:00:00.000Z")});
 
 			importFromApi(testDatabase.db, [createApiNode({id: "node-1", name: "Original Name", priority: 0})]);
@@ -818,10 +818,7 @@ describe("cache-import-api service", () => {
 					})
 					.from(nodeContent)
 					.all(),
-			).toStrictEqual([
-				{name: "Original Name", systemFrom: "2026-02-01 00:00:00.000", systemTo: "2026-02-01 00:00:00.001"},
-				{name: "Updated Name", systemFrom: "2026-02-01 00:00:00.001", systemTo: FAR_FUTURE_DATE},
-			]);
+			).toStrictEqual([{name: "Updated Name", systemFrom: "2026-02-01 00:00:00.000", systemTo: FAR_FUTURE_DATE}]);
 		});
 	});
 
