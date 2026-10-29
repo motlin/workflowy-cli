@@ -88,7 +88,7 @@ cf-deploy:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ "${CONFIRM_DEPLOY:-}" != "1" ]; then
-        echo "cf-deploy refused: set CONFIRM_DEPLOY=1 to deploy (see packages/cloudflare/README.md)" >&2
+        echo "cf-deploy refused: set CONFIRM_DEPLOY=1 to deploy" >&2
         exit 1
     fi
     just cf-build

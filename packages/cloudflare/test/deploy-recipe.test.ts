@@ -15,19 +15,21 @@ function runDeploy(confirm: string | undefined) {
 }
 
 describe("just cf-deploy", () => {
+	const refusal = "cf-deploy refused: set CONFIRM_DEPLOY=1 to deploy";
+
 	it("refuses when CONFIRM_DEPLOY is unset", () => {
 		const result = runDeploy(undefined);
-		expect({status: result.status, stderr: result.stderr.includes("CONFIRM_DEPLOY=1")}).toStrictEqual({
+		expect({status: result.status, stderr: result.stderr.split("\n")[0]}).toStrictEqual({
 			status: 1,
-			stderr: true,
+			stderr: refusal,
 		});
 	});
 
 	it("refuses when CONFIRM_DEPLOY is anything but 1", () => {
 		const result = runDeploy("yes");
-		expect({status: result.status, stderr: result.stderr.includes("CONFIRM_DEPLOY=1")}).toStrictEqual({
+		expect({status: result.status, stderr: result.stderr.split("\n")[0]}).toStrictEqual({
 			status: 1,
-			stderr: true,
+			stderr: refusal,
 		});
 	});
 
