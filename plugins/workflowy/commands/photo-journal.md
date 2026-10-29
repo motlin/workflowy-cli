@@ -41,9 +41,12 @@ Personal > 📅 Calendar
 
 ## Prerequisites
 
-- Chrome DevTools MCP must be connected
 - User must be logged into Workflowy in Chrome
 - File must exist at the specified path
+
+## Probe Chrome DevTools MCP First
+
+Run the Chrome DevTools MCP probe from `/workflowy:upload-attachment` (its "Probe Chrome DevTools MCP First" section) as the very first step, before reading file metadata, finding the day node, or creating the entry. On failure, halt the same way: tell the user in plain text to run `/mcp`, then re-run, and end the turn without `AskUserQuestion`. Do not fall back to Claude in Chrome. Probing first keeps a disconnected MCP from leaving a 📷 entry with no photo under the day node.
 
 ## Workflow
 

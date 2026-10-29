@@ -25,9 +25,18 @@ Never upload onto the entry itself. The entry keeps its text and each image gets
 
 ## Prerequisites
 
-- Chrome DevTools MCP must be connected
 - The user must be logged into Workflowy in Chrome
 - Every file must exist
+
+## Probe Chrome DevTools MCP First
+
+Before validating files or creating any node, call the Chrome DevTools MCP `list_pages` tool (`mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_pages`; load it with ToolSearch if it is deferred).
+
+- Tool succeeds → continue with the workflow
+- Tool absent, deferred schema not found, or the call errors with a disconnected or not-connected server → halt before any work. Tell the user in plain text to run `/mcp` to reconnect Chrome DevTools MCP, then re-run the command, and end the turn
+- Probe still fails after the user ran `/mcp` and re-ran → only then tell the user to restart the Claude Code session
+
+The halt message is a plain-text response that ends the turn. Do not use `AskUserQuestion`: an open prompt blocks the user from typing `/mcp`. Do not fall back to Claude in Chrome or computer use: the upload flow is built on DevTools snapshots, `upload_file`, and the network log, and reconnecting costs the user one `/mcp`, while a fallback costs a slower, token-heavier run that can leave empty children behind.
 
 ## Workflow
 
