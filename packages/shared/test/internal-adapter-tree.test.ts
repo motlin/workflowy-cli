@@ -32,7 +32,15 @@ const OpDataSchema = z.object({
 	project_trees: z.string().optional(),
 	projectids_json: z.string().optional(),
 });
-const TreesSchema = z.array(z.object({id: z.string(), nm: z.string()}).loose());
+interface PushedTree {
+	id: string;
+	nm: string;
+	ch?: PushedTree[] | undefined;
+}
+const TreeSchema: z.ZodType<PushedTree> = z.lazy(() =>
+	z.object({id: z.string(), nm: z.string(), ch: z.array(TreeSchema).optional()}).loose(),
+);
+const TreesSchema = z.array(TreeSchema);
 const IdsSchema = z.array(z.string());
 
 interface ServerNode {
@@ -101,9 +109,17 @@ function createServer() {
 		const parent = data.parentid ?? ROOT;
 		if (type === "bulk_create") {
 			const trees = TreesSchema.parse(JSON.parse(data.project_trees ?? "[]"));
-			for (const tree of trees) {
-				nodes.set(tree.id, {name: tree.nm, parent});
-			}
+			const createUnder = (under: string, subtrees: PushedTree[]) => {
+				for (const tree of subtrees) {
+					nodes.set(tree.id, {name: tree.nm, parent: under});
+					createUnder(tree.id, tree.ch ?? []);
+					order.set(
+						tree.id,
+						(tree.ch ?? []).map((child) => child.id),
+					);
+				}
+			};
+			createUnder(parent, trees);
 			insert(
 				parent,
 				data.starting_priority ?? 0,
@@ -728,6 +744,44 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 				{original_id: "b", mirror_id: "m3"},
 			],
 		});
+	});
+
+	it.each([
+		{
+			label: "a pasted tree with grandchildren",
+			trees: [{name: "p", children: [{name: "c", children: [{name: "g"}]}]}],
+			expected: {home: ["t1", "a", "b", "c"], t1: ["t2"], t2: ["t3"], t3: []},
+		},
+		{
+			label: "duplicated trees, each with children",
+			trees: [
+				{name: "p", children: [{name: "c"}]},
+				{name: "q", completed: true, children: [{name: "d", children: [{name: "e"}]}]},
+			],
+			expected: {home: ["t1", "t3", "a", "b", "c"], t1: ["t2"], t2: [], t3: ["t4"], t4: ["t5"], t5: []},
+		},
+		{
+			label: "a detached mirror copy holding a nested mirror root",
+			trees: [
+				{
+					name: "copy",
+					children: [
+						{name: "c", children: [{name: "", metadata: {mirror: {originalId: "b", isMirrorRoot: true}}}]},
+					],
+				},
+			],
+			expected: {home: ["t1", "a", "b", "c"], t1: ["t2"], t2: ["t3"], t3: []},
+		},
+	])("caches every level of $label", async ({trees, expected}) => {
+		let next = 0;
+		const {api, adapter, order} = await tracked(() => `t${++next}`);
+		serveTreeData(api, [{id: "a"}, {id: "b"}, {id: "c"}]);
+
+		await adapter.createTreesAt({parentId: "home", index: 0, trees});
+
+		expect(
+			Object.fromEntries(Object.keys(expected).map((id) => [id, order(id === "home" ? null : id)])),
+		).toStrictEqual(expected);
 	});
 
 	it("lists a mirror root created inside a tree on its original in the same push", async () => {

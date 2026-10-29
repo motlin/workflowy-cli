@@ -553,7 +553,10 @@ export class WorkflowyInternalAdapter {
 			}
 		};
 		writeKept(trees);
-		await tree.refreshChildren([parent]);
+		await tree.refreshChildren(
+			[parent],
+			trees.flatMap((node) => (node.id !== undefined && (node.children?.length ?? 0) > 0 ? [node.id] : [])),
+		);
 		for (const {mirrorId, originId} of mirrorRootsIn(trees)) {
 			tree.recordMirror(originId, mirrorId);
 		}
