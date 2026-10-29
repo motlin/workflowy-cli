@@ -566,7 +566,13 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			current: rows("SELECT node_id FROM backlinks WHERE system_to = '9999-12-31 23:59:59' ORDER BY node_id"),
 			treeDataReads: treeDataReads(api),
 		}).toStrictEqual({
-			linked: [SOURCE, CHILD],
+			linked: {
+				ids: [SOURCE, CHILD],
+				mirrors: [
+					{originalId: SOURCE, mirrorId: OLD_ITEM},
+					{originalId: CHILD, mirrorId: CHILD_ITEM},
+				],
+			},
 			deleted: [OLD_ITEM, CHILD_ITEM],
 			pushes: [
 				[
@@ -620,11 +626,40 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 		server.apply("delete", {projectid: SOURCE});
 		cacheService.deleteNode(SOURCE);
 
-		const deleted = await adapter.deleteBacklinksOf([SOURCE]);
+		const deleted = await adapter.deleteBacklinksOf({ids: [SOURCE], mirrors: []});
 
 		expect({deleted, pushes, treeDataReads: treeDataReads(api)}).toStrictEqual({
 			deleted: [],
 			pushes: [],
+			treeDataReads: 0,
+		});
+	});
+
+	it("deletes a deleted source's backlink item known only through a mirrors row the cache delete ended", async () => {
+		const {api, adapter, pushes, server, db, cacheService} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+			[TARGET, node("target", ROOT)],
+			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+			[OLD_ITEM, node("", OLD_ROOT, {mirror: {originalId: SOURCE, isMirrorRoot: true}})],
+			[OTHER, node("unrelated", ROOT)],
+		]);
+		const linked = linkedSourcesInSubtree(db, SOURCE);
+		server.apply("delete", {projectid: SOURCE});
+		cacheService.deleteNode(SOURCE);
+
+		const deleted = await adapter.deleteBacklinksOf(linked);
+
+		expect({
+			linked,
+			deleted,
+			pushes: pushes.map((ops) => ops.map((op) => [op.type, op.data.projectid])),
+			referencesChildren: server.children(OLD_ROOT),
+			treeDataReads: treeDataReads(api),
+		}).toStrictEqual({
+			linked: {ids: [SOURCE], mirrors: [{originalId: SOURCE, mirrorId: OLD_ITEM}]},
+			deleted: [OLD_ITEM],
+			pushes: [[["delete", OLD_ITEM]]],
+			referencesChildren: [],
 			treeDataReads: 0,
 		});
 	});
@@ -682,7 +717,13 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			current: rows("SELECT node_id FROM backlinks WHERE system_to = '9999-12-31 23:59:59' ORDER BY node_id"),
 			treeDataReads: treeDataReads(api),
 		}).toStrictEqual({
-			linked: [SOURCE],
+			linked: {
+				ids: [SOURCE],
+				mirrors: [
+					{originalId: SOURCE, mirrorId: OLD_ITEM},
+					{originalId: SOURCE, mirrorId: MIRROR},
+				],
+			},
 			deleted: [],
 			pushes: [],
 			referencesChildren: [OLD_ITEM],
@@ -705,7 +746,7 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			],
 		]);
 
-		const deleted = await adapter.deleteBacklinksOf([SOURCE]);
+		const deleted = await adapter.deleteBacklinksOf({ids: [SOURCE], mirrors: []});
 
 		expect({deleted, pushes}).toStrictEqual({deleted: [], pushes: []});
 	});

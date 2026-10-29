@@ -164,7 +164,7 @@ describe("node delete command", () => {
 
 			expect({order, calls: deleteBacklinks.mock.calls}).toStrictEqual({
 				order: ["DELETE", "backlinks"],
-				calls: [[["delete-id", "linked-id"]]],
+				calls: [[{ids: ["delete-id", "linked-id"], mirrors: []}]],
 			});
 		});
 

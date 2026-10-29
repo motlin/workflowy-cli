@@ -417,12 +417,46 @@ function getPath(value: unknown, path: string[]): unknown {
 	return current;
 }
 
+const ID_BATCH_SIZE = 500;
+
+/**
+ * The linked sources of a subtree about to be deleted (see
+ * {@link linkedSourcesInSubtree}): `ids` are the possible backlink sources, and
+ * `mirrors` each one's current `mirrors` rows, which the cache delete ends.
+ */
+export interface LinkedSources {
+	ids: string[];
+	mirrors: {originalId: string; mirrorId: string}[];
+}
+
 /**
  * The cached nodes in `rootId`'s subtree (itself included) whose name or note
- * holds an internal link: the only ones that can be backlink sources. Read
- * before a delete, since the cache drops the subtree with it.
+ * holds an internal link: the only ones that can be backlink sources, with the
+ * `mirrors` rows naming each as original. Read before a delete, since the cache
+ * drops the subtree, and those rows, with it.
  */
-export function linkedSourcesInSubtree(db: AdapterDatabase, rootId: string): string[] {
+export function linkedSourcesInSubtree(db: AdapterDatabase, rootId: string): LinkedSources {
+	const ids = linkedIdsInSubtree(db, rootId);
+	const mirrors: LinkedSources["mirrors"] = [];
+	for (let start = 0; start < ids.length; start += ID_BATCH_SIZE) {
+		mirrors.push(
+			...db
+				.select({originalId: mirrorsTable.originalId, mirrorId: mirrorsTable.mirrorId})
+				.from(mirrorsTable)
+				.where(
+					and(
+						inArray(mirrorsTable.originalId, ids.slice(start, start + ID_BATCH_SIZE)),
+						eq(mirrorsTable.systemTo, FAR_FUTURE_DATE),
+					),
+				)
+				.orderBy(mirrorsTable.originalId, mirrorsTable.mirrorId)
+				.all(),
+		);
+	}
+	return {ids, mirrors};
+}
+
+function linkedIdsInSubtree(db: AdapterDatabase, rootId: string): string[] {
 	const linked: string[] = [];
 	for (let level = [rootId]; level.length > 0;) {
 		const rows = db
@@ -1448,7 +1482,7 @@ export class WorkflowyInternalAdapter {
 
 	/** Upstream re-syncs the backlinks of every undeleted item; only cached nodes with a link can have any to create. */
 	private async syncRestoredBacklinks(rootId: string): Promise<void> {
-		const linked = linkedSourcesInSubtree(this.db, rootId);
+		const linked = linkedIdsInSubtree(this.db, rootId);
 		if (linked.length > 0) {
 			await this.syncBacklinks(linked);
 		}
@@ -1466,21 +1500,18 @@ export class WorkflowyInternalAdapter {
 	 * A source left the tree when the cache, after the write-through delete, no
 	 * longer has it. Its items come from the `backlinks` rows naming it, caught
 	 * up from the transaction log first (the delete leaves the rows of surviving
-	 * items alone), and each item's slot from live public reads, so the whole
-	 * tree is never read. An item already gone upstream is skipped.
+	 * items alone), plus each surviving cached mirror in `linked.mirrors` with no
+	 * `backlinks` row: the delete ended that `mirrors` row, and a non-backlink
+	 * mirror would have been promoted into the source's place instead. Each
+	 * item's slot comes from live public reads, so the whole tree is never read.
+	 * An item already gone upstream is skipped.
 	 */
-	async deleteBacklinksOf(sourceIds: string[]): Promise<string[]> {
+	async deleteBacklinksOf(linked: LinkedSources): Promise<string[]> {
+		const sourceIds = linked.ids;
 		if (sourceIds.length === 0) {
 			return [];
 		}
-		const cached = new Set(
-			this.db
-				.select({id: nodeContent.id})
-				.from(nodeContent)
-				.where(and(inArray(nodeContent.id, sourceIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
-				.all()
-				.map((row) => row.id),
-		);
+		const cached = new Set(this.cachedIds(sourceIds));
 		const deletedSources = [...new Set(sourceIds)].filter((id) => !cached.has(id));
 		if (deletedSources.length === 0) {
 			return [];
@@ -1488,16 +1519,21 @@ export class WorkflowyInternalAdapter {
 		const tree = this.tree();
 		await this.catchUp();
 		const relations = tree.relationshipMetadata(deletedSources);
+		const sources = new Set(deletedSources);
+		const mirroredAtDelete = this.cachedIds(
+			linked.mirrors.filter((row) => sources.has(row.originalId)).map((row) => row.mirrorId),
+		);
 		const itemIds = [
-			...new Set(
-				deletedSources.flatMap((id) => Object.keys(relations.get(id)?.mirror?.backlinkMirrorRootIds ?? {})),
-			),
+			...new Set([
+				...deletedSources.flatMap((id) => Object.keys(relations.get(id)?.mirror?.backlinkMirrorRootIds ?? {})),
+				...mirroredAtDelete,
+			]),
 		];
 		const itemRelations = tree.relationshipMetadata(itemIds);
-		const sources = new Set(deletedSources);
+		const mirrorOnly = new Set(mirroredAtDelete);
 		const ownItemIds = itemIds.filter((id) => {
 			const sourceID = itemRelations.get(id)?.backlink?.sourceID;
-			return sourceID !== undefined && sources.has(sourceID);
+			return sourceID === undefined ? mirrorOnly.has(id) : sources.has(sourceID);
 		});
 		if (ownItemIds.length === 0) {
 			return [];
@@ -1528,6 +1564,19 @@ export class WorkflowyInternalAdapter {
 		await this.pusher.pushAndPoll({ops});
 		await tree.refreshBacklinks([...orders.keys()], {referencesRoots: [], backlinks: [], deleted});
 		return deleted;
+	}
+
+	/** Those of `ids` the cache currently holds. */
+	private cachedIds(ids: string[]): string[] {
+		if (ids.length === 0) {
+			return [];
+		}
+		return this.db
+			.select({id: nodeContent.id})
+			.from(nodeContent)
+			.where(and(inArray(nodeContent.id, ids), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+			.all()
+			.map((row) => row.id);
 	}
 
 	/** Set (or, with `undefined`, remove) one node metadata value; see {@link setNodeMetaValues}. */

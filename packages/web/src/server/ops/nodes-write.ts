@@ -288,9 +288,9 @@ export const nodesDelete = defineOp({
 		// Upstream's client deletes a deleted source's backlink items; read the linked
 		// sources before the delete drops the subtree from the cache.
 		const adapter = getAdapter(ctx);
-		const linked = adapter ? linkedSourcesInSubtree(ctx.db, id) : [];
+		const linked = adapter ? linkedSourcesInSubtree(ctx.db, id) : undefined;
 		await client.deleteNode(id);
-		if (adapter && linked.length > 0) {
+		if (adapter && linked && linked.ids.length > 0) {
 			await adapter.deleteBacklinksOf(linked);
 		}
 		return ok(null);

@@ -170,7 +170,7 @@ describe("DELETE /api/v1/nodes/:id backlinks", () => {
 		expect({status, order, calls: adapter.deleteBacklinksOf.mock.calls}).toStrictEqual({
 			status: 204,
 			order: ["delete", "backlinks"],
-			calls: [[["n1", "c2"]]],
+			calls: [[{ids: ["n1", "c2"], mirrors: []}]],
 		});
 	});
 

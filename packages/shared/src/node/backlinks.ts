@@ -1,7 +1,7 @@
 import {WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {WorkflowyInternalAdapter} from "../internal/adapter.js";
-import type {BacklinkSync, WorkflowyInternalAdapterOptions} from "../internal/adapter.js";
+import type {BacklinkSync, LinkedSources, WorkflowyInternalAdapterOptions} from "../internal/adapter.js";
 import {hasInternalLink} from "../workflowy/internal-links.js";
 import {readInternalAuth} from "./session-store.js";
 
@@ -34,19 +34,19 @@ export async function syncBacklinksIfLinked(
 }
 
 /**
- * After a delete, remove the backlink items of the deleted `sourceIds`, as
+ * After a delete, remove the backlink items of the deleted `linked` sources, as
  * upstream's client does; pass `linkedSourcesInSubtree` read before the
  * delete. Needs the internal API; does nothing without it or without a source.
  */
 export async function deleteBacklinksOfDeleted(
-	sourceIds: string[],
+	linked: LinkedSources,
 	database: Database,
 	writeThrough: WorkflowyWriteThroughClient,
 ): Promise<string[]> {
-	if (sourceIds.length === 0) {
+	if (linked.ids.length === 0) {
 		return [];
 	}
-	return (await internalAdapter(database, writeThrough)?.deleteBacklinksOf(sourceIds)) ?? [];
+	return (await internalAdapter(database, writeThrough)?.deleteBacklinksOf(linked)) ?? [];
 }
 
 /** An internal-API adapter over the cache, or undefined without configured internal auth. */
