@@ -2,11 +2,14 @@ import {applyApiBatch, beginApiImport, finishApiImport, importInternalMetadata} 
 import type {ApiImportState, ImportApiResult} from "@workflowy/shared/cache";
 import type {TreeSnapshot} from "@workflowy/shared/api";
 import type {AppDatabase} from "@workflowy/shared/db";
+import {TreeResyncRequired} from "@workflowy/shared/internal";
 import {nodeBatches} from "./export-stream";
 
 const BATCH_SIZE = 2000;
 const DEFAULT_INTERVAL_MINUTES = 30;
 const RATE_LIMIT_BACKOFF_MS = 60_000;
+const SEED_KEY = "seedRequested";
+const SEED_HINT = "On the Worker, POST /api/admin/seed instead.";
 
 /** Bindings the sync job reads; all but the bucket are optional. */
 export interface SyncEnv {
@@ -25,8 +28,16 @@ export interface SyncDeps {
 	storage: DurableObjectStorage;
 	db: AppDatabase;
 	env: SyncEnv;
-	/** Reads the internal tree data when internal auth exists; undefined when it does not. */
+	/**
+	 * Reads the whole internal tree (about 54 MB live) when internal auth exists; undefined when it does not.
+	 * Only a run started by {@link SyncJob.seed} calls it.
+	 */
 	readTreeSnapshot?: () => Promise<TreeSnapshot> | undefined;
+	/**
+	 * Brings the edge tables up to the tree's latest transaction with one pure poll from the stored transaction id,
+	 * when internal auth exists; undefined when it does not. Every run that is not a seed calls it.
+	 */
+	catchUp?: () => Promise<void> | undefined;
 	/** Reads the account's Workflowy epoch when internal auth exists; undefined when it does not. */
 	readEpoch?: () => Promise<number> | undefined;
 	now?: () => number;
@@ -52,8 +63,11 @@ export type SyncResult =
 			ImportApiResult,
 			"importTimestamp"
 	  > & {
-				/** Set when get_tree_data failed: the public import still completed, internal metadata did not. */
-				treeDataError?: string;
+				/**
+				 * Set when the internal half failed (a seed's get_tree_data read, or the transaction-log catch-up):
+				 * the public import still completed, the edge tables did not.
+				 */
+				internalSyncError?: string;
 			})
 	| {status: "rate_limited" | "error"; message: string; at: number};
 
@@ -99,6 +113,15 @@ export class SyncJob {
 		return this.status();
 	}
 
+	/**
+	 * Make the next run (or the one in progress) finish with a whole-tree read that reseeds the edge tables, the
+	 * transaction id and the expanded keys. The only path that reads get_tree_data; never triggered automatically.
+	 */
+	async seed(): Promise<SyncStatus> {
+		this.write(SEED_KEY, true);
+		return this.syncNow();
+	}
+
 	async status(): Promise<SyncStatus> {
 		const job = this.read<Job>("job");
 		return {
@@ -142,7 +165,7 @@ export class SyncJob {
 		} catch (error) {
 			this.finishRun({
 				status: "error",
-				message: error instanceof Error ? error.message : String(error),
+				message: errorMessage(error),
 				at: this.now(),
 			});
 			await this.scheduleNextRun();
@@ -282,19 +305,35 @@ export class SyncJob {
 			return;
 		}
 
+		const seeding = this.read<boolean>(SEED_KEY) === true;
 		let snapshot: TreeSnapshot | undefined;
-		let treeDataError: string | undefined;
-		try {
-			snapshot = await this.deps.readTreeSnapshot?.();
-		} catch (error) {
-			// The public export alone is still a complete import; metadata catches up on the next run.
-			snapshot = undefined;
-			treeDataError = error instanceof Error ? error.message : String(error);
+		let internalSyncError: string | undefined;
+		if (seeding) {
+			this.write(SEED_KEY, null);
+			try {
+				snapshot = await this.deps.readTreeSnapshot?.();
+				if (snapshot === undefined) {
+					internalSyncError = "A seed needs internal auth (WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD)";
+				}
+			} catch (error) {
+				// The public export alone is still a complete import; the edge tables wait for the next seed.
+				snapshot = undefined;
+				internalSyncError = errorMessage(error);
+			}
 		}
 		await this.fillEpoch();
 		const result = finishApiImport(state, snapshot?.items);
 		if (snapshot !== undefined) {
 			importInternalMetadata(this.deps.db, snapshot, this.now());
+		}
+		if (!seeding) {
+			try {
+				await this.deps.catchUp?.();
+			} catch (error) {
+				// Never reseeded automatically: a missing seed or a refresh request needs an explicit seed.
+				internalSyncError =
+					error instanceof TreeResyncRequired ? `${error.message}. ${SEED_HINT}` : errorMessage(error);
+			}
 		}
 		const {importTimestamp: _timestamp, ...counts} = result;
 		this.finishRun({
@@ -303,8 +342,12 @@ export class SyncJob {
 			finishedAt: this.now(),
 			durationMs: this.now() - job.startedAt,
 			...counts,
-			...(treeDataError === undefined ? {} : {treeDataError}),
+			...(internalSyncError === undefined ? {} : {internalSyncError}),
 		});
 		await this.scheduleNextRun();
 	}
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }

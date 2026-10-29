@@ -36,7 +36,7 @@ interface SyncStatus {
 		nodesUnchanged?: number;
 		nodesPhasedOut?: number;
 		exportKey?: string;
-		treeDataError?: string;
+		internalSyncError?: string;
 		durationMs?: number;
 	} | null;
 }
@@ -54,8 +54,8 @@ async function status(h: Harness): Promise<SyncStatus> {
 	return (await readJson(response)) as SyncStatus;
 }
 
-async function runToIdle(h: Harness, previousFinished = 0): Promise<SyncStatus> {
-	const post = await h.mf.dispatchFetch("http://localhost/api/admin/sync", {method: "POST"});
+async function runToIdle(h: Harness, previousFinished = 0, path = "/api/admin/sync"): Promise<SyncStatus> {
+	const post = await h.mf.dispatchFetch(`http://localhost${path}`, {method: "POST"});
 	expect(post.status).toBe(202);
 	for (let i = 0; i < 300; i++) {
 		const current = await status(h);
@@ -94,12 +94,42 @@ async function internalMetadata(h: Harness): Promise<unknown> {
 	return response.json();
 }
 
+interface TreeLog {
+	txId: string | null;
+	mirrors: {mirror_id: string; original_id: string}[];
+}
+
+async function treeLog(h: Harness): Promise<TreeLog> {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Miniflare types its namespace with undici classes
+	const ns = (await h.mf.getDurableObjectNamespace("USER_STORE")) as unknown as DurableObjectNamespace;
+	const response = await ns.get(ns.idFromName("dev")).fetch("http://localhost/__tree-log");
+	return response.json();
+}
+
+/** One `/push_and_poll` result, as the server sends it. */
+function pollResult(txId: string, extra: Record<string, unknown> = {}): Response {
+	return Response.json({results: [{new_most_recent_operation_transaction_id: txId, ...extra}]});
+}
+
+/** The transaction id a `/push_and_poll` form started from. */
+function startTxId(body: string): string {
+	const data: unknown = JSON.parse(new URLSearchParams(body).get("push_poll_data") ?? "[]");
+	const first: unknown = Array.isArray(data) ? data[0] : undefined;
+	return typeof first === "object" && first !== null && "most_recent_operation_transaction_id" in first
+		? String(first.most_recent_operation_transaction_id)
+		: "";
+}
+
+const internalAuthBindings = {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"};
+
 describe("sync from a fake upstream", () => {
 	let current = makeNodes(5000);
 	let exportCalls = 0;
 	let rateLimit = false;
 	let treeData: (() => Response) | undefined;
+	let pushAndPoll: () => Response = () => pollResult("1");
 	const internalCalls: string[] = [];
+	const pollStarts: string[] = [];
 	const auths: (string | null)[] = [];
 	const open = new Set<Harness>();
 	const stop = async (h: Harness, keepData = false): Promise<void> => {
@@ -113,8 +143,13 @@ describe("sync from a fake upstream", () => {
 			persistDir,
 			{...bindings, ...extra},
 			{
-				outboundService: (request: Request): Response => {
+				outboundService: async (request: Request): Promise<Response> => {
 					const url = new URL(request.url);
+					if (url.pathname === "/push_and_poll") {
+						internalCalls.push(url.pathname);
+						pollStarts.push(startTxId(await request.text()));
+						return pushAndPoll();
+					}
 					if (url.pathname === "/api/v1/nodes-export") {
 						exportCalls++;
 						auths.push(request.headers.get("authorization"));
@@ -134,7 +169,13 @@ describe("sync from a fake upstream", () => {
 						}
 						if (url.pathname === "/get_initialization_data") {
 							return Response.json({
-								projectTreeData: {mainProjectTreeInfo: {dateJoinedTimestampInSeconds: 1_400_000_000}},
+								projectTreeData: {
+									mainProjectTreeInfo: {
+										dateJoinedTimestampInSeconds: 1_400_000_000,
+										initialMostRecentOperationTransactionId: "1",
+									},
+								},
+								user: {id: 123},
 							});
 						}
 						return treeData?.() ?? new Response("no tree data", {status: 500});
@@ -235,7 +276,7 @@ describe("sync from a fake upstream", () => {
 		rmSync(persistDir, {recursive: true, force: true});
 	}, 180_000);
 
-	it("imports internal metadata from get_tree_data when internal auth exists", async () => {
+	it("reads get_tree_data only on an explicit seed, then catches up from the transaction log with no tree read", async () => {
 		current = makeNodes(100);
 		treeData = () =>
 			Response.json({
@@ -246,19 +287,90 @@ describe("sync from a fake upstream", () => {
 				most_recent_operation_transaction_id: "1",
 			});
 		internalCalls.length = 0;
-		const h = await start(undefined, {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"});
-		const done = await runToIdle(h);
-		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100});
-		expect(done.lastResult?.treeDataError).toBeUndefined();
-		expect(internalCalls).toStrictEqual([
-			"/ajax_login",
-			"/get_tree_data/",
-			"/ajax_login",
-			"/get_initialization_data",
-		]);
+		pollStarts.length = 0;
+		const h = await start(undefined, internalAuthBindings);
+		const seeded = await runToIdle(h, 0, "/api/admin/seed");
+		expect(seeded.lastResult).toMatchObject({status: "ok", totalNodes: 100});
+		expect(seeded.lastResult?.internalSyncError).toBeUndefined();
+		expect(internalCalls.filter((path) => path === "/get_tree_data/")).toStrictEqual(["/get_tree_data/"]);
 		await expect(internalMetadata(h)).resolves.toStrictEqual([
 			{node_id: uuid(1), metadata_json: JSON.stringify({numbered_start: 7})},
 		]);
+		await expect(treeLog(h)).resolves.toStrictEqual({txId: "1", mirrors: []});
+
+		const mirrored = JSON.stringify({
+			id: 4,
+			client_timestamp: 300_000_000,
+			ops: [
+				{
+					type: "edit",
+					data: {
+						projectid: uuid(3),
+						metadataPatches: [{op: "add", path: ["mirror", "mirrorRootIds", uuid(4)], value: true}],
+					},
+				},
+			],
+		});
+		pushAndPoll = () => pollResult("5", {concurrent_remote_operation_transactions: [mirrored]});
+		internalCalls.length = 0;
+		pollStarts.length = 0;
+		const synced = await runToIdle(h, 1);
+		expect(synced.lastResult).toMatchObject({status: "ok", totalNodes: 100, nodesUnchanged: 100});
+		expect(synced.lastResult?.internalSyncError).toBeUndefined();
+		expect({
+			treeReads: internalCalls.filter((path) => path === "/get_tree_data/").length,
+			pollStarts,
+			log: await treeLog(h),
+		}).toStrictEqual({
+			treeReads: 0,
+			pollStarts: ["1"],
+			log: {txId: "5", mirrors: [{mirror_id: uuid(4), original_id: uuid(3)}]},
+		});
+		pushAndPoll = () => pollResult("1");
+		await stop(h);
+	}, 60_000);
+
+	it("fails loudly without a seed: the public import completes, the status names the cause, and nothing reads the tree", async () => {
+		current = makeNodes(100);
+		treeData = () => Response.json({items: [], most_recent_operation_transaction_id: "1"});
+		internalCalls.length = 0;
+		const h = await start(undefined, internalAuthBindings);
+		const done = await runToIdle(h);
+		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100, nodesAdded: 100});
+		expect(done.lastResult?.internalSyncError).toMatch(/no Workflowy transaction id.*POST \/api\/admin\/seed/u);
+		expect(internalCalls.filter((path) => path === "/get_tree_data/" || path === "/push_and_poll")).toStrictEqual(
+			[],
+		);
+		await expect(treeLog(h)).resolves.toStrictEqual({txId: null, mirrors: []});
+		await stop(h);
+	}, 60_000);
+
+	it("fails loudly on need_refreshed_project_tree and does not reseed", async () => {
+		current = makeNodes(100);
+		treeData = () => Response.json({items: [], most_recent_operation_transaction_id: "1"});
+		const h = await start(undefined, internalAuthBindings);
+		await runToIdle(h, 0, "/api/admin/seed");
+		pushAndPoll = () => pollResult("9", {need_refreshed_project_tree: true});
+		internalCalls.length = 0;
+		const done = await runToIdle(h, 1);
+		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100});
+		expect(done.lastResult?.internalSyncError).toMatch(/need_refreshed_project_tree.*POST \/api\/admin\/seed/u);
+		expect({
+			treeReads: internalCalls.filter((path) => path === "/get_tree_data/").length,
+			log: await treeLog(h),
+		}).toStrictEqual({treeReads: 0, log: {txId: "1", mirrors: []}});
+		pushAndPoll = () => pollResult("1");
+		await stop(h);
+	}, 60_000);
+
+	it("reports a seed request without internal auth instead of reading anything", async () => {
+		current = makeNodes(100);
+		internalCalls.length = 0;
+		const h = await start();
+		const done = await runToIdle(h, 0, "/api/admin/seed");
+		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100});
+		expect(done.lastResult?.internalSyncError).toMatch(/internal auth/u);
+		expect(internalCalls).toStrictEqual([]);
 		await stop(h);
 	}, 60_000);
 
@@ -299,8 +411,8 @@ describe("sync from a fake upstream", () => {
 				],
 				most_recent_operation_transaction_id: "1",
 			});
-		const h = await start(undefined, {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"});
-		const done = await runToIdle(h);
+		const h = await start(undefined, internalAuthBindings);
+		const done = await runToIdle(h, 0, "/api/admin/seed");
 		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 5});
 		const response = await h.mf.dispatchFetch("http://localhost/api/v1/calendar/day/20261027");
 		expect(response.status).toBe(200);
@@ -311,7 +423,7 @@ describe("sync from a fake upstream", () => {
 	it("fills config.workflowy_epoch from the initialization data when internal auth exists and the row is missing", async () => {
 		current = makeNodes(100);
 		treeData = () => Response.json({items: [], most_recent_operation_transaction_id: "1"});
-		const h = await start(undefined, {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"});
+		const h = await start(undefined, internalAuthBindings);
 		await expect(configRows(h)).resolves.toStrictEqual([]);
 		const done = await runToIdle(h);
 		expect(done.lastResult).toMatchObject({status: "ok"});
@@ -333,21 +445,22 @@ describe("sync from a fake upstream", () => {
 		const h = await start();
 		const done = await runToIdle(h);
 		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100});
-		expect(done.lastResult?.treeDataError).toBeUndefined();
+		expect(done.lastResult?.internalSyncError).toBeUndefined();
 		expect(internalCalls).toStrictEqual([]);
 		await expect(internalMetadata(h)).resolves.toStrictEqual([]);
 		await stop(h);
 	}, 60_000);
 
-	it("completes the public import but reports a get_tree_data failure in the sync status", async () => {
+	it("completes the public import but reports a get_tree_data failure during a seed", async () => {
 		current = makeNodes(100);
 		treeData = () => new Response("boom", {status: 500});
-		const h = await start(undefined, {WORKFLOWY_USERNAME: "alice@example.com", WORKFLOWY_PASSWORD: "hunter2"});
-		const done = await runToIdle(h);
+		const h = await start(undefined, internalAuthBindings);
+		const done = await runToIdle(h, 0, "/api/admin/seed");
 		expect(done.lastResult).toMatchObject({status: "ok", totalNodes: 100, nodesAdded: 100});
-		expect(done.lastResult?.treeDataError).toMatch(/\S/u);
+		expect(done.lastResult?.internalSyncError).toMatch(/\S/u);
 		await expect(liveIds(h)).resolves.toHaveLength(100);
 		await expect(internalMetadata(h)).resolves.toStrictEqual([]);
+		await expect(treeLog(h)).resolves.toStrictEqual({txId: null, mirrors: []});
 		await stop(h);
 	}, 60_000);
 });

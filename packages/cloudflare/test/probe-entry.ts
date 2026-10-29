@@ -69,6 +69,18 @@ export class ProbeStore extends UserStore {
 					.toArray(),
 			);
 		}
+		if (url.pathname === "/__tree-log") {
+			const txId = this.ctx.storage.sql
+				.exec("SELECT json FROM account_state WHERE key = 'tree_tx_id'")
+				.toArray()
+				.map((row) => (typeof row.json === "string" ? (JSON.parse(row.json) as unknown) : null));
+			const mirrors = this.ctx.storage.sql
+				.exec(
+					"SELECT mirror_id, original_id FROM mirrors WHERE system_to = '9999-12-31 23:59:59' ORDER BY mirror_id",
+				)
+				.toArray();
+			return Response.json({txId: txId[0] ?? null, mirrors});
+		}
 		if (url.pathname === "/__config") {
 			return Response.json(this.ctx.storage.sql.exec("SELECT key, value FROM config ORDER BY key").toArray());
 		}

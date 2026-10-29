@@ -79,6 +79,7 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 				readTreeSnapshot:
 					internalAuth && (async () => new WorkflowyInternalClient(internalAuth).getTreeSnapshot()),
 				readEpoch: internalAuth && (async () => new WorkflowyInternalClient(internalAuth).getEpoch()),
+				catchUp: internalAuth && (async () => serverContext.internalAdapter?.()?.catchUp()),
 			});
 		});
 	}
@@ -98,6 +99,12 @@ export class UserStore extends DurableObject<Env & WorkerSecrets & SyncEnv> {
 	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC
 	async syncNow(): Promise<SyncStatus> {
 		return this.sync.syncNow();
+	}
+
+	/** Reseed the edge tables from one whole-tree read at the end of the next sync run; the only get_tree_data path. */
+	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC
+	async seedTree(): Promise<SyncStatus> {
+		return this.sync.seed();
 	}
 
 	// fallow-ignore-next-line unused-class-member -- the Worker invokes it over RPC
