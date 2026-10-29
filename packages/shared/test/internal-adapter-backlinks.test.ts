@@ -7,6 +7,7 @@ import {z} from "zod";
 import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
+import {collectItemRelationships, emptyItemRelationships} from "../src/cache/item-relationships.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import {replaceTreeTxId} from "../src/cache/tree-transaction.js";
 import * as schema from "../src/db/schema.js";
@@ -15,7 +16,7 @@ import {OperationRejected} from "../src/internal/errors.js";
 import {applyMetadataPatches} from "../src/internal/metadata-patch.js";
 import type {MetadataPatch} from "../src/internal/metadata-patch.js";
 import {hasInternalLink, internalLinkShortIds} from "../src/workflowy/internal-links.js";
-import {createFakeInternalApi, json, treeDataReads} from "./helpers/fake-internal-api.js";
+import {createFakeInternalApi, forbidTreeData, json, treeDataReads} from "./helpers/fake-internal-api.js";
 import type {RecordedRequest} from "./helpers/fake-internal-api.js";
 
 const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
@@ -161,7 +162,16 @@ const node = (name: string, parent: string, metadata: Record<string, unknown> = 
 	metadata,
 });
 
-async function setup(initial: [string, ServerNode][], trashed: [string, ServerNode][] = []) {
+/**
+ * `allowTreeData` keeps `/get_tree_data/` answering for the callers that still read it; otherwise every read of
+ * it fails, and the cache is seeded the way a whole-tree import would have: each node cached, plus the edge rows
+ * of its `mirror`/`backlink`/`isReferencesRoot` metadata.
+ */
+async function setup(
+	initial: [string, ServerNode][],
+	trashed: [string, ServerNode][] = [],
+	{allowTreeData = false}: {allowTreeData?: boolean} = {},
+) {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
@@ -224,6 +234,14 @@ async function setup(initial: [string, ServerNode][], trashed: [string, ServerNo
 	});
 	const parents = [...new Set(initial.map(([, value]) => value.parent))];
 	await writeThrough.refreshChildren(parents.map((parent) => (parent === ROOT ? null : parent)));
+	const imported = emptyItemRelationships();
+	for (const [id, value] of initial) {
+		collectItemRelationships(imported, id, value.metadata);
+	}
+	cacheService.recordRelationships(imported);
+	if (!allowTreeData) {
+		forbidTreeData(api);
+	}
 	const rows = (sql: string) => sqlite.prepare(sql).all();
 	return {sqlite, db, api, adapter, pushes, server, cacheService, rows};
 }
@@ -252,8 +270,12 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 		open = [];
 		vi.unstubAllGlobals();
 	});
-	async function tracked(initial: [string, ServerNode][], trashed: [string, ServerNode][] = []) {
-		const result = await setup(initial, trashed);
+	async function tracked(
+		initial: [string, ServerNode][],
+		trashed: [string, ServerNode][] = [],
+		options: {allowTreeData?: boolean} = {},
+	) {
+		const result = await setup(initial, trashed, options);
 		open.push(result.sqlite);
 		return result;
 	}
@@ -338,7 +360,7 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 	});
 
 	it("reuses an existing references root and deletes a backlink whose link is gone, ending its composite", async () => {
-		const {adapter, pushes, sqlite, rows} = await tracked([
+		const {api, adapter, pushes, rows} = await tracked([
 			[SOURCE, node(`now ${link(OTHER)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
 			[TARGET, node("target", ROOT)],
 			[OTHER, node("other", ROOT)],
@@ -352,11 +374,6 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			],
 			[OTHER_ROOT, node("", OTHER, {isReferencesRoot: true})],
 		]);
-		sqlite.exec(
-			`INSERT INTO references_roots VALUES ('${OLD_ROOT}', '${SEEDED}', '9999-12-31 23:59:59'), ('${OTHER_ROOT}', '${SEEDED}', '9999-12-31 23:59:59');
-			 INSERT INTO backlinks VALUES ('${OLD_ITEM}', '${SOURCE}', '${TARGET}', '${SEEDED}', '9999-12-31 23:59:59');
-			 INSERT INTO mirrors VALUES ('${OLD_ITEM}', '${SOURCE}', '${SEEDED}', '9999-12-31 23:59:59');`,
-		);
 
 		const result = await adapter.syncBacklinks([SOURCE]);
 
@@ -370,6 +387,7 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			oldItemCurrent: rows(
 				`SELECT id FROM node_content WHERE id = '${OLD_ITEM}' AND system_to = '9999-12-31 23:59:59' UNION ALL SELECT mirror_id FROM mirrors WHERE mirror_id = '${OLD_ITEM}' AND system_to = '9999-12-31 23:59:59'`,
 			),
+			reads: treeDataReads(api),
 		}).toStrictEqual({
 			result: {created: [{id: ID1, sourceId: SOURCE, targetId: OTHER}], referencesRoots: [], deleted: [OLD_ITEM]},
 			pushes: [
@@ -385,13 +403,18 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			],
 			current: [{node_id: ID1, source_id: SOURCE, target_id: OTHER}],
 			oldItemCurrent: [],
+			reads: 0,
 		});
 	});
 
 	it("drops a backlinkMirrorRootIds entry whose item no longer exists, without a delete op", async () => {
-		const {adapter, pushes} = await tracked([
+		const {adapter, pushes, sqlite} = await tracked([
 			[SOURCE, node("plain", ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
 		]);
+		// An earlier import cached the item while it still existed.
+		sqlite.exec(
+			`INSERT INTO backlinks VALUES ('${OLD_ITEM}', '${SOURCE}', '${TARGET}', '${SEEDED}', '9999-12-31 23:59:59');`,
+		);
 
 		const result = await adapter.syncBacklinks([SOURCE]);
 
@@ -424,6 +447,79 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 		const result = await adapter.syncBacklinks([SOURCE, OTHER]);
 
 		expect({result, pushes}).toStrictEqual({result: {created: [], referencesRoots: [], deleted: []}, pushes: []});
+	});
+
+	it("reuses a references root created upstream after the import, learned from the transaction log", async () => {
+		const {api, adapter, pushes, server} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT)],
+			[TARGET, node("target", ROOT)],
+		]);
+		const rootOp = {
+			type: "bulk_create",
+			data: {
+				parentid: TARGET,
+				starting_priority: 0,
+				project_trees: JSON.stringify([{id: OTHER_ROOT, nm: "", metadata: {isReferencesRoot: true}}]),
+			},
+		};
+		server.apply(rootOp.type, rootOp.data);
+		api.respondOnce("/push_and_poll", () =>
+			json({
+				results: [
+					{
+						new_most_recent_operation_transaction_id: "4568",
+						concurrent_remote_operation_transactions: [
+							JSON.stringify({id: 4568, client_timestamp: 300_000_000, ops: [rootOp]}),
+						],
+					},
+				],
+			}),
+		);
+
+		const result = await adapter.syncBacklinks([SOURCE]);
+
+		expect({
+			result,
+			pushes: pushes.map((ops) => ops.map((op) => [op.type, op.data.projectid ?? op.data.parentid])),
+			targetChildren: server.children(TARGET),
+			reads: treeDataReads(api),
+		}).toStrictEqual({
+			result: {created: [{id: ID1, sourceId: SOURCE, targetId: TARGET}], referencesRoots: [], deleted: []},
+			pushes: [
+				[
+					["bulk_create", OTHER_ROOT],
+					["edit", SOURCE],
+				],
+			],
+			targetChildren: [OTHER_ROOT],
+			reads: 0,
+		});
+	});
+
+	it("points a link to a mirror at the mirror's original", async () => {
+		const {api, adapter, pushes} = await tracked([
+			[SOURCE, node(`see ${link(CHILD)}`, ROOT)],
+			[TARGET, node("target", ROOT, {mirror: {mirrorRootIds: {[CHILD]: true}}})],
+			[CHILD, node("", ROOT, {mirror: {originalId: TARGET, isMirrorRoot: true}})],
+		]);
+
+		const result = await adapter.syncBacklinks([SOURCE]);
+
+		expect({
+			result,
+			pushes: pushes.map((ops) => ops.map((op) => [op.type, op.data.projectid ?? op.data.parentid])),
+			reads: treeDataReads(api),
+		}).toStrictEqual({
+			result: {created: [{id: ID2, sourceId: SOURCE, targetId: TARGET}], referencesRoots: [ID1], deleted: []},
+			pushes: [
+				[
+					["bulk_create", TARGET],
+					["bulk_create", ID1],
+					["edit", SOURCE],
+				],
+			],
+			reads: 0,
+		});
 	});
 
 	it("creates backlinks for a node created with a link in its note", async () => {
@@ -465,19 +561,19 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 				mirror: {originalId: sourceId, isMirrorRoot: true},
 				backlink: {sourceID: sourceId, targetID: TARGET},
 			});
-		const {adapter, pushes, server, sqlite, db, rows} = await tracked([
-			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
-			[CHILD, node("child", SOURCE, {mirror: {backlinkMirrorRootIds: {[CHILD_ITEM]: true}}}, link(TARGET))],
-			[OTHER, node(`also ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OTHER_ITEM]: true}}})],
-			[TARGET, node("target", ROOT)],
-			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
-			[OLD_ITEM, backlinkItem(SOURCE)],
-			[CHILD_ITEM, backlinkItem(CHILD)],
-			[OTHER_ITEM, backlinkItem(OTHER)],
-		]);
-		sqlite.exec(
-			`INSERT INTO references_roots VALUES ('${OLD_ROOT}', '${SEEDED}', '9999-12-31 23:59:59');
-			 INSERT INTO backlinks VALUES ('${OLD_ITEM}', '${SOURCE}', '${TARGET}', '${SEEDED}', '9999-12-31 23:59:59'), ('${CHILD_ITEM}', '${CHILD}', '${TARGET}', '${SEEDED}', '9999-12-31 23:59:59'), ('${OTHER_ITEM}', '${OTHER}', '${TARGET}', '${SEEDED}', '9999-12-31 23:59:59');`,
+		const {adapter, pushes, server, db, rows} = await tracked(
+			[
+				[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+				[CHILD, node("child", SOURCE, {mirror: {backlinkMirrorRootIds: {[CHILD_ITEM]: true}}}, link(TARGET))],
+				[OTHER, node(`also ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OTHER_ITEM]: true}}})],
+				[TARGET, node("target", ROOT)],
+				[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+				[OLD_ITEM, backlinkItem(SOURCE)],
+				[CHILD_ITEM, backlinkItem(CHILD)],
+				[OTHER_ITEM, backlinkItem(OTHER)],
+			],
+			[],
+			{allowTreeData: true},
 		);
 		const linked = linkedSourcesInSubtree(db, SOURCE);
 		server.apply("delete", {projectid: CHILD});
@@ -523,7 +619,7 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 		).toStrictEqual([]);
 	});
 
-	it("reads the whole account tree once for syncBacklinks", async () => {
+	it("reads the whole account tree zero times for syncBacklinks", async () => {
 		const {api, adapter} = await tracked([
 			[SOURCE, node(`see ${link(TARGET)}`, ROOT)],
 			[TARGET, node("target", ROOT)],
@@ -531,14 +627,18 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 
 		await adapter.syncBacklinks([SOURCE]);
 
-		expect(treeDataReads(api)).toBe(1);
+		expect(treeDataReads(api)).toBe(0);
 	});
 
 	it("reads the whole account tree once for deleteBacklinksOf", async () => {
-		const {api, adapter} = await tracked([
-			[SOURCE, node(`see ${link(TARGET)}`, ROOT)],
-			[TARGET, node("target", ROOT)],
-		]);
+		const {api, adapter} = await tracked(
+			[
+				[SOURCE, node(`see ${link(TARGET)}`, ROOT)],
+				[TARGET, node("target", ROOT)],
+			],
+			[],
+			{allowTreeData: true},
+		);
 
 		await adapter.deleteBacklinksOf([SOURCE]);
 
@@ -546,18 +646,22 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 	});
 
 	it("pushes nothing when the linked sources are still in the tree, as when a mirror was removed instead", async () => {
-		const {adapter, pushes} = await tracked([
-			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
-			[TARGET, node("target", ROOT)],
-			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+		const {adapter, pushes} = await tracked(
 			[
-				OLD_ITEM,
-				node("", OLD_ROOT, {
-					mirror: {originalId: SOURCE, isMirrorRoot: true},
-					backlink: {sourceID: SOURCE, targetID: TARGET},
-				}),
+				[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+				[TARGET, node("target", ROOT)],
+				[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+				[
+					OLD_ITEM,
+					node("", OLD_ROOT, {
+						mirror: {originalId: SOURCE, isMirrorRoot: true},
+						backlink: {sourceID: SOURCE, targetID: TARGET},
+					}),
+				],
 			],
-		]);
+			[],
+			{allowTreeData: true},
+		);
 
 		const deleted = await adapter.deleteBacklinksOf([SOURCE]);
 

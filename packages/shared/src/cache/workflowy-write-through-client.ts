@@ -175,6 +175,16 @@ export class WorkflowyWriteThroughClient {
 		return this.apiClient.getNode(nodeId);
 	}
 
+	/** One node as Workflowy has it now, or `null` when the public API answers 404. */
+	async findLiveNode(nodeId: string): Promise<WorkflowyNode | null> {
+		return this.apiClient.findNode(nodeId);
+	}
+
+	/** The cached node a link's 12-hex short id names, or `null` when no cached node has it. */
+	resolveShortId(shortId: string): string | null {
+		return this.cacheService.resolveShortIdToUuid(shortId);
+	}
+
 	/** Whether `nodeId` is cached, or else live on Workflowy (one public read, a 404 meaning no). */
 	async exists(nodeId: string): Promise<boolean> {
 		return this.cacheService.getNode(nodeId) !== undefined || (await this.apiClient.findNode(nodeId)) !== null;

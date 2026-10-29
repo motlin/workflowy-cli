@@ -15,7 +15,6 @@ import {accountState, localSettings, mirrors as mirrorsTable, nodeContent, nodeI
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {HOME_TARGET} from "../types/targets.js";
 import {hasInternalLink, internalLinkShortIds} from "../workflowy/internal-links.js";
-import {uuidToShortId} from "../workflowy/constants.js";
 import {upstreamExpansionKey, virtualId} from "../workflowy/virtual-id.js";
 import {
 	CALENDAR_LEVELS,
@@ -429,10 +428,6 @@ function getPath(value: unknown, path: string[]): unknown {
 	return current;
 }
 
-function stringKeys(value: unknown): string[] {
-	return typeof value === "object" && value !== null ? Object.keys(value) : [];
-}
-
 /** A backlink item's `{sourceID, targetID}`, from its metadata. */
 function backlinkOf(metadata: Metadata | undefined): {sourceID: string; targetID: string} | undefined {
 	const sourceID = getPath(metadata, ["backlink", "sourceID"]);
@@ -704,20 +699,18 @@ export class WorkflowyInternalAdapter {
 	 * `mirror.backlinkMirrorRootIds` follows with one edit.
 	 *
 	 * Mirrors and references roots are never sources, and links to the
-	 * source itself or to nodes outside the tree are skipped. A link to a
-	 * mirror targets its original. Everything goes out in one push; the
+	 * source itself or to nodes not cached are skipped. A link to a mirror
+	 * targets its original. Relationships come from the edge tables, caught
+	 * up from the transaction log first, and existence from live public reads,
+	 * so the whole tree is never read. Everything goes out in one push; the
 	 * changed parents are then read back and recorded as one unit of work.
 	 */
 	async syncBacklinks(sourceIds: string[]): Promise<BacklinkSync> {
 		const result: BacklinkSync = {created: [], referencesRoots: [], deleted: []};
 		const tree = this.tree();
-		const items = (await this.client.getTreeSnapshot()).items;
-		const metadataById = new Map(items.map((item) => [item.id, item.metadata ?? {}]));
-		const idByShortId = new Map(items.map((item) => [uuidToShortId(item.id), item.id]));
-		const originalOf = (id: string): string => {
-			const original = getPath(metadataById.get(id), ["mirror", "originalId"]);
-			return typeof original === "string" && metadataById.has(original) ? original : id;
-		};
+		await this.catchUp();
+		const sources = [...new Set(sourceIds)];
+		const sourceRelations = tree.relationshipMetadata(sources);
 		// The session is read only once there is an op to build.
 		let sessionRead: Promise<InternalSession> | undefined;
 		const opContext = async () => {
@@ -737,29 +730,39 @@ export class WorkflowyInternalAdapter {
 		const changedParents = new Set<string>();
 		const ops: InternalOp[] = [];
 
-		for (const sourceId of new Set(sourceIds)) {
-			const metadata = metadataById.get(sourceId);
-			if (metadata === undefined || metadata.isReferencesRoot === true || originalOf(sourceId) !== sourceId) {
+		for (const sourceId of sources) {
+			const {mirror, isReferencesRoot} = sourceRelations.get(sourceId) ?? {};
+			if (isReferencesRoot === true || mirror?.originalId !== undefined) {
 				continue;
 			}
-			const source = await tree.liveNode(sourceId);
-			const targets = [
+			const source = await tree.findLiveNode(sourceId);
+			if (source === null) {
+				continue;
+			}
+			const linked = [
 				...new Set(
 					internalLinkShortIds(`${source.name} ${source.note ?? ""}`).flatMap((shortId) => {
-						const id = idByShortId.get(shortId);
-						return id === undefined ? [] : [originalOf(id)];
+						const id = tree.resolveShortId(shortId);
+						return id === null ? [] : [id];
 					}),
 				),
-			].filter((id) => id !== sourceId);
+			];
+			const linkedRelations = tree.relationshipMetadata(linked);
+			const targets = [...new Set(linked.map((id) => linkedRelations.get(id)?.mirror?.originalId ?? id))].filter(
+				(id) => id !== sourceId,
+			);
 			const changes: MetadataChange[] = [];
 
-			for (const itemId of stringKeys(getPath(metadata, ["mirror", "backlinkMirrorRootIds"]))) {
-				if (!metadataById.has(itemId)) {
+			const itemIds = Object.keys(mirror?.backlinkMirrorRootIds ?? {});
+			const itemRelations = tree.relationshipMetadata(itemIds);
+			for (const itemId of itemIds) {
+				const item = await tree.findLiveNode(itemId);
+				if (item === null) {
 					// The item is gone from the tree; upstream's detach drops its id from the source.
 					changes.push({path: ["mirror", "backlinkMirrorRootIds", itemId], value: undefined});
 					continue;
 				}
-				const backlink = backlinkOf(metadataById.get(itemId));
+				const backlink = itemRelations.get(itemId)?.backlink;
 				if (backlink?.sourceID !== sourceId) {
 					continue;
 				}
@@ -768,7 +771,7 @@ export class WorkflowyInternalAdapter {
 					targets.splice(kept, 1);
 					continue;
 				}
-				const parentId = (await tree.liveNode(itemId)).parent_id ?? null;
+				const parentId = item.parent_id ?? null;
 				if (parentId === null) {
 					continue;
 				}
@@ -785,7 +788,8 @@ export class WorkflowyInternalAdapter {
 				let rootId = rootOf.get(targetId);
 				if (rootId === undefined) {
 					const children = await childOrder(targetId);
-					rootId = children.find((child) => metadataById.get(child)?.isReferencesRoot === true);
+					const childRelations = tree.relationshipMetadata(children);
+					rootId = children.find((child) => childRelations.get(child)?.isReferencesRoot === true);
 					if (rootId === undefined) {
 						const {userId, clock} = await opContext();
 						const created = bulkCreateOp({
@@ -837,7 +841,8 @@ export class WorkflowyInternalAdapter {
 			}
 
 			if (changes.length > 0) {
-				const {patches, inverse} = buildMetadataChanges(metadata, changes);
+				// Caught up above: a source shown without a `mirror` gets the whole object, otherwise leaf patches.
+				const {patches, inverse} = buildMetadataChanges(mirror === undefined ? {} : {mirror}, changes);
 				const {clock} = await opContext();
 				ops.push(editOp({...clock, id: sourceId, metadataPatches: patches, metadataInversePatches: inverse}));
 			}

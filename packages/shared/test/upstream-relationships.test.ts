@@ -89,4 +89,16 @@ describe("CacheService upstream relationship view", () => {
 			]),
 		);
 	});
+
+	it("lists a backlink item under its source's backlinkMirrorRootIds even without a mirrors row", () => {
+		const {cacheService} = seeded();
+		cacheService.recordRelationships({
+			...emptyItemRelationships(),
+			backlinks: [{nodeId: "gap", sourceId: PLAIN, targetId: TARGET}],
+		});
+
+		expect(cacheService.relationshipMetadata([PLAIN])).toStrictEqual(
+			new Map([[PLAIN, {mirror: {backlinkMirrorRootIds: {gap: true}}}]]),
+		);
+	});
 });

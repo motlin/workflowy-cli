@@ -9,11 +9,13 @@ import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import {z} from "zod";
 import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import {replaceTreeTxId} from "@workflowy/shared/cache";
 import Create from "../../../src/commands/node/create.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {seedTaggedCalendar} from "../../helpers/calendar-fixture.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
+import {catchUpResponse} from "../../helpers/internal-catch-up.js";
 import {requestBody, requestJson} from "../../helpers/request-body.js";
 
 describe("node create command", () => {
@@ -275,6 +277,7 @@ describe("node create command", () => {
 				testDatabase,
 				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
 			);
+			replaceTreeTxId(testDatabase.db, "1234567", 0);
 			fakeCreates("new-id");
 			const publicApi = fetchStub.getMockImplementation()!;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -284,8 +287,9 @@ describe("node create command", () => {
 						new Response("", {status: 200, headers: {"set-cookie": "sessionid=abc; Path=/"}}),
 					);
 				}
-				if (pathname === "/get_tree_data/") {
-					return Promise.resolve(Response.json({items: [], server_expanded_projects_list: []}));
+				const internal = catchUpResponse(pathname);
+				if (internal !== undefined) {
+					return Promise.resolve(internal);
 				}
 				return publicApi(url, init);
 			});
@@ -299,9 +303,14 @@ describe("node create command", () => {
 				]);
 			});
 
-			expect(requests().filter((entry) => !entry.includes("/api/v1/"))).toStrictEqual([
+			expect(
+				requests()
+					.filter((entry) => !entry.includes("/api/v1/"))
+					.map((entry) => entry.split("?")[0]),
+			).toStrictEqual([
 				"POST https://workflowy.com/ajax_login",
-				"GET https://workflowy.com/get_tree_data/",
+				"GET https://workflowy.com/get_initialization_data",
+				"POST https://workflowy.com/push_and_poll",
 			]);
 		});
 		it("syncs the backlinks of every node a --json tree creates with a link, in one call", async () => {

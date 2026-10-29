@@ -246,7 +246,8 @@ const ID_BATCH_SIZE = 500;
  * rebuilt from the current `mirrors`, `backlinks` and `references_roots` rows
  * (the inverse of {@link collectItemRelationships}). A mirror that is a backlink
  * item is listed under its original's `backlinkMirrorRootIds`, any other under
- * `mirrorRootIds`. A node with no relationships maps to `{}`.
+ * `mirrorRootIds`; a `backlinks` row also lists its item under its source's
+ * `backlinkMirrorRootIds`. A node with no relationships maps to `{}`.
  */
 export function upstreamRelationshipMetadata(
 	tx: TemporalTransaction,
@@ -297,12 +298,23 @@ export function upstreamRelationshipMetadata(
 		const backlinkRows = tx
 			.select({nodeId: backlinks.nodeId, sourceId: backlinks.sourceId, targetId: backlinks.targetId})
 			.from(backlinks)
-			.where(and(inArray(backlinks.nodeId, batch), eq(backlinks.systemTo, FAR_FUTURE_DATE)))
+			.where(
+				and(
+					or(inArray(backlinks.nodeId, batch), inArray(backlinks.sourceId, batch)),
+					eq(backlinks.systemTo, FAR_FUTURE_DATE),
+				),
+			)
 			.all();
 		for (const {nodeId, sourceId, targetId} of backlinkRows) {
 			const metadata = result.get(nodeId);
 			if (metadata !== undefined) {
 				metadata.backlink = {sourceID: sourceId, targetID: targetId};
+			}
+			// Some backlink items have no mirrors row; the backlinks row alone lists them on their source.
+			const source = result.get(sourceId);
+			if (source !== undefined) {
+				const mirror = (source.mirror ??= {});
+				mirror.backlinkMirrorRootIds = {...mirror.backlinkMirrorRootIds, [nodeId]: true};
 			}
 		}
 		const rootRows = tx

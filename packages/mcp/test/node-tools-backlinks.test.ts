@@ -5,14 +5,49 @@ import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {replaceTreeTxId} from "@workflowy/shared/cache";
 import {registerNodeTools} from "../src/tools/node-tools.js";
-import {getCacheService} from "../src/services.js";
+import {getCacheService, getDatabase} from "../src/services.js";
 
 declare module "vitest" {
 	export interface ProvidedContext {
 		/** Provided by packages/cli/test/setup/migrated-template.ts, the run-wide global setup. */
 		migratedDatabaseTemplate: string;
 	}
+}
+
+const INIT_BODY = {
+	projectTreeData: {
+		mainProjectTreeInfo: {
+			dateJoinedTimestampInSeconds: 1_300_000_000,
+			initialMostRecentOperationTransactionId: "1234567",
+			ownerId: 42,
+		},
+		rootProjectMetadata: {},
+	},
+	settings: {},
+	user: {id: 42},
+	globals: [["CLIENT_VERSION", 25]],
+};
+
+/** The internal init and an empty catch-up poll a backlink sync starts with, or `undefined` for any other path. */
+function catchUpResponse(pathname: string): Response | undefined {
+	if (pathname === "/get_initialization_data") {
+		return Response.json(INIT_BODY, {headers: {wfclientid: "2026-10-18 12:00:00.123456"}});
+	}
+	if (pathname === "/push_and_poll") {
+		return Response.json({
+			results: [
+				{
+					new_most_recent_operation_transaction_id: "1234568",
+					server_run_operation_transaction_json: JSON.stringify({ops: [], client_timestamp: 492_324_800}),
+					concurrent_remote_operation_transactions: [],
+					error_encountered_in_remote_operations: false,
+				},
+			],
+		});
+	}
+	return undefined;
 }
 
 const LINK = '<a href="https://workflowy.com/#/0123456789ab">t</a>';
@@ -55,7 +90,7 @@ function seed(id: string, name: string, parentId: string | null = null, note: st
 
 /**
  * Answers the public API with `node` for every read and write, and the
- * internal login, init and an empty tree; records each internal-API request.
+ * internal login, init, an empty catch-up poll and an empty tree; records each internal-API request.
  */
 function stubApis(node: {id: string; name: string; note: string | null}): string[] {
 	const internal: string[] = [];
@@ -75,6 +110,10 @@ function stubApis(node: {id: string; name: string; note: string | null}): string
 					server_expanded_projects_list: [],
 				}),
 			);
+		}
+		const internalResponse = catchUpResponse(url.pathname);
+		if (internalResponse !== undefined) {
+			return Promise.resolve(internalResponse);
 		}
 		if (url.pathname === "/api/v1/nodes/") {
 			return Promise.resolve(Response.json({item_id: node.id}));
@@ -100,11 +139,13 @@ async function call(name: string, args: Record<string, unknown>): Promise<unknow
 	}
 }
 
-const SYNCED = ["POST /ajax_login", "GET /get_tree_data/"];
+const SYNCED = ["POST /ajax_login", "GET /get_initialization_data", "POST /push_and_poll"];
+const DELETE_SYNCED = ["POST /ajax_login", "GET /get_tree_data/"];
 
 describe("MCP node tools backlinks", () => {
 	beforeEach(() => {
 		fs.rmSync(path.join(tempDir, "workflowy-session"), {force: true});
+		replaceTreeTxId(getDatabase(), "1234567", 0);
 	});
 
 	it("syncs a created node's backlinks when its text links to a node", async () => {
@@ -150,7 +191,7 @@ describe("MCP node tools backlinks", () => {
 
 		const error = await call("workflowy_node_delete", {id: "delete-5"});
 
-		expect({error, internal}).toStrictEqual({error: undefined, internal: SYNCED});
+		expect({error, internal}).toStrictEqual({error: undefined, internal: DELETE_SYNCED});
 	});
 
 	it("leaves the internal API alone when nothing in a deleted subtree links anywhere", async () => {

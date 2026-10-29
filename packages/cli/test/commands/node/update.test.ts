@@ -1,5 +1,6 @@
 import {it, vi, afterEach, expect, describe, beforeEach} from "vite-plus/test";
 import {captureOutput} from "@oclif/test";
+import {replaceTreeTxId} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import fs from "node:fs";
 import os from "node:os";
@@ -8,6 +9,7 @@ import type {MockInstance} from "vite-plus/test";
 import Update from "../../../src/commands/node/update.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
+import {catchUpResponse} from "../../helpers/internal-catch-up.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestBody} from "../../helpers/request-body.js";
 
@@ -95,7 +97,7 @@ describe("node update command", () => {
 	describe("backlinks", () => {
 		const TARGET_LINK = '<a href="https://workflowy.com/#/0123456789ab">t</a>';
 
-		/** Answers the public update and read-back, and the internal login, init and an empty tree; records each path. */
+		/** Answers the public update and read-back, and the internal login, init and an empty catch-up poll; records each path. */
 		function stubApis(): string[] {
 			const paths: string[] = [];
 			fetchStub.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -106,8 +108,9 @@ describe("node update command", () => {
 						new Response("", {status: 200, headers: {"set-cookie": "sessionid=abc; Path=/"}}),
 					);
 				}
-				if (url.pathname === "/get_tree_data/") {
-					return Promise.resolve(Response.json({items: [], server_expanded_projects_list: []}));
+				const internal = catchUpResponse(url.pathname);
+				if (internal !== undefined) {
+					return Promise.resolve(internal);
 				}
 				if (init?.method === "POST") {
 					return Promise.resolve(Response.json({status: "ok"}));
@@ -125,6 +128,7 @@ describe("node update command", () => {
 			process.env.WORKFLOWY_USERNAME = "alice@example.com";
 			process.env.WORKFLOWY_PASSWORD = "hunter2";
 			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+			replaceTreeTxId(testDatabase.db, "1234567", 0);
 		});
 
 		it("syncs the source's backlinks through the internal API when the new text links to a node", async () => {
@@ -137,7 +141,8 @@ describe("node update command", () => {
 
 			expect(paths.filter((entry) => !entry.includes("/api/v1/"))).toStrictEqual([
 				"POST /ajax_login",
-				"GET /get_tree_data/",
+				"GET /get_initialization_data",
+				"POST /push_and_poll",
 			]);
 		});
 
@@ -154,7 +159,8 @@ describe("node update command", () => {
 
 			expect(paths.filter((entry) => !entry.includes("/api/v1/"))).toStrictEqual([
 				"POST /ajax_login",
-				"GET /get_tree_data/",
+				"GET /get_initialization_data",
+				"POST /push_and_poll",
 			]);
 		});
 
