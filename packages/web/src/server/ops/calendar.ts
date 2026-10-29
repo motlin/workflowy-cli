@@ -78,7 +78,7 @@ const CalendarLevelSchema = z.enum(CALENDAR_LEVELS);
 const LayoutLevelsSchema = z.partialRecord(CalendarLevelSchema, z.boolean());
 const CalendarSettingsSchema = z.strictObject({foundDates: z.boolean(), dayPrefix: z.boolean()});
 /** What a layout write (or its undo) pushed; `writes` is 0 when the layout was already in place. */
-const AppliedLayoutSchema = z.strictObject({rootId: z.string(), writes: z.number()});
+export const AppliedLayoutSchema = z.strictObject({rootId: z.string(), writes: z.number()});
 const CalendarLevelMetadataSchema = z.strictObject({
 	level: CalendarLevelSchema,
 	value: z.string(),
@@ -87,7 +87,7 @@ const CalendarLevelMetadataSchema = z.strictObject({
 });
 const LayoutLocationSchema = z.strictObject({parentId: z.string(), index: z.number()});
 /** One tree write of upstream's restructure, as `planCalendarLayout` returns it. */
-const LayoutStepSchema = z.discriminatedUnion("op", [
+export const LayoutStepSchema = z.discriminatedUnion("op", [
 	z.strictObject({op: z.literal("set-calendar"), id: z.string(), calendar: CalendarLevelMetadataSchema.nullable()}),
 	z.strictObject({
 		op: z.literal("set-levels"),

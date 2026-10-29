@@ -1,13 +1,9 @@
 import {useQuery} from "@tanstack/react-query";
+import type {AppliedCalendarLayout, CalendarLayoutStep} from "../../node-types.js";
 import type {CalendarLayout, LayoutLevels} from "../calendar-layout-model.js";
 import {readJson} from "../read-json.js";
 
 const LAYOUT_URL = "/api/v1/calendar/layout";
-
-/** A planned restructure step; only `op` is read on the client. */
-export interface CalendarLayoutStep {
-	op: string;
-}
 
 /** The Calendar Layout view's starting state, fetched while the view is open. */
 export function useCalendarLayout(enabled: boolean): CalendarLayout | undefined {
@@ -37,12 +33,6 @@ export async function previewCalendarLayout(levels: LayoutLevels): Promise<Calen
 		throw new Error(body.error ?? `Failed to preview the calendar layout: ${response.statusText}`);
 	}
 	return body.steps;
-}
-
-/** What `PUT /api/v1/calendar/layout` and its undo report. */
-export interface AppliedCalendarLayout {
-	rootId: string;
-	writes: number;
 }
 
 async function layoutWrite(path: string, method: string, body?: unknown): Promise<AppliedCalendarLayout> {
