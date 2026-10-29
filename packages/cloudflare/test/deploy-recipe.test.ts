@@ -67,3 +67,19 @@ describe("Worker dev through the Cloudflare Vite plugin", () => {
 		expect(config).toContain("wrangler.jsonc");
 	});
 });
+
+describe("built wrangler.json", () => {
+	it("declares none of the Access settings in vars, so secrets can hold them", () => {
+		const build = spawnSync("just", ["--no-deps", "cf-build"], {cwd: root, encoding: "utf8"});
+		expect(build.status, build.stderr).toBe(0);
+		const built: {vars?: Record<string, string>} = JSON.parse(
+			readFileSync(`${root}packages/web/dist/workflowy/worker/wrangler.json`, "utf8"),
+		);
+		const names = Object.keys(built.vars ?? {});
+		expect(
+			names.filter((name) =>
+				["ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "ALLOWED_EMAILS", "ALLOWED_SERVICE_TOKENS"].includes(name),
+			),
+		).toStrictEqual([]);
+	}, 240_000);
+});

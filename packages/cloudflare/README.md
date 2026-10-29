@@ -17,16 +17,17 @@ Run `vp run --filter @workflowy/cloudflare types` after changing `wrangler.jsonc
 ### Names
 
 - Secrets (`wrangler secret put`): `WORKFLOWY_API_KEY`, `WORKFLOWY_USERNAME`, `WORKFLOWY_PASSWORD`, optionally `WORKFLOWY_SESSION_COOKIE` (copy from `.llm/workflowy-session`; avoids password login from datacenter IPs).
-- Vars in `wrangler.jsonc`: `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_EMAILS`, `ALLOWED_SERVICE_TOKENS`, `SYNC_INTERVAL_MINUTES`; optional `TREE_SNAPSHOT=false` to serve search from SQL.
+- Access secrets (`wrangler secret put`, never vars, because a deploy resets vars and a secret cannot share a name with a var): `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_EMAILS`, `ALLOWED_SERVICE_TOKENS`. Until they are set the Worker fails closed (403).
+- Vars in `wrangler.jsonc`: `SYNC_INTERVAL_MINUTES`; optional `TREE_SNAPSHOT=false` to serve search from SQL.
 - R2 bucket `workflowy-snapshots`; Durable Object class `UserStore`.
 
 ### Deploy (Craig only)
 
-- `wrangler login` from `packages/cloudflare`; put the `account_id` in the gitignored `wrangler.local.jsonc` or pass `CLOUDFLARE_ACCOUNT_ID`.
+- `wrangler login` from `packages/cloudflare`; set `CLOUDFLARE_ACCOUNT_ID` (nothing reads `wrangler.local.jsonc`; the Vite plugin builds from `wrangler.jsonc`).
 - Create the bucket: `wrangler r2 bucket create workflowy-snapshots`.
-- Zero Trust: create an Access self-hosted application for the Worker hostname with a policy allowing only `motlin1@gmail.com`. Copy the team domain and the AUD tag into `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Disable the `workers.dev` route if using a custom domain so Access cannot be bypassed.
-- Admin calls from the CLI or curl: in Zero Trust create a service token (Access > Service Auth), add a Service Auth policy for it on the application, and set `ALLOWED_SERVICE_TOKENS="<client-id>=motlin1@gmail.com"` (comma-separated pairs; the identity is the user whose Durable Object the token reaches; an unmapped token gets 403). Pass the credentials with `--access-client-id`/`--access-client-secret` or `CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET`; for curl send `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers.
-- Set the secrets above with `wrangler secret put`.
+- Zero Trust: create an Access self-hosted application for the Worker hostname with a policy allowing only `motlin1@gmail.com`. Copy the team domain and the AUD tag into the `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` secrets. Disable the `workers.dev` route if using a custom domain so Access cannot be bypassed.
+- Admin calls from the CLI or curl: in Zero Trust create a service token (Access > Service Auth), add a Service Auth policy for it on the application, and set the `ALLOWED_SERVICE_TOKENS` secret to `<client-id>=motlin1@gmail.com` (comma-separated pairs; the identity is the user whose Durable Object the token reaches; an unmapped token gets 403). Pass the credentials with`--access-client-id`/`--access-client-secret`or`CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET`; for curl send `CF-Access-Client-Id`and`CF-Access-Client-Secret` headers.
+- Set the secrets above with `wrangler secret put <NAME> --name workflowy` (the deployed worker name in `wrangler.jsonc`), and set `ALLOWED_EMAILS` to `motlin1@gmail.com`.
 - `CONFIRM_DEPLOY=1 just cf-deploy` (runs `just cf-build`, then deploys `packages/web/dist/workflowy/worker/wrangler.json`; refuses without it; never part of `verify`).
 - Seed the durable settings, which the sync does not copy: `just cf-seed-settings https://<worker-host>` reads `local_settings` from the local cache and PUTs it to `/api/admin/local-settings` (an Access-protected admin route; `GET` lists what is stored). Run it through an Access-authenticated path, or try it first against `just dev`.
 - `POST /api/admin/sync`, then watch `GET /api/admin/status`. Record CPU time and peak memory from Workers Logs; if the import hits the memory limit, lower the batch size or split the export across ticks.

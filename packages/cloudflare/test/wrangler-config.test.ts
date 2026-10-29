@@ -17,7 +17,7 @@ describe("wrangler.jsonc", () => {
 		expect(readWranglerConfig().limits).toStrictEqual({cpu_ms: 300_000});
 	});
 
-	it("keeps empty placeholders for the Access vars", () => {
-		expect(readWranglerConfig().vars).toMatchObject({ALLOWED_EMAILS: "", ALLOWED_SERVICE_TOKENS: ""});
+	it("keeps the Access config out of vars so dashboard secrets are not reset on deploy", () => {
+		expect(readWranglerConfig().vars).toStrictEqual({SYNC_INTERVAL_MINUTES: "30"});
 	});
 });
