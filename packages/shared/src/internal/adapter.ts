@@ -428,13 +428,6 @@ function getPath(value: unknown, path: string[]): unknown {
 	return current;
 }
 
-/** A backlink item's `{sourceID, targetID}`, from its metadata. */
-function backlinkOf(metadata: Metadata | undefined): {sourceID: string; targetID: string} | undefined {
-	const sourceID = getPath(metadata, ["backlink", "sourceID"]);
-	const targetID = getPath(metadata, ["backlink", "targetID"]);
-	return typeof sourceID === "string" && typeof targetID === "string" ? {sourceID, targetID} : undefined;
-}
-
 /**
  * The cached nodes in `rootId`'s subtree (itself included) whose name or note
  * holds an internal link: the only ones that can be backlink sources. Read
@@ -1478,31 +1471,53 @@ export class WorkflowyInternalAdapter {
 	 * references root stays, even when emptied. Sources still in the tree, such
 	 * as an original whose mirror was the one removed, keep theirs. Pass
 	 * {@link linkedSourcesInSubtree} read before the delete.
+	 *
+	 * A source left the tree when the cache, after the write-through delete, no
+	 * longer has it. Its items come from the `backlinks` rows naming it, caught
+	 * up from the transaction log first (the delete leaves the rows of surviving
+	 * items alone), and each item's slot from live public reads, so the whole
+	 * tree is never read. An item already gone upstream is skipped.
 	 */
 	async deleteBacklinksOf(sourceIds: string[]): Promise<string[]> {
 		if (sourceIds.length === 0) {
 			return [];
 		}
-		const items = (await this.client.getTreeSnapshot()).items;
-		const live = new Set(items.map((item) => item.id));
-		const deletedSources = new Set(sourceIds.filter((id) => !live.has(id)));
-		const itemIds = items
-			.filter((item) => {
-				const backlink = backlinkOf(item.metadata);
-				return backlink !== undefined && deletedSources.has(backlink.sourceID);
-			})
-			.map((item) => item.id);
-		if (itemIds.length === 0) {
+		const cached = new Set(
+			this.db
+				.select({id: nodeContent.id})
+				.from(nodeContent)
+				.where(and(inArray(nodeContent.id, sourceIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.all()
+				.map((row) => row.id),
+		);
+		const deletedSources = [...new Set(sourceIds)].filter((id) => !cached.has(id));
+		if (deletedSources.length === 0) {
 			return [];
 		}
 		const tree = this.tree();
+		await this.catchUp();
+		const relations = tree.relationshipMetadata(deletedSources);
+		const itemIds = [
+			...new Set(
+				deletedSources.flatMap((id) => Object.keys(relations.get(id)?.mirror?.backlinkMirrorRootIds ?? {})),
+			),
+		];
+		const itemRelations = tree.relationshipMetadata(itemIds);
+		const sources = new Set(deletedSources);
+		const ownItemIds = itemIds.filter((id) => {
+			const sourceID = itemRelations.get(id)?.backlink?.sourceID;
+			return sourceID !== undefined && sources.has(sourceID);
+		});
+		if (ownItemIds.length === 0) {
+			return [];
+		}
 		const session = await this.session();
 		const clock = {now: this.now(), dateJoinedSec: session.dateJoinedSec};
 		const orders = new Map<string, string[]>();
 		const ops: InternalOp[] = [];
 		const deleted: string[] = [];
-		for (const itemId of itemIds) {
-			const parentId = (await tree.liveNode(itemId)).parent_id ?? null;
+		for (const itemId of ownItemIds) {
+			const parentId = (await tree.findLiveNode(itemId))?.parent_id ?? null;
 			if (parentId === null) {
 				continue;
 			}

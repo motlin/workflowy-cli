@@ -90,7 +90,7 @@ function seed(id: string, name: string, parentId: string | null = null, note: st
 
 /**
  * Answers the public API with `node` for every read and write, and the
- * internal login, init, an empty catch-up poll and an empty tree; records each internal-API request.
+ * internal login, init and an empty catch-up poll; records each internal-API request.
  */
 function stubApis(node: {id: string; name: string; note: string | null}): string[] {
 	const internal: string[] = [];
@@ -101,15 +101,6 @@ function stubApis(node: {id: string; name: string; note: string | null}): string
 		}
 		if (url.pathname === "/ajax_login") {
 			return Promise.resolve(new Response("", {status: 200, headers: {"set-cookie": "sessionid=abc; Path=/"}}));
-		}
-		if (url.pathname === "/get_tree_data/") {
-			return Promise.resolve(
-				Response.json({
-					items: [],
-					most_recent_operation_transaction_id: "9999",
-					server_expanded_projects_list: [],
-				}),
-			);
 		}
 		const internalResponse = catchUpResponse(url.pathname);
 		if (internalResponse !== undefined) {
@@ -140,7 +131,6 @@ async function call(name: string, args: Record<string, unknown>): Promise<unknow
 }
 
 const SYNCED = ["POST /ajax_login", "GET /get_initialization_data", "POST /push_and_poll"];
-const DELETE_SYNCED = ["POST /ajax_login", "GET /get_tree_data/"];
 
 describe("MCP node tools backlinks", () => {
 	beforeEach(() => {
@@ -191,7 +181,7 @@ describe("MCP node tools backlinks", () => {
 
 		const error = await call("workflowy_node_delete", {id: "delete-5"});
 
-		expect({error, internal}).toStrictEqual({error: undefined, internal: DELETE_SYNCED});
+		expect({error, internal}).toStrictEqual({error: undefined, internal: SYNCED});
 	});
 
 	it("leaves the internal API alone when nothing in a deleted subtree links anywhere", async () => {

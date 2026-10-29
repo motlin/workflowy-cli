@@ -142,9 +142,7 @@ function createServer(initial: [string, ServerNode][], trashed: [string, ServerN
 		return Response.json({node: toApi(id)});
 	}
 
-	const treeData = () => [...nodes].map(([id, node]) => ({id, metadata: node.metadata}));
-
-	return {apply, publicFetch, treeData, children};
+	return {apply, publicFetch, children};
 }
 
 const SERVER_RUN = JSON.stringify({ops: [], client_timestamp: 300_000_000});
@@ -163,15 +161,10 @@ const node = (name: string, parent: string, metadata: Record<string, unknown> = 
 });
 
 /**
- * `allowTreeData` keeps `/get_tree_data/` answering for the callers that still read it; otherwise every read of
- * it fails, and the cache is seeded the way a whole-tree import would have: each node cached, plus the edge rows
- * of its `mirror`/`backlink`/`isReferencesRoot` metadata.
+ * Every read of `/get_tree_data/` fails, and the cache is seeded the way a whole-tree import would have: each
+ * node cached, plus the edge rows of its `mirror`/`backlink`/`isReferencesRoot` metadata.
  */
-async function setup(
-	initial: [string, ServerNode][],
-	trashed: [string, ServerNode][] = [],
-	{allowTreeData = false}: {allowTreeData?: boolean} = {},
-) {
+async function setup(initial: [string, ServerNode][], trashed: [string, ServerNode][] = []) {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
@@ -202,14 +195,6 @@ async function setup(
 			],
 		});
 	});
-	api.respond("/get_tree_data/", () =>
-		json({
-			items: server.treeData(),
-			shared_projects: {},
-			most_recent_operation_transaction_id: "9999",
-			server_expanded_projects_list: [],
-		}),
-	);
 	const client = new WorkflowyInternalClient({
 		credentials: {username: "alice@example.com", password: "hunter2"},
 		fetch: api.fetch,
@@ -239,9 +224,7 @@ async function setup(
 		collectItemRelationships(imported, id, value.metadata);
 	}
 	cacheService.recordRelationships(imported);
-	if (!allowTreeData) {
-		forbidTreeData(api);
-	}
+	forbidTreeData(api);
 	const rows = (sql: string) => sqlite.prepare(sql).all();
 	return {sqlite, db, api, adapter, pushes, server, cacheService, rows};
 }
@@ -270,12 +253,8 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 		open = [];
 		vi.unstubAllGlobals();
 	});
-	async function tracked(
-		initial: [string, ServerNode][],
-		trashed: [string, ServerNode][] = [],
-		options: {allowTreeData?: boolean} = {},
-	) {
-		const result = await setup(initial, trashed, options);
+	async function tracked(initial: [string, ServerNode][], trashed: [string, ServerNode][] = []) {
+		const result = await setup(initial, trashed);
 		open.push(result.sqlite);
 		return result;
 	}
@@ -561,23 +540,21 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 				mirror: {originalId: sourceId, isMirrorRoot: true},
 				backlink: {sourceID: sourceId, targetID: TARGET},
 			});
-		const {adapter, pushes, server, db, rows} = await tracked(
-			[
-				[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
-				[CHILD, node("child", SOURCE, {mirror: {backlinkMirrorRootIds: {[CHILD_ITEM]: true}}}, link(TARGET))],
-				[OTHER, node(`also ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OTHER_ITEM]: true}}})],
-				[TARGET, node("target", ROOT)],
-				[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
-				[OLD_ITEM, backlinkItem(SOURCE)],
-				[CHILD_ITEM, backlinkItem(CHILD)],
-				[OTHER_ITEM, backlinkItem(OTHER)],
-			],
-			[],
-			{allowTreeData: true},
-		);
+		const {api, adapter, pushes, server, db, rows, cacheService} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+			[CHILD, node("child", SOURCE, {mirror: {backlinkMirrorRootIds: {[CHILD_ITEM]: true}}}, link(TARGET))],
+			[OTHER, node(`also ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OTHER_ITEM]: true}}})],
+			[TARGET, node("target", ROOT)],
+			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+			[OLD_ITEM, backlinkItem(SOURCE)],
+			[CHILD_ITEM, backlinkItem(CHILD)],
+			[OTHER_ITEM, backlinkItem(OTHER)],
+		]);
 		const linked = linkedSourcesInSubtree(db, SOURCE);
+		// The write-through delete removes the subtree upstream and from the cache.
 		server.apply("delete", {projectid: CHILD});
 		server.apply("delete", {projectid: SOURCE});
+		cacheService.deleteNode(SOURCE);
 
 		const deleted = await adapter.deleteBacklinksOf(linked);
 
@@ -587,6 +564,7 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			pushes: pushes.map((ops) => ops.map((op) => [op.type, op.data.projectid])),
 			referencesChildren: server.children(OLD_ROOT),
 			current: rows("SELECT node_id FROM backlinks WHERE system_to = '9999-12-31 23:59:59' ORDER BY node_id"),
+			treeDataReads: treeDataReads(api),
 		}).toStrictEqual({
 			linked: [SOURCE, CHILD],
 			deleted: [OLD_ITEM, CHILD_ITEM],
@@ -598,6 +576,7 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			],
 			referencesChildren: [OTHER_ITEM],
 			current: [{node_id: OTHER_ITEM}],
+			treeDataReads: 0,
 		});
 	});
 
@@ -630,38 +609,39 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 		expect(treeDataReads(api)).toBe(0);
 	});
 
-	it("reads the whole account tree once for deleteBacklinksOf", async () => {
-		const {api, adapter} = await tracked(
-			[
-				[SOURCE, node(`see ${link(TARGET)}`, ROOT)],
-				[TARGET, node("target", ROOT)],
-			],
-			[],
-			{allowTreeData: true},
-		);
+	it("skips a deleted source's backlink item that is already gone upstream, reading the whole account tree zero times", async () => {
+		const {api, adapter, pushes, server, cacheService} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+			[TARGET, node("target", ROOT)],
+			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+			[OLD_ITEM, node("", OLD_ROOT, {backlink: {sourceID: SOURCE, targetID: TARGET}})],
+		]);
+		server.apply("delete", {projectid: OLD_ITEM});
+		server.apply("delete", {projectid: SOURCE});
+		cacheService.deleteNode(SOURCE);
 
-		await adapter.deleteBacklinksOf([SOURCE]);
+		const deleted = await adapter.deleteBacklinksOf([SOURCE]);
 
-		expect(treeDataReads(api)).toBe(1);
+		expect({deleted, pushes, treeDataReads: treeDataReads(api)}).toStrictEqual({
+			deleted: [],
+			pushes: [],
+			treeDataReads: 0,
+		});
 	});
 
 	it("pushes nothing when the linked sources are still in the tree, as when a mirror was removed instead", async () => {
-		const {adapter, pushes} = await tracked(
+		const {adapter, pushes} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+			[TARGET, node("target", ROOT)],
+			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
 			[
-				[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
-				[TARGET, node("target", ROOT)],
-				[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
-				[
-					OLD_ITEM,
-					node("", OLD_ROOT, {
-						mirror: {originalId: SOURCE, isMirrorRoot: true},
-						backlink: {sourceID: SOURCE, targetID: TARGET},
-					}),
-				],
+				OLD_ITEM,
+				node("", OLD_ROOT, {
+					mirror: {originalId: SOURCE, isMirrorRoot: true},
+					backlink: {sourceID: SOURCE, targetID: TARGET},
+				}),
 			],
-			[],
-			{allowTreeData: true},
-		);
+		]);
 
 		const deleted = await adapter.deleteBacklinksOf([SOURCE]);
 
