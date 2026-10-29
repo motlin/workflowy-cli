@@ -2,7 +2,7 @@ import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
-import {afterEach, describe, expect, it} from "vite-plus/test";
+import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {applyApiBatch, beginApiImport, finishApiImport, importFromApi} from "../src/cache/api-import.js";
 import {CacheService} from "../src/cache/cache-service.js";
 import * as schema from "../src/db/schema.js";
@@ -66,6 +66,7 @@ describe("shared API import", () => {
 	}
 
 	afterEach(() => {
+		vi.useRealTimers();
 		for (const sqlite of open.splice(0)) {
 			sqlite.close();
 		}
@@ -325,9 +326,11 @@ describe("shared API import", () => {
 		});
 
 		it("keeps the existing timestamps when the write-through cache stores a changed child list", () => {
+			vi.useFakeTimers({toFake: ["Date"], now: T0});
 			const db = createDb();
 			const cache = new CacheService(db);
 			cache.storeApiResponse([apiNode(SKEW_NODE, {name: "Placeholder", priority: 0, ...ceilSide})], null);
+			vi.setSystemTime(T1);
 			cache.storeApiResponse([apiNode(SKEW_NODE, {name: "Placeholder", priority: 100, ...floorSide})], null);
 
 			const kept = {
