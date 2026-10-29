@@ -12,16 +12,16 @@ describe("OpInput and OpOutput pin the client-facing op types", () => {
 		}>();
 	});
 
-	it("nodes.create takes unvalidated optional fields", () => {
+	it("nodes.create takes a parent, a name and optional slot fields", () => {
 		expectTypeOf<OpInput<"nodes.create">>().toEqualTypeOf<{
-			parent_id?: unknown;
-			name?: unknown;
+			parent_id: string | null;
+			name: string;
 			note?: string | undefined;
 			layoutMode?: string | undefined;
-			index?: unknown;
-			position?: unknown;
-			after_id?: unknown;
-			id?: unknown;
+			index?: number | undefined;
+			position?: number | undefined;
+			after_id?: string | null | undefined;
+			id?: string | undefined;
 		}>();
 	});
 

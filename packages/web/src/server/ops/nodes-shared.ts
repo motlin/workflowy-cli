@@ -1,3 +1,4 @@
+import {z} from "zod";
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import type {
 	BacklinkCrumb,
@@ -357,21 +358,27 @@ export function readSiblingDtos(ctx: ServerContext, parentIds: (string | null)[]
 	return [...readChildDtoLists(ctx, parentIds).values()].flat();
 }
 
-export type ParentResult = {ok: true; parentId: string | null} | {ok: false; status: 400 | 404; error: string};
+/** A request's `parent_id`: a node id (short ids expand), or `null`, `""`, `"None"` or `"home"` for Home. */
+export const ParentIdSchema = z.string().nullable();
 
-/**
- * Resolve a request's `parent_id`: `null`, `""`, `"None"` and `"home"` mean
- * Home (`null`); a short id is expanded from the cache. Undefined is rejected.
- */
-export function parseParent(ctx: ServerContext, raw: unknown): ParentResult {
-	if (raw === undefined) {
-		return {ok: false, status: 400, error: "parent_id is required"};
-	}
+/** A slot among ALL of a parent's children, the moved nodes included; omitted = bottom. */
+export const IndexSchema = z.number().int().nonnegative().optional();
+
+/** Legacy slot: negative = top, anything else = bottom. */
+export const LegacyPositionSchema = z.number().optional();
+
+/** The sibling the client saw right above the slot (null: first). */
+export const AfterIdSchema = z.string().nullable().optional();
+
+/** A non-empty, ordered list of node ids (short ids expand). */
+export const NodeIdsSchema = z.array(z.string()).min(1);
+
+export type ParentResult = {ok: true; parentId: string | null} | {ok: false; status: 404; error: string};
+
+/** Resolve a request's `parent_id` to a node id, or `null` for Home; a short id is expanded from the cache. */
+export function parseParent(ctx: ServerContext, raw: string | null): ParentResult {
 	if (raw === null || raw === "" || raw === "None" || raw === HOME_TARGET) {
 		return {ok: true, parentId: null};
-	}
-	if (typeof raw !== "string") {
-		return {ok: false, status: 400, error: "parent_id must be a string or null"};
 	}
 	const resolved = resolveNodeId(ctx, raw);
 	return resolved === null
@@ -379,19 +386,12 @@ export function parseParent(ctx: ServerContext, raw: unknown): ParentResult {
 		: {ok: true, parentId: resolved};
 }
 
-export type IndexResult = {ok: true; index: number | undefined} | {ok: false; error: string};
-
-/**
- * The requested slot: `index` when given, else the legacy `position` (negative
- * means top, anything else bottom), else undefined (bottom).
- */
-export function parseIndex(index: unknown, position: unknown): IndexResult {
+/** The requested slot: `index` when given, else the legacy `position` (negative = top), else undefined (bottom). */
+export function slotIndex(index: number | undefined, position: number | undefined): number | undefined {
 	if (index !== undefined) {
-		return typeof index === "number" && Number.isInteger(index) && index >= 0
-			? {ok: true, index}
-			: {ok: false, error: "index must be a non-negative integer"};
+		return index;
 	}
-	return {ok: true, index: typeof position === "number" && position < 0 ? 0 : undefined};
+	return position !== undefined && position < 0 ? 0 : undefined;
 }
 
 /** The adapter's parent id: a node id, or `HOME_TARGET`. */

@@ -17,7 +17,11 @@ import {
 	getAdapter,
 	getApiClient,
 	getWriteClient,
-	parseIndex,
+	AfterIdSchema,
+	IndexSchema,
+	LegacyPositionSchema,
+	ParentIdSchema,
+	slotIndex,
 	parseParent,
 	publicEnd,
 	publicMovePosition,
@@ -33,37 +37,13 @@ const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 
 const WRITE_CLIENT_REQUIRED = "WORKFLOWY_API_KEY environment variable is required";
 
-/** Upstream offers only these layouts at Home. */
-const HOME_LAYOUT_MODES = new Set(["bullets", "board"]);
-
 /** A `layoutMode` as a metadata value: `"bullets"` is upstream's default, stored as no key. */
 function layoutModeValue(layoutMode: string): string | undefined {
 	return layoutMode === "bullets" ? undefined : layoutMode;
 }
 
-/** A `tableSet` body as metadata changes, or undefined when it is malformed or writes outside `table`. */
-function parseTableSet(raw: unknown): {path: string[]; value: unknown}[] | undefined {
-	if (!Array.isArray(raw)) {
-		return undefined;
-	}
-	const changes: {path: string[]; value: unknown}[] = [];
-	for (const entry of raw as unknown[]) {
-		if (typeof entry !== "object" || entry === null) {
-			return undefined;
-		}
-		const {path, value} = entry as {path?: unknown; value?: unknown};
-		if (
-			!Array.isArray(path) ||
-			path.length === 0 ||
-			path[0] !== "table" ||
-			!path.every((part) => typeof part === "string")
-		) {
-			return undefined;
-		}
-		changes.push({path: path, value});
-	}
-	return changes;
-}
+/** A metadata write under `table`; an omitted value deletes the key. */
+const TableSetSchema = z.array(z.object({path: z.tuple([z.literal("table")], z.string()), value: z.json().optional()}));
 
 /** The public API's node in Workflowy response format, for a host without the cache row. */
 function wireNodeResponse(node: WorkflowyNode, parentId: string | null, hasUncompletedChildren: boolean): NodeResponse {
@@ -92,55 +72,38 @@ function wireNodeResponse(node: WorkflowyNode, parentId: string | null, hasUncom
 // POST /api/v1/nodes - Create node at an exact `index` among all siblings (omitted = bottom)
 export const nodesCreate = defineOp({
 	input: z.object({
-		parent_id: z.unknown().optional(),
-		name: z.unknown().optional(),
+		parent_id: ParentIdSchema,
+		/** An empty name is valid: every empty-row create (add button, Enter) sends `name: ""`. */
+		name: z.string(),
 		note: unvalidatedText,
 		layoutMode: unvalidatedText,
-		index: z.unknown().optional(),
-		/** Legacy: negative = top, anything else = bottom. */
-		position: z.unknown().optional(),
+		index: IndexSchema,
+		position: LegacyPositionSchema,
 		/**
 		 * The sibling the client saw right above the new node (null: first). While it is still a sibling it decides
 		 * the slot over `index`, which counts the client's possibly stale list.
 		 */
-		after_id: z.unknown().optional(),
+		after_id: AfterIdSchema,
 		/**
 		 * A client-generated lowercase UUID for the new node, so the client can edit the
 		 * optimistic row before this reply. Honored through the internal API only; the
 		 * public-API fallback assigns its own id (the reply carries the real one).
 		 */
-		id: z.unknown().optional(),
+		id: z.string().regex(CLIENT_ID_PATTERN).optional(),
 	}),
 	async run(ctx, body) {
 		const client = getWriteClient(ctx);
 		if (!client) {
 			return fail(500, {error: WRITE_CLIENT_REQUIRED});
 		}
-		const {name} = body;
-		const {note, layoutMode} = body;
-
-		// An empty name is valid: every empty-row create (add button, Enter) sends `name: ""`.
-		if (typeof name !== "string") {
-			return fail(400, {error: "name is required"});
-		}
-
+		const {name, note, layoutMode, after_id: afterId} = body;
 		const parent = parseParent(ctx, body.parent_id);
 		if (!parent.ok) {
 			return fail(parent.status, {error: parent.error});
 		}
 		const {parentId} = parent;
-		const slot = parseIndex(body.index, body.position);
-		if (!slot.ok) {
-			return fail(400, {error: slot.error});
-		}
-		if (body.id !== undefined && (typeof body.id !== "string" || !CLIENT_ID_PATTERN.test(body.id))) {
-			return fail(400, {error: "id must be a lowercase UUID"});
-		}
-		const afterId = body.after_id;
-		if (afterId !== undefined && afterId !== null && typeof afterId !== "string") {
-			return fail(400, {error: "after_id must be a node id or null"});
-		}
-		if (typeof body.id === "string" && ctx.cacheService.getNode(body.id)) {
+		const index = slotIndex(body.index, body.position);
+		if (body.id !== undefined && ctx.cacheService.getNode(body.id)) {
 			return fail(409, {error: `Node already exists: ${body.id}`});
 		}
 		const count = countChildren(ctx, parentId);
@@ -149,10 +112,10 @@ export const nodesCreate = defineOp({
 		if (adapter) {
 			const {id} = await adapter.createAt({
 				parentId: adapterParent(parentId),
-				...(slot.index === undefined ? {} : {index: slot.index}),
-				...(afterId === undefined || slot.index === undefined ? {} : {afterId}),
+				...(index === undefined ? {} : {index}),
+				...(afterId === undefined || index === undefined ? {} : {afterId}),
 				name,
-				...(typeof body.id === "string" ? {id: body.id} : {}),
+				...(body.id === undefined ? {} : {id: body.id}),
 				...(note === undefined ? {} : {note}),
 				...(layoutMode === undefined ? {} : {metadata: {layoutMode}}),
 			});
@@ -164,10 +127,10 @@ export const nodesCreate = defineOp({
 		}
 
 		// Without the internal API a middle slot is the nearer end plus a rotation of the siblings on the shorter side.
-		const end = publicEnd(slot.index, count);
+		const end = publicEnd(index, count);
 		const rotation: SlotPlan =
 			end === undefined
-				? planBlockSlot(childIds(ctx, parentId), [], slot.index ?? count)
+				? planBlockSlot(childIds(ctx, parentId), [], index ?? count)
 				: {position: end, siblingIds: []};
 		const createdNode = await client.createNode({
 			parent_id: parentId ?? HOME_TARGET,
@@ -185,15 +148,9 @@ export const nodesCreate = defineOp({
 
 // PATCH (or POST) /api/v1/nodes/home - Set Home's layoutMode through the root metadata
 export const nodesSetHome = defineOp({
-	input: z.record(z.string(), z.unknown()),
-	async run(ctx, body) {
-		const {layoutMode} = body;
-		if (typeof layoutMode !== "string" || Object.keys(body).some((key) => key !== "layoutMode")) {
-			return fail(400, {error: "Home accepts only layoutMode"});
-		}
-		if (!HOME_LAYOUT_MODES.has(layoutMode)) {
-			return fail(400, {error: "Home's layoutMode must be bullets or board"});
-		}
+	/** Upstream offers only these layouts at Home. */
+	input: z.strictObject({layoutMode: z.enum(["bullets", "board"])}),
+	async run(ctx, {layoutMode}) {
 		const adapter = getAdapter(ctx);
 		if (!adapter) {
 			return fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
@@ -210,8 +167,8 @@ export const nodesUpdate = defineOp({
 		name: unvalidatedText,
 		note: unvalidatedText,
 		layoutMode: unvalidatedText,
-		numberedStart: z.unknown().optional(),
-		tableSet: z.unknown().optional(),
+		numberedStart: z.number().int().nullable().optional(),
+		tableSet: TableSetSchema.optional(),
 	}),
 	async run(ctx, body) {
 		const client = getWriteClient(ctx);
@@ -235,13 +192,7 @@ export const nodesUpdate = defineOp({
 		) {
 			return fail(400, {error: "At least one of name, note, layoutMode, numberedStart, or tableSet is required"});
 		}
-		const tableChanges = tableSet === undefined ? [] : parseTableSet(tableSet);
-		if (tableChanges === undefined) {
-			return fail(400, {error: 'tableSet must be a list of {path, value} whose path starts with "table"'});
-		}
-		if (numberedStart !== undefined && numberedStart !== null && !Number.isInteger(numberedStart)) {
-			return fail(400, {error: "numberedStart must be an integer or null"});
-		}
+		const tableChanges = (tableSet ?? []).map(({path, value}) => ({path, value}));
 
 		const {cacheService} = ctx;
 		// Get current node to preserve parentId and verify existence
@@ -384,7 +335,7 @@ export const nodesUncomplete = completionOp("uncomplete");
 
 // POST /api/v1/nodes/:id/restore - Bring back a deleted node under its ORIGINAL id
 export const nodesRestore = defineOp({
-	input: z.object({id: z.string(), parent_id: z.unknown().optional(), index: z.unknown().optional()}),
+	input: z.object({id: z.string(), parent_id: ParentIdSchema.optional(), index: IndexSchema}),
 	async run(ctx, body) {
 		const adapter = getAdapter(ctx);
 		const apiClient = getApiClient(ctx);
@@ -406,11 +357,7 @@ export const nodesRestore = defineOp({
 			input.parentId = adapterParent(parent.parentId);
 		}
 		if (body.index !== undefined) {
-			const slot = parseIndex(body.index, undefined);
-			if (!slot.ok) {
-				return fail(400, {error: slot.error});
-			}
-			input.index = slot.index;
+			input.index = body.index;
 		}
 
 		// End the stale rows (the whole cached subtree) so the restore's refresh stores only what came back.

@@ -7,6 +7,7 @@ import type {ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 import {defineOp, fail, jsonOf, ok} from "./define.js";
 import type {Json, OpResult} from "./define.js";
+import type {BulkTree} from "../../node-types.js";
 import {
 	adapterParent,
 	childIds,
@@ -15,8 +16,13 @@ import {
 	getWriteClient,
 	openCopies,
 	originalsWithMirrors,
-	parseIndex,
+	AfterIdSchema,
+	IndexSchema,
+	LegacyPositionSchema,
+	NodeIdsSchema,
+	ParentIdSchema,
 	parseParent,
+	slotIndex,
 	publicEnd,
 	publicMovePosition,
 	readSiblingDtos,
@@ -28,81 +34,56 @@ const MAX_BULK_NODES = 10_000;
 
 const WRITE_CLIENT_REQUIRED = "WORKFLOWY_API_KEY environment variable is required";
 
-interface BulkTreeBody {
-	name: string;
-	note?: unknown;
-	completed?: unknown;
-	layoutMode?: unknown;
-	numberedStart?: unknown;
-	children?: unknown;
+const BulkTreeSchema: z.ZodType<BulkTree> = z.lazy(() =>
+	z.object({
+		name: z.string(),
+		note: z.string().optional(),
+		completed: z.boolean().optional(),
+		layoutMode: z.string().optional(),
+		numberedStart: z.number().int().optional(),
+		children: z.array(BulkTreeSchema).optional(),
+	}),
+);
+
+/** How many nodes the trees hold, descendants included. */
+function countTrees(trees: BulkTree[]): number {
+	return trees.reduce((total, tree) => total + 1 + countTrees(tree.children ?? []), 0);
 }
 
-function isBulkTreeBody(value: unknown): value is BulkTreeBody {
-	return typeof value === "object" && value !== null && typeof (value as {name?: unknown}).name === "string";
-}
-
-/** Validate and convert the request trees; the count accumulates the total nodes seen. */
-function parseBulkTrees(raw: unknown, count: {total: number}): NewTree[] | string {
-	if (!Array.isArray(raw)) {
-		return "trees must be an array";
-	}
-	const trees: NewTree[] = [];
-	for (const entry of raw as unknown[]) {
-		count.total += 1;
-		if (!isBulkTreeBody(entry)) {
-			return "each tree needs a string name";
-		}
-		const item = entry;
-		const children = item.children === undefined ? undefined : parseBulkTrees(item.children, count);
-		if (typeof children === "string") {
-			return children;
-		}
-		const metadata: Record<string, unknown> = {};
-		if (typeof item.layoutMode === "string") {
-			metadata.layoutMode = item.layoutMode;
-		}
-		if (typeof item.numberedStart === "number") {
-			metadata.numbered_start = item.numberedStart;
-		}
-		trees.push({
-			name: item.name,
-			...(typeof item.note === "string" ? {note: item.note} : {}),
-			...(item.completed === true ? {completed: true} : {}),
+/** The request trees as the adapter's `NewTree`s. */
+function toNewTrees(trees: BulkTree[]): NewTree[] {
+	return trees.map((tree) => {
+		const children = toNewTrees(tree.children ?? []);
+		const metadata: Record<string, unknown> = {
+			...(tree.layoutMode === undefined ? {} : {layoutMode: tree.layoutMode}),
+			...(tree.numberedStart === undefined ? {} : {numbered_start: tree.numberedStart}),
+		};
+		return {
+			name: tree.name,
+			...(tree.note === undefined ? {} : {note: tree.note}),
+			...(tree.completed === true ? {completed: true} : {}),
 			...(Object.keys(metadata).length === 0 ? {} : {metadata}),
-			...(children === undefined || children.length === 0 ? {} : {children}),
-		});
-	}
-	return trees;
+			...(children.length === 0 ? {} : {children}),
+		};
+	});
 }
 
 // POST /api/v1/nodes/trees - Create many trees at one slot with a single bulk_create
 export const nodesTrees = defineOp({
 	input: z.object({
-		parent_id: z.unknown().optional(),
-		index: z.unknown().optional(),
-		after_id: z.unknown().optional(),
-		trees: z.unknown().optional(),
+		parent_id: ParentIdSchema,
+		index: IndexSchema,
+		after_id: AfterIdSchema,
+		trees: z.array(BulkTreeSchema),
 	}),
 	async run(ctx, body) {
 		const parent = parseParent(ctx, body.parent_id);
 		if (!parent.ok) {
 			return fail(parent.status, {error: parent.error});
 		}
-		const slot = parseIndex(body.index, undefined);
-		if (!slot.ok) {
-			return fail(400, {error: slot.error});
-		}
-		const afterId = body.after_id;
-		if (afterId !== undefined && afterId !== null && typeof afterId !== "string") {
-			return fail(400, {error: "after_id must be a node id or null"});
-		}
-		const count = {total: 0};
-		const trees = parseBulkTrees(body.trees, count);
-		if (typeof trees === "string") {
-			return fail(400, {error: trees});
-		}
-		if (count.total > MAX_BULK_NODES) {
-			return fail(400, {error: `Too many nodes: ${count.total} (max ${MAX_BULK_NODES})`});
+		const total = countTrees(body.trees);
+		if (total > MAX_BULK_NODES) {
+			return fail(400, {error: `Too many nodes: ${total} (max ${MAX_BULK_NODES})`});
 		}
 		const adapter = getAdapter(ctx);
 		if (!adapter) {
@@ -110,9 +91,9 @@ export const nodesTrees = defineOp({
 		}
 		const {ids} = await adapter.createTreesAt({
 			parentId: adapterParent(parent.parentId),
-			...(slot.index === undefined ? {} : {index: slot.index}),
-			...(afterId === undefined ? {} : {afterId}),
-			trees,
+			...(body.index === undefined ? {} : {index: body.index}),
+			...(body.after_id === undefined ? {} : {afterId: body.after_id}),
+			trees: toNewTrees(body.trees),
 		});
 		return ok({ids}, {created: true});
 	},
@@ -120,18 +101,11 @@ export const nodesTrees = defineOp({
 
 // POST /api/v1/nodes/duplicate - Deep-copy items to consecutive slots of a parent, with one bulk_create
 export const nodesDuplicate = defineOp({
-	input: z.object({ids: z.unknown().optional(), parent_id: z.unknown().optional(), index: z.unknown().optional()}),
+	input: z.object({ids: NodeIdsSchema, parent_id: ParentIdSchema, index: IndexSchema}),
 	async run(ctx, body) {
-		if (!Array.isArray(body.ids) || body.ids.length === 0 || !body.ids.every((id) => typeof id === "string")) {
-			return fail(400, {error: "ids must be a non-empty array of node ids"});
-		}
 		const parent = parseParent(ctx, body.parent_id);
 		if (!parent.ok) {
 			return fail(parent.status, {error: parent.error});
-		}
-		const slot = parseIndex(body.index, undefined);
-		if (!slot.ok) {
-			return fail(400, {error: slot.error});
 		}
 		const adapter = getAdapter(ctx);
 		if (!adapter) {
@@ -164,7 +138,7 @@ export const nodesDuplicate = defineOp({
 		}
 		const {ids} = await adapter.createTreesAt({
 			parentId: adapterParent(parent.parentId),
-			...(slot.index === undefined ? {} : {index: slot.index}),
+			...(body.index === undefined ? {} : {index: body.index}),
 			trees,
 		});
 		await openCopies(adapter, sourceToNew);
@@ -183,19 +157,14 @@ async function moveNodes(
 	ctx: ServerContext,
 	client: WorkflowyWriteThroughClient,
 	ids: string[],
-	rawParent: unknown,
-	rawIndex: unknown,
-	legacyPosition: unknown,
+	rawParent: string | null,
+	index: number | undefined,
 ): Promise<OpResult<Json>> {
 	const parent = parseParent(ctx, rawParent);
 	if (!parent.ok) {
 		return fail(parent.status, {error: parent.error});
 	}
 	const {parentId} = parent;
-	const slot = parseIndex(rawIndex, legacyPosition);
-	if (!slot.ok) {
-		return fail(400, {error: slot.error});
-	}
 	const oldParents = ids.map((id) => ctx.cacheService.getNode(id)?.parentId ?? null);
 	const count = countChildren(ctx, parentId);
 
@@ -204,16 +173,16 @@ async function moveNodes(
 		await adapter.moveTo({
 			ids,
 			parentId: adapterParent(parentId),
-			...(slot.index === undefined ? {} : {index: slot.index}),
+			...(index === undefined ? {} : {index}),
 		});
 	} else {
-		const end = publicEnd(slot.index, count);
+		const end = publicEnd(index, count);
 		if (end === undefined) {
 			// A middle slot counts every child before removal; the rotation counts the others.
 			const order = childIds(ctx, parentId);
 			const moving = new Set(ids);
-			const slotIndex = order.slice(0, slot.index ?? order.length).filter((id) => !moving.has(id)).length;
-			const {position, siblingIds} = planBlockSlot(order, ids, slotIndex);
+			const othersBefore = order.slice(0, index ?? order.length).filter((id) => !moving.has(id)).length;
+			const {position, siblingIds} = planBlockSlot(order, ids, othersBefore);
 			for (const id of [...(position === "top" ? ids.toReversed() : ids), ...siblingIds]) {
 				await client.moveNode(id, parentId, publicMovePosition(position));
 			}
@@ -232,18 +201,11 @@ async function moveNodes(
 // nodes included (counted before removal): the block lands right before the child now at
 // `index`; omitted or >= the child count = bottom. Same contract as `MoveToInput.index`.
 export const nodesMove = defineOp({
-	input: z.object({ids: z.unknown().optional(), parent_id: z.unknown().optional(), index: z.unknown().optional()}),
+	input: z.object({ids: NodeIdsSchema, parent_id: ParentIdSchema, index: IndexSchema}),
 	async run(ctx, body) {
 		const client = getWriteClient(ctx);
 		if (!client) {
 			return fail(500, {error: WRITE_CLIENT_REQUIRED});
-		}
-		if (
-			!Array.isArray(body.ids) ||
-			body.ids.length === 0 ||
-			!body.ids.every((id): id is string => typeof id === "string")
-		) {
-			return fail(400, {error: "ids must be a non-empty array of strings"});
 		}
 		const ids: string[] = [];
 		for (const rawId of body.ids) {
@@ -253,7 +215,7 @@ export const nodesMove = defineOp({
 			}
 			ids.push(id);
 		}
-		return moveNodes(ctx, client, ids, body.parent_id, body.index, undefined);
+		return moveNodes(ctx, client, ids, body.parent_id, body.index);
 	},
 });
 
@@ -263,10 +225,9 @@ export const nodesMove = defineOp({
 export const nodesMoveOne = defineOp({
 	input: z.object({
 		id: z.string(),
-		parent_id: z.unknown().optional(),
-		index: z.unknown().optional(),
-		/** Legacy: negative = top, anything else = bottom. */
-		position: z.unknown().optional(),
+		parent_id: ParentIdSchema,
+		index: IndexSchema,
+		position: LegacyPositionSchema,
 	}),
 	async run(ctx, body) {
 		const client = getWriteClient(ctx);
@@ -277,6 +238,6 @@ export const nodesMoveOne = defineOp({
 		if (id === null || !ctx.cacheService.getNode(id)) {
 			return fail(404, {error: "Node not found"});
 		}
-		return moveNodes(ctx, client, [id], body.parent_id, body.index, body.position);
+		return moveNodes(ctx, client, [id], body.parent_id, slotIndex(body.index, body.position));
 	},
 });

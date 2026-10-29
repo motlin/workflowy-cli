@@ -218,9 +218,7 @@ describe("worker routes each Access email to its own Durable Object", () => {
 			body: "{}",
 		});
 		expect(duplicateViaWorker.status).toBe(400);
-		await expect(duplicateViaWorker.json()).resolves.toStrictEqual({
-			error: "ids must be a non-empty array of node ids",
-		});
+		await expect(duplicateViaWorker.json()).resolves.toStrictEqual({error: "Invalid request body"});
 
 		const swapViaDo = await stub.fetch("http://localhost/api/v1/nodes/abc/swap-mirror-origin", {method: "POST"});
 		expect(swapViaDo.status).toBe(404);
@@ -230,16 +228,14 @@ describe("worker routes each Access email to its own Durable Object", () => {
 			body: "{}",
 		});
 		expect(mirrorViaWorker.status).toBe(400);
-		await expect(mirrorViaWorker.json()).resolves.toStrictEqual({
-			error: "item_ids must be a non-empty array of node ids",
-		});
+		await expect(mirrorViaWorker.json()).resolves.toStrictEqual({error: "Invalid request body"});
 
 		const completeViaDo = await stub.fetch("http://localhost/api/v1/nodes/abc/complete", {method: "POST"});
 		expect(completeViaDo.status).toBe(404);
 		const createViaWorker = await h.mf.dispatchFetch("http://localhost/api/v1/nodes", {
 			method: "POST",
 			headers: {"content-type": "application/json", "Cf-Access-Jwt-Assertion": jwt},
-			body: "{}",
+			body: JSON.stringify({parent_id: null, name: ""}),
 		});
 		expect(createViaWorker.status).toBe(500);
 		await expect(createViaWorker.json()).resolves.toStrictEqual({
@@ -268,7 +264,7 @@ describe("worker routes each Access email to its own Durable Object", () => {
 			{method: "GET", path: "/api/v1/nodes"},
 			{method: "GET", path: "/api/search/helpers?rootId="},
 			{method: "POST", path: "/api/related", body: JSON.stringify({type: "similar"})},
-			{method: "POST", path: "/api/v1/nodes", body: "{}"},
+			{method: "POST", path: "/api/v1/nodes", body: JSON.stringify({parent_id: null, name: ""})},
 		];
 
 		// Sequential: the counter is per Durable Object, so concurrent requests would share it.

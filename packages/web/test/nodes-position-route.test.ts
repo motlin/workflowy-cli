@@ -171,7 +171,7 @@ describe("POST /api/v1/nodes with the internal API", () => {
 			taken: [taken.status, await taken.json()],
 			calls: adapter.createAt.mock.calls.length,
 		}).toStrictEqual({
-			malformed: [400, {error: "id must be a lowercase UUID"}],
+			malformed: [400, {error: "Invalid request body"}],
 			taken: [409, {error: `Node already exists: ${id}`}],
 			calls: 1,
 		});
@@ -230,7 +230,7 @@ describe("POST /api/v1/nodes/move with the internal API", () => {
 		const res = await post("/move", {parent_id: "a", index: 0});
 
 		expect(res.status).toBe(400);
-		await expect(res.json()).resolves.toStrictEqual({error: "ids must be a non-empty array of strings"});
+		await expect(res.json()).resolves.toStrictEqual({error: "Invalid request body"});
 		expect(adapter.moveTo.mock.calls).toStrictEqual([]);
 	});
 });

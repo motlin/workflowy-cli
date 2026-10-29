@@ -91,7 +91,7 @@ describe("POST /api/v1/nodes", () => {
 		const res = await post({parent_id: "p"});
 
 		expect(res.status).toBe(400);
-		await expect(res.json()).resolves.toStrictEqual({error: "name is required"});
+		await expect(res.json()).resolves.toStrictEqual({error: "Invalid request body"});
 		expect(createNode.mock.calls).toStrictEqual([]);
 	});
 });

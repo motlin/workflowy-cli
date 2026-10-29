@@ -157,3 +157,13 @@ export interface FoundDateItem {
 export interface FoundDatesResponse {
 	items: FoundDateItem[];
 }
+
+/** One tree of a `POST /api/v1/nodes/trees` body. */
+export interface BulkTree {
+	name: string;
+	note?: string | undefined;
+	completed?: boolean | undefined;
+	layoutMode?: string | undefined;
+	numberedStart?: number | undefined;
+	children?: BulkTree[] | undefined;
+}

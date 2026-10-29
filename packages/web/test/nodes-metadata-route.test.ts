@@ -208,7 +208,7 @@ describe("PATCH /api/v1/nodes/home", () => {
 	});
 
 	it.each([
-		[{layoutMode: "table"}, "Home's layoutMode must be bullets or board"],
+		[{layoutMode: "table"}, "Home accepts only layoutMode"],
 		[{layoutMode: "board", numberedStart: 2}, "Home accepts only layoutMode"],
 		[{name: "x"}, "Home accepts only layoutMode"],
 		[{}, "Home accepts only layoutMode"],
@@ -402,7 +402,7 @@ describe("PATCH /api/v1/nodes/:id metadata", () => {
 		const res = await request("PATCH", "/nodes/n1", {numberedStart: "5"});
 
 		expect({res, calls: adapter.setNodeMetaValues.mock.calls}).toStrictEqual({
-			res: {status: 400, body: {error: "numberedStart must be an integer or null"}},
+			res: {status: 400, body: {error: "Invalid request body"}},
 			calls: [],
 		});
 	});

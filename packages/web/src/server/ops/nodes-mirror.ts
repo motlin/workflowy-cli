@@ -12,7 +12,9 @@ import {
 	getWriteClient,
 	openCopies,
 	originalsWithMirrors,
-	parseIndex,
+	IndexSchema,
+	NodeIdsSchema,
+	ParentIdSchema,
 	parseParent,
 	readNodeDto,
 	resolveMirrorToOriginal,
@@ -23,26 +25,11 @@ const DETACH_TOO_BIG = `Detaching mirror subtrees containing more than ${MAX_COP
 
 // POST /api/v1/nodes/mirror - Mirror items under a parent, in order at consecutive indexes
 export const nodesMirror = defineOp({
-	input: z.object({
-		item_ids: z.unknown().optional(),
-		parent_id: z.unknown().optional(),
-		index: z.unknown().optional(),
-	}),
+	input: z.object({item_ids: NodeIdsSchema, parent_id: ParentIdSchema, index: IndexSchema}),
 	async run(ctx, body) {
-		if (
-			!Array.isArray(body.item_ids) ||
-			body.item_ids.length === 0 ||
-			!body.item_ids.every((id) => typeof id === "string")
-		) {
-			return fail(400, {error: "item_ids must be a non-empty array of node ids"});
-		}
 		const parent = parseParent(ctx, body.parent_id);
 		if (!parent.ok) {
 			return fail(parent.status, {error: parent.error});
-		}
-		const slot = parseIndex(body.index, undefined);
-		if (!slot.ok) {
-			return fail(400, {error: slot.error});
 		}
 		const originals: string[] = [];
 		const sourceRows: string[] = [];
@@ -74,7 +61,7 @@ export const nodesMirror = defineOp({
 		const {mirrors} = await adapter.createMirrorsAt({
 			originalIds: originals,
 			parentId: adapterParent(parentId),
-			index: slot.index ?? countChildren(ctx, parentId),
+			index: body.index ?? countChildren(ctx, parentId),
 		});
 		const mirrorIds = mirrors.map((mirror) => mirror.mirrorId);
 		// A new mirror opens like its source row (upstream `mirrorProjectTree`: `expanded: source.isExpanded`).
