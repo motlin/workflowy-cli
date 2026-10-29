@@ -152,7 +152,7 @@ export const OutlineViewResponseSchema = z.strictObject({
  * patches its cache after a write instead of refetching every node query.
  */
 export const NodeChangesResponseSchema = z.strictObject({
-	/** The new high-water mark: the newest system time any node row was opened or closed at. */
+	/** The new high-water mark: the newest commit-ordered change seq (decimal; "0" before any change). */
 	latest: z.string(),
 	/** Too much changed to list: refetch everything. The lists below are then empty. */
 	reset: z.boolean(),

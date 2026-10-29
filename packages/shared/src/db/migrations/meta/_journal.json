@@ -267,6 +267,13 @@
 			"when": 1779840000000,
 			"tag": "0038_drop_system_clock",
 			"breakpoints": true
+		},
+		{
+			"idx": 39,
+			"version": "6",
+			"when": 1779926400000,
+			"tag": "0039_add_node_change_log",
+			"breakpoints": true
 		}
 	]
 }

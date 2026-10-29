@@ -29,7 +29,7 @@ import type {ServerContext} from "../context.js";
 import type {MirrorInstance} from "../../mirror-path.js";
 import {childInstance, expansionId} from "../../mirror-path.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
-import {changedNodeIds, changedPlacement, changesSince, latestSystemTime, readConsistently} from "../system-changes.js";
+import {changesAfter, latestChangeSeq, liveParents, readConsistently} from "../system-changes.js";
 import {defineOp, fail, ok, toJson} from "./define.js";
 import {
 	AncestorsResponseSchema,
@@ -115,27 +115,27 @@ export const nodesChildren = defineOp({
 const CHANGES_LIMIT = 500;
 
 /**
- * What changed after the high-water mark `since` (none: only the mark): the changed ids, which of them are gone, and
- * the refreshed children of every parent they sit under now or left. One consistent read, and every concern is read
- * once for the whole id set, so the statement count does not grow with how much changed.
+ * What changed after the cursor `since` (none: only the cursor): the changed ids, which of them are gone, and the
+ * refreshed children of every parent they sit under now or left. The cursor is a `node_change_log` seq, exact under
+ * repeated and out-of-order system times (see `latestChangeSeq`). One consistent read, and every concern is read once
+ * for the whole id set, so the statement count does not grow with how much changed.
  */
 function readNodeChanges(ctx: ServerContext, since: string | undefined): NodeChangesResponse {
 	return readConsistently(ctx.db, () => {
-		const latest = latestSystemTime(ctx.db);
+		const latest = latestChangeSeq(ctx.db);
 		const none = {latest, reset: false, changedIds: [], deletedIds: [], children: []};
 		if (since === undefined) {
 			return none;
 		}
-		const from = changesSince(since);
-		const changed = changedNodeIds(ctx.db, from, CHANGES_LIMIT);
+		const changed = changesAfter(ctx.db, since, CHANGES_LIMIT);
 		if (changed === undefined) {
 			return {...none, reset: true};
 		}
-		const changedIds = [...changed];
-		const {parents, formerParents} = changedPlacement(ctx.db, changedIds, from);
+		const changedIds = [...changed.ids];
+		const parents = liveParents(ctx.db, changedIds);
 		const deletedIds = changedIds.filter((id) => !parents.has(id));
 		const gone = new Set(deletedIds);
-		const parentIds = [...new Set([...parents.values(), ...formerParents])].filter(
+		const parentIds = [...new Set([...parents.values(), ...changed.formerParents])].filter(
 			(id) => id === null || !gone.has(id),
 		);
 		const lists = readChildDtoLists(ctx, parentIds);

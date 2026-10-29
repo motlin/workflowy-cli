@@ -8,6 +8,7 @@
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
+import {nodeChangeLog} from "@workflowy/shared/db";
 import type {AppDatabase} from "@workflowy/shared/db";
 
 type Database = AppDatabase;
@@ -101,25 +102,67 @@ export function readConsistently<T>(database: Database, read: () => T): T {
 	return database.transaction(() => read());
 }
 
-/** Where the changed nodes `ids` sit now and sat before: each live one's parent, and the parents rows closed after `since` had. */
-export interface ChangedPlacement {
-	/** Each live id's current parent (null: Home). An id missing here is gone from the tree. */
-	parents: Map<string, string | null>;
-	/** The parents of rows closed after `since`, each once: what a move or delete left. */
+/**
+ * The nodes changes feed's cursor: the newest `node_change_log` seq, "0" before any change. Unlike a system time it
+ * is exact: SQLite runs one write transaction at a time and triggers assign seqs inside it, so a reader that has seen
+ * seq N has seen every change at or below N, however the changes' system times repeat or interleave.
+ */
+export function latestChangeSeq(database: Database): string {
+	const {seq} = database.get<{seq: number | null}>(
+		sql`SELECT max(${nodeChangeLog.seq}) AS seq FROM ${nodeChangeLog}`,
+	);
+	return String(seq ?? 0);
+}
+
+/** What changed after a {@link latestChangeSeq} cursor. */
+export interface ChangesAfter {
+	/** The changed node ids, plus live mirrors of a changed original (a mirror shows its original's text). */
+	ids: Set<string>;
+	/** The parents changed node_content rows had before they closed: what a move or delete left. */
 	formerParents: Set<string | null>;
 }
 
-/** {@link ChangedPlacement} for `ids`, in two queries however many ids: the id set is one JSON parameter. */
-export function changedPlacement(database: Database, ids: readonly string[], since: string): ChangedPlacement {
-	const idSet = sql`SELECT value FROM json_each(${JSON.stringify(ids)})`;
-	const live = database.all<{id: string; parent_id: string | null}>(sql`
-		SELECT id, parent_id FROM node_content WHERE system_to = ${FAR_FUTURE_DATE} AND id IN (${idSet})
-	`);
+/**
+ * {@link ChangesAfter} the cursor `after`, or undefined when the client must refetch everything instead: the cursor is
+ * not one this database issued (unparsable, or past its newest seq), the log was pruned past it, or more than `limit`
+ * nodes changed.
+ */
+export function changesAfter(database: Database, after: string, limit: number): ChangesAfter | undefined {
+	const cursor = /^\d+$/u.test(after) ? Number(after) : Number.NaN;
+	const {oldest, newest} = database.get<{oldest: number | null; newest: number | null}>(
+		sql`SELECT min(${nodeChangeLog.seq}) AS oldest, max(${nodeChangeLog.seq}) AS newest FROM ${nodeChangeLog}`,
+	);
+	if (Number.isNaN(cursor) || cursor > (newest ?? 0) || (oldest !== null && cursor < oldest - 1)) {
+		return undefined;
+	}
+	const changed = sql`SELECT DISTINCT ${nodeChangeLog.nodeId} AS node_id FROM ${nodeChangeLog} WHERE ${nodeChangeLog.seq} > ${cursor}`;
+	const ids = new Set<string>();
+	for (const query of [
+		changed,
+		sql`
+			SELECT mirror_id AS node_id FROM mirrors
+			WHERE system_to = ${FAR_FUTURE_DATE} AND original_id IN (${changed})
+		`,
+	]) {
+		for (const {node_id} of database.all<{node_id: string}>(sql`${query} LIMIT ${limit + 1}`)) {
+			ids.add(node_id);
+		}
+		if (ids.size > limit) {
+			return undefined;
+		}
+	}
 	const former = database.all<{parent_id: string | null}>(sql`
-		SELECT DISTINCT parent_id FROM node_content WHERE ${CLOSED} AND system_to > ${since} AND id IN (${idSet})
+		SELECT DISTINCT ${nodeChangeLog.parentId} AS parent_id FROM ${nodeChangeLog}
+		WHERE ${nodeChangeLog.seq} > ${cursor} AND ${nodeChangeLog.leftParent} = 1
 	`);
-	return {
-		parents: new Map(live.map((row) => [row.id, row.parent_id])),
-		formerParents: new Set(former.map((row) => row.parent_id)),
-	};
+	return {ids, formerParents: new Set(former.map((row) => row.parent_id))};
+}
+
+/** Each live node of `ids` with its current parent (null: Home), in one query: the id set is one JSON parameter. */
+export function liveParents(database: Database, ids: readonly string[]): Map<string, string | null> {
+	const live = database.all<{id: string; parent_id: string | null}>(sql`
+		SELECT id, parent_id FROM node_content
+		WHERE system_to = ${FAR_FUTURE_DATE} AND id IN (SELECT value FROM json_each(${JSON.stringify(ids)}))
+	`);
+	return new Map(live.map((row) => [row.id, row.parent_id]));
 }

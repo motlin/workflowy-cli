@@ -1,11 +1,10 @@
-import {describe, expect, it} from "vite-plus/test";
+import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {Hono} from "hono";
 import {join} from "node:path";
 import * as schema from "@workflowy/shared/db";
-import {formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import type {NodeChangesResponse} from "../src/node-types.js";
@@ -56,14 +55,6 @@ function setup(parents: number) {
 	return {cacheService, changes};
 }
 
-/**
- * A `since` that skips the server's look-back window, so only writes after the mark `latest` come back: the server
- * re-reads a few seconds before any mark, which would otherwise answer the setup's own writes too.
- */
-function pastLookBack(latest: string): string {
-	return formatTemporalTimestamp(new Date(Date.parse(`${latest.replace(" ", "T")}Z`) + 5000));
-}
-
 /** A response reduced to what a test compares: id sets, and each list as parent -> child ids. */
 function shape(body: NodeChangesResponse) {
 	return {
@@ -77,6 +68,10 @@ function shape(body: NodeChangesResponse) {
 }
 
 describe("GET /api/v1/nodes/changes", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it("without since answers only the high-water mark", async () => {
 		const {changes} = setup(1);
 
@@ -97,7 +92,7 @@ describe("GET /api/v1/nodes/changes", () => {
 		const seeded = await changes(null);
 		cacheService.insertNode(apiNode("New", "P1", 5), "P1");
 
-		const {body} = await changes(pastLookBack(seeded.body.latest));
+		const {body} = await changes(seeded.body.latest);
 
 		expect(shape(body)).toStrictEqual({
 			reset: false,
@@ -105,7 +100,7 @@ describe("GET /api/v1/nodes/changes", () => {
 			deletedIds: new Set(),
 			children: {P1: ["P1c0", "P1c1", "New"]},
 		});
-		expect(body.latest >= seeded.body.latest).toBe(true);
+		expect(Number(body.latest) > Number(seeded.body.latest)).toBe(true);
 	});
 
 	it("answers a moved node with both its old and new parents' children", async () => {
@@ -113,7 +108,7 @@ describe("GET /api/v1/nodes/changes", () => {
 		const seeded = await changes(null);
 		cacheService.insertNode(apiNode("P0c1", "P1", 5), "P1");
 
-		const {body} = await changes(pastLookBack(seeded.body.latest));
+		const {body} = await changes(seeded.body.latest);
 
 		expect(shape(body)).toStrictEqual({
 			reset: false,
@@ -128,7 +123,7 @@ describe("GET /api/v1/nodes/changes", () => {
 		const seeded = await changes(null);
 		cacheService.deleteNode("P1c0");
 
-		const {body} = await changes(pastLookBack(seeded.body.latest));
+		const {body} = await changes(seeded.body.latest);
 
 		expect(shape(body)).toStrictEqual({
 			reset: false,
@@ -136,6 +131,56 @@ describe("GET /api/v1/nodes/changes", () => {
 			deletedIds: new Set(["P1c0"]),
 			children: {P1: ["P1c1"]},
 		});
+	});
+
+	it("delivers changes that share a millisecond or commit after a later-stamped change", async () => {
+		const t0 = Date.parse("2026-10-29T12:00:00.000Z");
+		vi.useFakeTimers({toFake: ["Date"], now: t0});
+		const {cacheService, changes} = setup(2);
+		const seeded = await changes(null);
+		vi.setSystemTime(t0 + 60_000);
+		cacheService.insertNode(apiNode("Later", "P0", 5), "P0");
+		const first = await changes(seeded.body.latest);
+		cacheService.insertNode(apiNode("SameMs", "P0", 6), "P0");
+		// A unit that read the clock before "Later" and committed after it: its system time is behind the mark.
+		vi.setSystemTime(t0 + 30_000);
+		cacheService.insertNode(apiNode("Earlier", "P1", 5), "P1");
+
+		const second = await changes(first.body.latest);
+		const third = await changes(second.body.latest);
+
+		expect({first: shape(first.body), second: shape(second.body), third: shape(third.body)}).toStrictEqual({
+			first: {
+				reset: false,
+				changedIds: new Set(["Later"]),
+				deletedIds: new Set(),
+				children: {P0: ["P0c0", "P0c1", "Later"]},
+			},
+			second: {
+				reset: false,
+				changedIds: new Set(["SameMs", "Earlier"]),
+				deletedIds: new Set(),
+				children: {P0: ["P0c0", "P0c1", "Later", "SameMs"], P1: ["P1c0", "P1c1", "Earlier"]},
+			},
+			third: {reset: false, changedIds: new Set(), deletedIds: new Set(), children: {}},
+		});
+	});
+
+	it("answers reset for a cursor it never issued", async () => {
+		const {changes} = setup(1);
+		const seeded = await changes(null);
+
+		const resets = await Promise.all(
+			["2026-10-29 12:00:00.000", String(Number(seeded.body.latest) + 1)].map(async (since) => {
+				const {body} = await changes(since);
+				return {reset: body.reset, latest: body.latest};
+			}),
+		);
+
+		expect(resets).toStrictEqual([
+			{reset: true, latest: seeded.body.latest},
+			{reset: true, latest: seeded.body.latest},
+		]);
 	});
 
 	it("keeps its statement count independent of how many parents changed", async () => {
@@ -155,7 +200,7 @@ describe("GET /api/v1/nodes/changes", () => {
 			few: Object.keys(shape(few.body).children).length,
 			many: Object.keys(shape(many.body).children).length,
 			same: few.statements === many.statements,
-		}).toStrictEqual({few: 3, many: 13, same: true});
+		}).toStrictEqual({few: 2, many: 12, same: true});
 		expect(many.statements).toBeLessThanOrEqual(40);
 	});
 });

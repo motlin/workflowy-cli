@@ -38,16 +38,11 @@ let serverChildren: Map<string | null, string[]>;
 /** Requests the fake server has answered, in arrival order. */
 let arrivals: string[];
 /**
- * The fake server's system clock and its writes, for `GET /changes`. The clock never resets between tests: the
- * client's high-water mark lives in a module that outlives each test, and it only ever advances.
+ * The fake server's change seq and its writes, for `GET /changes`. The seq never resets between tests: the client's
+ * high-water mark lives in a module that outlives each test, and it only ever advances.
  */
 let clock = 0;
 let writes: {at: number; id: string; parents: (string | null)[]}[];
-
-/** A system time as the server formats it: fixed-width, so string order is time order. */
-function systemTime(at: number): string {
-	return String(at).padStart(12, "0");
-}
 
 function recordWrite(id: string, parents: (string | null)[]): void {
 	clock += 1;
@@ -106,10 +101,10 @@ async function answer(url: string, init: RequestInit | undefined): Promise<Respo
 	}
 	if (url.startsWith("/api/v1/nodes/changes")) {
 		const since = new URL(url, "http://x").searchParams.get("since");
-		const changed = since === null ? [] : writes.filter((write) => systemTime(write.at) > since);
+		const changed = since === null ? [] : writes.filter((write) => write.at > Number(since));
 		const parentIds = [...new Set(changed.flatMap((write) => write.parents))];
 		return Response.json({
-			latest: systemTime(clock),
+			latest: String(clock),
 			reset: false,
 			changedIds: [...new Set(changed.map((write) => write.id))],
 			deletedIds: [],

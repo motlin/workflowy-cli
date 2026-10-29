@@ -101,9 +101,10 @@ export type FetchChanges = (since: string | undefined) => Promise<NodeChangesRes
 export type PrepareList = (parentId: string | null, nodes: NodeResponse[]) => NodeResponse[] | undefined;
 
 /**
- * The client's global high-water mark over the node tree: the newest system time it has seen. After a write, `sync`
- * asks for everything changed since the mark and patches the cache with it, so a write costs one small request
- * instead of a refetch of every node query. Syncs run one at a time, and the mark only ever advances.
+ * The client's global high-water mark over the node tree: the server's commit-ordered change cursor, a decimal seq.
+ * After a write, `sync` asks for everything changed since the mark and patches the cache with it, so a write costs one
+ * small request instead of a refetch of every node query. Syncs run one at a time, and the mark only ever advances,
+ * except that a reset (a mark the server never issued or no longer holds) takes the server's mark as is.
  */
 export class ChangeFeed {
 	#mark: string | undefined;
@@ -154,20 +155,21 @@ export class ChangeFeed {
 		}
 		if (changes.reset) {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
-		} else {
-			applyNodeChanges(queryClient, {
-				...changes,
-				children: changes.children.flatMap(({parentId, nodes}) => {
-					const prepared = this.#prepare(parentId, nodes);
-					return prepared === undefined ? [] : [{parentId, nodes: prepared}];
-				}),
-			});
+			this.#mark = changes.latest;
+			return;
 		}
+		applyNodeChanges(queryClient, {
+			...changes,
+			children: changes.children.flatMap(({parentId, nodes}) => {
+				const prepared = this.#prepare(parentId, nodes);
+				return prepared === undefined ? [] : [{parentId, nodes: prepared}];
+			}),
+		});
 		this.#advance(changes.latest);
 	}
 
 	#advance(latest: string): void {
-		if (this.#mark === undefined || latest > this.#mark) {
+		if (this.#mark === undefined || Number(latest) > Number(this.#mark)) {
 			this.#mark = latest;
 		}
 	}

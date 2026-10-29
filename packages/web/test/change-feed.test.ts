@@ -24,7 +24,7 @@ function row(id: string, parentId: string | null, fields: Partial<NodeResponse> 
 }
 
 function changes(fields: Partial<NodeChangesResponse>): NodeChangesResponse {
-	return {latest: "2026-10-28 00:00:01.000", reset: false, changedIds: [], deletedIds: [], children: [], ...fields};
+	return {latest: "1", reset: false, changedIds: [], deletedIds: [], children: [], ...fields};
 }
 
 const listIds = (client: QueryClient, parentId: string | null) =>
@@ -126,14 +126,14 @@ describe("ChangeFeed", () => {
 		client.setQueryData(nodeKeys.children(null), [row("a", null)]);
 		const asked: (string | undefined)[] = [];
 		const answers = [
-			changes({latest: "2026-10-28 00:00:05.000"}),
+			changes({latest: "5"}),
 			changes({
-				latest: "2026-10-28 00:00:09.000",
+				latest: "9",
 				changedIds: ["b"],
 				children: [{parentId: null, nodes: [row("a", null), row("b", null)]}],
 			}),
-			changes({latest: "2026-10-28 00:00:07.000"}),
-			changes({latest: "2026-10-28 00:00:07.000"}),
+			changes({latest: "7"}),
+			changes({latest: "7"}),
 		];
 		const feed = new ChangeFeed(async (since) => {
 			asked.push(since);
@@ -146,15 +146,39 @@ describe("ChangeFeed", () => {
 		await feed.sync(client);
 
 		expect({asked, home: listIds(client, null)}).toStrictEqual({
-			asked: [undefined, "2026-10-28 00:00:05.000", "2026-10-28 00:00:09.000", "2026-10-28 00:00:09.000"],
+			asked: [undefined, "5", "9", "9"],
 			home: ["a", "b"],
 		});
+	});
+
+	it("compares marks as numbers and takes the server's mark after a reset", async () => {
+		const client = new QueryClient();
+		const asked: (string | undefined)[] = [];
+		const answers = [
+			changes({latest: "9"}),
+			changes({latest: "10"}),
+			changes({latest: "3", reset: true}),
+			changes({latest: "4"}),
+		];
+		const feed = new ChangeFeed(async (since) => {
+			asked.push(since);
+			return Promise.resolve(answers.shift() ?? changes({}));
+		});
+
+		await feed.seed();
+		await feed.sync(client);
+		await feed.sync(client);
+		await feed.sync(client);
+
+		// A reset answers a cursor the server never issued or no longer holds (a recreated cache), so its mark replaces
+		// the client's even when lower.
+		expect(asked).toStrictEqual([undefined, "9", "10", "3"]);
 	});
 
 	it("refetches every node query when it has no mark yet or the server answers reset", async () => {
 		const client = new QueryClient();
 		client.setQueryData(nodeKeys.children(null), [row("a", null)]);
-		const answers = [changes({latest: "2026-10-28 00:00:05.000"}), changes({reset: true})];
+		const answers = [changes({latest: "5"}), changes({reset: true})];
 		const feed = new ChangeFeed(async () => Promise.resolve(answers.shift() ?? changes({})));
 
 		await feed.sync(client);
@@ -169,7 +193,7 @@ describe("ChangeFeed", () => {
 		const client = new QueryClient();
 		client.setQueryData(nodeKeys.children(null), [row("a", null)]);
 		const answers = [
-			changes({latest: "2026-10-28 00:00:05.000"}),
+			changes({latest: "5"}),
 			changes({
 				changedIds: ["b"],
 				children: [
