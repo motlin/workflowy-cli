@@ -69,7 +69,8 @@ function inverseOf(write: LayoutWrite): LayoutWrite {
 
 /**
  * The writes for a layout plan: metadata steps become edits patched against
- * each node's current metadata (`metadataById`, fresh from `/get_tree_data/`),
+ * each node's current metadata (`metadataById`, cached by the last import and
+ * patched after each accepted edit),
  * and creates, moves and deletes carry the planner's exact slots.
  */
 export function calendarLayoutWrites(

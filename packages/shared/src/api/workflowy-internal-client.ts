@@ -91,8 +91,6 @@ const TreeItemSchema = z
 	})
 	.loose();
 
-const ExpandedKeysSchema = z.object({server_expanded_projects_list: z.array(z.string()).optional()}).loose();
-
 const TreeSnapshotSchema = z
 	.object({
 		items: z.array(TreeItemSchema),
@@ -379,7 +377,8 @@ export class WorkflowyInternalClient {
 	/**
 	 * The whole main tree from one `/get_tree_data/` (about 54 MB live): every
 	 * item's id and, when it has any, its metadata, plus the transaction id and
-	 * expanded keys of that same read. Only batch imports call it.
+	 * expanded keys of that same read. Only batch imports and the explicit
+	 * Cloudflare seed call it (guarded by `tree-download-guard.test.ts`).
 	 */
 	async getTreeSnapshot(): Promise<TreeSnapshot> {
 		const {body} = await this.withSession(async () => this.getJson("/get_tree_data/"));
@@ -389,12 +388,6 @@ export class WorkflowyInternalClient {
 			txId: snapshot.most_recent_operation_transaction_id,
 			expandedKeys: snapshot.server_expanded_projects_list ?? [],
 		};
-	}
-
-	/** The server's expanded-node keys (first 8 chars of each id) from `/get_tree_data/`, its only complete source. */
-	async getExpandedKeys(): Promise<string[]> {
-		const {body} = await this.withSession(async () => this.getJson("/get_tree_data/"));
-		return ExpandedKeysSchema.parse(body).server_expanded_projects_list ?? [];
 	}
 
 	/**
