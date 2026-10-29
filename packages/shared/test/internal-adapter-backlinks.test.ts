@@ -629,6 +629,68 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 		});
 	});
 
+	it("keeps the backlink items of a source promoted out of the deleted subtree into its mirror's slot", async () => {
+		const DELETED = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+		const MIRROR = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+		const {api, adapter, pushes, server, db, rows, cacheService} = await tracked([
+			[DELETED, node("deleted", ROOT)],
+			[
+				SOURCE,
+				node(`see ${link(TARGET)}`, DELETED, {
+					mirror: {mirrorRootIds: {[MIRROR]: true}, backlinkMirrorRootIds: {[OLD_ITEM]: true}},
+				}),
+			],
+			[MIRROR, node(`see ${link(TARGET)}`, ROOT, {mirror: {originalId: SOURCE, isMirrorRoot: true}})],
+			[TARGET, node("target", ROOT)],
+			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+			[
+				OLD_ITEM,
+				node("", OLD_ROOT, {
+					mirror: {originalId: SOURCE, isMirrorRoot: true},
+					backlink: {sourceID: SOURCE, targetID: TARGET},
+				}),
+			],
+		]);
+		const linked = linkedSourcesInSubtree(db, DELETED);
+		// The write-through delete promotes SOURCE into its mirror's slot, then deletes the rest of the subtree.
+		server.apply("delete", {projectid: MIRROR});
+		cacheService.promoteOriginal(
+			MIRROR,
+			{
+				id: SOURCE,
+				name: `see ${link(TARGET)}`,
+				note: null,
+				parent_id: null,
+				priority: 0,
+				completed: false,
+				createdAt: 0,
+				modifiedAt: 0,
+				completedAt: null,
+			},
+			null,
+		);
+		server.apply("delete", {projectid: DELETED});
+		cacheService.deleteNode(DELETED);
+
+		const deleted = await adapter.deleteBacklinksOf(linked);
+
+		expect({
+			linked,
+			deleted,
+			pushes,
+			referencesChildren: server.children(OLD_ROOT),
+			current: rows("SELECT node_id FROM backlinks WHERE system_to = '9999-12-31 23:59:59' ORDER BY node_id"),
+			treeDataReads: treeDataReads(api),
+		}).toStrictEqual({
+			linked: [SOURCE],
+			deleted: [],
+			pushes: [],
+			referencesChildren: [OLD_ITEM],
+			current: [{node_id: OLD_ITEM}],
+			treeDataReads: 0,
+		});
+	});
+
 	it("pushes nothing when the linked sources are still in the tree, as when a mirror was removed instead", async () => {
 		const {adapter, pushes} = await tracked([
 			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
