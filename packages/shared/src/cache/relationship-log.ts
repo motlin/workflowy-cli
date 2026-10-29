@@ -4,8 +4,9 @@
  * the cache stays current with upstream without a whole-tree read.
  *
  * Only metadata is replayed: `bulk_create` trees (each new node's own
- * `mirror.originalId`, `backlink` and `isReferencesRoot`) and `edit` metadata
- * patches. Patches follow upstream's semantics with two deliberate
+ * `mirror.originalId`, `backlink` and `isReferencesRoot`), `edit` metadata
+ * patches, and `delete`s, which end the rows each node of the deleted subtree
+ * owns as a mirror, backlink item or references root. Patches follow upstream's semantics with two deliberate
  * differences, both from the 2026-10-29 probes (P1, P2b):
  * - a leaf `add` needs no parent object (the server creates missing parents);
  * - an object-valued `add` of `mirror`, `mirror.mirrorRootIds` or
@@ -17,7 +18,7 @@
 
 import {and, eq, inArray, or} from "drizzle-orm";
 import {z} from "zod";
-import {backlinks, mirrors, referencesRoots} from "../db/schema.js";
+import {backlinks, mirrors, nodeContent, referencesRoots} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/index.js";
 import {collectItemRelationships, emptyItemRelationships} from "./item-relationships.js";
 import type {UnitOfWork} from "./node-composite.js";
@@ -71,6 +72,8 @@ const EditSchema = z
 			.optional(),
 	})
 	.loose();
+
+const DeleteSchema = z.object({projectid: z.string()}).loose();
 
 type Patch = NonNullable<z.output<typeof EditSchema>["metadataPatches"]>[number];
 
@@ -132,8 +135,70 @@ class EdgeModel {
 	}
 }
 
-function touchedIds(ops: readonly LoggedOp[]): Set<string> {
-	const ids = new Set<string>();
+/** Parent to children of the nodes `ops` create, so a delete in the same batch reaches them. */
+function createdChildren(ops: readonly LoggedOp[]): Map<string, string[]> {
+	const children = new Map<string, string[]>();
+	const link = (parentId: string, trees: LoggedTree[]): void => {
+		for (const tree of trees) {
+			children.set(parentId, [...(children.get(parentId) ?? []), tree.id]);
+			link(tree.id, tree.ch ?? []);
+		}
+	};
+	for (const op of ops) {
+		const parentId = op.type === "bulk_create" ? op.data.parentid : undefined;
+		if (typeof parentId === "string") {
+			link(parentId, createdTrees(op));
+		}
+	}
+	return children;
+}
+
+/** Each deleted node with its cached and same-batch descendants, by the deleted node's id. */
+function deletedSubtrees(unitOfWork: UnitOfWork, ops: readonly LoggedOp[]): Map<string, string[]> {
+	const created = createdChildren(ops);
+	const subtrees = new Map<string, string[]>();
+	for (const op of ops) {
+		const deleted = op.type === "delete" ? DeleteSchema.safeParse(op.data) : undefined;
+		if (deleted?.success === true && !subtrees.has(deleted.data.projectid)) {
+			subtrees.set(deleted.data.projectid, subtreeIds(unitOfWork, deleted.data.projectid, created));
+		}
+	}
+	return subtrees;
+}
+
+function subtreeIds(unitOfWork: UnitOfWork, rootId: string, created: Map<string, string[]>): string[] {
+	const seen = new Set([rootId]);
+	let level = [rootId];
+	while (level.length > 0) {
+		const next: string[] = [];
+		const visit = (id: string): void => {
+			if (!seen.has(id)) {
+				seen.add(id);
+				next.push(id);
+			}
+		};
+		for (let start = 0; start < level.length; start += ID_BATCH_SIZE) {
+			const batch = level.slice(start, start + ID_BATCH_SIZE);
+			for (const row of unitOfWork.tx
+				.select({id: nodeContent.id})
+				.from(nodeContent)
+				.where(and(inArray(nodeContent.parentId, batch), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.all()) {
+				visit(row.id);
+			}
+		}
+		for (const id of level) {
+			for (const child of created.get(id) ?? []) {
+				visit(child);
+			}
+		}
+		level = next;
+	}
+	return [...seen];
+}
+
+function touchedIds(ops: readonly LoggedOp[], subtrees: Map<string, string[]>): Set<string> {
+	const ids = new Set<string>([...subtrees.values()].flat());
 	const visit = (trees: LoggedTree[]): void => {
 		for (const tree of trees) {
 			ids.add(tree.id);
@@ -173,7 +238,8 @@ function parseEdit(op: LoggedOp): z.output<typeof EditSchema> | undefined {
 
 /**
  * Whether the replay can read `op`'s relationship data: a `bulk_create`'s
- * `project_trees` or an `edit` carrying `metadataPatches`. Other ops carry
+ * `project_trees`, an `edit` carrying `metadataPatches` or a `delete`'s
+ * `projectid`. Other ops carry
  * none, so they always are.
  */
 export function isReplayable(op: LoggedOp): boolean {
@@ -182,6 +248,9 @@ export function isReplayable(op: LoggedOp): boolean {
 	}
 	if (op.type === "edit") {
 		return !Object.hasOwn(op.data, "metadataPatches") || parseEdit(op) !== undefined;
+	}
+	if (op.type === "delete") {
+		return DeleteSchema.safeParse(op.data).success;
 	}
 	return true;
 }
@@ -326,6 +395,16 @@ function applyEdit(model: EdgeModel, op: LoggedOp): void {
 	}
 }
 
+/** End every row a node of the deleted subtree owns; rows of mirrors elsewhere pointing into it stay. */
+function applyDelete(model: EdgeModel, subtree: readonly string[]): void {
+	const ids = new Set(subtree);
+	model.removeMirrors((row) => ids.has(row.mirrorId));
+	for (const id of ids) {
+		model.removeBacklinks(id);
+		model.roots.delete(id);
+	}
+}
+
 function writeDiff(unitOfWork: UnitOfWork, before: EdgeModel, after: EdgeModel): void {
 	const {tx, systemTime} = unitOfWork;
 	const current = {systemFrom: systemTime, systemTo: FAR_FUTURE_DATE};
@@ -387,7 +466,8 @@ function writeDiff(unitOfWork: UnitOfWork, before: EdgeModel, after: EdgeModel):
  * followed by a `remove` of the same row in one batch leaves no trace.
  */
 export function applyRelationshipOps(unitOfWork: UnitOfWork, ops: readonly LoggedOp[]): void {
-	const ids = [...touchedIds(ops)];
+	const subtrees = deletedSubtrees(unitOfWork, ops);
+	const ids = [...touchedIds(ops, subtrees)];
 	if (ids.length === 0) {
 		return;
 	}
@@ -398,6 +478,11 @@ export function applyRelationshipOps(unitOfWork: UnitOfWork, ops: readonly Logge
 			applyBulkCreate(after, op);
 		} else if (op.type === "edit") {
 			applyEdit(after, op);
+		} else if (op.type === "delete") {
+			const deleted = DeleteSchema.safeParse(op.data);
+			if (deleted.success) {
+				applyDelete(after, subtrees.get(deleted.data.projectid) ?? []);
+			}
 		}
 	}
 	writeDiff(unitOfWork, before, after);

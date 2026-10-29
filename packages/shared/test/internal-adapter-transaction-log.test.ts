@@ -276,6 +276,64 @@ describe("WorkflowyInternalAdapter transaction log", () => {
 		});
 	});
 
+	it("ends the mirror, backlink and references-root rows a deleted node and its subtree own, including nodes created earlier in the batch", async () => {
+		const {db, api, adapter, cache, edges} = tracked();
+		replaceTreeTxId(db, "100", 0);
+		for (const [id, parentId] of [
+			["p", null],
+			["c", "p"],
+			["gc", "c"],
+			["o1", null],
+			["m9", null],
+		] as const) {
+			db.insert(schema.nodeContent)
+				.values({id, name: id, parentId, systemFrom: "2026-01-01", systemTo: FAR_FUTURE_DATE})
+				.run();
+		}
+		cache.recordRelationships({
+			mirrors: [
+				{mirrorId: "c", originalId: "o1"},
+				{mirrorId: "gc", originalId: "src"},
+				{mirrorId: "m9", originalId: "o9"},
+			],
+			backlinks: [{nodeId: "gc", sourceId: "src", targetId: "tgt"}],
+			virtualRootIds: [],
+			referencesRoots: [{nodeId: "p"}],
+		});
+		api.respondOnce(
+			"/push_and_poll",
+			poll("135", [
+				transaction(131, [
+					{
+						type: "bulk_create",
+						data: {
+							parentid: "gc",
+							starting_priority: 0,
+							project_trees: JSON.stringify([
+								{
+									id: "n1",
+									nm: "",
+									ch: [
+										{id: "n2", nm: "", metadata: {mirror: {originalId: "o5", isMirrorRoot: true}}},
+									],
+								},
+							]),
+						},
+					},
+				]),
+				transaction(132, [{type: "delete", data: {projectid: "p"}}]),
+			]),
+		);
+
+		await adapter.catchUp();
+
+		expect(edges()).toStrictEqual({
+			mirrors: [{mirrorId: "m9", originalId: "o9"}],
+			backlinks: [],
+			referencesRoots: [],
+		});
+	});
+
 	it("applies a transaction the poll repeats from our own push only once", async () => {
 		const {db, api, adapter, edges} = tracked();
 		replaceTreeTxId(db, "100", 0);
@@ -376,6 +434,10 @@ describe("WorkflowyInternalAdapter transaction log", () => {
 		{
 			name: "a bulk_create whose project_trees is not JSON",
 			op: {type: "bulk_create", data: {parentid: "None", project_trees: "[{not json"}},
+		},
+		{
+			name: "a delete with no projectid",
+			op: {type: "delete", data: {}},
 		},
 		{
 			name: "a bulk_create whose trees have no id",
