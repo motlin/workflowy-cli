@@ -851,8 +851,8 @@ export class WorkflowyInternalAdapter {
 	 * `mirrorProjectTree` does: one push of a `bulk_create` for an empty mirror
 	 * root carrying `mirror.{originalId, isMirrorRoot}`, and an `edit` adding the
 	 * mirror to the original's `mirror.mirrorRootIds`. Unlike the public mirror
-	 * endpoint, this takes `HOME`. The original's metadata is read fresh from
-	 * `/get_tree_data/` so the patch keeps the mirrors it already has.
+	 * endpoint, this takes `HOME`. See {@link createMirrorsAt} for how the edit
+	 * keeps the mirrors the original already has.
 	 */
 	async createMirrorAt(input: CreateMirrorAtInput): Promise<CreateMirrorResult> {
 		const {mirrors} = await this.createMirrorsAt({
@@ -871,22 +871,31 @@ export class WorkflowyInternalAdapter {
 	 * Mirror several nodes at consecutive slots with one push: one `bulk_create` of an empty mirror root per
 	 * source, then one `edit` per distinct original adding its new mirrors to `mirror.mirrorRootIds`. A source
 	 * that is itself a mirror mirrors its original.
+	 *
+	 * The originals' `mirror` objects come from the edge tables, caught up from the transaction log first. An
+	 * original that already has a `mirror` gets leaf adds, which never wipe ids the cache missed; one without
+	 * gets the whole object, because an open workflowy.com tab cannot apply a leaf add under a missing parent.
+	 * An id that is neither cached nor live on Workflowy is refused before anything is pushed.
 	 */
 	async createMirrorsAt(input: CreateMirrorsAtInput): Promise<{mirrors: CreateMirrorResult[]}> {
 		const tree = this.tree();
-		const items = (await this.client.getTreeSnapshot()).items;
-		const metadataOf = (id: string): Metadata | undefined => {
-			const item = items.find((candidate) => candidate.id === id);
-			return item === undefined ? undefined : (item.metadata ?? {});
+		await this.catchUp();
+		await Promise.all(
+			[...new Set(input.originalIds)].map(async (requestedId) => {
+				if (!(await tree.exists(requestedId))) {
+					throw new Error(`Cannot mirror ${requestedId}: it is not in the Workflowy tree`);
+				}
+			}),
+		);
+		const requested = tree.relationshipMetadata(input.originalIds);
+		const originIds = input.originalIds.map(
+			(requestedId) => requested.get(requestedId)?.mirror?.originalId ?? requestedId,
+		);
+		const originals = tree.relationshipMetadata(originIds);
+		const metadataOf = (id: string): Metadata => {
+			const {mirror} = originals.get(id) ?? {};
+			return mirror === undefined ? {} : {mirror};
 		};
-		const originIds = input.originalIds.map((requestedId) => {
-			const requested = metadataOf(requestedId);
-			if (requested === undefined) {
-				throw new Error(`Cannot mirror ${requestedId}: it is not in the Workflowy tree`);
-			}
-			const mirroredOriginal = getPath(requested, ["mirror", "originalId"]);
-			return typeof mirroredOriginal === "string" ? mirroredOriginal : requestedId;
-		});
 
 		const parent = publicParent(input.parentId);
 		const siblings = await tree.liveChildren(parent);
@@ -906,7 +915,7 @@ export class WorkflowyInternalAdapter {
 		const mirrors = ids.map((mirrorId, offset) => ({mirrorId, originId: originIds[offset] ?? ""}));
 		const linkOps = [...new Set(originIds)].map((originId) => {
 			const {patches, inverse} = buildMetadataChanges(
-				metadataOf(originId) ?? {},
+				metadataOf(originId),
 				mirrors
 					.filter((mirror) => mirror.originId === originId)
 					.map((mirror) => ({path: ["mirror", "mirrorRootIds", mirror.mirrorId], value: true})),

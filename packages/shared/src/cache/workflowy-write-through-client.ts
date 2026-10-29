@@ -1,4 +1,4 @@
-import type {ItemRelationships} from "./item-relationships.js";
+import type {ItemRelationships, UpstreamRelationshipMetadata} from "./item-relationships.js";
 import type {
 	CreateMirrorResult,
 	CreateNodeRequest,
@@ -173,6 +173,16 @@ export class WorkflowyWriteThroughClient {
 	/** One node as Workflowy has it now, read from the API. */
 	async liveNode(nodeId: string): Promise<WorkflowyNode> {
 		return this.apiClient.getNode(nodeId);
+	}
+
+	/** Whether `nodeId` is cached, or else live on Workflowy (one public read, a 404 meaning no). */
+	async exists(nodeId: string): Promise<boolean> {
+		return this.cacheService.getNode(nodeId) !== undefined || (await this.apiClient.findNode(nodeId)) !== null;
+	}
+
+	/** Each node's upstream `mirror`/`backlink`/`isReferencesRoot` view, rebuilt from the cached edge tables. */
+	relationshipMetadata(nodeIds: readonly string[]): Map<string, UpstreamRelationshipMetadata> {
+		return this.cacheService.relationshipMetadata(nodeIds);
 	}
 
 	/**

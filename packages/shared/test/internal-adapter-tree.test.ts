@@ -7,12 +7,13 @@ import {z} from "zod";
 import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
+import {emptyItemRelationships} from "../src/cache/item-relationships.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import {replaceTreeTxId} from "../src/cache/tree-transaction.js";
 import * as schema from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
 import {OperationRejected} from "../src/internal/errors.js";
-import {createFakeInternalApi, json, treeDataReads} from "./helpers/fake-internal-api.js";
+import {createFakeInternalApi, forbidTreeData, json, treeDataReads} from "./helpers/fake-internal-api.js";
 import type {RecordedRequest} from "./helpers/fake-internal-api.js";
 
 const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
@@ -604,15 +605,21 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 	}
 
 	function mirrorRows(sqlite: DatabaseConstructor.Database): unknown[] {
-		return sqlite.prepare("SELECT original_id, mirror_id FROM mirrors").all();
+		return sqlite.prepare("SELECT original_id, mirror_id FROM mirrors ORDER BY mirror_id").all();
 	}
 
-	it("mirrors a node at Home with one push: a bulk_create of an empty mirror root, then an edit adding it to the original's mirrorRootIds", async () => {
-		const {api, adapter, pushes, order, sqlite} = await tracked();
-		serveTreeData(api, [
-			{id: "a"},
-			{id: "b", metadata: {layoutMode: "board", mirror: {mirrorRootIds: {old: true}}}},
-		]);
+	/** Seed `mirrors` edge rows (mirror id to original id), as a whole-tree import would have. */
+	function seedMirrors(cacheService: CacheService, rows: Record<string, string>): void {
+		cacheService.recordRelationships({
+			...emptyItemRelationships(),
+			mirrors: Object.entries(rows).map(([mirrorId, originalId]) => ({mirrorId, originalId})),
+		});
+	}
+
+	it("mirrors a node at Home with one push: a bulk_create of an empty mirror root, then a leaf edit adding it to the original's mirrorRootIds, with no tree read", async () => {
+		const {api, adapter, pushes, order, sqlite, cacheService} = await tracked();
+		seedMirrors(cacheService, {old: "b"});
+		forbidTreeData(api);
 
 		const result = await adapter.createMirrorAt({originalId: "b", parentId: "home", index: 0});
 
@@ -621,6 +628,7 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 			pushes: pushes.map((ops) => ops.map((op) => [op.type, op.data])),
 			order: order(null),
 			mirrors: mirrorRows(sqlite),
+			reads: treeDataReads(api),
 		}).toStrictEqual({
 			result: {mirrorId: "new", originId: "b"},
 			pushes: [
@@ -654,50 +662,138 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 				],
 			],
 			order: ["new", "a", "b", "c"],
-			mirrors: [{original_id: "b", mirror_id: "new"}],
+			mirrors: [
+				{original_id: "b", mirror_id: "new"},
+				{original_id: "b", mirror_id: "old"},
+			],
+			reads: 0,
 		});
 	});
 
-	it("mirrors a mirror's original, adding the whole mirror object when the original has none", async () => {
-		const {api, adapter, pushes, order, sqlite} = await tracked();
-		serveTreeData(api, [{id: "a"}, {id: "b", metadata: {mirror: {originalId: "a", isMirrorRoot: true}}}]);
+	it("catches up before deciding: a mirror added upstream since the import makes the edit a leaf add that keeps it", async () => {
+		const {api, adapter, pushes, sqlite} = await tracked();
+		forbidTreeData(api);
+		api.respondOnce("/push_and_poll", () =>
+			json({
+				results: [
+					{
+						new_most_recent_operation_transaction_id: "4568",
+						concurrent_remote_operation_transactions: [
+							JSON.stringify({
+								id: 4568,
+								client_timestamp: 300_000_000,
+								ops: [
+									{
+										type: "edit",
+										data: {
+											projectid: "b",
+											metadataPatches: [
+												{op: "add", path: ["mirror", "mirrorRootIds", "other"], value: true},
+											],
+										},
+									},
+								],
+							}),
+						],
+					},
+				],
+			}),
+		);
+
+		await adapter.createMirrorAt({originalId: "b", parentId: "home", index: 0});
+
+		expect({
+			edits: pushes.flatMap((ops) => ops.filter((op) => op.type === "edit").map((op) => op.data)),
+			mirrors: mirrorRows(sqlite),
+			reads: treeDataReads(api),
+		}).toStrictEqual({
+			edits: [
+				{
+					projectid: "b",
+					metadataPatches: [{op: "add", path: ["mirror", "mirrorRootIds", "new"], value: true}],
+					metadataInversePatches: [{op: "remove", path: ["mirror", "mirrorRootIds", "new"]}],
+				},
+			],
+			mirrors: [
+				{original_id: "b", mirror_id: "new"},
+				{original_id: "b", mirror_id: "other"},
+			],
+			reads: 0,
+		});
+	});
+
+	it("mirrors a mirror's original, resolved through the mirrors table", async () => {
+		const {api, adapter, pushes, sqlite, cacheService} = await tracked();
+		seedMirrors(cacheService, {b: "a"});
+		forbidTreeData(api);
 
 		const result = await adapter.createMirrorAt({originalId: "b", parentId: "home", index: 9});
 
 		expect({
 			result,
 			edits: pushes.flatMap((ops) => ops.filter((op) => op.type === "edit").map((op) => op.data)),
-			order: order(null),
 			mirrors: mirrorRows(sqlite),
+			reads: treeDataReads(api),
 		}).toStrictEqual({
 			result: {mirrorId: "new", originId: "a"},
 			edits: [
 				{
 					projectid: "a",
+					metadataPatches: [{op: "add", path: ["mirror", "mirrorRootIds", "new"], value: true}],
+					metadataInversePatches: [{op: "remove", path: ["mirror", "mirrorRootIds", "new"]}],
+				},
+			],
+			mirrors: [
+				{original_id: "a", mirror_id: "b"},
+				{original_id: "a", mirror_id: "new"},
+			],
+			reads: 0,
+		});
+	});
+
+	it("adds the whole mirror object to an original the edge tables show without one, so an open upstream tab can apply it", async () => {
+		const {api, adapter, pushes, order} = await tracked();
+		forbidTreeData(api);
+
+		await adapter.createMirrorAt({originalId: "c", parentId: "home", index: 9});
+
+		expect({
+			edits: pushes.flatMap((ops) => ops.filter((op) => op.type === "edit").map((op) => op.data)),
+			order: order(null),
+			reads: treeDataReads(api),
+		}).toStrictEqual({
+			edits: [
+				{
+					projectid: "c",
 					metadataPatches: [{op: "add", path: ["mirror"], value: {mirrorRootIds: {new: true}}}],
 					metadataInversePatches: [{op: "remove", path: ["mirror"]}],
 				},
 			],
 			order: ["a", "b", "c", "new"],
-			mirrors: [{original_id: "a", mirror_id: "new"}],
+			reads: 0,
 		});
 	});
 
-	it("refuses to mirror a node the server's tree does not hold, pushing nothing", async () => {
+	it("refuses to mirror a node that is neither cached nor on Workflowy, pushing nothing", async () => {
 		const {api, adapter, pushes, sqlite} = await tracked();
-		serveTreeData(api, [{id: "a"}]);
+		forbidTreeData(api);
 
-		await expect(adapter.createMirrorAt({originalId: "b", parentId: "home", index: 0})).rejects.toThrow(
-			"Cannot mirror b: it is not in the Workflowy tree",
+		await expect(adapter.createMirrorAt({originalId: "zzz", parentId: "home", index: 0})).rejects.toThrow(
+			"Cannot mirror zzz: it is not in the Workflowy tree",
 		);
 
-		expect({pushes, mirrors: mirrorRows(sqlite)}).toStrictEqual({pushes: [], mirrors: []});
+		expect({pushes, mirrors: mirrorRows(sqlite), reads: treeDataReads(api)}).toStrictEqual({
+			pushes: [],
+			mirrors: [],
+			reads: 0,
+		});
 	});
 
 	it("mirrors several nodes at consecutive slots with one push: N empty mirror roots and one edit per original", async () => {
 		let next = 0;
-		const {api, adapter, pushes, order, sqlite} = await tracked(() => `m${++next}`);
-		serveTreeData(api, [{id: "a"}, {id: "b", metadata: {mirror: {mirrorRootIds: {old: true}}}}, {id: "c"}]);
+		const {api, adapter, pushes, order, sqlite, cacheService} = await tracked(() => `m${++next}`);
+		seedMirrors(cacheService, {old: "b"});
+		forbidTreeData(api);
 
 		const result = await adapter.createMirrorsAt({originalIds: ["b", "a", "b"], parentId: "home", index: 1});
 
@@ -745,6 +841,7 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 				{original_id: "b", mirror_id: "m1"},
 				{original_id: "a", mirror_id: "m2"},
 				{original_id: "b", mirror_id: "m3"},
+				{original_id: "b", mirror_id: "old"},
 			],
 		});
 	});
@@ -788,11 +885,6 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 	});
 
 	it.each([
-		{
-			label: "createMirrorsAt",
-			run: async (adapter: WorkflowyInternalAdapter) =>
-				adapter.createMirrorsAt({originalIds: ["b"], parentId: "home", index: 0}),
-		},
 		{
 			label: "createTreesAt with a mirror root",
 			run: async (adapter: WorkflowyInternalAdapter) =>

@@ -218,7 +218,9 @@ describe("node:mirror command", () => {
 		};
 		const PushSchema = z.array(
 			z.object({
-				operations: z.array(z.object({type: z.string(), data: z.record(z.string(), z.unknown())}).loose()),
+				operations: z
+					.array(z.object({type: z.string(), data: z.record(z.string(), z.unknown())}).loose())
+					.default([]),
 			}),
 		);
 		const TreesSchema = z.array(z.object({id: z.string()}).loose());
@@ -238,7 +240,7 @@ describe("node:mirror command", () => {
 			};
 		}
 
-		/** The internal API (login, init, tree data, push) and the public Home listing, which shows a pushed mirror on top. */
+		/** The internal API (login, init, catch-up poll, push) and the public Home listing, which shows a pushed mirror on top. */
 		function stubInternalApi(): {paths: string[]; ops: {type: string; data: Record<string, unknown>}[]} {
 			const recorded: {paths: string[]; ops: {type: string; data: Record<string, unknown>}[]} = {
 				paths: [],
@@ -257,15 +259,6 @@ describe("node:mirror command", () => {
 				if (url.pathname === "/get_initialization_data") {
 					return Promise.resolve(
 						Response.json(INIT_BODY, {headers: {wfclientid: "2026-10-18 12:00:00.123456"}}),
-					);
-				}
-				if (url.pathname === "/get_tree_data/") {
-					return Promise.resolve(
-						Response.json({
-							items: [{id: ORIGIN_ID, metadata: {}}, {id: PARENT_ID}],
-							most_recent_operation_transaction_id: "1234567",
-							server_expanded_projects_list: [],
-						}),
 					);
 				}
 				if (url.pathname === "/push_and_poll") {
@@ -337,8 +330,8 @@ describe("node:mirror command", () => {
 				result: {action: "created", mirrorId, originId: ORIGIN_ID, parentId: null},
 				paths: [
 					"POST /ajax_login",
-					"GET /get_tree_data/",
 					"GET /get_initialization_data",
+					"POST /push_and_poll",
 					"POST /push_and_poll",
 				],
 				ops: [
