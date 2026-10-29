@@ -158,7 +158,7 @@ describe("worker routes each Access email to its own Durable Object", () => {
 		expect(ladderViaDo.status).toBe(404);
 		expect(ladderViaWorker.status).toBe(400);
 		await expect(ladderViaWorker.json()).resolves.toStrictEqual({
-			error: "root, node_id and to_tier are required",
+			error: "root, node_id and to_tier are required strings, and before_id must be a string when given",
 		});
 
 		const calendarViaDo = await stub.fetch("http://localhost/api/v1/calendar/dots?from=bad&to=bad");

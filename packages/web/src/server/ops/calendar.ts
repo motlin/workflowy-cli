@@ -52,16 +52,13 @@ const ENSURE_DISABLED = "Calendar day ensure is disabled (CALENDAR_ENSURE_ENABLE
 const INVALID_DATE_ID = "dateId must be a YYYYMMDD calendar day";
 const INVALID_MONTH = "year and month must be a calendar year and a 1-12 month";
 const INVALID_LEVEL = "level must be day, week, month or year";
-const INVALID_SETTINGS = "foundDates and dayPrefix must be booleans, and at least one is required";
 const ROOT_METADATA_MISSING = "The 📆 Calendar root's internal metadata is not cached";
 const MAX_DOT_RANGE_DAYS = 100;
 const INVALID_RANGE = `from and to must be YYYYMMDD days at most ${MAX_DOT_RANGE_DAYS} days apart, from first`;
 const DAY_MS = 86_400_000;
-const SettingsBody = z.object({foundDates: z.boolean().optional(), dayPrefix: z.boolean().optional()});
 const LAYOUT_DISABLED = "Applying calendar layouts is disabled (CALENDAR_LAYOUT_ENABLED)";
 const NOTHING_TO_UNDO = "There is no calendar layout to undo";
 const LAYOUT_ROOT_MISSING = "No calendar root is cached for this layout";
-const INVALID_LEVELS = "levels must be an object of year, month, week and day booleans";
 const LayoutBody = z.object({
 	levels: z.strictObject({
 		year: z.boolean().optional(),
@@ -72,6 +69,10 @@ const LayoutBody = z.object({
 	rootId: z.string().min(1).optional(),
 });
 const UndoBody = z.object({rootId: z.string().min(1).optional()});
+/** At least one of the root's picker toggles. */
+const SettingsBody = z
+	.object({foundDates: z.boolean().optional(), dayPrefix: z.boolean().optional()})
+	.refine((settings) => settings.foundDates !== undefined || settings.dayPrefix !== undefined);
 /**
  * The calendar root a layout write targets: `explicitRootId` (a sandbox copy) or the tagged root, and only when that
  * node is cached; undefined otherwise. The adapter is always handed this id, never left to fall back on its own.
@@ -167,8 +168,6 @@ const EnsureInput = z.object({
 	level: z.string().optional(),
 	createChild: z.string().optional(),
 });
-/** A request body the HTTP layer passes through untouched; each op checks it and answers its own 400. */
-const BodyInput = z.object({body: z.unknown().optional()});
 
 const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 
@@ -230,22 +229,12 @@ const calendarDays = defineOp({
 
 /** Writes the root's `calendar.found_dates` / `calendar.day_prefix` metadata. */
 const calendarSettingsPut = defineOp({
-	input: BodyInput,
-	async run(ctx, input) {
-		const body = SettingsBody.safeParse(input.body);
-		const changes = body.success
-			? [
-					...(body.data.foundDates === undefined
-						? []
-						: [{path: ["calendar", "found_dates"], value: body.data.foundDates}]),
-					...(body.data.dayPrefix === undefined
-						? []
-						: [{path: ["calendar", "day_prefix"], value: body.data.dayPrefix}]),
-				]
-			: [];
-		if (changes.length === 0) {
-			return fail(400, {error: INVALID_SETTINGS});
-		}
+	input: z.object({body: SettingsBody}),
+	async run(ctx, {body}) {
+		const changes = [
+			...(body.foundDates === undefined ? [] : [{path: ["calendar", "found_dates"], value: body.foundDates}]),
+			...(body.dayPrefix === undefined ? [] : [{path: ["calendar", "day_prefix"], value: body.dayPrefix}]),
+		];
 		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 		if (!adapter) {
 			return notConfigured();
@@ -280,21 +269,17 @@ const calendarLayoutGet = defineOp({
 
 /** Restructures the calendar in one push, reporting each phase's time in `Server-Timing`. */
 const calendarLayoutPut = defineOp({
-	input: BodyInput,
-	async run(ctx, input) {
+	input: z.object({body: LayoutBody}),
+	async run(ctx, {body}) {
 		if (ctx.calendarLayoutEnabled === false) {
 			return fail(403, {error: LAYOUT_DISABLED});
-		}
-		const body = LayoutBody.safeParse(input.body);
-		if (!body.success) {
-			return fail(400, {error: INVALID_LEVELS});
 		}
 		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 		if (!adapter) {
 			return notConfigured();
 		}
-		const {levels} = body.data;
-		const rootId = resolveLayoutRoot(ctx, body.data.rootId);
+		const {levels} = body;
+		const rootId = resolveLayoutRoot(ctx, body.rootId);
 		if (rootId === undefined) {
 			return fail(409, {error: LAYOUT_ROOT_MISSING});
 		}
@@ -322,8 +307,8 @@ const calendarLayoutPut = defineOp({
 
 /** Undoes the last applied layout once. */
 const calendarLayoutUndo = defineOp({
-	input: BodyInput,
-	async run(ctx, input) {
+	input: z.object({body: UndoBody}),
+	async run(ctx, {body}) {
 		if (ctx.calendarLayoutEnabled === false) {
 			return fail(403, {error: LAYOUT_DISABLED});
 		}
@@ -331,8 +316,7 @@ const calendarLayoutUndo = defineOp({
 		if (!adapter) {
 			return notConfigured();
 		}
-		const body = UndoBody.safeParse(input.body ?? {});
-		const rootId = resolveLayoutRoot(ctx, body.data?.rootId);
+		const rootId = resolveLayoutRoot(ctx, body.rootId);
 		if (rootId === undefined) {
 			return fail(409, {error: LAYOUT_ROOT_MISSING});
 		}
@@ -344,13 +328,9 @@ const calendarLayoutUndo = defineOp({
 
 /** The steps the layout would take; nothing is written. */
 const calendarLayoutPreview = defineOp({
-	input: BodyInput,
-	async run(ctx, input) {
-		const body = LayoutBody.safeParse(input.body);
-		if (!body.success) {
-			return fail(400, {error: INVALID_LEVELS});
-		}
-		const {rootId} = body.data;
+	input: z.object({body: LayoutBody}),
+	async run(ctx, {body}) {
+		const {rootId} = body;
 		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService}, rootId);
 		if (snapshot === undefined) {
 			return fail(409, {error: ROOT_METADATA_MISSING});
@@ -358,7 +338,7 @@ const calendarLayoutPreview = defineOp({
 		// An explicit (sandbox) root gets random ids, as applying it does: deterministic ids belong to the real calendar.
 		const {entropyKey} = rootId === undefined ? await calendarDayDeps(ctx) : {entropyKey: undefined};
 		const weekStartDay = await accountWeekStartDay(ctx);
-		const steps = planCalendarLayout(snapshot.root, body.data.levels, {
+		const steps = planCalendarLayout(snapshot.root, body.levels, {
 			...(snapshot.levels === undefined ? {} : {currentLevels: snapshot.levels}),
 			dateFormat: await accountDateFormat(ctx),
 			...(weekStartDay === undefined ? {} : {weekStartDay}),

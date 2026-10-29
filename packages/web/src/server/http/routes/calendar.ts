@@ -2,7 +2,11 @@ import {Hono} from "hono";
 import {callOp} from "../response.js";
 import type {ResolveStore} from "../response.js";
 
-/** A request body that is not valid JSON reads as undefined, so the op answers its own 400. */
+const INVALID_SETTINGS = {error: "foundDates and dayPrefix must be booleans, and at least one is required"};
+const INVALID_LEVELS = {error: "levels must be an object of year, month, week and day booleans"};
+const INVALID_UNDO = {error: "rootId must be a non-empty string when given"};
+
+/** A request body that is not valid JSON reads as undefined, so the op's schema answers 400. */
 async function body(request: Request): Promise<{body: unknown}> {
 	return {body: await request.json().catch(() => {})};
 }
@@ -27,15 +31,17 @@ export function calendarRoutes(resolveStore: ResolveStore): Hono {
 	);
 	routes.get("/settings", async (c) => callOp(resolveStore, c.req.raw, "calendar.settingsGet", {}));
 	routes.put("/settings", async (c) =>
-		callOp(resolveStore, c.req.raw, "calendar.settingsPut", await body(c.req.raw)),
+		callOp(resolveStore, c.req.raw, "calendar.settingsPut", await body(c.req.raw), INVALID_SETTINGS),
 	);
 	routes.get("/layout", async (c) => callOp(resolveStore, c.req.raw, "calendar.layoutGet", {}));
-	routes.put("/layout", async (c) => callOp(resolveStore, c.req.raw, "calendar.layoutPut", await body(c.req.raw)));
+	routes.put("/layout", async (c) =>
+		callOp(resolveStore, c.req.raw, "calendar.layoutPut", await body(c.req.raw), INVALID_LEVELS),
+	);
 	routes.post("/layout/undo", async (c) =>
-		callOp(resolveStore, c.req.raw, "calendar.layoutUndo", await optionalBody(c.req.raw)),
+		callOp(resolveStore, c.req.raw, "calendar.layoutUndo", await optionalBody(c.req.raw), INVALID_UNDO),
 	);
 	routes.post("/layout/preview", async (c) =>
-		callOp(resolveStore, c.req.raw, "calendar.layoutPreview", await body(c.req.raw)),
+		callOp(resolveStore, c.req.raw, "calendar.layoutPreview", await body(c.req.raw), INVALID_LEVELS),
 	);
 	routes.get("/dots", async (c) =>
 		callOp(resolveStore, c.req.raw, "calendar.dots", {from: c.req.query("from"), to: c.req.query("to")}),

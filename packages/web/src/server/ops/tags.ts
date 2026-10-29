@@ -5,6 +5,7 @@
 
 import {z} from "zod";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
+import {TAG_COLORS} from "../../tag-colors.js";
 import type {TagColorName} from "../../tag-colors.js";
 import {defineOp, fail, ok} from "./define.js";
 
@@ -23,10 +24,6 @@ const COLOR_INDEX: Record<TagColorName, number> = {
 };
 
 const COLOR_BY_INDEX = new Map<unknown, string>(Object.entries(COLOR_INDEX).map(([color, index]) => [index, color]));
-
-function isColorName(color: unknown): color is TagColorName {
-	return typeof color === "string" && Object.hasOwn(COLOR_INDEX, color);
-}
 
 const TAGS_PATH = ["color", "tags"];
 
@@ -58,16 +55,13 @@ export const tagsList = defineOp({
 	},
 });
 
-/** Sets one tag's color; the color is validated here so the 400 names what was sent. */
+/** Sets one tag's color. */
 export const tagsSet = defineOp({
-	input: z.object({name: z.string(), color: z.unknown()}),
+	input: z.object({name: z.string(), color: z.enum(TAG_COLORS)}),
 	async run(ctx, {name, color}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
 			return notConfigured();
-		}
-		if (!isColorName(color)) {
-			return fail(400, {error: `Invalid color: ${typeof color === "string" ? color : "(missing)"}`});
 		}
 		await adapter.setRootMeta(tagPath(name), COLOR_INDEX[color]);
 		return ok({name, color});

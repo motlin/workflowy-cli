@@ -140,19 +140,14 @@ export const preferencesGet = defineOp({
 	},
 });
 
-/** Applies any subset of preferences (a `null` removes one) and answers the full preferences; the patch is validated here so the 400 carries zod's message. */
+/** Applies any subset of preferences (a `null` removes one) and answers the full preferences. */
 export const preferencesPatch = defineOp({
-	input: z.object({patch: z.unknown()}),
-	async run(ctx, input) {
+	input: z.object({patch: PreferencesPatchSchema}),
+	async run(ctx, {patch}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
 			return notConfigured();
 		}
-		const body = PreferencesPatchSchema.safeParse(input.patch);
-		if (!body.success) {
-			return fail(400, {error: body.error.message});
-		}
-		const patch = body.data;
 		const previousWeekStartDay =
 			patch.weekStartDay === undefined ? undefined : await adapter.getRootMeta(PATHS.weekStartDay);
 		const changes = KEYS.filter((key) => key in patch).map((key) => ({

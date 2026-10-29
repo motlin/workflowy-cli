@@ -83,7 +83,9 @@ describe("POST /api/v1/ladder/move", () => {
 			}),
 		);
 		expect(res.status).toBe(400);
-		await expect(res.json()).resolves.toStrictEqual({error: "root, node_id and to_tier are required"});
+		await expect(res.json()).resolves.toStrictEqual({
+			error: "root, node_id and to_tier are required strings, and before_id must be a string when given",
+		});
 		expect(move).not.toHaveBeenCalled();
 	});
 
@@ -98,7 +100,9 @@ describe("POST /api/v1/ladder/move", () => {
 			}),
 		);
 		expect(res.status).toBe(400);
-		await expect(res.json()).resolves.toStrictEqual({error: "before_id must be a string"});
+		await expect(res.json()).resolves.toStrictEqual({
+			error: "root, node_id and to_tier are required strings, and before_id must be a string when given",
+		});
 		expect(move).not.toHaveBeenCalled();
 	});
 

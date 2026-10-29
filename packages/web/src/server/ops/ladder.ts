@@ -25,18 +25,12 @@ const BUCKET_PATHS: Record<string, string[]> = {
 /** The part of {@link LadderService} the ops call. */
 export type LadderOperations = Pick<LadderService, "read" | "move" | "complete">;
 
-const text = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
-
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-/** The HTTP layer passes the body's fields through untouched; the checks and their exact 400 bodies live here. */
-const MoveInput = z.object({
-	root: z.unknown().optional(),
-	node_id: z.unknown().optional(),
-	to_tier: z.unknown().optional(),
-	before_id: z.unknown().optional(),
-});
-const CompleteInput = z.object({root: z.unknown().optional(), node_id: z.unknown().optional()});
+/** A required, non-empty string field. */
+const Required = z.string().min(1);
+const MoveInput = z.object({root: Required, node_id: Required, to_tier: Required, before_id: z.string().optional()});
+const CompleteInput = z.object({root: Required, node_id: Required});
 
 /** Build the three ladder ops over a service factory; a test injects a fake service. */
 export function createLadderOps(createService: (ctx: ServerContext) => LadderOperations) {
@@ -49,17 +43,7 @@ export function createLadderOps(createService: (ctx: ServerContext) => LadderOpe
 		}),
 		"ladder.move": defineOp({
 			input: MoveInput,
-			async run(ctx, body) {
-				const root = text(body.root);
-				const nodeId = text(body.node_id);
-				const toTier = text(body.to_tier);
-				if (!root || !nodeId || !toTier) {
-					return fail(400, {error: "root, node_id and to_tier are required"});
-				}
-				if (body.before_id !== undefined && typeof body.before_id !== "string") {
-					return fail(400, {error: "before_id must be a string"});
-				}
-				const beforeNodeId = text(body.before_id);
+			async run(ctx, {root, node_id: nodeId, to_tier: toTier, before_id: beforeNodeId}) {
 				try {
 					const event = await createService(ctx).move({
 						root,
@@ -75,12 +59,7 @@ export function createLadderOps(createService: (ctx: ServerContext) => LadderOpe
 		}),
 		"ladder.complete": defineOp({
 			input: CompleteInput,
-			async run(ctx, body) {
-				const root = text(body.root);
-				const nodeId = text(body.node_id);
-				if (!root || !nodeId) {
-					return fail(400, {error: "root and node_id are required"});
-				}
+			async run(ctx, {root, node_id: nodeId}) {
 				try {
 					return ok(jsonOf({event: await createService(ctx).complete({root, nodeId})}));
 				} catch (error) {
