@@ -10,6 +10,7 @@ import {CacheService} from "../src/cache/cache-service.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import * as schema from "../src/db/schema.js";
 import {linkedSourcesInSubtree, WorkflowyInternalAdapter} from "../src/internal/adapter.js";
+import {OperationRejected} from "../src/internal/errors.js";
 import {applyMetadataPatches} from "../src/internal/metadata-patch.js";
 import type {MetadataPatch} from "../src/internal/metadata-patch.js";
 import {hasInternalLink, internalLinkShortIds} from "../src/workflowy/internal-links.js";
@@ -499,6 +500,24 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			referencesChildren: [OTHER_ITEM],
 			current: [{node_id: OTHER_ITEM}],
 		});
+	});
+
+	it("writes no references root, backlink or mirror row when the push is rejected", async () => {
+		const {api, adapter, rows} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT)],
+			[TARGET, node("target", ROOT)],
+		]);
+		api.respond("/push_and_poll", () =>
+			json({results: [{new_most_recent_operation_transaction_id: "4568", error: "bad op"}]}),
+		);
+
+		await expect(adapter.syncBacklinks([SOURCE])).rejects.toBeInstanceOf(OperationRejected);
+
+		expect(
+			rows(
+				"SELECT node_id AS id FROM references_roots UNION ALL SELECT node_id FROM backlinks UNION ALL SELECT mirror_id FROM mirrors",
+			),
+		).toStrictEqual([]);
 	});
 
 	it("reads the whole account tree once for syncBacklinks", async () => {

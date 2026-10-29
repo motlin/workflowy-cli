@@ -6,6 +6,8 @@ import type {CreateMirrorResult} from "../api/workflowy-client.js";
 import type {InternalSession, VisibleFeature, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {keptInternalMetadata} from "../cache/importer.js";
+import {collectItemRelationships, emptyItemRelationships} from "../cache/item-relationships.js";
+import type {ItemRelationships} from "../cache/item-relationships.js";
 import {accountState, localSettings, mirrors as mirrorsTable, nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {HOME_TARGET} from "../types/targets.js";
@@ -219,6 +221,28 @@ function mirrorRootsIn(trees: NewTree[]): {mirrorId: string; originId: string}[]
 			typeof originId === "string" && isRoot && node.id !== undefined ? [{mirrorId: node.id, originId}] : [];
 		return [...own, ...mirrorRootsIn(node.children ?? [])];
 	});
+}
+
+/**
+ * The edge rows the nodes of `trees` (ids already assigned) carry in their
+ * metadata: each one's own mirror, backlink and references-root rows. Mirror
+ * rows naming a created node as someone else's original are left out, since a
+ * copied `mirrorRootIds` describes the copied node, not the new one.
+ */
+function createdRelationships(trees: NewTree[]): ItemRelationships {
+	const relationships = emptyItemRelationships();
+	const created = new Set<string>();
+	const collect = (nodes: NewTree[]): void => {
+		for (const node of nodes) {
+			if (node.id !== undefined) {
+				created.add(node.id);
+				collectItemRelationships(relationships, node.id, node.metadata);
+			}
+			collect(node.children ?? []);
+		}
+	};
+	collect(trees);
+	return {...relationships, mirrors: relationships.mirrors.filter((row) => created.has(row.mirrorId))};
 }
 
 export interface CreateTreesAtInput {
@@ -557,9 +581,7 @@ export class WorkflowyInternalAdapter {
 			[parent],
 			trees.flatMap((node) => (node.id !== undefined && (node.children?.length ?? 0) > 0 ? [node.id] : [])),
 		);
-		for (const {mirrorId, originId} of mirrorRootsIn(trees)) {
-			tree.recordMirror(originId, mirrorId);
-		}
+		tree.recordRelationships(createdRelationships(trees));
 		return {ids};
 	}
 
@@ -830,9 +852,10 @@ export class WorkflowyInternalAdapter {
 		});
 		await this.pusher.pushAndPoll({ops: [createOp, ...linkOps]});
 		await tree.refreshChildren([parent]);
-		for (const mirror of mirrors) {
-			tree.recordMirror(mirror.originId, mirror.mirrorId);
-		}
+		tree.recordRelationships({
+			...emptyItemRelationships(),
+			mirrors: mirrors.map(({mirrorId, originId}) => ({mirrorId, originalId: originId})),
+		});
 		return {mirrors};
 	}
 

@@ -15,6 +15,8 @@ import {
 	normalizeLayoutMode,
 	systemFromToDate,
 } from "./cache-temporal.js";
+import {recordItemRelationships, upstreamRelationshipMetadata} from "./item-relationships.js";
+import type {ItemRelationships, UpstreamRelationshipMetadata} from "./item-relationships.js";
 import {loadMirrorOriginals, notAMirror} from "./mirror-text.js";
 import {endNodeComposites, runUnitOfWork} from "./node-composite.js";
 import {NodeReader} from "./node-reader.js";
@@ -845,6 +847,22 @@ export class CacheService {
 			}
 		}
 		return map;
+	}
+
+	/**
+	 * Record the mirror, backlink and references-root rows an accepted push
+	 * created, as one unit of work at one system time. Rows already current
+	 * are left alone.
+	 */
+	recordRelationships(relationships: ItemRelationships): void {
+		runUnitOfWork(this.database, (unitOfWork) => {
+			recordItemRelationships(unitOfWork, relationships);
+		});
+	}
+
+	/** Each node's upstream `mirror`/`backlink`/`isReferencesRoot` view, rebuilt from the edge tables. */
+	relationshipMetadata(nodeIds: readonly string[]): Map<string, UpstreamRelationshipMetadata> {
+		return upstreamRelationshipMetadata(this.database, nodeIds);
 	}
 
 	/**

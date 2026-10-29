@@ -833,4 +833,80 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 			mirrors: [{original_id: "b", mirror_id: "t2"}],
 		});
 	});
+
+	it("caches the references roots and backlink items a created tree carries as edge rows at one system time", async () => {
+		let next = 0;
+		const {api, adapter, sqlite} = await tracked(() => `t${++next}`);
+		serveTreeData(api, [{id: "a"}, {id: "b"}, {id: "c"}]);
+
+		await adapter.createTreesAt({
+			parentId: "home",
+			index: 0,
+			trees: [
+				{
+					name: "copy",
+					children: [
+						{
+							name: "",
+							metadata: {isReferencesRoot: true},
+							children: [
+								{
+									name: "",
+									metadata: {
+										mirror: {originalId: "b", isMirrorRoot: true},
+										backlink: {sourceID: "b", targetID: "t1"},
+									},
+								},
+							],
+						},
+					],
+				},
+			],
+		});
+
+		expect({
+			mirrors: mirrorRows(sqlite),
+			backlinks: sqlite.prepare("SELECT node_id, source_id, target_id FROM backlinks").all(),
+			referencesRoots: sqlite.prepare("SELECT node_id FROM references_roots").all(),
+			systemTimes: sqlite
+				.prepare(
+					"SELECT COUNT(DISTINCT system_from) AS n FROM (SELECT system_from FROM mirrors UNION ALL SELECT system_from FROM backlinks UNION ALL SELECT system_from FROM references_roots)",
+				)
+				.get(),
+		}).toStrictEqual({
+			mirrors: [{original_id: "b", mirror_id: "t3"}],
+			backlinks: [{node_id: "t3", source_id: "b", target_id: "t1"}],
+			referencesRoots: [{node_id: "t2"}],
+			systemTimes: {n: 1},
+		});
+	});
+
+	it.each([
+		{
+			label: "createTreesAt with a mirror root",
+			run: async (adapter: WorkflowyInternalAdapter) =>
+				adapter.createTreesAt({
+					parentId: "home",
+					trees: [{name: "", metadata: {mirror: {originalId: "b", isMirrorRoot: true}}}],
+				}),
+		},
+		{
+			label: "createMirrorsAt",
+			run: async (adapter: WorkflowyInternalAdapter) =>
+				adapter.createMirrorsAt({originalIds: ["b"], parentId: "home", index: 0}),
+		},
+	])("writes no edge rows when the push for $label is rejected", async ({run}) => {
+		const {api, adapter, sqlite, order} = await tracked();
+		serveTreeData(api, [{id: "a"}, {id: "b"}, {id: "c"}]);
+		api.respond("/push_and_poll", () =>
+			json({results: [{new_most_recent_operation_transaction_id: "4568", error: "bad op"}]}),
+		);
+
+		await expect(run(adapter)).rejects.toBeInstanceOf(OperationRejected);
+
+		expect({mirrors: mirrorRows(sqlite), order: order(null)}).toStrictEqual({
+			mirrors: [],
+			order: ["a", "b", "c"],
+		});
+	});
 });

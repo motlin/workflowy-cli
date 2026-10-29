@@ -1,3 +1,4 @@
+import type {ItemRelationships} from "./item-relationships.js";
 import type {
 	CreateMirrorResult,
 	CreateNodeRequest,
@@ -317,9 +318,9 @@ export class WorkflowyWriteThroughClient {
 		return result;
 	}
 
-	/** Cache that `mirrorId` mirrors `originalId`, for a mirror created outside {@link createMirror}. */
-	recordMirror(originalId: string, mirrorId: string): void {
-		this.cacheService.insertMirror(originalId, mirrorId);
+	/** Cache the mirror, backlink and references-root rows an accepted push created outside {@link createMirror}. */
+	recordRelationships(relationships: ItemRelationships): void {
+		this.cacheService.recordRelationships(relationships);
 	}
 
 	/**
