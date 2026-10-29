@@ -8,12 +8,16 @@ import type {ServerContext} from "../src/server/context.js";
 interface Operation {
 	operationId: string;
 	parameters?: {name: string; in: string}[];
+	responses: Record<string, unknown>;
 }
 
 interface Spec {
 	openapi: string;
 	paths: Record<string, Record<string, Operation>>;
+	components?: {schemas?: Record<string, unknown>};
 }
+
+const ERROR_REF = {description: "Error", content: {"application/json": {schema: {$ref: "#/components/schemas/Error"}}}};
 
 const DOC_PATHS = new Set(["/health", "/api/openapi.json", "/api/docs"]);
 
@@ -102,8 +106,55 @@ describe("GET /api/openapi.json", () => {
 						},
 					},
 				},
-				default: {description: "Error", content: {"application/json": {schema: {}}}},
+				default: ERROR_REF,
 			},
+		});
+	});
+
+	it("defines the shared {error} body and references it from every error response", async () => {
+		const {paths, components} = await spec();
+		const errorResponses = Object.entries(paths).flatMap(([path, operations]) =>
+			Object.entries(operations).flatMap(([method, operation]) =>
+				Object.entries(operation.responses)
+					.filter(([status]) => status === "default" || /^[45]/u.test(status))
+					.filter(([status]) => status !== "499")
+					.map(([status, response]) => ({method, path, status, response})),
+			),
+		);
+
+		expect({
+			error: components?.schemas?.Error,
+			unshared: errorResponses.filter(({response}) => JSON.stringify(response) !== JSON.stringify(ERROR_REF)),
+			count: errorResponses.length > 0,
+		}).toStrictEqual({
+			error: {
+				type: "object",
+				properties: {
+					error: {type: "string", description: "What went wrong"},
+					reconcile: {
+						type: "boolean",
+						description:
+							"Set by the ladder routes when the client should refetch the ladder before retrying",
+					},
+				},
+				required: ["error"],
+			},
+			unshared: [],
+			count: true,
+		});
+	});
+
+	it("documents the expansion 304 and the search locations 499", async () => {
+		const {paths} = await spec();
+		expect({
+			expansion: paths["/api/v1/expansion"]?.get?.responses["304"],
+			locations: paths["/api/search/locations"]?.post?.responses["499"],
+		}).toStrictEqual({
+			expansion: {
+				description: "Not modified: the If-None-Match ETag still matches",
+				headers: {ETag: {schema: {type: "string"}}},
+			},
+			locations: {description: "Client closed request: the client aborted before the search finished"},
 		});
 	});
 

@@ -19,9 +19,29 @@ interface Binding {
 	body?: string;
 	/** The success status when it is not 200. */
 	status?: 201 | 302;
+	/** Responses the route adds beyond its success and error responses, keyed by status. */
+	responses?: Record<string, Schema>;
 }
 
 const FLAG = {type: "string", enum: ["1"]};
+
+/** The body of every error response: `fail()` and `callOp`'s validation miss both send `{error}`. */
+const ERROR_SCHEMA = {
+	type: "object",
+	properties: {
+		error: {type: "string", description: "What went wrong"},
+		reconcile: {
+			type: "boolean",
+			description: "Set by the ladder routes when the client should refetch the ladder before retrying",
+		},
+	},
+	required: ["error"],
+};
+
+const ERROR_RESPONSE = {
+	description: "Error",
+	content: {"application/json": {schema: {$ref: "#/components/schemas/Error"}}},
+};
 
 /** Every route `createHttpApp` registers, keyed by method and Hono path; the spec test fails when a route is missing here. */
 const BINDINGS: Record<string, Binding> = {
@@ -51,6 +71,12 @@ const BINDINGS: Record<string, Binding> = {
 		op: "expansion.get",
 		query: {fresh: FLAG, wait: FLAG},
 		headers: {"If-None-Match": "ifNoneMatch"},
+		responses: {
+			"304": {
+				description: "Not modified: the If-None-Match ETag still matches",
+				headers: {ETag: {schema: {type: "string"}}},
+			},
+		},
 	},
 	"PATCH /api/v1/expansion": {op: "expansion.patch"},
 	"GET /api/v1/expansion/left-bar": {op: "expansion.leftBarGet"},
@@ -91,7 +117,10 @@ const BINDINGS: Record<string, Binding> = {
 	"GET /api/search/helpers": {op: "search.helpers"},
 	"POST /api/search/tree": {op: "search.tree"},
 	"POST /api/search/switcher": {op: "search.switcher"},
-	"POST /api/search/locations": {op: "search.locations"},
+	"POST /api/search/locations": {
+		op: "search.locations",
+		responses: {"499": {description: "Client closed request: the client aborted before the search finished"}},
+	},
 	"POST /api/search": {op: "search.text"},
 	"GET /api/v1/stars": {op: "stars.list"},
 	"PUT /api/v1/stars/order": {op: "stars.order"},
@@ -162,11 +191,11 @@ function requestBody(binding: Binding, input: ObjectSchema, consumed: Set<string
 }
 
 function responses(binding: Binding): Schema {
-	const error = {description: "Error", content: {"application/json": {schema: {}}}};
 	if (binding.status === 302) {
 		return {
 			"302": {description: "Redirect to the signed URL", headers: {Location: {schema: {type: "string"}}}},
-			default: error,
+			...binding.responses,
+			default: ERROR_RESPONSE,
 		};
 	}
 	const {output} = Ops[binding.op];
@@ -177,7 +206,8 @@ function responses(binding: Binding): Schema {
 	return {
 		[String(binding.status ?? 200)]: success,
 		...(output.safeParse(null).success ? {"204": {description: "No content"}} : {}),
-		default: error,
+		...binding.responses,
+		default: ERROR_RESPONSE,
 	};
 }
 
@@ -237,7 +267,12 @@ export function openApiDocument(routes: readonly RouterRoute[]): Schema {
 		const key = openApiPath(path);
 		paths[key] = {...paths[key], [method.toLowerCase()]: operation(method, path, binding, operationId)};
 	}
-	return {openapi: "3.1.0", info: {title: "Workflowy API", version: "1.0.0"}, paths};
+	return {
+		openapi: "3.1.0",
+		info: {title: "Workflowy API", version: "1.0.0"},
+		paths,
+		components: {schemas: {Error: ERROR_SCHEMA}},
+	};
 }
 
 const SWAGGER_UI = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/";
