@@ -6,15 +6,13 @@ import type {ServerContext} from "../src/server/context.js";
 import {inProcessStore} from "../src/server/store.js";
 import type {Ladder} from "../src/server/ladder-model.js";
 import type {LadderService} from "../src/server/ladder-service.js";
+import {checkOpOutputs} from "./helpers/check-op-outputs.js";
 
 /** A router over a service that answers only the operations a test supplies. */
 function makeApp(operations: Partial<LadderOperations>) {
 	const unexpected = async (): Promise<never> => Promise.reject(new Error("unexpected ladder service call"));
 	const service: LadderOperations = {read: unexpected, move: unexpected, complete: unexpected, ...operations};
-	const store = inProcessStore(
-		{} as unknown as ServerContext,
-		createLadderOps(() => service),
-	);
+	const store = inProcessStore({} as unknown as ServerContext, checkOpOutputs(createLadderOps(() => service)));
 	return createHttpApp({resolveStore: () => store});
 }
 

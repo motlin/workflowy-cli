@@ -46,7 +46,7 @@ import {loadCalendarLayout} from "../calendar-layout.js";
 import type {CalendarDayDeps} from "../calendar-day.js";
 import type {ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
+import {defineOp, fail, ok, toJson} from "./define.js";
 
 const ENSURE_DISABLED = "Calendar day ensure is disabled (CALENDAR_ENSURE_ENABLED=false)";
 const INVALID_DATE_ID = "dateId must be a YYYYMMDD calendar day";
@@ -73,6 +73,45 @@ const UndoBody = z.object({rootId: z.string().min(1).optional()});
 const SettingsBody = z
 	.object({foundDates: z.boolean().optional(), dayPrefix: z.boolean().optional()})
 	.refine((settings) => settings.foundDates !== undefined || settings.dayPrefix !== undefined);
+const CalendarLevelSchema = z.enum(CALENDAR_LEVELS);
+/** The root's `calendar.levels`; a missing key is off. */
+const LayoutLevelsSchema = z.partialRecord(CalendarLevelSchema, z.boolean());
+const CalendarSettingsSchema = z.strictObject({foundDates: z.boolean(), dayPrefix: z.boolean()});
+/** What a layout write (or its undo) pushed; `writes` is 0 when the layout was already in place. */
+const AppliedLayoutSchema = z.strictObject({rootId: z.string(), writes: z.number()});
+const CalendarLevelMetadataSchema = z.strictObject({
+	level: CalendarLevelSchema,
+	value: z.string(),
+	timestamp: z.number(),
+	dateId: z.number(),
+});
+const LayoutLocationSchema = z.strictObject({parentId: z.string(), index: z.number()});
+/** One tree write of upstream's restructure, as `planCalendarLayout` returns it. */
+const LayoutStepSchema = z.discriminatedUnion("op", [
+	z.strictObject({op: z.literal("set-calendar"), id: z.string(), calendar: CalendarLevelMetadataSchema.nullable()}),
+	z.strictObject({
+		op: z.literal("set-levels"),
+		id: z.string(),
+		levels: z.partialRecord(CalendarLevelSchema, z.literal(true)),
+	}),
+	z.strictObject({
+		op: z.literal("create"),
+		id: z.string(),
+		parentId: z.string(),
+		index: z.number(),
+		name: z.string(),
+		metadata: z.strictObject({restorableUniqueNode: z.literal(true), calendar: CalendarLevelMetadataSchema}),
+	}),
+	z.strictObject({
+		op: z.literal("move"),
+		id: z.string(),
+		parentId: z.string(),
+		index: z.number(),
+		from: LayoutLocationSchema,
+	}),
+	z.strictObject({op: z.literal("delete"), id: z.string(), from: LayoutLocationSchema}),
+]);
+
 /**
  * The calendar root a layout write targets: `explicitRootId` (a sandbox copy) or the tagged root, and only when that
  * node is cached; undefined otherwise. The adapter is always handed this id, never left to fall back on its own.
@@ -174,14 +213,16 @@ const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 /** The root's picker toggles, each default true. */
 const calendarSettingsGet = defineOp({
 	input: z.object({}),
+	output: CalendarSettingsSchema,
 	run(ctx) {
-		return ok(jsonOf(readCalendarSettings({db: ctx.db, cache: ctx.cacheService})));
+		return ok(toJson(readCalendarSettings({db: ctx.db, cache: ctx.cacheService})));
 	},
 });
 
 /** `{id, firstChildId}` for a day (or the week, month or year holding it), 404 when it is not found. */
 const calendarDay = defineOp({
 	input: DayInput,
+	output: z.strictObject({id: z.string(), firstChildId: z.string().nullable()}),
 	async run(ctx, input) {
 		const dateId = dayDateId(input.dateId);
 		if (dateId === undefined) {
@@ -203,6 +244,7 @@ const calendarDay = defineOp({
 /** The month's days with journal content, for the date picker's event dots. */
 const calendarDays = defineOp({
 	input: DaysInput,
+	output: z.strictObject({days: z.array(z.number())}),
 	async run(ctx, input) {
 		const year = intParam(input.year, 1, 9999);
 		const month = intParam(input.month, 1, 12);
@@ -230,6 +272,7 @@ const calendarDays = defineOp({
 /** Writes the root's `calendar.found_dates` / `calendar.day_prefix` metadata. */
 const calendarSettingsPut = defineOp({
 	input: z.object({body: SettingsBody}),
+	output: CalendarSettingsSchema,
 	async run(ctx, {body}) {
 		const changes = [
 			...(body.foundDates === undefined ? [] : [{path: ["calendar", "found_dates"], value: body.foundDates}]),
@@ -244,32 +287,37 @@ const calendarSettingsPut = defineOp({
 			return fail(409, {error: ROOT_METADATA_MISSING});
 		}
 		await adapter.setNodeMetaValues(rootId, changes);
-		return ok(jsonOf(readCalendarSettings({db: ctx.db, cache: ctx.cacheService})));
+		return ok(toJson(readCalendarSettings({db: ctx.db, cache: ctx.cacheService})));
 	},
 });
 
 /** What the Calendar Layout dialog opens with. */
 const calendarLayoutGet = defineOp({
 	input: z.object({}),
+	output: z.strictObject({
+		levels: LayoutLevelsSchema,
+		customLevels: z.array(CalendarLevelSchema),
+		needsConfirm: z.boolean(),
+		applyEnabled: z.boolean(),
+	}),
 	async run(ctx) {
 		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService});
 		if (snapshot === undefined) {
 			return fail(409, {error: ROOT_METADATA_MISSING});
 		}
-		return ok(
-			jsonOf({
-				levels: snapshot.levels ?? DEFAULT_LAYOUT_LEVELS,
-				customLevels: calendarLayoutCustomLevels(snapshot.root, await accountDateFormat(ctx)),
-				needsConfirm: calendarLayoutNeedsConfirm(snapshot.root),
-				applyEnabled: ctx.calendarLayoutEnabled !== false,
-			}),
-		);
+		return ok({
+			levels: snapshot.levels ?? DEFAULT_LAYOUT_LEVELS,
+			customLevels: calendarLayoutCustomLevels(snapshot.root, await accountDateFormat(ctx)),
+			needsConfirm: calendarLayoutNeedsConfirm(snapshot.root),
+			applyEnabled: ctx.calendarLayoutEnabled !== false,
+		});
 	},
 });
 
 /** Restructures the calendar in one push, reporting each phase's time in `Server-Timing`. */
 const calendarLayoutPut = defineOp({
 	input: z.object({body: LayoutBody}),
+	output: AppliedLayoutSchema,
 	async run(ctx, {body}) {
 		if (ctx.calendarLayoutEnabled === false) {
 			return fail(403, {error: LAYOUT_DISABLED});
@@ -295,7 +343,7 @@ const calendarLayoutPut = defineOp({
 			console.info(
 				`calendar layout: ${applied.writes} writes under root ${applied.rootId} (${phases.join(", ")})`,
 			);
-			return ok(jsonOf(applied), {timing: phases});
+			return ok(toJson(applied), {timing: phases});
 		} catch (error) {
 			if (error instanceof CalendarRootMissing) {
 				return fail(409, {error: error.message});
@@ -308,6 +356,7 @@ const calendarLayoutPut = defineOp({
 /** Undoes the last applied layout once. */
 const calendarLayoutUndo = defineOp({
 	input: z.object({body: UndoBody}),
+	output: AppliedLayoutSchema,
 	async run(ctx, {body}) {
 		if (ctx.calendarLayoutEnabled === false) {
 			return fail(403, {error: LAYOUT_DISABLED});
@@ -322,13 +371,14 @@ const calendarLayoutUndo = defineOp({
 		}
 		console.info(`calendar layout: undoing under root ${rootId}`);
 		const undone = await adapter.undoCalendarLayout(rootId);
-		return undone === undefined ? fail(409, {error: NOTHING_TO_UNDO}) : ok(jsonOf(undone));
+		return undone === undefined ? fail(409, {error: NOTHING_TO_UNDO}) : ok(toJson(undone));
 	},
 });
 
 /** The steps the layout would take; nothing is written. */
 const calendarLayoutPreview = defineOp({
 	input: z.object({body: LayoutBody}),
+	output: z.strictObject({steps: z.array(LayoutStepSchema)}),
 	async run(ctx, {body}) {
 		const {rootId} = body;
 		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService}, rootId);
@@ -344,13 +394,14 @@ const calendarLayoutPreview = defineOp({
 			...(weekStartDay === undefined ? {} : {weekStartDay}),
 			...(entropyKey === undefined ? {} : {entropyKey}),
 		});
-		return ok(jsonOf({steps}));
+		return ok(toJson({steps}));
 	},
 });
 
 /** The days in a range with journal content, for the day strip's dots. */
 const calendarDots = defineOp({
 	input: DotsInput,
+	output: z.strictObject({dateIds: z.array(z.number())}),
 	async run(ctx, input) {
 		const from = dayDateId(input.from ?? "");
 		const to = dayDateId(input.to ?? "");
@@ -369,6 +420,13 @@ const calendarDots = defineOp({
 /** Creates the day (and its ancestors) the way upstream's Today does. */
 const calendarEnsure = defineOp({
 	input: EnsureInput,
+	output: z.strictObject({
+		/** The ensured node: the day, or the week, month or year with `level`. */
+		dayId: z.string(),
+		firstChildId: z.string().nullable(),
+		/** Ids created by this call, outermost first. */
+		created: z.array(z.string()),
+	}),
 	async run(ctx, input) {
 		if (ctx.calendarEnsureEnabled !== true) {
 			return fail(403, {error: ENSURE_DISABLED});
@@ -388,7 +446,7 @@ const calendarEnsure = defineOp({
 		}
 		try {
 			return ok(
-				jsonOf(await adapter.ensureCalendarDay(dateId, {stopAt, createChild: input.createChild !== "false"})),
+				toJson(await adapter.ensureCalendarDay(dateId, {stopAt, createChild: input.createChild !== "false"})),
 			);
 		} catch (error) {
 			if (error instanceof CalendarRootMissing) {

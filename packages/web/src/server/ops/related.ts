@@ -5,21 +5,21 @@ import {nodeContent, nodeEmbeddings} from "@workflowy/shared/db";
 import type {AppDatabase} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
+import {defineOp, fail, ok} from "./define.js";
 
 type RelatedType = "similar" | "parent-candidates" | "link-targets";
 
-interface RelatedNode {
-	id: string;
-	name: string | null;
-	note: string | null;
-	distance: number;
-	path: string[];
-}
+const RelatedNodeSchema = z.strictObject({
+	id: z.string(),
+	name: z.string().nullable(),
+	note: z.string().nullable(),
+	distance: z.number(),
+	path: z.array(z.string()),
+});
 
-interface RelatedResponse {
-	results: RelatedNode[];
-}
+const RelatedResponseSchema = z.strictObject({results: z.array(RelatedNodeSchema)});
+
+type RelatedNode = z.output<typeof RelatedNodeSchema>;
 
 /** Fill each node's ancestor path in one batched PathBuilder query. */
 function fillPaths(database: AppDatabase, nodes: RelatedNode[]): void {
@@ -225,6 +225,7 @@ export const relatedFind = defineOp({
 		threshold: z.number().optional(),
 		model: z.string().optional(),
 	}),
+	output: RelatedResponseSchema,
 	run(ctx, {nodeId, type, limit = 10, threshold = 0.5, model = "minilm"}) {
 		if (!nodeId) {
 			return fail(400, {error: "nodeId is required"});
@@ -243,8 +244,7 @@ export const relatedFind = defineOp({
 		// Without embeddings (no vector extension) there is nothing to rank: the empty result clients already handle.
 		const {db: database, config} = ctx;
 		if (!config.features.embeddings) {
-			const empty: RelatedResponse = {results: []};
-			return ok(jsonOf(empty));
+			return ok({results: []});
 		}
 
 		// Get the source node's embedding
@@ -283,7 +283,6 @@ export const relatedFind = defineOp({
 			}
 		}
 
-		const response: RelatedResponse = {results};
-		return ok(jsonOf(response));
+		return ok({results});
 	},
 });

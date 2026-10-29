@@ -2,43 +2,8 @@ import {describe, expect, it} from "vite-plus/test";
 import {z} from "zod";
 import {defineOp, ok} from "../src/server/ops/define.js";
 import type {Json, OpDefinition} from "../src/server/ops/define.js";
-import {Ops} from "../src/server/ops/index.js";
 import type {ServerContext} from "../src/server/context.js";
 import {checkOpOutputs} from "./helpers/check-op-outputs.js";
-
-/** Ops that still answer untyped Json, sorted; later tasks give each an output schema and shrink this to empty. */
-const UNTYPED = [
-	"calendar.day",
-	"calendar.days",
-	"calendar.dots",
-	"calendar.ensure",
-	"calendar.layoutGet",
-	"calendar.layoutPreview",
-	"calendar.layoutPut",
-	"calendar.layoutUndo",
-	"calendar.settingsGet",
-	"calendar.settingsPut",
-	"files.signedUrl",
-	"ladder.complete",
-	"ladder.move",
-	"ladder.read",
-	"related.find",
-	"search.helpers",
-	"search.locations",
-	"search.switcher",
-	"search.text",
-	"search.tree",
-];
-
-describe("op output schemas", () => {
-	it("are declared by every op outside the shrinking allowlist", () => {
-		const untyped = Object.entries(Ops)
-			.filter(([, op]) => !("output" in op))
-			.map(([name]) => name);
-		// oxlint-disable-next-line unicorn/no-array-sort -- the test tsconfig lib has no toSorted
-		expect(untyped.sort()).toStrictEqual(UNTYPED);
-	});
-});
 
 describe("checkOpOutputs", () => {
 	const ctx = {} as ServerContext;

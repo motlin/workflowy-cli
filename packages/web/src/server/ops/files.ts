@@ -9,6 +9,7 @@ import type {NodeAttachment} from "../../node-types.js";
 import type {ServerContext} from "../context.js";
 import {loadAttachments, resolveNodeId} from "./nodes-shared.js";
 import {defineOp, fail, ok} from "./define.js";
+import {NoContentSchema} from "./schemas.js";
 
 const SIGNED_URL_TTL_MS = 10 * 60_000;
 /** Upstream rounds every requested preview width up to a multiple of this. */
@@ -48,6 +49,8 @@ function cacheOf(ctx: ServerContext): Map<string, {url: string; at: number}> {
 /** `w` is the raw `?w=` query string, absent for `original`. */
 export const filesSignedUrl = defineOp({
 	input: z.object({nodeId: z.string(), variant: z.enum(["preview", "original"]), w: z.string().optional()}),
+	/** The value is always null: the signed URL travels in `meta.redirect`. */
+	output: NoContentSchema,
 	async run(ctx, {nodeId, variant, w}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {

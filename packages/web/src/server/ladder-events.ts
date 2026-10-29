@@ -11,7 +11,7 @@
 
 import {z} from "zod";
 
-const LadderEventSchema = z.object({
+export const LadderEventSchema = z.object({
 	verb: z.enum(["move", "complete", "uncomplete"]),
 	nodeId: z.string(),
 	/** Task text at the time of the write, for a human-readable notification. */

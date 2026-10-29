@@ -28,7 +28,7 @@ export function fail(status: OpFailureStatus, body: Json): OpResult<never> {
 export interface OpDefinition<S extends z.ZodType, T extends Json> {
 	input: S;
 	/** The value's shape. Tests parse every op's value against it; production never does. */
-	output?: z.ZodType<T>;
+	output: z.ZodType<T>;
 	run(ctx: ServerContext, input: z.output<S>): OpResult<T> | Promise<OpResult<T>>;
 }
 
@@ -39,9 +39,7 @@ export type TypedOpDefinition<S extends z.ZodType, O extends z.ZodType<Json>> = 
 
 export function defineOp<S extends z.ZodType, O extends z.ZodType<Json>>(
 	definition: TypedOpDefinition<S, O>,
-): TypedOpDefinition<S, O>;
-export function defineOp<S extends z.ZodType, T extends Json>(definition: OpDefinition<S, T>): OpDefinition<S, T>;
-export function defineOp<S extends z.ZodType, T extends Json>(definition: OpDefinition<S, T>): OpDefinition<S, T> {
+): TypedOpDefinition<S, O> {
 	return definition;
 }
 
@@ -57,7 +55,7 @@ export type Jsonify<T> = T extends Date
 				: never;
 
 /** Narrows a value built from Dates and interfaces to {@link Json} by serializing it, as `c.json` did. */
-export function jsonOf(value: unknown): Json {
+function jsonOf(value: unknown): Json {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion, unicorn/prefer-structured-clone -- structuredClone would keep Dates; the JSON round trip is the point
 	return JSON.parse(JSON.stringify(value)) as Json;
 }

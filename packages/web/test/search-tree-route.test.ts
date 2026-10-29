@@ -390,9 +390,10 @@ describe("loadTreeRows", () => {
 				ladderEvents: new LadderEventBus(),
 			}),
 			{
-				read: defineOp({input: z.object({}), run: () => ok(loadTreeRows(db, null).length)}),
+				read: defineOp({input: z.object({}), output: z.number(), run: () => ok(loadTreeRows(db, null).length)}),
 				write: defineOp({
 					input: z.object({}),
+					output: z.null(),
 					run: () => {
 						insertNode(db, "mine", "root", "Mine");
 						return ok(null);

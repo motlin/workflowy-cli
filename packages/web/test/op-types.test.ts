@@ -84,4 +84,42 @@ describe("OpInput and OpOutput pin the client-facing op types", () => {
 		expectTypeOf<OpOutput<"nodes.exportTree">>().toEqualTypeOf<{items: ExportTreeItem[]}>();
 		expectTypeOf<OpOutput<"nodes.setHome">>().toEqualTypeOf<HomeResponse>();
 	});
+
+	it("output schemas type the calendar, search, related, files and ladder ops' values", () => {
+		expectTypeOf<OpOutput<"calendar.day">>().toEqualTypeOf<{id: string; firstChildId: string | null}>();
+		expectTypeOf<OpOutput<"calendar.days">>().toEqualTypeOf<{days: number[]}>();
+		expectTypeOf<OpOutput<"calendar.dots">>().toEqualTypeOf<{dateIds: number[]}>();
+		expectTypeOf<OpOutput<"calendar.ensure">>().toEqualTypeOf<{
+			dayId: string;
+			firstChildId: string | null;
+			created: string[];
+		}>();
+		for (const name of ["calendar.settingsGet", "calendar.settingsPut"] as const) {
+			expectTypeOf<OpOutput<typeof name>>().toEqualTypeOf<{foundDates: boolean; dayPrefix: boolean}>();
+		}
+		for (const name of ["calendar.layoutPut", "calendar.layoutUndo"] as const) {
+			expectTypeOf<OpOutput<typeof name>>().toEqualTypeOf<{rootId: string; writes: number}>();
+		}
+		expectTypeOf<OpOutput<"calendar.layoutGet">["applyEnabled"]>().toEqualTypeOf<boolean>();
+		expectTypeOf<OpOutput<"calendar.layoutPreview">["steps"][number]["op"]>().toEqualTypeOf<
+			"set-calendar" | "set-levels" | "create" | "move" | "delete"
+		>();
+		expectTypeOf<OpOutput<"files.signedUrl">>().toEqualTypeOf<null>();
+		expectTypeOf<OpOutput<"search.helpers">>().toEqualTypeOf<{hashTags: string[]; atTags: string[]}>();
+		expectTypeOf<OpOutput<"search.tree">["matchIds"]>().toEqualTypeOf<string[]>();
+		expectTypeOf<OpOutput<"search.switcher">["results"][number]["starred"]>().toEqualTypeOf<boolean>();
+		expectTypeOf<OpOutput<"search.locations">["results"][number]["labelHtml"]>().toEqualTypeOf<string>();
+		expectTypeOf<OpOutput<"search.text">>().toEqualTypeOf<{
+			results: {id: string; name: string | null; note: string | null; parentPath: string}[];
+			totalCount: number;
+		}>();
+		expectTypeOf<OpOutput<"related.find">>().toEqualTypeOf<{
+			results: {id: string; name: string | null; note: string | null; distance: number; path: string[]}[];
+		}>();
+		expectTypeOf<OpOutput<"ladder.read">["ladders"][string]["tiers"][number]["state"]>().toEqualTypeOf<
+			"room" | "exact" | "over"
+		>();
+		expectTypeOf<OpOutput<"ladder.move">["event"]["verb"]>().toEqualTypeOf<"move" | "complete" | "uncomplete">();
+		expectTypeOf<OpOutput<"ladder.complete">["event"]["nodeId"]>().toEqualTypeOf<string>();
+	});
 });

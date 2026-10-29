@@ -109,9 +109,10 @@ describe("parseInput", () => {
 
 describe("inProcessStore", () => {
 	const ops = {
-		double: defineOp({input: z.object({n: z.number()}), run: (_ctx, input) => ok(input.n * 2)}),
+		double: defineOp({input: z.object({n: z.number()}), output: z.number(), run: (_ctx, input) => ok(input.n * 2)}),
 		boom: defineOp({
 			input: z.object({}),
+			output: z.null(),
 			run: () => {
 				throw new Error("bug");
 			},

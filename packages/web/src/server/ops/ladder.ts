@@ -13,8 +13,9 @@ import {z} from "zod";
 import type {ServerContext} from "../context.js";
 import {LadderService} from "../ladder-service.js";
 import type {LadderBuckets} from "../ladder-service.js";
+import {LadderEventSchema} from "../ladder-events.js";
 import type {RawNode} from "../ladder-model.js";
-import {defineOp, fail, jsonOf, ok} from "./define.js";
+import {defineOp, fail, ok, toJson} from "./define.js";
 
 /** Where each ladder lives. Both buckets sit four levels down, under their root. */
 const BUCKET_PATHS: Record<string, string[]> = {
@@ -32,17 +33,49 @@ const Required = z.string().min(1);
 const MoveInput = z.object({root: Required, node_id: Required, to_tier: Required, before_id: z.string().optional()});
 const CompleteInput = z.object({root: Required, node_id: Required});
 
+const LadderItemSchema = z.strictObject({
+	id: z.string(),
+	name: z.string(),
+	/** Incomplete children, recursively, as read from the cache. */
+	get children(): z.ZodArray<typeof LadderItemSchema> {
+		return z.array(LadderItemSchema);
+	},
+	hasChildren: z.boolean().optional(),
+	/** How many incomplete nodes sit under this one, at any depth. */
+	descendantCount: z.number(),
+});
+
+const LadderSchema = z.strictObject({
+	root: z.string(),
+	bucketId: z.string(),
+	tiers: z.array(
+		z.strictObject({
+			tier: z.number(),
+			label: z.string(),
+			id: z.string(),
+			capacity: z.number(),
+			state: z.enum(["room", "exact", "over"]),
+			items: z.array(LadderItemSchema),
+		}),
+	),
+});
+
+/** The write a move or complete made, as the event bus announced it. */
+const LadderEventEnvelopeSchema = z.strictObject({event: z.strictObject(LadderEventSchema.shape)});
+
 /** Build the three ladder ops over a service factory; a test injects a fake service. */
 export function createLadderOps(createService: (ctx: ServerContext) => LadderOperations) {
 	return {
 		"ladder.read": defineOp({
 			input: z.object({}),
+			output: z.strictObject({ladders: z.record(z.string(), LadderSchema)}),
 			async run(ctx) {
-				return ok(jsonOf({ladders: await createService(ctx).read()}));
+				return ok(toJson({ladders: await createService(ctx).read()}));
 			},
 		}),
 		"ladder.move": defineOp({
 			input: MoveInput,
+			output: LadderEventEnvelopeSchema,
 			async run(ctx, {root, node_id: nodeId, to_tier: toTier, before_id: beforeNodeId}) {
 				try {
 					const event = await createService(ctx).move({
@@ -51,7 +84,7 @@ export function createLadderOps(createService: (ctx: ServerContext) => LadderOpe
 						toTier,
 						...(beforeNodeId === undefined ? {} : {beforeNodeId}),
 					});
-					return ok(jsonOf({event}));
+					return ok({event});
 				} catch (error) {
 					return fail(400, {error: messageOf(error), reconcile: true});
 				}
@@ -59,9 +92,10 @@ export function createLadderOps(createService: (ctx: ServerContext) => LadderOpe
 		}),
 		"ladder.complete": defineOp({
 			input: CompleteInput,
+			output: LadderEventEnvelopeSchema,
 			async run(ctx, {root, node_id: nodeId}) {
 				try {
-					return ok(jsonOf({event: await createService(ctx).complete({root, nodeId})}));
+					return ok({event: await createService(ctx).complete({root, nodeId})});
 				} catch (error) {
 					return fail(400, {error: messageOf(error)});
 				}

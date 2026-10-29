@@ -18,9 +18,6 @@ function checked(name: string, output: z.ZodType, result: OpResult<Json>): OpRes
 export function checkOpOutputs<R extends Record<string, OpDefinition<z.ZodType, Json>>>(ops: R): R {
 	for (const [name, op] of Object.entries(ops)) {
 		const {output} = op;
-		if (output === undefined) {
-			continue;
-		}
 		const run = op.run.bind(op);
 		op.run = (ctx, input): OpResult<Json> | Promise<OpResult<Json>> => {
 			const result = run(ctx, input);

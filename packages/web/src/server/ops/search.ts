@@ -14,7 +14,7 @@ import {filterLocations} from "../location-search.js";
 import {rankSwitcher} from "../switcher-search.js";
 import {computeTreeSearch} from "../tree-search.js";
 import type {TreeSearchRow} from "../tree-search.js";
-import {defineOp, jsonOf, ok} from "./define.js";
+import {defineOp, ok, toJson} from "./define.js";
 import {loadTreeRows, loadTreeRowsWithBacklinks, loadTreeSearchRows, queryNeedsBacklinks} from "../tree-snapshot.js";
 
 type TreeLoader = (database: AppDatabase, rootId: string | null) => TreeSearchRow[];
@@ -24,12 +24,63 @@ function treeLoader(ctx: ServerContext): TreeLoader {
 	return ctx.config.features.treeSnapshot ? loadTreeRows : loadTreeSearchRows;
 }
 
-interface SearchResult {
-	id: string;
-	name: string | null;
-	note: string | null;
-	parentPath: string;
-}
+const SearchResultSchema = z.strictObject({
+	id: z.string(),
+	name: z.string().nullable(),
+	note: z.string().nullable(),
+	parentPath: z.string(),
+});
+
+type SearchResult = z.output<typeof SearchResultSchema>;
+
+const TextSearchResponseSchema = z.strictObject({results: z.array(SearchResultSchema), totalCount: z.number()});
+
+const HelperTagsSchema = z.strictObject({hashTags: z.array(z.string()), atTags: z.array(z.string())});
+
+const TreeSearchResultSchema = z.strictObject({
+	matchIds: z.array(z.string()),
+	nameMatchIds: z.array(z.string()),
+	noteMatchIds: z.array(z.string()),
+	/** Operator-only matches: matched without a name or note text match. */
+	metaMatchIds: z.array(z.string()),
+	/** Nodes (excluding the root) with at least one matching descendant. */
+	ancestorIds: z.array(z.string()),
+	/** Ancestors with at least one child that neither matches nor has matching descendants. */
+	halfExpandedIds: z.array(z.string()),
+	rootHalfExpanded: z.boolean(),
+	/** Matches that are completed or sit under a completed ancestor. */
+	completedMatchCount: z.number(),
+	matchCount: z.number(),
+	revealsCompleted: z.boolean(),
+});
+
+const SwitcherAncestorSchema = z.strictObject({id: z.string(), name: z.string()});
+
+const SwitcherResponseSchema = z.strictObject({
+	results: z.array(
+		z.strictObject({
+			id: z.string(),
+			labelHtml: z.string(),
+			completed: z.boolean(),
+			starred: z.boolean(),
+			/** Root-first, without Home; names are whole (the client slices them). */
+			ancestors: z.array(SwitcherAncestorSchema),
+		}),
+	),
+	hasMore: z.boolean(),
+});
+
+const LocationResponseSchema = z.strictObject({
+	results: z.array(
+		z.strictObject({
+			id: z.string(),
+			labelHtml: z.string(),
+			/** Root-first, without Home. */
+			ancestors: z.array(SwitcherAncestorSchema),
+		}),
+	),
+	hasMore: z.boolean(),
+});
 
 // Get all descendant node IDs using a recursive CTE
 function getDescendantIds(database: AppDatabase, parentId: string): string[] {
@@ -57,7 +108,8 @@ export function loadHelperTags(database: AppDatabase, rootId: string, load: Tree
 /** `GET /api/search/helpers?rootId=` - subtree tags for the search helper's #TAGS / @TAGS sections. */
 export const searchHelpers = defineOp({
 	input: z.object({rootId: z.string()}),
-	run: (ctx, {rootId}) => ok(jsonOf(loadHelperTags(ctx.db, rootId, treeLoader(ctx)))),
+	output: HelperTagsSchema,
+	run: (ctx, {rootId}) => ok(toJson(loadHelperTags(ctx.db, rootId, treeLoader(ctx)))),
 });
 
 /** The account's stored date format (so strict `date:` queries parse it), or null when unset or unavailable. */
@@ -91,6 +143,7 @@ async function loadWeekStartDay(ctx: ServerContext): Promise<0 | 1 | null> {
 /** `POST /api/search/tree` - in-place search of the zoomed subtree, driven by the upstream query AST. */
 export const searchTree = defineOp({
 	input: z.object({query: z.string(), rootId: z.string().nullable()}),
+	output: TreeSearchResultSchema,
 	async run(ctx, {query, rootId}) {
 		const load = treeLoader(ctx);
 		const rows = queryNeedsBacklinks(query)
@@ -99,7 +152,7 @@ export const searchTree = defineOp({
 		const dateFormat = await loadDateFormat(ctx);
 		const weekStartDay = await loadWeekStartDay(ctx);
 		return ok(
-			jsonOf(
+			toJson(
 				computeTreeSearch(rows, rootId, query, Date.now(), {
 					...(dateFormat === null ? {} : {dateFormat}),
 					...(weekStartDay === null ? {} : {weekStartDay}),
@@ -144,11 +197,12 @@ export const searchSwitcher = defineOp({
 		starredIds: z.array(z.string()).default([]),
 		showCompleted: z.boolean().optional(),
 	}),
+	output: SwitcherResponseSchema,
 	async run(ctx, {query, offset, limit, starredIds, showCompleted}) {
 		const rows = treeLoader(ctx)(ctx.db, null);
 		const joinedSec = await loadJoinedSec(ctx, rows);
 		return ok(
-			jsonOf(
+			toJson(
 				rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {
 					joinedSec,
 					offset,
@@ -173,11 +227,12 @@ export const searchLocations = defineOp({
 		starredIds: z.array(z.string()).optional(),
 		showCompleted: z.boolean().optional(),
 	}),
+	output: LocationResponseSchema,
 	async run(ctx, {query, offset, limit, excludeId, starredIds, showCompleted}) {
 		const rows = treeLoader(ctx)(ctx.db, null);
 		const joinedSec = await loadJoinedSec(ctx, rows);
 		return ok(
-			jsonOf(filterLocations(rows, {query, excludeId, offset, limit, joinedSec, starredIds, showCompleted})),
+			toJson(filterLocations(rows, {query, excludeId, offset, limit, joinedSec, starredIds, showCompleted})),
 		);
 	},
 });
@@ -190,7 +245,8 @@ export const searchText = defineOp({
 		offset: z.number().default(0),
 		parentId: z.string().optional(),
 	}),
-	run: (ctx, input) => ok(jsonOf(textSearch(ctx, input))),
+	output: TextSearchResponseSchema,
+	run: (ctx, input) => ok(textSearch(ctx, input)),
 });
 
 function textSearch(
