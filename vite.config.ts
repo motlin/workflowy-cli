@@ -7,6 +7,8 @@ export default defineConfig({
 			"packages/cloudflare/worker-configuration.d.ts",
 			"packages/web/src/client/wf-tailwind.css",
 			"packages/web/src/client/reset.css",
+			// Verbatim upstream DOM capture compared by color-popup.test.tsx.
+			"packages/web/test/fixtures/upstream-color-popup-dom.html",
 		],
 		semi: true,
 		singleQuote: false,

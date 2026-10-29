@@ -1,13 +1,12 @@
 // @vitest-environment happy-dom
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import {readFileSync} from "node:fs";
-import {resolve} from "node:path";
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import type {Root} from "react-dom/client";
 import {DEFAULT_FEATURES} from "../src/client/features.js";
 import {featureKeys} from "../src/client/hooks/use-features.js";
 import {EMPTY_PREFERENCES, preferenceKeys} from "../src/client/hooks/use-preferences.js";
 import type {Preferences} from "../src/client/hooks/use-preferences.js";
+import upstreamFeatures from "./fixtures/upstream-settings-features.json" with {type: "json"};
 
 declare global {
 	// React reads this to know act() wraps every update.
@@ -45,10 +44,6 @@ const calls = {
 };
 const fetchStub = vi.fn<typeof fetch>();
 let featuresBody: unknown = {visible: [], enabled: {...DEFAULT_FEATURES}, available: true};
-const DUMPS = resolve(process.cwd(), ".llm/upstream-sync/dumps");
-function dump(name: string): unknown {
-	return JSON.parse(readFileSync(resolve(DUMPS, name), "utf8"));
-}
 
 beforeAll(() => {
 	globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -440,9 +435,7 @@ describe("Settings dialog", () => {
 	});
 
 	it("lists one toggle per server feature in server order, with LABS badges, hints and upstream's toggle classes", async () => {
-		const visible = (dump("settings-page-upstream-features-visible.json") as {all: {description: string}[]}).all;
-		const enabled = (dump("account-feature-flags-upstream-state.json") as {settings_features_enabled: unknown})
-			.settings_features_enabled;
+		const {visible, enabled} = upstreamFeatures;
 		featuresBody = {visible, enabled, available: true};
 		await open();
 		const features = section("Features");
@@ -509,8 +502,7 @@ describe("Settings dialog", () => {
 	});
 
 	it("posts the feature POST for a clicked server toggle and flips it at once", async () => {
-		const visible = (dump("settings-page-upstream-features-visible.json") as {all: unknown[]}).all;
-		featuresBody = {visible, enabled: {dates: true}, available: true};
+		featuresBody = {visible: upstreamFeatures.visible, enabled: {dates: true}, available: true};
 		await open();
 		const dashboards = section("Features").querySelector<HTMLElement>("label.toggle.dashboards");
 

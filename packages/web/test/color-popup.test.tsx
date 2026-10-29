@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import {existsSync, readFileSync} from "node:fs";
+import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {createElement} from "react";
 import type {ReactNode, ReactPortal} from "react";
@@ -24,7 +24,7 @@ const {act} = await import("react");
 const {createRoot} = await import("react-dom/client");
 const {ColorPopup, popupCentered} = await import("../src/client/components/color-popup.js");
 
-const DUMP = resolve(process.cwd(), ".llm/upstream-sync/dumps/color-highlight-popup-upstream-dom-2026-10-23.html");
+const DUMP = resolve(import.meta.dirname, "fixtures/upstream-color-popup-dom.html");
 
 const noop = () => {};
 
@@ -102,7 +102,7 @@ describe("ColorPopup markup", () => {
 		expect(markup()).toContain("left:191.5px;top:296.5px");
 	});
 
-	it.skipIf(!existsSync(DUMP))("matches upstream's live DOM apart from style values and svg paths", () => {
+	it("matches upstream's live DOM apart from style values and svg paths", () => {
 		const upstream = readFileSync(DUMP, "utf8");
 		const normalize = (html: string) =>
 			html

@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
-import {existsSync, readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
+import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {cssBlock} from "./helpers/css-block.js";
 
@@ -9,10 +10,9 @@ function readSource(relative: string): string {
 
 const tw = readSource("../src/client/wf-tailwind.css");
 
-// The upstream dump lives under the gitignored .llm/ tree, so it exists only in the main checkout.
-const upstreamPath = fileURLToPath(
-	new URL("../../../.llm/upstream-sync/dumps/upstream-assets/css_tailwind.7d94a432a83c.css", import.meta.url),
-);
+// Fingerprint of upstream css_tailwind.7d94a432a83c.css after its leading comment, minus DROPPED_RULE, with
+// the trailing blank line trimmed. Pinned here so the check runs without the 141 kB upstream file checked in.
+const UPSTREAM_BODY = {length: 140_608, sha256: "99a74ff87917a8fb9ccc7b8de959f9043366dccda7a5457c92a8ffa4e3ad7f19"};
 
 // lightningcss cannot minify this rule (an unexpanded JS template literal upstream), so the port drops it.
 const DROPPED_RULE = [
@@ -107,13 +107,13 @@ describe("wf-tailwind.css", () => {
 		expect(tw.indexOf("*, ::before, ::after, ::backdrop")).toBeLessThan(tw.indexOf(String.raw`.\!container`));
 	});
 
-	it.skipIf(!existsSync(upstreamPath))("ends with the upstream file verbatim, minus its leading comment", () => {
-		const upstream = readFileSync(upstreamPath, "utf8");
-		const body = upstream.slice(upstream.indexOf("*/") + "*/".length).replace(DROPPED_RULE, "");
-		expect(body.startsWith(`\n\n${String.raw`.\!container {`}`)).toBe(true);
-		expect(upstream).toContain(DROPPED_RULE);
-		// The end-of-file hook trims upstream's trailing blank line; nothing else may differ.
-		expect(tw.endsWith(`${body.trimEnd()}\n`)).toBe(true);
+	it("ends with the upstream file verbatim, minus its leading comment and the dropped rule", () => {
+		const tail = tw.slice(-UPSTREAM_BODY.length);
+		expect({
+			start: tail.startsWith(`\n\n${String.raw`.\!container {`}`),
+			dropped: tw.includes(DROPPED_RULE),
+			sha256: createHash("sha256").update(tail).digest("hex"),
+		}).toStrictEqual({start: true, dropped: false, sha256: UPSTREAM_BODY.sha256});
 	});
 });
 
