@@ -144,16 +144,13 @@ describe("GET /api/openapi.json", () => {
 		});
 	});
 
-	it("documents the expansion 304 and the search locations 499", async () => {
+	it("documents the search locations 499 and the expansion change feed's since parameter", async () => {
 		const {paths} = await spec();
 		expect({
-			expansion: paths["/api/v1/expansion"]?.get?.responses["304"],
+			expansion: paths["/api/v1/expansion"]?.get?.parameters,
 			locations: paths["/api/search/locations"]?.post?.responses["499"],
 		}).toStrictEqual({
-			expansion: {
-				description: "Not modified: the If-None-Match ETag still matches",
-				headers: {ETag: {schema: {type: "string"}}},
-			},
+			expansion: [{name: "since", in: "query", required: false, schema: {type: "string", pattern: "^\\d+$"}}],
 			locations: {description: "Client closed request: the client aborted before the search finished"},
 		});
 	});

@@ -1,4 +1,3 @@
-import {createHash} from "node:crypto";
 import {and, eq, inArray, like} from "drizzle-orm";
 import type {BaseSQLiteDatabase} from "drizzle-orm/sqlite-core";
 import {z} from "zod";
@@ -9,7 +8,8 @@ import {keptInternalMetadata} from "../cache/importer.js";
 import {collectItemRelationships, emptyItemRelationships} from "../cache/item-relationships.js";
 import {runUnitOfWork} from "../cache/node-composite.js";
 import {applyRelationshipOps} from "../cache/relationship-log.js";
-import {advanceTreeTxId, EXPANDED_KEYS_KEY, readTreeTxId} from "../cache/tree-transaction.js";
+import {applyExpansionDelta, readExpansion} from "../cache/expansion-store.js";
+import {advanceTreeTxId, readTreeTxId} from "../cache/tree-transaction.js";
 import type {ItemRelationships} from "../cache/item-relationships.js";
 import {accountState, localSettings, mirrors as mirrorsTable, nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
@@ -32,7 +32,14 @@ import {calendarLayoutWrites, layoutWriteParents} from "./calendar-layout-apply.
 import type {LayoutWrite} from "./calendar-layout-apply.js";
 import {planCalendarLayout} from "./calendar-layout.js";
 import type {CalendarLayoutLevels, LayoutNode} from "./calendar-layout.js";
-import {LoggedOut, OperationRejected, TransportError, TreeNotSeeded, TreeRefreshRequired} from "./errors.js";
+import {
+	ExpansionNotSeeded,
+	LoggedOut,
+	OperationRejected,
+	TransportError,
+	TreeNotSeeded,
+	TreeRefreshRequired,
+} from "./errors.js";
 import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
 import type {MetadataChange} from "./metadata-patch.js";
 import {bulkCreateOp, bulkMoveOp, deleteOp, editOp, moveOp, ROOT_PROJECT_ID, undeleteOp} from "./ops.js";
@@ -45,11 +52,6 @@ type AdapterDatabase = BaseSQLiteDatabase<"sync", any, any>;
 
 /** Cached state older than this is refreshed from the server in the background on a read. */
 const FRESHNESS_MS = 30_000;
-/** A `fresh` expanded-ids read waits on `/get_tree_data/` at most this often. */
-const FRESH_EXPANSION_THROTTLE_MS = 5000;
-
-/** A fresh or waiting expansion read waits on `/get_tree_data/` at most this long, then answers the cached keys. */
-const FRESH_WAIT_MS = 15_000;
 
 /** Settings the server stores; every other setting is client-only upstream. */
 export type ServerSetting =
@@ -140,7 +142,6 @@ const KEYS = {
 	rootMetadata: "root_metadata",
 	settings: "settings",
 	visibleFeatures: "visible_features",
-	expandedKeys: EXPANDED_KEYS_KEY,
 	entropyKey: "entropy_key",
 	calendarLayoutUndo: "calendar_layout_undo",
 } as const;
@@ -152,15 +153,14 @@ const LayoutUndoSchema = z.object({
 	metadata: z.record(z.string(), MetadataSchema),
 });
 
-/** What `getExpansionState` reports besides the ids; see there. */
-export interface ExpansionState {
-	expandedIds: string[];
-	fetchedAt: number;
-	refreshing: boolean;
-	fingerprint: string;
+/**
+ * A change-feed read of expansion: the store's current high-water mark, and the expanded ids when they changed
+ * after the mark asked about (null when they did not).
+ */
+export interface ExpansionChanges {
+	latest: number;
+	expandedIds: string[] | null;
 }
-
-const ExpandedKeysSchema = z.array(z.string());
 
 /** The id callers pass for Home (the root) in tree writes. */
 export const HOME = HOME_TARGET;
@@ -405,18 +405,6 @@ function loud<E extends Error>(error: E): E {
 	return error;
 }
 
-function applyExpansionsDelta(keys: Set<string>, delta: Record<string, boolean>): Set<string> {
-	const next = new Set(keys);
-	for (const [key, expanded] of Object.entries(delta)) {
-		if (expanded) {
-			next.add(key);
-		} else {
-			next.delete(key);
-		}
-	}
-	return next;
-}
-
 function getPath(value: unknown, path: string[]): unknown {
 	let current = value;
 	for (const key of path) {
@@ -477,11 +465,9 @@ export class WorkflowyInternalAdapter {
 	private readonly pusher: PushAndPoll;
 	private readonly writeThrough: WorkflowyWriteThroughClient | undefined;
 	private readonly generateId: () => string;
-	private expandedKeysRefresh: Promise<Set<string>> | undefined;
 	private accountRefresh: Promise<void> | undefined;
 	/** Bumped on every account snapshot store, so a background refresh never overwrites a newer write. */
 	private accountStores = 0;
-	private pushedDuringRefresh: Record<string, boolean>[] | undefined;
 	/** The stored id the push in flight started from, for the refresh error. */
 	private startedFrom: string | undefined;
 
@@ -1633,41 +1619,38 @@ export class WorkflowyInternalAdapter {
 	}
 
 	/**
-	 * Every cached node the server records as expanded. The server keys
+	 * Every cached node the account records as expanded. Upstream keys
 	 * expansion by the first 8 chars of the id, so a key resolves to every
 	 * cached id it prefixes (twins expand together, as upstream) and keys with
 	 * no cached node are dropped.
 	 *
-	 * The keys are cached in `account_state`: only the first read ever waits
-	 * on `/get_tree_data/`; a read of keys older than 30s answers from the
-	 * cache and refreshes them in the background (see {@link expandedKeysRefreshed}).
-	 * A `fresh` read (tab focus) instead waits on the refresh once the keys are
-	 * 5s old, so a change made on workflowy.com shows on that read.
+	 * The keys come from our own store (see `cache/expansion-store.ts`), which
+	 * a whole-tree import seeds and every local change updates; no read goes
+	 * to workflowy.com. Without a seed this fails loudly ({@link ExpansionNotSeeded}).
 	 */
-	async getExpandedIds({fresh = false}: {fresh?: boolean} = {}): Promise<string[]> {
-		return (await this.getExpansionState({fresh})).expandedIds;
+	getExpandedIds(): string[] {
+		return this.resolveExpandedIds(this.storedExpansion().keys);
 	}
 
 	/**
-	 * {@link getExpandedIds} plus what a client needs to judge it: when the keys were fetched, whether a refresh is
-	 * still running, and a fingerprint of the keys for ETags. With `wait`, a running refresh is awaited (at most
-	 * {@link FRESH_WAIT_MS}) before the cache is read, so a client that got `refreshing: true` can collect the result.
-	 * A `fresh` read waits the same bounded time and otherwise falls back to the cached keys.
+	 * The expansion change feed: the store's high-water mark, plus the expanded ids (as {@link getExpandedIds}) when
+	 * they changed after `since`, or always when no `since` is given.
 	 */
-	async getExpansionState({
-		fresh = false,
-		wait = false,
-	}: {fresh?: boolean; wait?: boolean} = {}): Promise<ExpansionState> {
-		const keys = await this.expandedKeys(fresh, wait);
-		const fetchedAt = this.loadExpandedKeys()?.fetchedAt ?? this.now();
+	getExpansionChanges(since: number | undefined): ExpansionChanges {
+		const {keys, mark} = this.storedExpansion();
 		return {
-			expandedIds: this.resolveExpandedIds(keys),
-			fetchedAt,
-			refreshing: this.expandedKeysRefresh !== undefined,
-			fingerprint: createHash("sha1")
-				.update(JSON.stringify([...keys].toSorted()))
-				.digest("hex"),
+			latest: mark,
+			expandedIds: since !== undefined && mark <= since ? null : this.resolveExpandedIds(keys),
 		};
+	}
+
+	/** The stored expansion, or a loud {@link ExpansionNotSeeded} before any import seeded it. */
+	private storedExpansion(): {keys: Set<string>; mark: number} {
+		const stored = readExpansion(this.db);
+		if (stored === undefined) {
+			throw loud(new ExpansionNotSeeded());
+		}
+		return stored;
 	}
 
 	private resolveExpandedIds(keys: Set<string>): string[] {
@@ -1747,56 +1730,9 @@ export class WorkflowyInternalAdapter {
 	 * Whether an id is expanded, per the same cached keys {@link getExpandedIds} reads, without listing every cached
 	 * node: an outline view tests only the rows it reaches.
 	 */
-	async expansionTest(): Promise<(id: string) => boolean> {
-		const keys = await this.expandedKeys(false);
+	expansionTest(): (id: string) => boolean {
+		const {keys} = this.storedExpansion();
 		return (id) => keys.has(expansionKey(id));
-	}
-
-	private async expandedKeys(fresh: boolean, wait = false): Promise<Set<string>> {
-		const cached = this.loadExpandedKeys();
-		if (!cached) {
-			return this.refreshExpandedKeys();
-		}
-		if (wait && this.expandedKeysRefresh !== undefined) {
-			await this.boundedRefresh(this.expandedKeysRefresh);
-			return this.loadExpandedKeys()?.keys ?? cached.keys;
-		}
-		if (fresh && cached.fetchedAt <= this.now() - FRESH_EXPANSION_THROTTLE_MS) {
-			const keys = await this.boundedRefresh(this.refreshExpandedKeys());
-			return keys ?? cached.keys;
-		}
-		if (cached.fetchedAt < this.now() - FRESHNESS_MS) {
-			void this.refreshExpandedKeys().catch((error: unknown) => {
-				console.error("Failed to refresh expanded keys", error);
-			});
-		}
-		return cached.keys;
-	}
-
-	/** Await `refresh` for at most {@link FRESH_WAIT_MS}; undefined on a timeout, with the refresh left running. */
-	private async boundedRefresh(refresh: Promise<Set<string>>): Promise<Set<string> | undefined> {
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		const timeout = new Promise<undefined>((resolve) => {
-			timer = setTimeout(() => {
-				resolve(undefined);
-			}, FRESH_WAIT_MS);
-		});
-		try {
-			const keys = await Promise.race([refresh, timeout]);
-			if (keys === undefined) {
-				refresh.catch((error: unknown) => {
-					console.error("Failed to refresh expanded keys", error);
-				});
-			}
-			return keys;
-		} finally {
-			clearTimeout(timer);
-		}
-	}
-
-	/** Settles once the in-flight expanded-keys refresh, if any, has finished. */
-	async expandedKeysRefreshed(): Promise<void> {
-		await this.expandedKeysRefresh?.catch(() => {});
 	}
 
 	/** Expand (`true`) or collapse (`false`) nodes with one push carrying only `project_expansions_delta`. */
@@ -1812,8 +1748,8 @@ export class WorkflowyInternalAdapter {
 	}
 
 	/** The account's left-bar expansion keys (`leftbar__<section>__<context>__<id8>`), as stored, unresolved. */
-	async getLeftBarExpansionKeys(): Promise<string[]> {
-		const keys = await this.expandedKeys(false);
+	getLeftBarExpansionKeys(): string[] {
+		const {keys} = this.storedExpansion();
 		return [...keys].filter((key) => key.startsWith("leftbar__")).toSorted();
 	}
 
@@ -1833,47 +1769,7 @@ export class WorkflowyInternalAdapter {
 				Object.entries(expansionsDelta).map(([key, expanded]) => [`expansion:${key}`, expanded]),
 			),
 		);
-		this.pushedDuringRefresh?.push(expansionsDelta);
-		const cached = this.loadExpandedKeys();
-		if (cached) {
-			this.storeExpandedKeys(applyExpansionsDelta(cached.keys, expansionsDelta), cached.fetchedAt);
-		}
-	}
-
-	/** One `/get_tree_data/` at a time; deltas pushed while it runs are replayed onto its snapshot. */
-	private async refreshExpandedKeys(): Promise<Set<string>> {
-		this.expandedKeysRefresh ??= (async () => {
-			const pushed: Record<string, boolean>[] = [];
-			this.pushedDuringRefresh = pushed;
-			try {
-				const fetchedAt = this.now();
-				let keys = new Set(await this.client.getExpandedKeys());
-				for (const delta of pushed) {
-					keys = applyExpansionsDelta(keys, delta);
-				}
-				this.storeExpandedKeys(keys, fetchedAt);
-				return keys;
-			} finally {
-				this.pushedDuringRefresh = undefined;
-				this.expandedKeysRefresh = undefined;
-			}
-		})();
-		return this.expandedKeysRefresh;
-	}
-
-	private loadExpandedKeys(): {keys: Set<string>; fetchedAt: number} | undefined {
-		const row = this.db.select().from(accountState).where(eq(accountState.key, KEYS.expandedKeys)).get();
-		const keys = row && ExpandedKeysSchema.safeParse(JSON.parse(row.json)).data;
-		return row && keys ? {keys: new Set(keys), fetchedAt: row.fetchedAt} : undefined;
-	}
-
-	private storeExpandedKeys(keys: Set<string>, fetchedAt: number): void {
-		const json = JSON.stringify([...keys].toSorted());
-		this.db
-			.insert(accountState)
-			.values({key: KEYS.expandedKeys, json, fetchedAt})
-			.onConflictDoUpdate({target: accountState.key, set: {json, fetchedAt}})
-			.run();
+		applyExpansionDelta(this.db, expansionsDelta, this.now());
 	}
 
 	/**

@@ -181,7 +181,7 @@ export const nodesView = defineOp({
 		if (rootId !== null && resolvedRoot === null) {
 			return fail(404, {error: "Node not found"});
 		}
-		const isExpanded = await viewExpansionTest(ctx, body.expandedIds);
+		const isExpanded = viewExpansionTest(ctx, body.expandedIds);
 		const lists: OutlineViewList[] = [];
 		let used = 0;
 		// Each list read for the view, by the node whose children it holds (a mirror's original), filled a level at a
@@ -297,7 +297,7 @@ async function prefetchViewLevels(
 }
 
 /** The requested expanded ids, or for null the account's expansion (nothing without the internal API). */
-async function viewExpansionTest(ctx: ServerContext, expandedIds: string[] | null): Promise<(id: string) => boolean> {
+function viewExpansionTest(ctx: ServerContext, expandedIds: string[] | null): (id: string) => boolean {
 	if (expandedIds !== null) {
 		const ids = new Set(expandedIds);
 		return (id) => ids.has(id);

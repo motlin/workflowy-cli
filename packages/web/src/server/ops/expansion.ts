@@ -1,10 +1,9 @@
 /**
  * Expansion state, synced with workflowy.com through the internal API.
  *
- * `expansion.get` -> `{expandedIds, fetchedAt, refreshing}`, possibly from cached keys, with an `ETag` of the keys
- * (`ifNoneMatch` equal to it answers not-modified, so the body never crosses RPC); `refreshing` says a background
- * re-read of upstream's keys is still running, and `wait` collects its result. `fresh` waits on a re-read of
- * upstream's keys (throttled and bounded by the adapter). `expansion.patch` with `{changes: {[nodeId]: boolean}}` ->
+ * `expansion.get` is a high-water-mark change feed over our own expansion store (seeded by whole-tree imports, updated
+ * by every local change; nothing re-reads workflowy.com): `{since?}` -> `{latest, expandedIds}`, where `expandedIds`
+ * is null when nothing changed after `since` and the whole expanded set otherwise. `expansion.patch` with `{changes: {[nodeId]: boolean}}` ->
  * null (204). PATCHes are debounced like upstream: one push 500ms after the last PATCH, the latest value per id
  * winning. A failed push is retried on a backoff with its changes merged under newer PATCHes. The debounce state
  * lives per server context, i.e. per Durable Object or Node host.
@@ -15,7 +14,7 @@ import {z} from "zod";
 import type {ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api-error.js";
 import {defineOp, fail, ok} from "./define.js";
-import {NoContentSchema} from "./schemas.js";
+import {ExpansionChangesResponseSchema, NoContentSchema} from "./schemas.js";
 
 const FLUSH_DELAY_MS = 500;
 
@@ -77,25 +76,15 @@ function flush(state: ExpansionState, adapter: WorkflowyInternalAdapter) {
 const notConfigured = () => fail(503, {error: INTERNAL_API_NOT_CONFIGURED});
 
 export const expansionGet = defineOp({
-	input: z.object({
-		fresh: z.boolean().default(false),
-		wait: z.boolean().default(false),
-		ifNoneMatch: z.string().optional(),
-	}),
-	output: z
-		.strictObject({expandedIds: z.array(z.string()), fetchedAt: z.number(), refreshing: z.boolean()})
-		.nullable(),
-	async run(ctx, {fresh, wait, ifNoneMatch}) {
+	input: z.object({since: z.string().regex(/^\d+$/u).optional()}),
+	output: ExpansionChangesResponseSchema,
+	run(ctx, {since}) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
 			return notConfigured();
 		}
-		const {fingerprint, ...state} = await adapter.getExpansionState({fresh, wait});
-		const etag = `"${fingerprint}"`;
-		if (ifNoneMatch === etag) {
-			return ok(null, {etag, notModified: true});
-		}
-		return ok(state, {etag});
+		const {latest, expandedIds} = adapter.getExpansionChanges(since === undefined ? undefined : Number(since));
+		return ok({latest, expandedIds});
 	},
 });
 
@@ -120,12 +109,12 @@ export const expansionPatch = defineOp({
 export const expansionLeftBarGet = defineOp({
 	input: z.object({}),
 	output: z.strictObject({keys: z.array(z.string())}),
-	async run(ctx) {
+	run(ctx) {
 		const adapter = ctx.internalAdapter?.();
 		if (!adapter) {
 			return notConfigured();
 		}
-		return ok({keys: await adapter.getLeftBarExpansionKeys()});
+		return ok({keys: adapter.getLeftBarExpansionKeys()});
 	},
 });
 

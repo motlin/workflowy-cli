@@ -13,9 +13,6 @@ type Database = BaseSQLiteDatabase<"sync", any, any>;
  */
 export const TREE_TX_ID_KEY = "tree_tx_id";
 
-/** `account_state` key of the expanded-node keys (first 8 chars of each id), a sorted JSON array. */
-export const EXPANDED_KEYS_KEY = "expanded_keys";
-
 /** The stored tree transaction id, or undefined before the first whole-tree import. */
 export function readTreeTxId(database: Database): string | undefined {
 	const row = database.select().from(accountState).where(eq(accountState.key, TREE_TX_ID_KEY)).get();
@@ -48,9 +45,4 @@ export function advanceTreeTxId(database: Database, txId: string, fetchedAt: num
 			write(tx, TREE_TX_ID_KEY, txId, fetchedAt);
 		}
 	});
-}
-
-/** Replace the stored expanded keys. */
-export function storeExpandedKeys(database: Database, keys: Iterable<string>, fetchedAt: number): void {
-	write(database, EXPANDED_KEYS_KEY, [...new Set(keys)].toSorted(), fetchedAt);
 }

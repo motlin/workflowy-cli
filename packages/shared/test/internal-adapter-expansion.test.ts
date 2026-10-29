@@ -5,11 +5,14 @@ import {join} from "node:path";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
+import {readExpansion, replaceExpansion} from "../src/cache/expansion-store.js";
+import {importInternalMetadata} from "../src/cache/importer.js";
 import {replaceTreeTxId} from "../src/cache/tree-transaction.js";
 import * as schema from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
+import {ExpansionNotSeeded, TreeResyncRequired} from "../src/internal/errors.js";
 import type {WorkflowyNode} from "../src/types/index.js";
-import {createFakeInternalApi, json, treeDataReads} from "./helpers/fake-internal-api.js";
+import {createFakeInternalApi, forbidTreeData, treeDataReads} from "./helpers/fake-internal-api.js";
 import type {RecordedRequest} from "./helpers/fake-internal-api.js";
 
 const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
@@ -23,15 +26,6 @@ const CHARLIE = "9c9c9c9c-0000-4000-8000-000000000004";
 
 function cachedNode(id: string): WorkflowyNode {
 	return {id, name: id, note: null, parent_id: null, priority: 0, createdAt: 0, modifiedAt: 0};
-}
-
-function treeData(expandedKeys: string[]): Response {
-	return json({
-		items: [],
-		shared_projects: {},
-		most_recent_operation_transaction_id: "9999",
-		server_expanded_projects_list: expandedKeys,
-	});
 }
 
 function setup() {
@@ -58,7 +52,10 @@ function setup() {
 			now: () => clock.ms,
 			pushAndPoll: {randomId: () => "pollid01", timezone: "America/New_York", sleep: async () => {}},
 		});
-	return {sqlite, api, adapter: newAdapter(), newAdapter, clock};
+	const forbidden = forbidTreeData(api);
+	/** Seed the expanded keys as a whole-tree import does. */
+	const seed = (keys: string[]) => replaceExpansion(db, keys, clock.ms);
+	return {sqlite, db, api, adapter: newAdapter(), newAdapter, clock, forbidden, seed};
 }
 
 function network(requests: RecordedRequest[]) {
@@ -77,6 +74,7 @@ describe("WorkflowyInternalAdapter expansion", () => {
 			sqlite.close();
 		}
 		open = [];
+		vi.restoreAllMocks();
 	});
 	function tracked() {
 		const result = setup();
@@ -84,65 +82,28 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		return result;
 	}
 
-	it("reads the expanded keys from get_tree_data and resolves each to every cached id it prefixes", async () => {
-		const {api, adapter} = tracked();
-		api.respond("/get_tree_data/", () =>
-			json({
-				items: [],
-				shared_projects: {},
-				most_recent_operation_transaction_id: "9999",
-				server_expanded_projects_list: ["1a2b3c4d", "5e6f7a8b", "ffffffff"],
-			}),
-		);
+	it("resolves each stored key to every cached id it prefixes, with no request", () => {
+		const {api, adapter, seed} = tracked();
+		seed(["1a2b3c4d", "5e6f7a8b", "ffffffff"]);
 
-		await expect(adapter.getExpandedIds()).resolves.toStrictEqual([ALPHA, ALPHA_TWIN, BRAVO]);
-		expect(network(api.requests)).toStrictEqual([
-			["POST", "/ajax_login"],
-			["GET", "/get_tree_data/"],
-		]);
+		expect(adapter.getExpandedIds()).toStrictEqual([ALPHA, ALPHA_TWIN, BRAVO]);
+		expect(api.requests).toStrictEqual([]);
 	});
 
-	it("tests ids against the same cached keys, without a second fetch", async () => {
-		const {api, adapter} = tracked();
-		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+	it("tests ids against the same stored keys", () => {
+		const {api, adapter, seed} = tracked();
+		seed(["1a2b3c4d"]);
 
-		await adapter.getExpandedIds();
-		const isExpanded = await adapter.expansionTest();
+		const isExpanded = adapter.expansionTest();
 
 		expect({
 			tested: [ALPHA, ALPHA_TWIN, BRAVO, "1a2b3c4d-not-cached"].map((id) => isExpanded(id)),
-			network: network(api.requests),
-		}).toStrictEqual({
-			tested: [true, true, false, true],
-			network: [
-				["POST", "/ajax_login"],
-				["GET", "/get_tree_data/"],
-			],
-		});
+			requests: api.requests,
+		}).toStrictEqual({tested: [true, true, false, true], requests: []});
 	});
 
-	it("serves later reads from the cached keys, sharing one fetch between concurrent reads", async () => {
-		const {api, adapter} = tracked();
-		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-
-		const concurrent = await Promise.all([adapter.getExpandedIds(), adapter.getExpandedIds()]);
-		const later = await adapter.getExpandedIds();
-
-		expect({concurrent, later, network: network(api.requests)}).toStrictEqual({
-			concurrent: [
-				[ALPHA, ALPHA_TWIN],
-				[ALPHA, ALPHA_TWIN],
-			],
-			later: [ALPHA, ALPHA_TWIN],
-			network: [
-				["POST", "/ajax_login"],
-				["GET", "/get_tree_data/"],
-			],
-		});
-	});
-
-	it("reads a mirror instance's v_ key back as the virtual ids it expands, directed by the key's path", async () => {
-		const {api, adapter, sqlite} = tracked();
+	it("reads a mirror instance's v_ key back as the virtual ids it expands, directed by the key's path", () => {
+		const {adapter, sqlite, seed} = tracked();
 		const cache = new CacheService(drizzle(sqlite, {schema}));
 		const ORIGINAL = "0a0a0a0a-0000-4000-8000-000000000010";
 		const CHILD = "c0c0c0c0-0000-4000-8000-000000000011";
@@ -153,131 +114,118 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		cache.insertNode({...cachedNode(GRANDCHILD), parent_id: CHILD}, CHILD);
 		cache.insertNode(cachedNode(MIRROR), null);
 		cache.insertMirror(ORIGINAL, MIRROR);
-		api.respond("/get_tree_data/", () =>
-			treeData(["v_c0c0bbbbbbbb", "v_d1d1bbbbbbbbc0c0", "v_d1d1bbbbbbbb", "5e6f7a8b"]),
-		);
+		seed(["v_c0c0bbbbbbbb", "v_d1d1bbbbbbbbc0c0", "v_d1d1bbbbbbbb", "5e6f7a8b"]);
 
-		await expect(adapter.getExpandedIds()).resolves.toStrictEqual([
+		expect(adapter.getExpandedIds()).toStrictEqual([
 			BRAVO,
 			`virtual_${CHILD}_${MIRROR}_bbbb`,
 			`virtual_${GRANDCHILD}_${MIRROR}_bbbbc0c0`,
 		]);
 	});
 
-	it("keeps the cached keys across adapters over the same database", async () => {
-		const {api, adapter, newAdapter} = tracked();
-		api.respond("/get_tree_data/", () => treeData(["5e6f7a8b"]));
-		await adapter.getExpandedIds();
-		api.requests.length = 0;
+	it("answers keys of any age from the store, never reading the whole account tree", () => {
+		const {api, adapter, clock, forbidden, seed} = tracked();
+		seed(["1a2b3c4d"]);
+		clock.ms += 24 * 60 * 60 * 1000;
 
-		await expect(newAdapter().getExpandedIds()).resolves.toStrictEqual([BRAVO]);
+		const ids = adapter.getExpandedIds();
+		const changes = adapter.getExpansionChanges(undefined);
+		const isExpanded = adapter.expansionTest();
+		const leftBar = adapter.getLeftBarExpansionKeys();
+
+		expect({
+			ids,
+			changes,
+			alpha: isExpanded(ALPHA),
+			leftBar,
+			treeDataReads: treeDataReads(api),
+			forbidden,
+		}).toStrictEqual({
+			ids: [ALPHA, ALPHA_TWIN],
+			changes: {latest: START_MS, expandedIds: [ALPHA, ALPHA_TWIN]},
+			alpha: true,
+			leftBar: [],
+			treeDataReads: 0,
+			forbidden: [],
+		});
+	});
+
+	it("answers a change-feed read with no ids while nothing changed after the mark", () => {
+		const {api, adapter, seed} = tracked();
+		const mark = seed(["1a2b3c4d"]);
+
+		expect(adapter.getExpansionChanges(mark)).toStrictEqual({latest: mark, expandedIds: null});
 		expect(api.requests).toStrictEqual([]);
 	});
 
-	it("answers a stale read from the cache and refreshes it in the background", async () => {
-		const {api, adapter, clock} = tracked();
-		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-		api.respond("/get_tree_data/", () => treeData(["9c9c9c9c"]));
-		await adapter.getExpandedIds();
-		clock.ms += 60_000;
+	it("advances the change-feed mark on a pushed change and answers the new ids after the old mark", async () => {
+		const {adapter, seed} = tracked();
+		const mark = seed(["1a2b3c4d"]);
 
-		const stale = await adapter.getExpandedIds();
-		await adapter.expandedKeysRefreshed();
-		const refreshed = await adapter.getExpandedIds();
-
-		expect({stale, refreshed, network: network(api.requests)}).toStrictEqual({
-			stale: [ALPHA, ALPHA_TWIN],
-			refreshed: [CHARLIE],
-			network: [
-				["POST", "/ajax_login"],
-				["GET", "/get_tree_data/"],
-				["GET", "/get_tree_data/"],
-			],
-		});
-	});
-
-	it("waits on get_tree_data for a fresh read once the cached keys are 5s old", async () => {
-		const {api, adapter, clock} = tracked();
-		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-		api.respond("/get_tree_data/", () => treeData(["9c9c9c9c"]));
-		await adapter.getExpandedIds();
-		clock.ms += 5000;
-
-		const fresh = await adapter.getExpandedIds({fresh: true});
-		const cached = await adapter.getExpandedIds();
-
-		expect({fresh, cached, network: network(api.requests)}).toStrictEqual({
-			fresh: [CHARLIE],
-			cached: [CHARLIE],
-			network: [
-				["POST", "/ajax_login"],
-				["GET", "/get_tree_data/"],
-				["GET", "/get_tree_data/"],
-			],
-		});
-	});
-
-	it("reads the whole account tree once for a fresh expansion read with 6s-old keys", async () => {
-		const {api, adapter, clock} = tracked();
-		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-		await adapter.getExpandedIds();
-		api.requests.length = 0;
-		clock.ms += 6000;
-
-		await adapter.getExpansionState({fresh: true});
-
-		expect(treeDataReads(api)).toBe(1);
-	});
-
-	it("reads the whole account tree once, in the background, for expansionTest with 31s-old keys", async () => {
-		const {api, adapter, clock} = tracked();
-		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-		await adapter.getExpandedIds();
-		api.requests.length = 0;
-		clock.ms += 31_000;
-
-		await adapter.expansionTest();
-		await adapter.expandedKeysRefreshed();
-
-		expect(treeDataReads(api)).toBe(1);
-	});
-
-	it("answers a fresh read from the cache within 5s of the last fetch", async () => {
-		const {api, adapter, clock} = tracked();
-		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-		api.respond("/get_tree_data/", () => treeData(["9c9c9c9c"]));
-		await adapter.getExpandedIds();
-		clock.ms += 4999;
-
-		const fresh = await adapter.getExpandedIds({fresh: true});
-
-		expect({fresh, network: network(api.requests)}).toStrictEqual({
-			fresh: [ALPHA, ALPHA_TWIN],
-			network: [
-				["POST", "/ajax_login"],
-				["GET", "/get_tree_data/"],
-			],
-		});
-	});
-
-	it("applies pushed changes to the cached keys, including ones pushed during a refresh", async () => {
-		const {api, adapter, clock} = tracked();
-		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-		await adapter.getExpandedIds();
 		await adapter.setExpanded({[CHARLIE]: true, [ALPHA]: false});
-		const afterPush = await adapter.getExpandedIds();
 
-		// The refresh's snapshot predates the next push, so the push must survive it.
-		api.respondOnce("/get_tree_data/", () => treeData(["9c9c9c9c"]));
-		clock.ms += 60_000;
-		await adapter.getExpandedIds();
-		await adapter.setExpanded({[BRAVO]: true});
-		await adapter.expandedKeysRefreshed();
-		const afterRefresh = await adapter.getExpandedIds();
+		expect(adapter.getExpansionChanges(mark)).toStrictEqual({
+			latest: mark + 1,
+			expandedIds: [CHARLIE],
+		});
+	});
 
-		expect({afterPush, afterRefresh}).toStrictEqual({
-			afterPush: [CHARLIE],
-			afterRefresh: [BRAVO, CHARLIE],
+	it("answers keys a whole-tree import seeded, with no request", () => {
+		const {api, db, adapter} = tracked();
+		importInternalMetadata(db, {items: [], txId: "9999", expandedKeys: ["5e6f7a8b"]}, START_MS);
+
+		expect(adapter.getExpandedIds()).toStrictEqual([BRAVO]);
+		expect(api.requests).toStrictEqual([]);
+	});
+
+	it("fails loudly with no seeded keys, naming the reseed command, and never reads the whole account tree", () => {
+		const {api, adapter} = tracked();
+		const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		const reads: (() => unknown)[] = [
+			() => adapter.getExpandedIds(),
+			() => adapter.getExpansionChanges(undefined),
+			() => adapter.expansionTest(),
+			() => adapter.getLeftBarExpansionKeys(),
+		];
+		const failures = reads.map((read) => {
+			let failure: unknown;
+			try {
+				read();
+			} catch (error) {
+				failure = error;
+			}
+			return failure;
+		});
+
+		expect({
+			failures: failures.map((error) => [
+				error instanceof ExpansionNotSeeded,
+				error instanceof TreeResyncRequired,
+				(error as Error).message,
+			]),
+			logged: logged.mock.calls.length,
+			requests: api.requests,
+		}).toStrictEqual({
+			failures: Array.from({length: 4}, () => [
+				true,
+				true,
+				"The local cache has no expanded keys; run './bin/run.js cache import-api' to seed them",
+			]),
+			logged: 4,
+			requests: [],
+		});
+	});
+
+	it("applies pushed changes to the stored keys", async () => {
+		const {db, adapter, seed} = tracked();
+		seed(["1a2b3c4d"]);
+
+		await adapter.setExpanded({[CHARLIE]: true, [ALPHA]: false});
+
+		expect({ids: adapter.getExpandedIds(), stored: readExpansion(db)?.keys}).toStrictEqual({
+			ids: [CHARLIE],
+			stored: new Set(["9c9c9c9c"]),
 		});
 	});
 
@@ -312,88 +260,13 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		]);
 	});
 
-	it("answers a stale read with the old keys and refreshing, then the new keys once the refresh resolves", async () => {
-		const {api, adapter, clock} = tracked();
-		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-		await adapter.getExpandedIds();
-		clock.ms += 31_000;
-		let release: () => void = () => {};
-		api.respond("/get_tree_data/", async () => {
-			await new Promise<void>((resolve) => {
-				release = resolve;
-			});
-			return treeData(["9c9c9c9c"]);
-		});
-
-		const stale = await adapter.getExpansionState();
-		const waiting = adapter.getExpansionState({wait: true});
-		await vi.waitFor(() => {
-			expect(api.requests.filter((r) => r.path === "/get_tree_data/")).toHaveLength(2);
-		});
-		release();
-		const settled = await waiting;
-
-		expect({
-			stale: {expandedIds: stale.expandedIds, refreshing: stale.refreshing, fetchedAt: stale.fetchedAt},
-			settled: {expandedIds: settled.expandedIds, refreshing: settled.refreshing, fetchedAt: settled.fetchedAt},
-		}).toStrictEqual({
-			stale: {expandedIds: [ALPHA, ALPHA_TWIN], refreshing: true, fetchedAt: START_MS},
-			settled: {expandedIds: [CHARLIE], refreshing: false, fetchedAt: START_MS + 31_000},
-		});
-	});
-
-	it("fingerprints the keys: stable while unchanged, different once they change", async () => {
-		const {api, adapter} = tracked();
-		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-		const first = await adapter.getExpansionState();
-		const again = await adapter.getExpansionState();
-		await adapter.setExpanded({[BRAVO]: true});
-		const changed = await adapter.getExpansionState();
-
-		expect({
-			stable: first.fingerprint === again.fingerprint,
-			changed: first.fingerprint !== changed.fingerprint,
-			shape: /^[0-9a-f]{40}$/u.test(first.fingerprint),
-		}).toStrictEqual({stable: true, changed: true, shape: true});
-	});
-
-	it("bounds a fresh read at 15s, answering the cached keys while the refresh keeps running", async () => {
-		vi.useFakeTimers();
-		try {
-			const {api, adapter, clock} = tracked();
-			api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
-			await adapter.getExpandedIds();
-			clock.ms += 60_000;
-			api.respond("/get_tree_data/", async () => new Promise<Response>(() => {}));
-
-			let settled: Awaited<ReturnType<typeof adapter.getExpansionState>> | undefined;
-			void adapter.getExpansionState({fresh: true}).then((state) => {
-				settled = state;
-				return state;
-			});
-			await vi.advanceTimersByTimeAsync(14_999);
-			const early = settled;
-			await vi.advanceTimersByTimeAsync(1);
-
-			expect({early, expandedIds: settled?.expandedIds, refreshing: settled?.refreshing}).toStrictEqual({
-				early: undefined,
-				expandedIds: [ALPHA, ALPHA_TWIN],
-				refreshing: true,
-			});
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it("keeps a durable local copy of every pushed expansion key, never refreshed from the server", async () => {
-		const {api, adapter, clock} = tracked();
-		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+	it("keeps a durable local copy of every pushed expansion key", async () => {
+		const {adapter, seed} = tracked();
+		seed(["1a2b3c4d"]);
 
 		await adapter.setExpanded({[ALPHA]: true, [BRAVO]: false});
 		await adapter.setRawExpansionKeys({"leftbar__home__None/x/__abcdefgh": true});
 		await adapter.setExpanded({[BRAVO]: true});
-		clock.ms += 60_000;
-		await adapter.getExpandedIds({fresh: true});
 
 		expect(adapter.localSettings()).toStrictEqual({
 			"expansion:1a2b3c4d": true,
@@ -409,22 +282,20 @@ describe("WorkflowyInternalAdapter expansion", () => {
 
 		expect(api.requests).toStrictEqual([]);
 	});
-	it("lists only the leftbar__ keys, unresolved", async () => {
-		const {api, adapter} = tracked();
-		api.respond("/get_tree_data/", () =>
-			treeData(["1a2b3c4d", "leftbar__home__None/x/__abcdefgh", "leftbar__starred__None/None/__None"]),
-		);
 
-		await expect(adapter.getLeftBarExpansionKeys()).resolves.toStrictEqual([
+	it("lists only the leftbar__ keys, unresolved", () => {
+		const {adapter, seed} = tracked();
+		seed(["1a2b3c4d", "leftbar__home__None/x/__abcdefgh", "leftbar__starred__None/None/__None"]);
+
+		expect(adapter.getLeftBarExpansionKeys()).toStrictEqual([
 			"leftbar__home__None/x/__abcdefgh",
 			"leftbar__starred__None/None/__None",
 		]);
 	});
 
-	it("pushes raw expansion keys verbatim and applies them to the cached keys", async () => {
-		const {api, adapter} = tracked();
-		api.respond("/get_tree_data/", () => treeData(["leftbar__home__None/x/__old00000"]));
-		await adapter.getLeftBarExpansionKeys();
+	it("pushes raw expansion keys verbatim and applies them to the stored keys", async () => {
+		const {api, adapter, seed} = tracked();
+		seed(["leftbar__home__None/x/__old00000"]);
 
 		await adapter.setRawExpansionKeys({
 			"leftbar__home__None/x/__abcdefgh": true,
@@ -434,7 +305,7 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		const push = api.requests.find((r) => r.path === "/push_and_poll");
 		expect({
 			delta: (pushedTrees(push) as {project_expansions_delta: unknown}[])[0]?.project_expansions_delta,
-			keys: await adapter.getLeftBarExpansionKeys(),
+			keys: adapter.getLeftBarExpansionKeys(),
 		}).toStrictEqual({
 			delta: {"leftbar__home__None/x/__abcdefgh": true, "leftbar__home__None/x/__old00000": false},
 			keys: ["leftbar__home__None/x/__abcdefgh"],

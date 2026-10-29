@@ -40,9 +40,10 @@ import type {
 	NormalizedReferencesRootsRow,
 	NormalizedS3FileRow,
 } from "./normalized-rows.js";
+import {replaceExpansion} from "./expansion-store.js";
 import type {UnitOfWork} from "./node-composite.js";
 import {temporalMerge} from "./temporal-merge.js";
-import {replaceTreeTxId, storeExpandedKeys} from "./tree-transaction.js";
+import {replaceTreeTxId} from "./tree-transaction.js";
 import type {TemporalMergeResult, TemporalTransaction} from "./temporal-merge.js";
 
 /**
@@ -404,7 +405,7 @@ export function importInternalMetadata(
 	const result: ImportInternalMetadataResult = {written: 0, skipped: 0};
 	database.transaction((tx) => {
 		replaceTreeTxId(tx, txId, fetchedAt);
-		storeExpandedKeys(tx, expandedKeys, fetchedAt);
+		replaceExpansion(tx, expandedKeys, fetchedAt);
 		const cached = new Set(
 			tx
 				.select({id: nodeContent.id})

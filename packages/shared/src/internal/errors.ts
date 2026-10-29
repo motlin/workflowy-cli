@@ -65,6 +65,13 @@ export class TreeNotSeeded extends TreeResyncRequired {
 	}
 }
 
+/** No whole-tree import has stored the account's expanded keys yet. */
+export class ExpansionNotSeeded extends TreeResyncRequired {
+	constructor() {
+		super(`The local cache has no expanded keys; ${RESEED} seed them`);
+	}
+}
+
 /** The server answered `need_refreshed_project_tree`: the stored id is not (or no longer) in the tree's log. */
 export class TreeRefreshRequired extends TreeResyncRequired {
 	constructor(readonly txId: string) {

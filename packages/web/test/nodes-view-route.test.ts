@@ -43,9 +43,7 @@ function setup(accountExpanded?: readonly string[]) {
 	cacheService.insertNode(apiNode("A2a", "A2", 0), "A2");
 	cacheService.insertNode(apiNode("B1", "Beta", 0), "Beta");
 	const adapter =
-		accountExpanded === undefined
-			? undefined
-			: {expansionTest: async () => Promise.resolve((id: string) => accountExpanded.includes(id))};
+		accountExpanded === undefined ? undefined : {expansionTest: () => (id: string) => accountExpanded.includes(id)};
 	const ctx = {db, cacheService, internalAdapter: () => adapter} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {

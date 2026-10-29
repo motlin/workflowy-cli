@@ -10,13 +10,14 @@ const BRAVO = "5e6f7a8b-0000-4000-8000-000000000002";
 
 function setup(configured: boolean) {
 	const adapter = {
-		getExpansionState: vi.fn<WorkflowyInternalAdapter["getExpansionState"]>(async () =>
-			Promise.resolve({expandedIds: [ALPHA], fetchedAt: 1234, refreshing: false, fingerprint: "f1"}),
-		),
+		getExpansionChanges: vi.fn<WorkflowyInternalAdapter["getExpansionChanges"]>(() => ({
+			latest: 1234,
+			expandedIds: [ALPHA],
+		})),
 		setExpanded: vi.fn<WorkflowyInternalAdapter["setExpanded"]>(async () => Promise.resolve()),
-		getLeftBarExpansionKeys: vi.fn<WorkflowyInternalAdapter["getLeftBarExpansionKeys"]>(async () =>
-			Promise.resolve(["leftbar__home__None/x/__abcdefgh"]),
-		),
+		getLeftBarExpansionKeys: vi.fn<WorkflowyInternalAdapter["getLeftBarExpansionKeys"]>(() => [
+			"leftbar__home__None/x/__abcdefgh",
+		]),
 		setRawExpansionKeys: vi.fn<WorkflowyInternalAdapter["setRawExpansionKeys"]>(async () => Promise.resolve()),
 	};
 	const ctx = {
@@ -57,53 +58,39 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/expansion", () => {
-	it("returns the adapter's expansion state, allowing cached keys, with an ETag", async () => {
+	it("returns the store's high-water mark and the expanded ids", async () => {
 		const {adapter, request} = setup(true);
 
 		const res = await request("GET");
 
-		expect({res, calls: adapter.getExpansionState.mock.calls}).toStrictEqual({
-			res: {
-				status: 200,
-				body: {expandedIds: [ALPHA], fetchedAt: 1234, refreshing: false},
-				etag: '"f1"',
-			},
-			calls: [[{fresh: false, wait: false}]],
+		expect({res, calls: adapter.getExpansionChanges.mock.calls}).toStrictEqual({
+			res: {status: 200, body: {latest: 1234, expandedIds: [ALPHA]}, etag: null},
+			calls: [[undefined]],
 		});
 	});
 
-	it("asks the adapter for fresh keys with ?fresh=1 and to wait on a refresh with ?wait=1", async () => {
+	it("asks the change feed for what changed after ?since=<mark>, answering null ids when nothing did", async () => {
 		const {adapter, request} = setup(true);
+		adapter.getExpansionChanges.mockReturnValueOnce({latest: 1234, expandedIds: null});
 
-		await request("GET", undefined, "?fresh=1");
-		await request("GET", undefined, "?wait=1");
+		const unchanged = await request("GET", undefined, "?since=1234");
+		const changed = await request("GET", undefined, "?since=1000");
 
-		expect(adapter.getExpansionState.mock.calls).toStrictEqual([
-			[{fresh: true, wait: false}],
-			[{fresh: false, wait: true}],
-		]);
+		expect({unchanged, changed, calls: adapter.getExpansionChanges.mock.calls}).toStrictEqual({
+			unchanged: {status: 200, body: {latest: 1234, expandedIds: null}, etag: null},
+			changed: {status: 200, body: {latest: 1234, expandedIds: [ALPHA]}, etag: null},
+			calls: [[1234], [1000]],
+		});
 	});
 
-	it("answers 304 with an empty body when If-None-Match is the current ETag, 200 once the keys change", async () => {
+	it("answers 400 for a since that is not a mark", async () => {
 		const {adapter, request} = setup(true);
 
-		const first = await request("GET");
-		const unchanged = await request("GET", undefined, "", "", {"if-none-match": first.etag ?? ""});
-		adapter.getExpansionState.mockResolvedValueOnce({
-			expandedIds: [ALPHA, BRAVO],
-			fetchedAt: 2000,
-			refreshing: false,
-			fingerprint: "f2",
-		});
-		const changed = await request("GET", undefined, "", "", {"if-none-match": first.etag ?? ""});
+		const res = await request("GET", undefined, "?since=yesterday");
 
-		expect({unchanged, changed}).toStrictEqual({
-			unchanged: {status: 304, body: null, etag: '"f1"'},
-			changed: {
-				status: 200,
-				body: {expandedIds: [ALPHA, BRAVO], fetchedAt: 2000, refreshing: false},
-				etag: '"f2"',
-			},
+		expect({status: res.status, calls: adapter.getExpansionChanges.mock.calls}).toStrictEqual({
+			status: 400,
+			calls: [],
 		});
 	});
 

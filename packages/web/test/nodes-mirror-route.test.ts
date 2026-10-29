@@ -46,9 +46,7 @@ function setup(configured = true, expanded: string[] = []) {
 	});
 	const moveTo = vi.fn<WorkflowyInternalAdapter["moveTo"]>(async () => Promise.resolve());
 	const setExpanded = vi.fn<WorkflowyInternalAdapter["setExpanded"]>(async () => Promise.resolve());
-	const expansionTest = vi.fn<WorkflowyInternalAdapter["expansionTest"]>(async () =>
-		Promise.resolve((id: string) => expanded.includes(id)),
-	);
+	const expansionTest = vi.fn<WorkflowyInternalAdapter["expansionTest"]>(() => (id: string) => expanded.includes(id));
 	const ctx = {
 		db,
 		cacheService,

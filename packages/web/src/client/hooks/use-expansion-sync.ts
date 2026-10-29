@@ -1,15 +1,17 @@
 /**
- * Expansion state synced with workflowy.com: hydrate `expandedIds` from `GET /api/v1/expansion`
- * on app load, and re-GET it when the tab regains focus (and every {@link EXPANSION_POLL_MS} while it stays focused)
- * so changes made elsewhere show up. The outline store PATCHes each local change itself.
+ * Expansion state synced with the server's expansion store: hydrate `expandedIds` from `GET /api/v1/expansion` on app
+ * load, then poll its high-water-mark change feed (`?since=<mark>`) on a TanStack Query refetch interval and on tab
+ * focus, so changes made in another tab, or by an import, show up. A poll costs one SQLite read and answers no ids
+ * while nothing changed. The outline store PATCHes each local change itself.
  *
- * Upstream limits that local cannot fix, so they are not local bugs: each upstream browser keeps a localStorage
- * override for every row it ever toggled, which wins over the server's list on load, and it pushes a toggle as a
- * pending delta only with its next edit (its poll interval is 1 hour otherwise). A local change can therefore look
- * ignored upstream, or be undone minutes later by an upstream browser's stale delta (last writer wins by push time).
+ * The server's store is the source of truth: workflowy.com's own list is read only by whole-tree imports, so an
+ * expansion change made on workflowy.com shows after the next import, as upstream's browsers see each other's changes
+ * only on reload.
  */
 
+import {useQuery} from "@tanstack/react-query";
 import {useEffect} from "react";
+import type {ExpansionChangesResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {
 	disableExpansionPersistence,
@@ -18,18 +20,15 @@ import {
 	useOutlineStore,
 } from "../stores/outline.js";
 
-/** Focus refreshes run at most this often, matching the server's expanded-keys freshness window. */
-const EXPANSION_REFRESH_INTERVAL_MS = 30_000;
-
-/** A tab that stays visible and focused re-reads the account's expansion this often; unchanged keys cost a 304. */
-export const EXPANSION_POLL_MS = 120_000;
+/** A visible tab polls the change feed this often; an unchanged store answers no ids. */
+export const EXPANSION_POLL_MS = 15_000;
 
 /** An expansion GET that has not answered by then is aborted and treated as a failure. */
 const EXPANSION_FETCH_TIMEOUT_MS = 30_000;
 
 /**
- * A local change reaches the server's cache only after its debounced push lands, so a GET
- * this soon after one may still hold the old value; skip the refresh rather than revert it.
+ * A local change reaches the server's store only after its debounced push lands, so a poll this soon after one may
+ * still hold the old value; skip the poll rather than revert it.
  */
 const LOCAL_CHANGE_GRACE_MS = 5000;
 
@@ -41,18 +40,37 @@ const LOAD_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 8000];
 
 let loading: Promise<void> | undefined;
 let loadSettled = false;
-let lastFetchAt = Number.NEGATIVE_INFINITY;
-let lastEtag: string | undefined;
+/** The change feed's high-water mark: the `latest` of the last answer applied. */
+let mark: number | undefined;
 
 /**
- * Adopt the account's expanded ids; on 503 expansion stays in memory for the
- * session. One GET per page load: later calls (StrictMode's second effect) share it.
+ * Adopt the account's expanded ids and the feed's mark; on 503 expansion stays in memory for the session. One GET per
+ * page load: later calls (StrictMode's second effect) share it.
  */
-export async function loadExpansion(now = Date.now()): Promise<void> {
-	loading ??= fetchExpansion(now).finally(() => {
+export async function loadExpansion(): Promise<void> {
+	loading ??= fetchInitial().finally(() => {
 		loadSettled = true;
 	});
 	return loading;
+}
+
+async function fetchInitial(): Promise<void> {
+	try {
+		const response = await fetchThroughRestart("/api/v1/expansion", LOAD_RETRY_DELAYS_MS);
+		if (response.status === 503) {
+			disableExpansionPersistence();
+			return;
+		}
+		if (!response.ok) {
+			console.error(`Failed to load expansion: ${response.status}`);
+			return;
+		}
+		const body = await readJson<ExpansionChangesResponse>(response);
+		applyExpandedIds(body.expandedIds ?? []);
+		advance(body.latest);
+	} catch (error) {
+		console.error("Failed to load expansion", error);
+	}
 }
 
 /**
@@ -76,73 +94,42 @@ export function adoptViewExpansion(ids: readonly string[]): void {
 }
 
 /**
- * Re-GET the expanded ids (tab focus) and apply the differences without PATCHing them back.
- * Throttled to one GET per {@link EXPANSION_REFRESH_INTERVAL_MS}, counting the initial load; skipped
- * right after a local change, and discarded when a local change lands while the GET is in flight.
+ * Ask the change feed for what changed after the mark and apply it without PATCHing it back. Skipped before the page
+ * load has set a mark and right after a local change; a response is discarded, and the mark kept, when a local change
+ * lands while it is in flight.
  */
-export async function refreshExpansion(now = Date.now()): Promise<void> {
-	if (!isExpansionPersisted() || now - lastFetchAt < EXPANSION_REFRESH_INTERVAL_MS) {
+export async function pollExpansion(now = Date.now()): Promise<void> {
+	if (!isExpansionPersisted() || mark === undefined) {
 		return;
 	}
 	const local = localExpansionChangeState();
 	if (now - local.at < LOCAL_CHANGE_GRACE_MS) {
 		return;
 	}
-	await fetchExpansion(now, local.count);
-}
-
-/** Page load takes the server's cached keys; a focus refresh (`localCount` set) asks for fresh ones. */
-async function fetchExpansion(now: number, localCount?: number): Promise<void> {
-	lastFetchAt = now;
-	const guard = localCount ?? localExpansionChangeState().count;
 	try {
-		const response =
-			localCount === undefined
-				? await fetchThroughRestart("/api/v1/expansion", LOAD_RETRY_DELAYS_MS)
-				: await fetchExpansionBody("/api/v1/expansion?fresh=1");
-		if (response.status === 503) {
-			disableExpansionPersistence();
-			return;
-		}
-		if (response.status === 304) {
-			return;
-		}
+		const response = await fetchExpansionBody(`/api/v1/expansion?since=${mark}`);
 		if (!response.ok) {
-			console.error(`Failed to load expansion: ${response.status}`);
+			console.error(`Failed to poll expansion: ${response.status}`);
 			return;
 		}
-		const body = await readExpansion(response);
-		if (localCount !== undefined && localExpansionChangeState().count !== guard) {
+		const body = await readJson<ExpansionChangesResponse>(response);
+		if (localExpansionChangeState().count !== local.count) {
 			return;
 		}
-		applyExpandedIds(body.expandedIds);
-		if (body.refreshing) {
-			await collectRefresh(guard);
+		if (body.expandedIds !== null) {
+			applyExpandedIds(body.expandedIds);
 		}
+		advance(body.latest);
 	} catch (error) {
-		console.error("Failed to load expansion", error);
+		console.error("Failed to poll expansion", error);
 	}
 }
 
-/** The server answered from keys it is still re-reading: wait for that re-read once and apply it. */
-async function collectRefresh(guard: number): Promise<void> {
-	const response = await fetchExpansionBody("/api/v1/expansion?wait=1");
-	if (!response.ok) {
-		return;
+/** The mark only ever advances. */
+function advance(latest: number): void {
+	if (mark === undefined || latest > mark) {
+		mark = latest;
 	}
-	const body = await readExpansion(response);
-	if (localExpansionChangeState().count !== guard) {
-		return;
-	}
-	applyExpandedIds(body.expandedIds);
-}
-
-async function readExpansion(response: Response): Promise<{expandedIds: string[]; refreshing?: boolean}> {
-	const etag = response.headers.get("etag");
-	if (etag !== null) {
-		lastEtag = etag;
-	}
-	return readJson<{expandedIds: string[]; refreshing?: boolean}>(response);
 }
 
 function applyExpandedIds(expandedIds: readonly string[]): void {
@@ -152,17 +139,14 @@ function applyExpandedIds(expandedIds: readonly string[]): void {
 	}
 }
 
-/** A conditional GET: sends the last ETag, so an unchanged account answers 304, and aborts after the timeout. */
-async function fetchExpansionBody(url: string, conditional = true): Promise<Response> {
+/** A GET that aborts after the timeout. */
+async function fetchExpansionBody(url: string): Promise<Response> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => {
 		controller.abort();
 	}, EXPANSION_FETCH_TIMEOUT_MS);
 	try {
-		return await fetch(url, {
-			signal: controller.signal,
-			...(conditional && lastEtag !== undefined ? {headers: {"If-None-Match": lastEtag}} : {}),
-		});
+		return await fetch(url, {signal: controller.signal});
 	} finally {
 		clearTimeout(timer);
 	}
@@ -173,7 +157,7 @@ async function fetchThroughRestart(url: string, retryDelaysMs: readonly number[]
 	for (const delayMs of retryDelaysMs) {
 		try {
 			// oxlint-disable-next-line no-await-in-loop -- each retry waits on the one before it.
-			const response = await fetchExpansionBody(url, false);
+			const response = await fetchExpansionBody(url);
 			if (response.status !== 502 && response.status !== 504) {
 				return response;
 			}
@@ -185,40 +169,31 @@ async function fetchThroughRestart(url: string, retryDelaysMs: readonly number[]
 			setTimeout(resolve, delayMs);
 		});
 	}
-	return fetchExpansionBody(url, false);
+	return fetchExpansionBody(url);
 }
 
 function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 	return a.size === b.size && [...a].every((id) => b.has(id));
 }
 
-/** Every {@link EXPANSION_POLL_MS}, refresh while this tab is visible and focused; returns the stop function. */
-export function startExpansionPolling(): () => void {
-	const timer = setInterval(() => {
-		if (document.visibilityState === "visible" && document.hasFocus()) {
-			void refreshExpansion();
-		}
-	}, EXPANSION_POLL_MS);
-	return () => {
-		clearInterval(timer);
-	};
-}
+/**
+ * The change-feed poll as TanStack Query options: every {@link EXPANSION_POLL_MS} while the tab is visible (TanStack
+ * pauses intervals in the background) and again on focus once the last poll is that old.
+ */
+export const expansionPollQuery = {
+	queryKey: ["expansion", "changes"],
+	queryFn: async () => {
+		await pollExpansion();
+		return mark ?? null;
+	},
+	refetchInterval: EXPANSION_POLL_MS,
+	refetchOnWindowFocus: true,
+	staleTime: EXPANSION_POLL_MS,
+} as const;
 
 export function useExpansionSync(): void {
 	useEffect(() => {
 		void loadExpansion();
-		const refresh = () => {
-			if (document.visibilityState === "visible") {
-				void refreshExpansion();
-			}
-		};
-		window.addEventListener("focus", refresh);
-		document.addEventListener("visibilitychange", refresh);
-		const stopPolling = startExpansionPolling();
-		return () => {
-			window.removeEventListener("focus", refresh);
-			document.removeEventListener("visibilitychange", refresh);
-			stopPolling();
-		};
 	}, []);
+	useQuery(expansionPollQuery);
 }

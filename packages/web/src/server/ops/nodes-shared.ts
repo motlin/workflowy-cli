@@ -431,7 +431,7 @@ export async function openCopies(
 	sourceToNew: ReadonlyMap<string, string>,
 	rootSource?: {original: string; row: string},
 ): Promise<void> {
-	const isExpanded = await adapter.expansionTest();
+	const isExpanded = adapter.expansionTest();
 	const opened: Record<string, boolean> = {};
 	for (const [sourceId, copyId] of sourceToNew) {
 		const row = sourceId === rootSource?.original ? rootSource.row : sourceId;

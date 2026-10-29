@@ -9,6 +9,7 @@ import type {
 	BacklinkItemSchema,
 	BacklinksResponseSchema,
 	CalendarInfoSchema,
+	ExpansionChangesResponseSchema,
 	ExportTreeItemSchema,
 	FoundDateItemSchema,
 	FoundDatesResponseSchema,
@@ -39,6 +40,7 @@ export type BacklinksResponse = z.output<typeof BacklinksResponseSchema>;
 export type OutlineViewList = z.output<typeof OutlineViewListSchema>;
 export type OutlineViewResponse = z.output<typeof OutlineViewResponseSchema>;
 export type NodeChangesResponse = z.output<typeof NodeChangesResponseSchema>;
+export type ExpansionChangesResponse = z.output<typeof ExpansionChangesResponseSchema>;
 export type SaveEffects = z.output<typeof SaveEffectsSchema>;
 export type UpdateNodeResponse = z.output<typeof UpdateNodeResponseSchema>;
 export type FoundDateItem = z.output<typeof FoundDateItemSchema>;

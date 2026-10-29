@@ -90,7 +90,7 @@ describe("expansion deltas", () => {
 describe("loadExpansion", () => {
 	it("hydrates expandedIds from GET without sending a PATCH", async () => {
 		const {store, loadExpansion} = await loadModules();
-		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ["a", "b"]})));
+		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({latest: 1, expandedIds: ["a", "b"]})));
 		await loadExpansion();
 		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
 			expandedIds: new Set(["a", "b"]),
@@ -100,7 +100,7 @@ describe("loadExpansion", () => {
 
 	it("shares one GET between repeated loads, as StrictMode's double effect does", async () => {
 		const {store, loadExpansion} = await loadModules();
-		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ["a"]})));
+		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({latest: 1, expandedIds: ["a"]})));
 		await Promise.all([loadExpansion(), loadExpansion()]);
 		await loadExpansion();
 		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
@@ -116,7 +116,7 @@ describe("loadExpansion", () => {
 		fetchMock
 			.mockImplementationOnce(async () => Promise.resolve(new Response("Bad Gateway", {status: 502})))
 			.mockImplementationOnce(async () => Promise.reject(new TypeError("Failed to fetch")))
-			.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a"]})));
+			.mockImplementationOnce(async () => Promise.resolve(Response.json({latest: 1, expandedIds: ["a"]})));
 		const loading = loadExpansion();
 		await vi.runAllTimersAsync();
 		await loading;
@@ -150,54 +150,63 @@ describe("loadExpansion", () => {
 	});
 });
 
-describe("refreshExpansion", () => {
-	/** Focus asks for fresh keys so a change made on workflowy.com shows on the first focus. */
-	const GET = {url: "/api/v1/expansion?fresh=1", method: undefined, body: undefined};
+describe("pollExpansion", () => {
+	/** Past the grace a poll waits out after a local change. */
+	const LOCAL_GRACE_PASSED_MS = 10_000;
+	const since = (mark: number) => ({url: `/api/v1/expansion?since=${mark}`, method: undefined, body: undefined});
 
-	async function loaded(ids: string[]) {
+	async function loaded(ids: string[], latest = 100) {
 		const modules = await loadModules();
-		const {refreshExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
-		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ids})));
-		await modules.loadExpansion(0);
+		const {pollExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
+		serve(latest, ids);
+		await modules.loadExpansion();
 		fetchMock.mockClear();
-		return {...modules, refreshExpansion};
+		return {...modules, pollExpansion};
 	}
 
-	function serve(ids: string[]): void {
-		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ids})));
+	function serve(latest: number, expandedIds: string[] | null): void {
+		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({latest, expandedIds})));
 	}
 
-	it("applies server-side changes without PATCHing them back", async () => {
-		const {store, refreshExpansion} = await loaded(["a", "b"]);
-		serve(["b", "c"]);
-		await refreshExpansion(30_000);
+	it("asks for changes after the page load's mark and applies them without PATCHing them back", async () => {
+		const {store, pollExpansion} = await loaded(["a", "b"]);
+		serve(200, ["b", "c"]);
+		await pollExpansion();
 		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
 			expandedIds: new Set(["b", "c"]),
-			calls: [GET],
+			calls: [since(100)],
 		});
 	});
 
-	it("keeps the same set instance when nothing changed", async () => {
-		const {store, refreshExpansion} = await loaded(["a"]);
+	it("advances the mark to each answer's latest", async () => {
+		const {pollExpansion} = await loaded(["a"]);
+		serve(200, ["a", "b"]);
+		await pollExpansion();
+		serve(200, null);
+		await pollExpansion();
+		expect(calls()).toStrictEqual([since(100), since(200)]);
+	});
+
+	it("keeps the same set instance when nothing changed after the mark", async () => {
+		const {store, pollExpansion} = await loaded(["a"]);
 		const before = store.getState().expandedIds;
-		await refreshExpansion(30_000);
+		serve(100, null);
+		await pollExpansion();
 		expect({same: store.getState().expandedIds === before, calls: calls()}).toStrictEqual({
 			same: true,
-			calls: [GET],
+			calls: [since(100)],
 		});
 	});
 
-	it("fetches at most once per 30s, counting the initial load", async () => {
-		const {refreshExpansion} = await loaded(["a"]);
-		await refreshExpansion(29_999);
-		await refreshExpansion(30_000);
-		await refreshExpansion(59_999);
-		await refreshExpansion(60_000);
-		expect(calls()).toStrictEqual([GET, GET]);
+	it("does not poll before the page load has set a mark", async () => {
+		await loadModules();
+		const {pollExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
+		await pollExpansion();
+		expect(calls()).toStrictEqual([]);
 	});
 
-	it("discards a response when a local change happened while it was in flight", async () => {
-		const {store, refreshExpansion} = await loaded(["a"]);
+	it("discards a response, keeping the mark, when a local change happened while it was in flight", async () => {
+		const {store, pollExpansion} = await loaded(["a"]);
 		let resolve: (response: Response) => void = () => {};
 		fetchMock.mockImplementationOnce(
 			async () =>
@@ -205,19 +214,25 @@ describe("refreshExpansion", () => {
 					resolve = r;
 				}),
 		);
-		const refreshing = refreshExpansion(30_000);
+		const polling = pollExpansion(60_000);
 		store.getState().expand("z");
-		resolve(Response.json({expandedIds: []}));
-		await refreshing;
-		expect(store.getState().expandedIds).toStrictEqual(new Set(["a", "z"]));
+		resolve(Response.json({latest: 200, expandedIds: []}));
+		await polling;
+		fetchMock.mockClear();
+		serve(200, null);
+		await pollExpansion(Date.now() + LOCAL_GRACE_PASSED_MS);
+		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
+			expandedIds: new Set(["a", "z"]),
+			calls: [since(100)],
+		});
 	});
 
-	it("skips the fetch shortly after a local change the server may not have pushed yet", async () => {
+	it("skips the poll shortly after a local change the server may not have pushed yet", async () => {
 		vi.spyOn(Date, "now").mockReturnValue(28_000);
-		const {store, refreshExpansion} = await loaded(["a"]);
+		const {store, pollExpansion} = await loaded(["a"]);
 		store.getState().expand("z");
 		fetchMock.mockClear();
-		await refreshExpansion(30_000);
+		await pollExpansion(30_000);
 		vi.restoreAllMocks();
 		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
 			expandedIds: new Set(["a", "z"]),
@@ -226,72 +241,19 @@ describe("refreshExpansion", () => {
 	});
 
 	it("does nothing once expansion persistence is disabled", async () => {
-		const {refreshExpansion} = await loadModules().then(async (m) => ({
-			...m,
-			...(await import("../src/client/hooks/use-expansion-sync.js")),
-		}));
+		const {loadExpansion} = await loadModules();
+		const {pollExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
 		fetchMock.mockImplementation(async () =>
 			Promise.resolve(Response.json({error: "not configured"}, {status: 503})),
 		);
-		await refreshExpansion(0);
+		await loadExpansion();
 		fetchMock.mockClear();
-		await refreshExpansion(60_000);
+		await pollExpansion();
 		expect(calls()).toStrictEqual([]);
 	});
-});
 
-describe("expansion refresh follow-ups", () => {
-	const GET = {url: "/api/v1/expansion", method: undefined, body: undefined};
-	const WAIT = {url: "/api/v1/expansion?wait=1", method: undefined, body: undefined};
-
-	it("collects a background refresh with one ?wait=1 follow-up when the page-load answer is refreshing", async () => {
-		const {store, loadExpansion} = await loadModules();
-		fetchMock
-			.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a"], refreshing: true})))
-			.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a", "b"]})));
-		await loadExpansion();
-		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
-			expandedIds: new Set(["a", "b"]),
-			calls: [GET, WAIT],
-		});
-	});
-
-	it("does not apply the follow-up when a local change landed between the two GETs", async () => {
-		const {store, loadExpansion} = await loadModules();
-		fetchMock
-			.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a"], refreshing: true})))
-			.mockImplementationOnce(async () => {
-				store.getState().expand("z");
-				return Promise.resolve(Response.json({expandedIds: ["a", "b"]}));
-			});
-		await loadExpansion();
-		const afterLoad = store.getState().expandedIds;
-		expect(afterLoad).toStrictEqual(new Set(["a", "z"]));
-	});
-
-	it("sends the last ETag on refresh GETs and treats a 304 as a no-op", async () => {
-		const {store, loadExpansion} = await loadModules();
-		const {refreshExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
-		fetchMock.mockImplementationOnce(async () =>
-			Promise.resolve(Response.json({expandedIds: ["a"]}, {headers: {etag: '"f1"'}})),
-		);
-		await loadExpansion(0);
-		fetchMock.mockClear();
-		fetchMock.mockImplementationOnce(async () => Promise.resolve(new Response(null, {status: 304})));
-		await refreshExpansion(30_000);
-		const [[, init]] = fetchMock.mock.calls;
-		expect({
-			expandedIds: store.getState().expandedIds,
-			ifNoneMatch: new Headers(init?.headers).get("if-none-match"),
-			count: fetchMock.mock.calls.length,
-		}).toStrictEqual({expandedIds: new Set(["a"]), ifNoneMatch: '"f1"', count: 1});
-	});
-
-	it("aborts a GET that has not answered in 30s and keeps the expanded set", async () => {
-		const {store, loadExpansion} = await loadModules();
-		const {refreshExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
-		fetchMock.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a"]})));
-		await loadExpansion(0);
+	it("aborts a poll that has not answered in 30s and keeps the expanded set", async () => {
+		const {store, pollExpansion} = await loaded(["a"]);
 		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
 		vi.useFakeTimers();
 		fetchMock.mockImplementationOnce(
@@ -303,14 +265,14 @@ describe("expansion refresh follow-ups", () => {
 				}),
 		);
 		let settled = false;
-		const refreshing = refreshExpansion(30_000).then(() => {
+		const polling = pollExpansion(60_000).then(() => {
 			settled = true;
 			return settled;
 		});
 		await vi.advanceTimersByTimeAsync(29_999);
 		const early = settled;
 		await vi.advanceTimersByTimeAsync(1);
-		await refreshing;
+		await polling;
 		vi.useRealTimers();
 		const logged = errors.mock.calls.length;
 		errors.mockRestore();
@@ -320,42 +282,5 @@ describe("expansion refresh follow-ups", () => {
 			expandedIds: new Set(["a"]),
 			logged: 1,
 		});
-	});
-});
-
-describe("expansion polling", () => {
-	async function polling(hasFocus: boolean) {
-		const modules = await loadModules();
-		const {startExpansionPolling, EXPANSION_POLL_MS} = await import("../src/client/hooks/use-expansion-sync.js");
-		vi.stubGlobal("document", {visibilityState: "visible", hasFocus: () => hasFocus});
-		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ["a"]})));
-		await modules.loadExpansion(0);
-		fetchMock.mockClear();
-		return {startExpansionPolling, EXPANSION_POLL_MS};
-	}
-
-	it("refreshes with ?fresh=1 every 120s while the tab is visible and focused", async () => {
-		const {startExpansionPolling, EXPANSION_POLL_MS} = await polling(true);
-		vi.useFakeTimers();
-		vi.setSystemTime(1_000_000);
-		const stop = startExpansionPolling();
-		await vi.advanceTimersByTimeAsync(EXPANSION_POLL_MS);
-		stop();
-		vi.useRealTimers();
-		expect({period: EXPANSION_POLL_MS, calls: calls().map((c) => c.url)}).toStrictEqual({
-			period: 120_000,
-			calls: ["/api/v1/expansion?fresh=1"],
-		});
-	});
-
-	it("does not refresh while the tab lacks focus", async () => {
-		const {startExpansionPolling, EXPANSION_POLL_MS} = await polling(false);
-		vi.useFakeTimers();
-		vi.setSystemTime(1_000_000);
-		const stop = startExpansionPolling();
-		await vi.advanceTimersByTimeAsync(EXPANSION_POLL_MS * 2);
-		stop();
-		vi.useRealTimers();
-		expect(calls()).toStrictEqual([]);
 	});
 });

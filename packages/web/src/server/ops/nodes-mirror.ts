@@ -66,7 +66,7 @@ export const nodesMirror = defineOp({
 		});
 		const mirrorIds = mirrors.map((mirror) => mirror.mirrorId);
 		// A new mirror opens like its source row (upstream `mirrorProjectTree`: `expanded: source.isExpanded`).
-		const isExpanded = await adapter.expansionTest();
+		const isExpanded = adapter.expansionTest();
 		const opened = Object.fromEntries(
 			mirrorIds.flatMap((mirrorId, offset) =>
 				isExpanded(sourceRows[offset] ?? "") ? [[mirrorId, true] as const] : [],

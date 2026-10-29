@@ -7,17 +7,19 @@ async function body(request: Request): Promise<unknown> {
 }
 
 /**
- * `GET /` -> expansion state with an ETag (`If-None-Match` answers 304); `PATCH /` `{changes}` -> 204;
+ * `GET /?since=<mark>` -> `{latest, expandedIds}` (null ids when nothing changed after the mark); `PATCH /` `{changes}` -> 204;
  * `GET /left-bar` -> `{keys}`; `PATCH /left-bar` `{changes}` -> 204.
  */
 export function expansionRoutes(resolveStore: ResolveStore): Hono {
 	const routes = new Hono();
 	routes.get("/", async (c) =>
-		callOp(resolveStore, c.req.raw, "expansion.get", {
-			fresh: c.req.query("fresh") === "1",
-			wait: c.req.query("wait") === "1",
-			ifNoneMatch: c.req.header("if-none-match"),
-		}),
+		callOp(
+			resolveStore,
+			c.req.raw,
+			"expansion.get",
+			{since: c.req.query("since")},
+			{error: "since must be a mark from an earlier answer's latest"},
+		),
 	);
 	routes.patch("/", async (c) =>
 		callOp(resolveStore, c.req.raw, "expansion.patch", await body(c.req.raw), {

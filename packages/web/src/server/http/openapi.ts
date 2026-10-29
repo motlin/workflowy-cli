@@ -23,8 +23,6 @@ interface Binding {
 	responses?: Record<string, Schema>;
 }
 
-const FLAG = {type: "string", enum: ["1"]};
-
 /** The body of every error response: `fail()` and `callOp`'s validation miss both send `{error}`. */
 const ERROR_SCHEMA = {
 	type: "object",
@@ -67,17 +65,7 @@ const BINDINGS: Record<string, Binding> = {
 	"GET /api/v1/tags": {op: "tags.list"},
 	"PUT /api/v1/tags/:name": {op: "tags.set"},
 	"DELETE /api/v1/tags/:name": {op: "tags.clear"},
-	"GET /api/v1/expansion": {
-		op: "expansion.get",
-		query: {fresh: FLAG, wait: FLAG},
-		headers: {"If-None-Match": "ifNoneMatch"},
-		responses: {
-			"304": {
-				description: "Not modified: the If-None-Match ETag still matches",
-				headers: {ETag: {schema: {type: "string"}}},
-			},
-		},
-	},
+	"GET /api/v1/expansion": {op: "expansion.get"},
 	"PATCH /api/v1/expansion": {op: "expansion.patch"},
 	"GET /api/v1/expansion/left-bar": {op: "expansion.leftBarGet"},
 	"PATCH /api/v1/expansion/left-bar": {op: "expansion.leftBarPatch"},

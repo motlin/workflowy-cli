@@ -150,6 +150,15 @@ export const NodeChangesResponseSchema = z.strictObject({
 });
 
 /**
+ * `GET /api/v1/expansion?since=<mark>`'s answer: the expansion store's high-water mark, and the account's expanded ids
+ * when they changed after `since` (always without one), else null.
+ */
+export const ExpansionChangesResponseSchema = z.strictObject({
+	latest: z.number(),
+	expandedIds: z.array(z.string()).nullable(),
+});
+
+/**
  * What a text save changed beyond the node's own copies: the nodes whose Backlinks gained or lost it as a
  * source, and whether its `<time>`s changed (which moves it between day pages' Found Dates).
  */
