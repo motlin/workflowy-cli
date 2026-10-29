@@ -137,7 +137,8 @@ async function answer(url: string, init: RequestInit | undefined): Promise<Respo
 		serverNodes.delete(id);
 		addServerNode(id, parentId, node.completedAt, index);
 		recordWrite(id, [oldParentId, parentId]);
-		return Response.json({node: serverRow(id), oldParentId});
+		const siblingIds = [...new Set([oldParentId, parentId])].flatMap((parent) => serverChildren.get(parent) ?? []);
+		return Response.json({nodes: siblingIds.map((sibling) => serverRow(sibling))});
 	}
 	return new Response(null, {status: 404});
 }

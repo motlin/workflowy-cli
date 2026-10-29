@@ -171,7 +171,7 @@ describe("mutation hooks record undo ops", () => {
 
 	it("records a move with its from-slot", async () => {
 		const queryClient = seeded();
-		responses.push(Response.json({node: node({id: "a"}), oldParentId: "p"}));
+		responses.push(Response.json({nodes: [node({id: "a"})]}));
 		captureHooks(queryClient).move.mutate({nodeId: "a", parent_id: "p", index: 3});
 		await settled(queryClient);
 		expect(undoHistory.popUndo()?.ops).toStrictEqual([

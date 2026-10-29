@@ -16,6 +16,7 @@ import type {
 	NodeChangesResponse,
 	FoundDatesResponse,
 	HomeResponse,
+	NodeListResponse,
 	NodeResponse,
 	OutlineViewResponse,
 	SubtreeItem,
@@ -253,12 +254,7 @@ interface MoveNodeRequest {
 	position?: number;
 }
 
-interface MoveNodeResponse {
-	node: NodeResponse;
-	oldParentId: string | null;
-}
-
-async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveNodeResponse> {
+async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<NodeListResponse> {
 	await pendingCreates.settled([nodeId, request.parent_id]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/move`, {
 		method: "POST",
@@ -268,7 +264,7 @@ async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveN
 	if (!response.ok) {
 		throw await toRequestStatusError("Failed to move node", response);
 	}
-	return readJson<MoveNodeResponse>(response);
+	return readJson<NodeListResponse>(response);
 }
 
 interface RestoreNodeRequest {
@@ -922,7 +918,7 @@ export function useDeleteNode() {
 	return {...mutation, mutate};
 }
 
-const moveUndos = new HeldUndos<MoveNodeResponse, MoveNodeRequest & {nodeId: string}>();
+const moveUndos = new HeldUndos<NodeListResponse, MoveNodeRequest & {nodeId: string}>();
 
 function planMove(request: MoveNodeRequest & {nodeId: string}, queryClient: QueryClient): UndoPlan<unknown> {
 	return cachedOps(queryClient, {
@@ -963,13 +959,17 @@ export function useMoveNode() {
 			restoreSnapshots(queryClient, snapshots);
 			addErrorNotification(`Failed to move node: ${error.message}`);
 		},
-		async onSettled(data, error, variables) {
+		async onSettled(_data, error, variables, snapshots) {
 			pendingMoves.end(variables);
-			if (error === null && data !== undefined) {
+			if (error === null) {
+				// The pre-move cache knows the old parent; the move endpoint answers only the sibling lists.
+				const parentIds = (snapshots ?? []).flatMap((snapshot) =>
+					snapshot.kind === "children" ? [snapshot.parentId] : [],
+				);
 				verifyAgainstServer(
 					queryClient,
 					"move",
-					affectedKeys(queryClient, [variables.nodeId], [data.oldParentId, variables.parent_id]),
+					affectedKeys(queryClient, [variables.nodeId], [...parentIds, variables.parent_id]),
 				);
 			}
 			await (error === null

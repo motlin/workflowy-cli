@@ -82,7 +82,9 @@ function answer(url: string, init: RequestInit | undefined): Response {
 		siblings.forEach((sibling, index) => {
 			server.set(sibling.id, {...sibling, parent_id: body.parent_id, priority: index});
 		});
-		return Response.json({node: server.get(node.id), oldParentId});
+		return Response.json({
+			nodes: [...new Set([oldParentId, body.parent_id])].flatMap((parent) => childrenOf(parent)),
+		});
 	}
 	const id = /\/api\/v1\/nodes\/([^/?]+)$/u.exec(url)?.[1];
 	const node = id === undefined ? undefined : server.get(id);

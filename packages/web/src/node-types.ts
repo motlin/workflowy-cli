@@ -17,6 +17,7 @@ import type {
 	MirrorsResponseSchema,
 	NodeAttachmentSchema,
 	NodeChangesResponseSchema,
+	NodeListSchema,
 	NodeResponseSchema,
 	OutlineViewListSchema,
 	OutlineViewResponseSchema,
@@ -28,6 +29,7 @@ import type {
 
 export type NodeAttachment = z.output<typeof NodeAttachmentSchema>;
 export type NodeResponse = z.output<typeof NodeResponseSchema>;
+export type NodeListResponse = z.output<typeof NodeListSchema>;
 export type TableMetadata = z.output<typeof TableMetadataSchema>;
 export type CalendarInfo = z.output<typeof CalendarInfoSchema>;
 export type BacklinkCrumb = z.output<typeof BacklinkCrumbSchema>;
