@@ -37,5 +37,5 @@ const MENTION_CHIP_PATTERN = new RegExp(`<span class="${MENTION_CHIP_CLASS}">([^
 
 /** Unwraps any mention chip span to its plain text so a live chip is never persisted. */
 export function stripMentionChip(html: string): string {
-	return html.replace(MENTION_CHIP_PATTERN, "$1");
+	return html.replaceAll(MENTION_CHIP_PATTERN, "$1");
 }

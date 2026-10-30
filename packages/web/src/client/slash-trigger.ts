@@ -57,7 +57,7 @@ const SLASH_CHIP_PATTERN = new RegExp(`<span class="${SLASH_CHIP_CLASS}">([^<]*)
 
 /** Unwraps any slash chip span to its plain text so a live chip is never persisted. */
 export function stripSlashChip(html: string): string {
-	return html.replace(SLASH_CHIP_PATTERN, "$1");
+	return html.replaceAll(SLASH_CHIP_PATTERN, "$1");
 }
 
 const SLASH_HINT = 'Type "/" for commands';
