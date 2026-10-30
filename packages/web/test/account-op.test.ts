@@ -8,7 +8,7 @@ import type {ServerContext} from "../src/server/context.js";
 function contextWith(adapter: Partial<WorkflowyInternalAdapter> | undefined): ServerContext {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a partial context is all the op reads
 	return {
-		internalAdapter: () => adapter as WorkflowyInternalAdapter | undefined,
+		internalAdapter: () => adapter,
 		config: {accountEmail: "user@example.com"},
 	} as unknown as ServerContext;
 }
