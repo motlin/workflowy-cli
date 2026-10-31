@@ -148,7 +148,7 @@ export function teaserPosition(tag: {top: number; right: number; height: number}
  */
 export function toggleTagInQuery(query: string, tag: string): string {
 	const pattern = new RegExp(`(^|\\s)${escapeRegExp(tag)}(?=$|\\s)`, "giu");
-	const next = pattern.test(query) ? query.replace(pattern, "") : `${query.trimEnd()} ${tag}`;
+	const next = pattern.test(query) ? query.replaceAll(pattern, "") : `${query.trimEnd()} ${tag}`;
 	const trimmed = next.trim();
 	return trimmed === "" ? "" : `${trimmed} `;
 }

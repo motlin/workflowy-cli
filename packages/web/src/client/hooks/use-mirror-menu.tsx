@@ -47,7 +47,7 @@ function rangeHtml(range: Range): string {
 /** Unwraps a live `((` chip to its plain text so it is never persisted. */
 const MIRROR_CHIP_PATTERN = new RegExp(`<span class="${MIRROR_CHIP_CLASS}">([^<]*)</span>`, "gu");
 export function stripMirrorChip(html: string): string {
-	return html.replace(MIRROR_CHIP_PATTERN, "$1");
+	return html.replaceAll(MIRROR_CHIP_PATTERN, "$1");
 }
 
 /**

@@ -25,7 +25,7 @@ async function collect(stream: ReadableStream<Uint8Array>, size: number, skip = 
 }
 
 const nodes = [
-	{id: "a", name: 'quote " and } brace { and \\ slash', priority: 1},
+	{id: "a", name: String.raw`quote " and } brace { and \ slash`, priority: 1},
 	{id: "b", name: "emoji \u{1F600} and [bracket]", data: {layoutMode: "bullets"}, priority: 2},
 	{id: "c", name: "plain", priority: 3},
 ];
